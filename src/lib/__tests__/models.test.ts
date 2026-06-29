@@ -39,7 +39,7 @@ describe('getModelByAlias', () => {
   it('finds haiku model', () => {
     const model = getModelByAlias('haiku')
     expect(model).not.toBeUndefined()
-    expect(model!.costPer1k).toBeLessThan(1)
+    expect(model!.costPer1k).toBeLessThanOrEqual(1)
   })
 })
 

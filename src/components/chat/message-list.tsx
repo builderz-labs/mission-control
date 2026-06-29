@@ -6,6 +6,49 @@ import { apiFetch } from '@/lib/api-client'
 import { MessageBubble } from './message-bubble'
 import { Button } from '@/components/ui/button'
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function getMessageStatus(message: ChatMessage): string | null {
+  if (message.message_type !== 'status') return null
+  const meta = asRecord(message.metadata)
+  const status = typeof meta.status === 'string' ? meta.status.trim().toLowerCase() : ''
+  return status || null
+}
+
+function getVisibleConversationMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.filter((message, index, all) => {
+    const status = getMessageStatus(message)
+    if (!status) return true
+
+    const isTransientFailure = status === 'offline' || status === 'delivery_failed'
+    const isTransientProgress = status === 'accepted' || status === 'processing'
+    if (!isTransientFailure && !isTransientProgress) return true
+
+    for (let i = index + 1; i < all.length; i += 1) {
+      const later = all[i]
+      if (later.from_agent !== message.from_agent) continue
+      if (message.to_agent && later.to_agent !== message.to_agent) continue
+
+      const laterStatus = getMessageStatus(later)
+      if (isTransientFailure) {
+        if (later.message_type === 'text' || later.message_type === 'tool_call') return false
+        if (laterStatus && laterStatus !== 'offline' && laterStatus !== 'delivery_failed') return false
+      }
+
+      if (isTransientProgress) {
+        if (later.message_type === 'text' || later.message_type === 'tool_call') return false
+        if (laterStatus && laterStatus !== 'accepted' && laterStatus !== 'processing') return false
+      }
+    }
+
+    return true
+  })
+}
+
 function formatDateGroup(timestamp: number): string {
   const date = new Date(timestamp * 1000)
   const today = new Date()
@@ -141,9 +184,9 @@ export function MessageList() {
     )
   }
 
-  const conversationMessages = chatMessages.filter(
+  const conversationMessages = getVisibleConversationMessages(chatMessages.filter(
     m => m.conversation_id === activeConversation
-  )
+  ))
 
   if (conversationMessages.length === 0) {
     return (

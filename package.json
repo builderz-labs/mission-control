@@ -69,11 +69,11 @@
     "@types/react-dom": "^19.0.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3",
     "jsdom": "^26.0.0",
     "pino-pretty": "^13.1.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^2.1.5"
+    "vitest": "^3"
   },
   "engines": {
     "node": ">=22"
@@ -103,6 +103,12 @@
       "unrs-resolver"
     ],
     "minimumReleaseAge": 10080,
-    "minimumReleaseAgeExclude": []
+    "minimumReleaseAgeExclude": [],
+    "overrides": {
+      "shell-quote": "^1.8.4",
+      "rollup": "^4.59.0",
+      "minimatch@<3.1.4": "3.1.4",
+      "minimatch@>=9.0.0 <9.0.7": "9.0.7"
+    }
   }
 }
