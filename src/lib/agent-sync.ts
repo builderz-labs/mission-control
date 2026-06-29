@@ -457,9 +457,12 @@ function normalizeModelConfig(model: unknown): unknown {
 
 function normalizeAgentConfigForOpenClaw(agentConfig: any): any {
   if (!agentConfig || typeof agentConfig !== 'object') return agentConfig
-  if (!('model' in agentConfig)) return agentConfig
+  const normalized = { ...agentConfig }
+  delete normalized.fallbacks
+
+  if (!('model' in normalized)) return normalized
   return {
-    ...agentConfig,
-    model: normalizeModelConfig(agentConfig.model),
+    ...normalized,
+    model: normalizeModelConfig(normalized.model),
   }
 }
