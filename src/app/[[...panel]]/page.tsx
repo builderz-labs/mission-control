@@ -28,6 +28,7 @@ import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
 import { GatewayControlPanel } from '@/components/panels/gateway-control-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { OfficePanel } from '@/components/panels/office-panel'
+import { PlaybooksPanel } from '@/components/panels/playbooks-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { SkillsPanel } from '@/components/panels/skills-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
@@ -107,7 +108,8 @@ export default function Home() {
 
   // Sync URL → Zustand activeTab
   const pathname = usePathname()
-  const panelFromUrl = pathname === '/' ? 'overview' : pathname.slice(1)
+  // Home ('/') lands on the Office floor-plan. Overview remains reachable at /overview.
+  const panelFromUrl = pathname === '/' ? 'office' : pathname.slice(1)
   const normalizedPanel = panelFromUrl === 'sessions' ? 'chat' : panelFromUrl
 
   useEffect(() => {
@@ -624,6 +626,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <GitHubSyncPanel />
     case 'office':
       return <OfficePanel />
+    case 'playbooks':
+      return <PlaybooksPanel />
     case 'monitor':
       return <SystemMonitorPanel />
     case 'skills':

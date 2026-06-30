@@ -24,7 +24,7 @@ describe('onboarding-state', () => {
   it('computes current step index from completed steps', () => {
     expect(nextIncompleteStepIndex(BASE_STEPS, [])).toBe(0)
     expect(nextIncompleteStepIndex(BASE_STEPS, ['welcome'])).toBe(1)
-    expect(nextIncompleteStepIndex(BASE_STEPS, ['welcome', 'interface-mode', 'credentials'])).toBe(2)
+    expect(nextIncompleteStepIndex(BASE_STEPS, ['welcome', 'credentials'])).toBe(1)
   })
 
   it('marks steps complete only when valid and unique', () => {

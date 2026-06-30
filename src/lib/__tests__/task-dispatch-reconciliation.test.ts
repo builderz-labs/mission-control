@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockDbState = vi.hoisted(() => ({
   tasks: [] as Array<{
@@ -376,6 +376,12 @@ describe('deferred task completion reconciliation', () => {
 
 describe('existing-session deferred dispatch', () => {
   beforeEach(() => {
+    // Opt past the MC_AUTODISPATCH_MODE=off gate (default since #342) so the
+    // scheduler actually reaches the dispatch paths these tests exercise. With a
+    // healthy gateway available, 'direct' falls through to the normal gateway
+    // dispatch (targeted chat.send / new-session invoke) without diverting to
+    // the Atlas control plane the way 'atlas' would for non-targeted tasks.
+    vi.stubEnv('MC_AUTODISPATCH_MODE', 'direct')
     mockDbState.tasks = []
     mockDbState.updates = []
     mockDbState.comments = []
@@ -390,6 +396,10 @@ describe('existing-session deferred dispatch', () => {
     mockDbState.logActivity.mockClear()
     mockDbState.broadcast.mockClear()
     mockDbState.warn.mockClear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('marks accepted chat.send without a runId as explicit manual reconciliation', async () => {

@@ -29,6 +29,7 @@ import { EplTeamPanel } from '@/components/panels/epl-team-panel'
 import { EplAccessMapPanel } from '@/components/panels/epl-access-map-panel'
 import { EplFleetHealthPanel } from '@/components/panels/fleet-health-card'
 import { EplFleetSchedulePanel } from '@/components/panels/fleet-schedule-card'
+import { EplTimelinePanel } from '@/components/panels/epl-timeline-panel'
 
 let _initialised = false
 
@@ -47,6 +48,7 @@ export function initEplPanelsPlugin(): void {
     { id: 'decisions',     label: 'Decisions',      groupId: 'core', icon: '🎯' },
     { id: 'team',          label: 'Team',           groupId: 'core', icon: '👥' },
     { id: 'agents-fleet',  label: 'Agents (fleet)', groupId: 'core', icon: '🤖' },
+    { id: 'timeline',      label: 'Timeline',       groupId: 'core', icon: '🛤' },
     { id: 'access',        label: 'Setups',         groupId: 'core', icon: '🔑' },
   ])
 
@@ -60,6 +62,7 @@ export function initEplPanelsPlugin(): void {
   registerPanel('decisions',     EplDecisionsPanel)
   registerPanel('team',          EplTeamPanel)
   registerPanel('agents-fleet',  EplAgentsPanel)
+  registerPanel('timeline',      EplTimelinePanel)
   registerPanel('access',        EplAccessMapPanel)
 }
 

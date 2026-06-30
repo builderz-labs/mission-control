@@ -1809,6 +1809,115 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_exp_status ON atlas_experiments(status, workspace_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_atlas_exp_week ON atlas_experiments(week_of, workspace_id)`)
     }
+  },
+  {
+    id: '057_action_outcomes',
+    up(db: Database.Database) {
+      // Action-level outcome attribution — the prerequisite for graduated agent
+      // autonomy. Mirrors the incident learning loop (capture → measure → roll up)
+      // but for INDIVIDUAL agent actions: an agent takes an action with a stated
+      // hypothesis (metric + direction + baseline + horizon); a delayed measure
+      // pass scores whether the metric actually moved; results roll up into a
+      // per-(agent, action_type) track record — the trust ledger autonomy builds on.
+
+      // ---- 1. The action log + its hypothesis ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_actions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          action_key TEXT NOT NULL,        -- idempotency/dedup key (caller-supplied or derived)
+          agent TEXT NOT NULL,             -- who took the action
+          action_type TEXT NOT NULL,       -- normalised slug, e.g. 'price_drop' | 'extension_offer'
+          target_type TEXT,                -- 'property' | 'booking' | 'landlord' | 'guest' | ...
+          target_id TEXT,                  -- canonical id of the thing acted on
+          title TEXT,
+          description TEXT,
+
+          metric TEXT NOT NULL,            -- what we will measure, e.g. 'occupancy_14d' | 'booking_extended'
+          metric_direction TEXT NOT NULL DEFAULT 'higher_is_better', -- 'higher_is_better' | 'lower_is_better'
+          baseline REAL,                   -- metric value AT action time (snapshot)
+          min_delta REAL NOT NULL DEFAULT 0, -- min movement toward goal to count as success (booleans use 0.5)
+          horizon_days INTEGER NOT NULL DEFAULT 14, -- how long until the effect is judged
+
+          reversible INTEGER NOT NULL DEFAULT 1, -- can this be undone? (guardrail / trust input)
+          blast_radius TEXT,               -- JSON: {gbp, external_comms, records} guardrail metadata
+
+          source TEXT NOT NULL DEFAULT 'agent', -- 'agent' | 'dispatch' | 'human'
+          source_task_id INTEGER,          -- link to an MC task if dispatched
+          requested_by TEXT,
+
+          status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'measured' | 'abandoned'
+          reported_result REAL,            -- externally-reported realised value (fast path)
+
+          taken_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          measure_after INTEGER NOT NULL,  -- taken_at + horizon_days*86400
+          measured_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(action_key, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_actions_due ON agent_actions(status, measure_after, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_actions_agent ON agent_actions(agent, action_type, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agent_actions_target ON agent_actions(target_type, target_id, workspace_id)`)
+
+      // ---- 2. The realised outcome (1:1 with a measured action) ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS action_outcomes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          action_id INTEGER NOT NULL REFERENCES agent_actions(id) ON DELETE CASCADE,
+          agent TEXT NOT NULL,
+          action_type TEXT NOT NULL,
+          target_type TEXT,
+          target_id TEXT,
+
+          metric TEXT NOT NULL,
+          metric_direction TEXT NOT NULL,
+          baseline REAL,
+          result REAL,                     -- realised metric value at horizon
+          improvement REAL,                -- signed: +ve = toward the goal
+          verdict TEXT NOT NULL,           -- 'success' | 'no_change' | 'regression' | 'inconclusive'
+          resolved_by TEXT,                -- 'reported' | 'resolver:<metric>' | 'timeout'
+
+          notes TEXT,
+          measured_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(action_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_action_outcomes_agent ON action_outcomes(agent, action_type, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_action_outcomes_verdict ON action_outcomes(verdict, workspace_id)`)
+
+      // ---- 3. The trust ledger: rolled-up track record per scope ----
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS agent_action_stats (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          scope_type TEXT NOT NULL,        -- 'agent_action' | 'agent' | 'action_type'
+          scope_key TEXT NOT NULL,         -- 'victoria::extension_offer' | 'victoria' | 'extension_offer'
+          agent TEXT,                      -- NULL for action_type scope
+          action_type TEXT,                -- NULL for agent scope
+
+          attempts INTEGER NOT NULL DEFAULT 0,
+          successes INTEGER NOT NULL DEFAULT 0,
+          no_change INTEGER NOT NULL DEFAULT 0,
+          regressions INTEGER NOT NULL DEFAULT 0,
+          inconclusive INTEGER NOT NULL DEFAULT 0,
+          success_rate REAL NOT NULL DEFAULT 0,   -- successes / decisive (excludes inconclusive)
+          avg_improvement REAL,
+          reversible_rate REAL,            -- share of attempts that were reversible
+          confidence REAL NOT NULL DEFAULT 0,
+
+          computed_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+
+          UNIQUE(scope_key, workspace_id)
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_action_stats_scope ON agent_action_stats(scope_type, workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_action_stats_agent ON agent_action_stats(agent, action_type, workspace_id)`)
+    }
   }
 ]
 

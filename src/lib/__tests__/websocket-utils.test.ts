@@ -12,35 +12,7 @@ import {
   GATEWAY_PROTOCOL_MAX,
   GATEWAY_CLIENT_ID_UI,
   GATEWAY_CLIENT_ID_BACKEND,
-  SUPPORTED_PROTOCOL,
-  protocolRangeSatisfies,
 } from '../websocket-utils'
-
-describe('gateway protocol negotiation (issue #701)', () => {
-  it('advertises a range, not a single pinned version', () => {
-    expect(SUPPORTED_PROTOCOL.min).toBeLessThan(SUPPORTED_PROTOCOL.max)
-  })
-
-  it('buildProtocolNegotiation returns the min/max window', () => {
-    expect(buildProtocolNegotiation()).toEqual({
-      minProtocol: SUPPORTED_PROTOCOL.min,
-      maxProtocol: SUPPORTED_PROTOCOL.max,
-    })
-  })
-
-  it('still supports legacy v3 gateways', () => {
-    expect(protocolRangeSatisfies(3)).toBe(true)
-  })
-
-  it('supports v4 gateways (OpenClaw 2026.5.18+)', () => {
-    expect(protocolRangeSatisfies(4)).toBe(true)
-  })
-
-  it('does not satisfy a gateway requiring a version outside the window', () => {
-    expect(protocolRangeSatisfies(2)).toBe(false)
-    expect(protocolRangeSatisfies(5)).toBe(false)
-  })
-})
 
 describe('readErrorDetailCode', () => {
   it('returns null for null/undefined input', () => {

@@ -14,6 +14,7 @@ import { dispatchAssignedTasks, runAegisReviews, requeueStaleTasks, autoRouteInb
 import { spawnRecurringTasks } from './recurring-tasks'
 import { runDailyBriefings, runWeeklyLandlordReports } from './briefing-scheduler'
 import { runWeeklyAtlasReflection } from './atlas-reflection'
+import { runActionOutcomeMeasurement } from './action-outcomes'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -443,6 +444,15 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('action_outcome_measure', {
+    name: 'Action Outcome Measurement',
+    intervalMs: DAILY_MS, // Daily at 06:00 UTC — score due agent actions + rebuild the trust ledger (before briefings)
+    lastRun: null,
+    nextRun: now + getNextDailyMs(6),
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
   logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook/claude/skill/local-agent/gateway-agent sync every 60s')
@@ -494,8 +504,9 @@ async function tick() {
       : id === 'daily_briefings' ? 'general.daily_briefings'
       : id === 'weekly_landlord_reports' ? 'general.weekly_landlord_reports'
       : id === 'weekly_atlas_reflection' ? 'general.weekly_atlas_reflection'
+      : id === 'action_outcome_measure' ? 'general.action_outcome_measure'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'daily_briefings' || id === 'weekly_landlord_reports' || id === 'weekly_atlas_reflection'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'daily_briefings' || id === 'weekly_landlord_reports' || id === 'weekly_atlas_reflection' || id === 'action_outcome_measure'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -522,6 +533,7 @@ async function tick() {
         : id === 'daily_briefings' ? await runDailyBriefings()
         : id === 'weekly_landlord_reports' ? await runWeeklyLandlordReports()
         : id === 'weekly_atlas_reflection' ? await runWeeklyAtlasReflection()
+        : id === 'action_outcome_measure' ? await runActionOutcomeMeasurement()
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -561,8 +573,9 @@ export function getSchedulerStatus() {
       : id === 'daily_briefings' ? 'general.daily_briefings'
       : id === 'weekly_landlord_reports' ? 'general.weekly_landlord_reports'
       : id === 'weekly_atlas_reflection' ? 'general.weekly_atlas_reflection'
+      : id === 'action_outcome_measure' ? 'general.action_outcome_measure'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'daily_briefings' || id === 'weekly_landlord_reports' || id === 'weekly_atlas_reflection'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'daily_briefings' || id === 'weekly_landlord_reports' || id === 'weekly_atlas_reflection' || id === 'action_outcome_measure'
     result.push({
       id,
       name: task.name,
@@ -594,6 +607,7 @@ export async function triggerTask(taskId: string): Promise<{ ok: boolean; messag
   if (taskId === 'daily_briefings') return runDailyBriefings()
   if (taskId === 'weekly_landlord_reports') return runWeeklyLandlordReports()
   if (taskId === 'weekly_atlas_reflection') return runWeeklyAtlasReflection()
+  if (taskId === 'action_outcome_measure') return runActionOutcomeMeasurement()
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 

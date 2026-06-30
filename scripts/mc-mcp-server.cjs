@@ -398,6 +398,56 @@ const TOOLS = [
     handler: async ({ id, message }) => api('POST', `/api/tasks/${id}/broadcast`, { message }),
   },
 
+  // --- Action Outcomes (closing the loop on what an agent did) ---
+  {
+    name: 'mc_record_action',
+    description:
+      'Log an action you just took, with the hypothesis for measuring it later. State the metric you expect to move, the direction, its current (baseline) value, and the horizon in days. A delayed pass scores whether it worked, building your track record. Idempotent on action_key.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent: { type: 'string', description: 'Agent that took the action' },
+        action_type: { type: 'string', description: "What kind of action, e.g. 'price_drop', 'extension_offer', 'landlord_checkin'" },
+        metric: { type: 'string', description: "Metric to measure, e.g. 'occupancy_14d', 'booking_extended', 'adr', 'arrears_gbp'" },
+        baseline: { type: 'number', description: 'Metric value right now, at action time (for booleans like booking_extended use 0)' },
+        target_type: { type: 'string', description: "What was acted on, e.g. 'property', 'booking', 'landlord', 'guest'" },
+        target_id: { type: 'string', description: 'Canonical id of the target (e.g. property id)' },
+        metric_direction: { type: 'string', description: "'higher_is_better' or 'lower_is_better' (defaults from known metrics)" },
+        min_delta: { type: 'number', description: 'Minimum movement toward the goal to count as success (booleans default 0.5)' },
+        horizon_days: { type: 'number', description: 'Days until the effect should be judged (default 14)' },
+        reversible: { type: 'boolean', description: 'Can this action be undone? (guardrail/trust signal, default true)' },
+        title: { type: 'string', description: 'Short human-readable label' },
+        description: { type: 'string', description: 'What was done and why' },
+        action_key: { type: 'string', description: 'Stable dedup key; auto-derived if omitted' },
+        source_task_id: { type: ['string', 'number'], description: 'MC task this action came from, if any' },
+      },
+      required: ['agent', 'action_type', 'metric'],
+    },
+    handler: async (args) => api('POST', '/api/actions', args),
+  },
+  {
+    name: 'mc_report_action_outcome',
+    description:
+      "Report the realised value of a previously-recorded action's metric. Scores the action immediately (success / no_change / regression) regardless of horizon. Use when you can observe the result directly (e.g. the booking did extend, occupancy is now 88%).",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: ['string', 'number'], description: 'Action id returned by mc_record_action' },
+        result: { type: ['number', 'null'], description: 'Realised metric value (for booleans use 1=happened, 0=did not)' },
+        notes: { type: 'string', description: 'Optional context on the outcome' },
+      },
+      required: ['id', 'result'],
+    },
+    handler: async ({ id, ...fields }) => api('POST', `/api/actions/${id}/outcome`, fields),
+  },
+  {
+    name: 'mc_action_ledger',
+    description:
+      'The trust ledger: track record of agent actions by (agent, action_type) — attempts, success rate, avg improvement, reversibility, confidence — plus recent outcomes and a summary. The evidence base for which actions are safe to repeat unsupervised.',
+    inputSchema: { type: 'object', properties: {} },
+    handler: async () => api('GET', '/api/actions?view=ledger'),
+  },
+
   // --- Task Comments ---
   {
     name: 'mc_list_comments',

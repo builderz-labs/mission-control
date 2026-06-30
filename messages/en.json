@@ -43,7 +43,7 @@
     "loginFailed": "Login failed",
     "enterUsername": "Enter username",
     "enterPassword": "Enter password",
-    "orchestrationTagline": "OpenClaw Agent Orchestration",
+    "orchestrationTagline": "Claude Code Agent Orchestration",
     "accessRequestSubmitted": "Access Request Submitted",
     "accessRequestDescription": "Your request has been sent to an administrator for review. You'll be able to sign in once approved.",
     "tryAgain": "Try again",
