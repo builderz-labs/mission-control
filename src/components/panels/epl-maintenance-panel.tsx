@@ -13,11 +13,13 @@ interface Ticket {
   id: string
   property: string
   summary: string
+  category?: string
   severity: 'P0' | 'P1' | 'P2' | 'P3'
   status: string
   assignee: string
   age_hours: number
   ts: string
+  blocked_reason?: string | null
 }
 
 interface Summary {
@@ -62,6 +64,8 @@ export function EplMaintenancePanel() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [drawer, setDrawer] = useState<any>(null)
+  const [view, setView] = useState<'board' | 'property'>('board')
+  const [sevFilter, setSevFilter] = useState<'all' | 'urgent' | 'P0' | 'P1' | 'P2' | 'P3'>('all')
 
   const load = useCallback(async () => {
     const [t, s] = await Promise.all([
@@ -85,8 +89,45 @@ export function EplMaintenancePanel() {
 
   if (!tickets || !summary) return <div className="p-8 text-sm text-slate-500">Loading maintenance…</div>
 
+  const matchesSev = (t: Ticket) =>
+    sevFilter === 'all' ? true
+    : sevFilter === 'urgent' ? (t.severity === 'P0' || t.severity === 'P1')
+    : t.severity === sevFilter
+  const filtered = tickets.filter(matchesSev)
+
   const cols: Record<string, Ticket[]> = { inbox: [], in_progress: [], awaiting_parts: [], resolved_this_week: [], cancelled: [] }
-  tickets.forEach(t => cols[statusBucket(t.status)].push(t))
+  filtered.forEach(t => cols[statusBucket(t.status)].push(t))
+
+  // group active (non-terminal) tickets by property, most urgent first
+  const activeByProp = new Map<string, Ticket[]>()
+  filtered
+    .filter(t => !['resolved', 'verified', 'closed', 'cancelled'].includes(t.status))
+    .forEach(t => { const k = t.property || '—'; if (!activeByProp.has(k)) activeByProp.set(k, []); activeByProp.get(k)!.push(t) })
+  const sevRank = (s: string) => ({ P0: 0, P1: 1, P2: 2, P3: 3 } as Record<string, number>)[s] ?? 9
+  const propertyGroups = [...activeByProp.entries()]
+    .map(([property, ts]) => ({
+      property,
+      tickets: ts.sort((a, b) => sevRank(a.severity) - sevRank(b.severity) || b.age_hours - a.age_hours),
+      p0: ts.filter(t => t.severity === 'P0').length,
+      p1: ts.filter(t => t.severity === 'P1').length,
+    }))
+    .sort((a, b) => b.p0 - a.p0 || b.p1 - a.p1 || b.tickets.length - a.tickets.length)
+
+  const SEV_FILTERS: Array<typeof sevFilter> = ['all', 'urgent', 'P0', 'P1', 'P2', 'P3']
+
+  const TicketCard = (t: Ticket) => (
+    <button key={t.id} onClick={() => setOpenId(t.id)} className="w-full text-left bg-white rounded-xl border border-slate-200 hover:border-slate-400 p-3 transition">
+      <div className="flex items-center gap-2">
+        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${SEV_CLASS[t.severity]}`}>{t.severity}</span>
+        <span className="text-xs text-slate-500 truncate">{t.property}</span>
+      </div>
+      <div className="text-sm mt-2">{t.summary}</div>
+      <div className="flex items-center gap-2 mt-2">
+        {t.category && <span className="text-xs text-slate-500">{t.category}</span>}
+        <span className={`ml-auto px-2 py-0.5 rounded-full text-xs ${ageBadge(t.age_hours)}`}>{Math.round(t.age_hours / 24)}d</span>
+      </div>
+    </button>
+  )
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -104,30 +145,56 @@ export function EplMaintenancePanel() {
         <Kpi label="Awaiting parts >7d" value={String(summary.awaiting_parts_aged_gt7d)} tone={summary.awaiting_parts_aged_gt7d > 0 ? 'amber' : 'slate'} />
       </div>
 
-      {/* Kanban */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-        {Object.entries(cols).map(([col, items]) => (
-          <div key={col} className="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-            <div className="text-xs uppercase tracking-wide text-slate-600 mb-2">{COL_LABELS[col]} <span className="text-slate-400">({items.length})</span></div>
-            <div className="space-y-2">
-              {items.map(t => (
-                <button key={t.id} onClick={() => setOpenId(t.id)} className="w-full text-left bg-white rounded-xl border border-slate-200 hover:border-slate-400 p-3 transition">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${SEV_CLASS[t.severity]}`}>{t.severity}</span>
-                    <span className="text-xs text-slate-500 truncate">{t.property}</span>
-                  </div>
-                  <div className="text-sm mt-2">{t.summary}</div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-xs text-slate-500">@{t.assignee}</span>
-                    <span className={`ml-auto px-2 py-0.5 rounded-full text-xs ${ageBadge(t.age_hours)}`}>{t.age_hours}h</span>
-                  </div>
-                </button>
-              ))}
-              {items.length === 0 && <div className="text-xs text-slate-400 italic">empty</div>}
-            </div>
-          </div>
+      {/* Toolbar: view toggle + urgency filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
+          <button onClick={() => setView('board')} className={`px-3 py-1 text-sm ${view === 'board' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>Board</button>
+          <button onClick={() => setView('property')} className={`px-3 py-1 text-sm ${view === 'property' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>By property</button>
+        </div>
+        <span className="text-slate-300">|</span>
+        {SEV_FILTERS.map(f => (
+          <button key={f} onClick={() => setSevFilter(f)}
+            className={`px-3 py-1 rounded-full text-xs border ${sevFilter === f ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'}`}>
+            {f === 'all' ? 'All' : f === 'urgent' ? 'Urgent (P0+P1)' : f}
+          </button>
         ))}
+        <span className="ml-auto text-xs text-slate-400">{filtered.length} shown</span>
       </div>
+
+      {/* Board view (status columns) */}
+      {view === 'board' && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          {Object.entries(cols).map(([col, items]) => (
+            <div key={col} className="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+              <div className="text-xs uppercase tracking-wide text-slate-600 mb-2">{COL_LABELS[col]} <span className="text-slate-400">({items.length})</span></div>
+              <div className="space-y-2">
+                {items.map(TicketCard)}
+                {items.length === 0 && <div className="text-xs text-slate-400 italic">empty</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* By-property view */}
+      {view === 'property' && (
+        <div className="space-y-3">
+          {propertyGroups.length === 0 && <div className="text-sm text-slate-400 italic">No open tickets for this filter.</div>}
+          {propertyGroups.map(g => (
+            <div key={g.property} className="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-medium text-slate-800">{g.property}</span>
+                <span className="text-xs text-slate-400">({g.tickets.length} open)</span>
+                {g.p0 > 0 && <span className="px-2 py-0.5 rounded-full text-xs bg-rose-600 text-white">{g.p0} P0</span>}
+                {g.p1 > 0 && <span className="px-2 py-0.5 rounded-full text-xs bg-orange-500 text-white">{g.p1} P1</span>}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {g.tickets.map(TicketCard)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <footer className="text-xs text-slate-400 pt-4 border-t border-slate-100">
         Source: <code>/api/epl/maintenance</code> · drawer fetches <code>/api/epl/maintenance/[id]</code> · Hugo proxy: <code>/api/epl/maintenance?part=summary</code> tries Hugo /api/stats first
