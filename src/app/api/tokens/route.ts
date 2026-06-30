@@ -569,15 +569,21 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const workspaceId = auth.user.workspace_id ?? 1
-    const { model, sessionId, inputTokens, outputTokens, operation = 'chat_completion', duration, taskId } = body
+    const { model, sessionId, inputTokens, outputTokens, operation = 'chat_completion', duration, taskId, costUsd, agentName } = body
 
-    if (!model || !sessionId || typeof inputTokens !== 'number' || typeof outputTokens !== 'number') {
+    // Cost-only reporters (e.g. Atlas dispatch) already know the dollar cost and
+    // have no token counts — accept an explicit costUsd + agentName and let tokens
+    // default to 0. Otherwise require token counts and derive cost from them.
+    const explicitCost = typeof costUsd === 'number' && isFinite(costUsd) ? costUsd : null
+    if (!model || !sessionId || (explicitCost == null && (typeof inputTokens !== 'number' || typeof outputTokens !== 'number'))) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const totalTokens = inputTokens + outputTokens
+    const inTok = typeof inputTokens === 'number' ? inputTokens : 0
+    const outTok = typeof outputTokens === 'number' ? outputTokens : 0
+    const totalTokens = inTok + outTok
     const providerSubscriptions = getProviderSubscriptionFlags()
-    const cost = calculateTokenCost(model, inputTokens, outputTokens, { providerSubscriptions })
+    const cost = explicitCost != null ? explicitCost : calculateTokenCost(model, inTok, outTok, { providerSubscriptions })
     const parsedTaskId =
       taskId != null && Number.isFinite(Number(taskId)) && Number(taskId) > 0
         ? Number(taskId)
@@ -596,10 +602,10 @@ export async function POST(request: NextRequest) {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       model,
       sessionId,
-      agentName: extractAgentName(sessionId),
+      agentName: (typeof agentName === 'string' && agentName.trim()) ? agentName.trim().toLowerCase() : extractAgentName(sessionId),
       timestamp: Date.now(),
-      inputTokens,
-      outputTokens,
+      inputTokens: inTok,
+      outputTokens: outTok,
       totalTokens,
       cost,
       operation,
@@ -633,8 +639,8 @@ export async function POST(request: NextRequest) {
       `).run(
         model,
         sessionId,
-        inputTokens,
-        outputTokens,
+        inTok,
+        outTok,
         createdAtSec,
         workspaceId,
         validatedTaskId,
