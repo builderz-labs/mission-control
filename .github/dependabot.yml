@@ -13,8 +13,12 @@ updates:
     cooldown:
       default-days: 7
     groups:
+      # Minor + patch only. Majors (Tailwind 4, TS 6, vitest 4, ...) each
+      # need a deliberate migration and must arrive as individual PRs, not
+      # buried in a 27-package group (see #743, which failed CI this way).
       js-deps:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
     open-pull-requests-limit: 5
 
   - package-ecosystem: "github-actions"
@@ -24,6 +28,9 @@ updates:
       day: "monday"
     cooldown:
       default-days: 7
+    groups:
+      gh-actions:
+        patterns: ["*"]
 
   - package-ecosystem: "docker"
     directory: "/"
@@ -32,3 +39,8 @@ updates:
       day: "monday"
     cooldown:
       default-days: 7
+    ignore:
+      # Track the active LTS line; the newest majors skip LTS and carry
+      # native-module ABI risk for better-sqlite3/node-pty (see #749).
+      - dependency-name: "node"
+        versions: [">=25"]

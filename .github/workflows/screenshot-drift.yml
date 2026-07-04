@@ -40,7 +40,8 @@ jobs:
             core.setOutput('paths', uiPaths.slice(0, 10).join('\n'));
 
       - name: Add label if UI changed
-        if: steps.ui_changed.outputs.count > 0
+        # Fork PRs get a read-only token — label/comment calls would 403.
+        if: steps.ui_changed.outputs.count > 0 && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v7
         with:
           script: |
@@ -63,7 +64,8 @@ jobs:
             });
 
       - name: Post checklist comment
-        if: steps.ui_changed.outputs.count > 0
+        # Fork PRs get a read-only token — label/comment calls would 403.
+        if: steps.ui_changed.outputs.count > 0 && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v7
         with:
           script: |
