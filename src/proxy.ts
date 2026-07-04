@@ -211,11 +211,13 @@ export function proxy(request: NextRequest) {
     const apiKey = extractApiKeyFromRequest(request)
     const hasValidApiKey = Boolean(configuredApiKey && apiKey && safeCompare(apiKey, configuredApiKey))
 
-    // Agent-scoped keys are validated in route auth (DB-backed) and should be
-    // allowed to pass through proxy auth gate.
-    const looksLikeAgentApiKey = /^mca_[a-f0-9]{48}$/i.test(apiKey)
+    // DB-backed keys (dashboard-rotated `mc_` global keys and `mca_` agent
+    // keys) are validated in route auth — the edge runtime cannot query
+    // SQLite, so the proxy only shape-checks them and lets route auth decide.
+    // Both formats are exactly 48 hex chars after the prefix.
+    const looksLikeDbBackedApiKey = /^mca?_[a-f0-9]{48}$/i.test(apiKey)
 
-    if (sessionToken || hasValidApiKey || looksLikeAgentApiKey) {
+    if (sessionToken || hasValidApiKey || looksLikeDbBackedApiKey) {
       const { response, nonce } = nextResponseWithNonce(request)
       return addSecurityHeaders(response, request, nonce)
     }
