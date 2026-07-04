@@ -9,6 +9,7 @@ import { config } from './config'
 import { getAllGatewaySessions } from './sessions'
 import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from './transcript-parser'
 import { syncTaskOutbound } from './github-sync-engine'
+import { classifyModelProvider, getDispatchModelId, getModelByAlias } from './models'
 
 const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
 
@@ -617,6 +618,19 @@ function isGatewayAvailable(): boolean {
   }
 }
 
+/**
+ * Resolve the Anthropic dispatch model ID for a catalog tier alias.
+ *
+ * MODEL_CATALOG is the single source of truth for model IDs — classification
+ * derives the exact API model ID from the catalog entry instead of
+ * hard-coding ID strings here. The literal fallback only applies if the
+ * catalog alias is ever removed (defensive; all three aliases exist today).
+ */
+function anthropicDispatchId(alias: 'opus' | 'sonnet' | 'haiku', fallback: string): string {
+  const entry = getModelByAlias(alias)
+  return entry && entry.provider === 'anthropic' ? getDispatchModelId(entry) : fallback
+}
+
 function classifyDirectModel(task: DispatchableTask): string {
   // Check per-agent config override first
   if (task.agent_config) {
@@ -638,16 +652,16 @@ function classifyDirectModel(task: DispatchableTask): string {
     'root cause', 'investigate', 'incident', 'refactor', 'migration',
   ]
   if (priority === 'critical' || complexSignals.some(s => text.includes(s))) {
-    return 'claude-opus-4-6'
+    return anthropicDispatchId('opus', 'claude-opus-4-6')
   }
 
   // Size heuristics → Opus for large/complex tasks
   const descLength = (task.description ?? '').length
-  if (descLength > 2000) return 'claude-opus-4-6'
+  if (descLength > 2000) return anthropicDispatchId('opus', 'claude-opus-4-6')
   try {
     const db = getDatabase()
     const row = db.prepare('SELECT estimated_hours FROM tasks WHERE id = ?').get(task.id) as { estimated_hours: number | null } | undefined
-    if (row?.estimated_hours && row.estimated_hours >= 4) return 'claude-opus-4-6'
+    if (row?.estimated_hours && row.estimated_hours >= 4) return anthropicDispatchId('opus', 'claude-opus-4-6')
   } catch { /* ignore */ }
 
   // Routine → Haiku
@@ -656,11 +670,13 @@ function classifyDirectModel(task: DispatchableTask): string {
     'translate', 'quick ', 'simple ', 'routine ', 'minor ',
   ]
   if (routineSignals.some(s => text.includes(s)) && priority !== 'high' && priority !== 'critical') {
-    return 'claude-haiku-4-5-20251001'
+    // Catalog carries 'claude-haiku-4-5' (Anthropic's alias for the
+    // claude-haiku-4-5-20251001 snapshot) — both resolve to the same model.
+    return anthropicDispatchId('haiku', 'claude-haiku-4-5')
   }
 
   // Default → Sonnet
-  return 'claude-sonnet-4-6'
+  return anthropicDispatchId('sonnet', 'claude-sonnet-4-6')
 }
 
 function getAgentSoulContent(task: DispatchableTask): string | null {
@@ -787,6 +803,17 @@ function getLocalApiKey(): string | null {
 }
 
 function pickProvider(model: string): DirectProvider {
+  // Consult MODEL_CATALOG first (single source of truth). Only providers
+  // with a direct dispatch path map to a DirectProvider; catalog providers
+  // without one (google, groq, moonshot, venice, minimax) fall through to
+  // the prefix rules below, which keeps their routing identical to before.
+  const catalogProvider = classifyModelProvider(model)
+  if (catalogProvider === 'anthropic') return 'anthropic'
+  if (catalogProvider === 'openai') return 'openai'
+  if (catalogProvider === 'ollama') return 'local'
+
+  // Prefix-match fallback for models not in the catalog — behavior for
+  // unknown IDs is unchanged (default remains 'anthropic').
   const m = model.toLowerCase()
   if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
   if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
