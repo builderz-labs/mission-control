@@ -407,7 +407,7 @@ export function OrchestrationBar() {
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
                         onBlur={addTag}
                         placeholder={templateForm.tags.length === 0 ? 'Tags (comma-separated)' : 'Add tag...'}
-                        className="h-6 px-1 bg-transparent border-none text-xs text-foreground placeholder:text-muted-foreground outline-none min-w-[80px] flex-1"
+                        className="h-6 px-1 bg-transparent border-none text-xs text-foreground placeholder:text-muted-foreground outline-hidden min-w-[80px] flex-1"
                       />
                     </div>
                   </div>

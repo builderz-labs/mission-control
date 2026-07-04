@@ -309,7 +309,7 @@ function MentionTextarea({
         className={className}
       />
       {open && filtered.length > 0 && (
-        <div className={`absolute z-[60] w-full bg-surface-1 border border-border rounded-md shadow-xl max-h-56 overflow-y-auto ${
+        <div className={`absolute z-60 w-full bg-surface-1 border border-border rounded-md shadow-xl max-h-56 overflow-y-auto ${
           openUpwards ? 'bottom-full mb-1' : 'mt-1'
         }`}>
           {filtered.map((option, index) => (
@@ -744,7 +744,7 @@ export function TaskBoardPanel() {
   if (loading) {
     return (
       <div className="h-full flex flex-col" role="status" aria-live="polite">
-        <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
+        <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-7 w-28 bg-surface-1 rounded-md animate-pulse" />
             <div className="h-9 w-36 bg-surface-1 rounded-md animate-pulse" />
@@ -784,7 +784,7 @@ export function TaskBoardPanel() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
+      <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
           {gnapStatus?.enabled && (
@@ -809,7 +809,7 @@ export function TaskBoardPanel() {
             <select
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
-              className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/50"
             >
               <option value="all">{t('allProjects')}</option>
               {projects.map((project) => (
@@ -853,7 +853,7 @@ export function TaskBoardPanel() {
                 value={spawnFormData.task}
                 onChange={(e) => setSpawnFormData(prev => ({ ...prev, task: e.target.value }))}
                 placeholder={t('spawnTaskPlaceholder')}
-                className="w-full h-20 px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full h-20 px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground resize-none focus:outline-hidden focus:ring-2 focus:ring-primary/50"
                 disabled={isSpawning}
               />
               <div className="flex gap-2">
@@ -862,13 +862,13 @@ export function TaskBoardPanel() {
                   value={spawnFormData.label}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, label: e.target.value }))}
                   placeholder={t('spawnLabelPlaceholder')}
-                  className="flex-1 px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="flex-1 px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm placeholder-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/50"
                   disabled={isSpawning}
                 />
                 <select
                   value={spawnFormData.model}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, model: e.target.value }))}
-                  className="px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
                   disabled={isSpawning}
                 >
                   {availableModels.map((model) => (
@@ -881,7 +881,7 @@ export function TaskBoardPanel() {
                   max="3600"
                   value={spawnFormData.timeoutSeconds}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, timeoutSeconds: parseInt(e.target.value) || 300 }))}
-                  className="w-20 px-2 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="w-20 px-2 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
                   title={t('timeoutSeconds')}
                   disabled={isSpawning}
                 />
@@ -944,7 +944,7 @@ export function TaskBoardPanel() {
             key={column.key}
             role="region"
             aria-label={t('columnAriaLabel', { title: column.title, count: tasksByStatus[column.key]?.length || 0 })}
-            className="flex-1 min-w-80 min-h-0 bg-surface-0 border border-border/60 rounded-xl flex flex-col transition-colors duration-200 [&.drag-over]:border-primary/40 [&.drag-over]:bg-primary/[0.02]"
+            className="flex-1 min-w-80 min-h-0 bg-surface-0 border border-border/60 rounded-xl flex flex-col transition-colors duration-200 [&.drag-over]:border-primary/40 [&.drag-over]:bg-primary/2"
             onDragEnter={(e) => handleDragEnter(e, column.key)}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
@@ -953,7 +953,7 @@ export function TaskBoardPanel() {
             {/* Column Header */}
             <div className={`${column.color} px-4 py-3 rounded-t-xl flex justify-between items-center border-b border-border/30`}>
               <h3 className="font-semibold text-sm tracking-wide">{column.title}</h3>
-              <span className="text-xs font-mono bg-white/10 px-2 py-0.5 rounded-md min-w-[1.75rem] text-center">
+              <span className="text-xs font-mono bg-white/10 px-2 py-0.5 rounded-md min-w-7 text-center">
                 {tasksByStatus[column.key]?.length || 0}
               </span>
             </div>
@@ -979,9 +979,9 @@ export function TaskBoardPanel() {
                       updateTaskUrl(task.id)
                     }
                   }}
-                  className={`group bg-card rounded-lg p-3 cursor-pointer border border-border/40 shadow-sm hover:shadow-md hover:shadow-black/10 hover:border-border/70 transition-all duration-200 ease-out border-l-4 ${priorityColors[task.priority]} ${
+                  className={`group bg-card rounded-lg p-3 cursor-pointer border border-border/40 shadow-xs hover:shadow-md hover:shadow-black/10 hover:border-border/70 transition-all duration-200 ease-out border-l-4 ${priorityColors[task.priority]} ${
                     draggedTask?.id === task.id ? 'opacity-40 scale-[0.97] rotate-1' : ''
-                  } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
+                  } focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
                 >
                   {/* Drag handle + Title row */}
                   <div className="flex items-start gap-2 mb-2">
@@ -1069,7 +1069,7 @@ export function TaskBoardPanel() {
                       {task.assigned_to ? (
                         <>
                           <AgentAvatar name={getAgentName(task.assigned_to)} size="xs" />
-                          <span className="truncate max-w-[8rem]">{getAgentName(task.assigned_to)}</span>
+                          <span className="truncate max-w-32">{getAgentName(task.assigned_to)}</span>
                         </>
                       ) : (
                         <span className="text-muted-foreground/50 italic">{t('unassigned')}</span>
@@ -1452,7 +1452,7 @@ function TaskDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="task-detail-title" className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/30">
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-border/50">
@@ -1592,7 +1592,7 @@ function TaskDetailModal({
               <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 border border-border/30">
                 <span className="text-xs text-muted-foreground shrink-0">{t('assignedTo')}</span>
                 <select
-                  className="flex-1 text-xs bg-card border border-border rounded-md px-2 py-1.5 text-foreground cursor-pointer focus:ring-1 focus:ring-primary/50 focus:border-primary/50 outline-none transition-colors"
+                  className="flex-1 text-xs bg-card border border-border rounded-md px-2 py-1.5 text-foreground cursor-pointer focus:ring-1 focus:ring-primary/50 focus:border-primary/50 outline-hidden transition-colors"
                   value={task.assigned_to || ''}
                   onChange={async (e) => {
                     const newAssignee = e.target.value || null
@@ -1623,7 +1623,7 @@ function TaskDetailModal({
                   <div className="text-[10px] font-medium uppercase tracking-wider text-red-400/80">
                     Failure reason
                   </div>
-                  <div className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-red-100/90">
+                  <div className="mt-2 whitespace-pre-wrap wrap-break-word text-xs leading-relaxed text-red-100/90">
                     {task.error_message}
                   </div>
                 </div>
@@ -1744,7 +1744,7 @@ function TaskDetailModal({
                 <MentionTextarea
                   value={commentText}
                   onChange={setCommentText}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   rows={3}
                   mentionTargets={mentionTargets}
                 />
@@ -1772,7 +1772,7 @@ function TaskDetailModal({
                 <MentionTextarea
                   value={broadcastMessage}
                   onChange={setBroadcastMessage}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   rows={2}
                   placeholder={t('broadcastPlaceholder')}
                   mentionTargets={mentionTargets}
@@ -2191,7 +2191,7 @@ function CreateTaskModal({
   const dialogRef = useFocusTrap(onClose)
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="create-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
           <h3 id="create-task-title" className="text-xl font-bold text-foreground mb-4">{t('createNewTask')}</h3>
@@ -2204,7 +2204,7 @@ function CreateTaskModal({
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 required
               />
             </div>
@@ -2215,7 +2215,7 @@ function CreateTaskModal({
                 id="create-description"
                 value={formData.description}
                 onChange={(next) => setFormData(prev => ({ ...prev, description: next }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 rows={3}
                 mentionTargets={mentionTargets}
               />
@@ -2229,7 +2229,7 @@ function CreateTaskModal({
                   id="create-priority"
                   value={formData.priority}
                   onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as Task['priority'] }))}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="low">{t('priority_low')}</option>
                   <option value="medium">{t('priority_medium')}</option>
@@ -2244,7 +2244,7 @@ function CreateTaskModal({
                   id="create-project"
                   value={formData.project_id}
                   onChange={(e) => setFormData(prev => ({ ...prev, project_id: e.target.value }))}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 >
                   {projects.map(project => (
                     <option key={project.id} value={String(project.id)}>
@@ -2261,7 +2261,7 @@ function CreateTaskModal({
                 id="create-assignee"
                 value={formData.assigned_to}
                 onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value, target_session: '' }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
               >
                 <option value="">{t('unassigned')}</option>
                 {agents.map(agent => (
@@ -2279,7 +2279,7 @@ function CreateTaskModal({
                   id="create-target-session"
                   value={formData.target_session}
                   onChange={(e) => setFormData(prev => ({ ...prev, target_session: e.target.value }))}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="">New session (default)</option>
                   {agentSessions.map(s => (
@@ -2299,7 +2299,7 @@ function CreateTaskModal({
                 type="text"
                 value={formData.tags}
                 onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 placeholder="frontend, urgent, bug"
               />
             </div>
@@ -2328,7 +2328,7 @@ function CreateTaskModal({
                     type="text"
                     value={scheduleInput}
                     onChange={(e) => handleScheduleChange(e.target.value)}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                     placeholder='e.g. "every morning at 9am" or "every 2 hours"'
                   />
                   {parsedSchedule && (
@@ -2429,7 +2429,7 @@ function EditTaskModal({
   const dialogRef = useFocusTrap(onClose)
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="edit-task-title" className="bg-card border border-border rounded-lg max-w-md w-full">
         <form onSubmit={handleSubmit} className="p-6">
           <h3 id="edit-task-title" className="text-xl font-bold text-foreground mb-4">{t('editTask')}</h3>
@@ -2442,7 +2442,7 @@ function EditTaskModal({
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 required
               />
             </div>
@@ -2453,7 +2453,7 @@ function EditTaskModal({
                 id="edit-description"
                 value={formData.description}
                 onChange={(next) => setFormData(prev => ({ ...prev, description: next }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 rows={3}
                 mentionTargets={mentionTargets}
               />
@@ -2467,7 +2467,7 @@ function EditTaskModal({
                   id="edit-status"
                   value={formData.status}
                   onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Task['status'] }))}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="inbox">{t('colInbox')}</option>
                   <option value="assigned">{t('colAssigned')}</option>
@@ -2485,7 +2485,7 @@ function EditTaskModal({
                   id="edit-priority"
                   value={formData.priority}
                   onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as Task['priority'] }))}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="low">{t('priority_low')}</option>
                   <option value="medium">{t('priority_medium')}</option>
@@ -2501,7 +2501,7 @@ function EditTaskModal({
                 id="edit-project"
                 value={formData.project_id}
                 onChange={(e) => setFormData(prev => ({ ...prev, project_id: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
               >
                 {projects.map(project => (
                   <option key={project.id} value={String(project.id)}>
@@ -2517,7 +2517,7 @@ function EditTaskModal({
                 id="edit-assignee"
                 value={formData.assigned_to}
                 onChange={(e) => setFormData(prev => ({ ...prev, assigned_to: e.target.value, target_session: '' }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
               >
                 <option value="">{t('unassigned')}</option>
                 {agents.map(agent => (
@@ -2535,7 +2535,7 @@ function EditTaskModal({
                   id="edit-target-session"
                   value={formData.target_session}
                   onChange={(e) => setFormData(prev => ({ ...prev, target_session: e.target.value }))}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="">New session (default)</option>
                   {agentSessions.map(s => (
@@ -2555,7 +2555,7 @@ function EditTaskModal({
                 type="text"
                 value={formData.tags}
                 onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 placeholder="frontend, urgent, bug"
               />
             </div>

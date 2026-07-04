@@ -76,7 +76,7 @@ export function LanguageSwitcherSelect() {
     <select
       value={currentLocale}
       onChange={(e) => setLocaleCookie(e.target.value as Locale)}
-      className="h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
+      className="h-9 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
       aria-label="Language"
     >
       {locales.map((loc) => (

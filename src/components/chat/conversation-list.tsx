@@ -392,7 +392,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
       >
         <div className="flex items-center gap-2.5 w-full">
           <span
-            className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${online ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
+            className={`h-1.5 w-1.5 rounded-full shrink-0 ${online ? 'bg-green-500' : 'bg-muted-foreground/40'}`}
           />
           <span className="text-xs text-foreground truncate">{agent.name}</span>
           {online && <span className="text-[10px] text-green-400/60 ml-auto">online</span>}
@@ -434,7 +434,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
       >
         <div className="flex items-start gap-2.5 w-full">
           {/* Avatar with status ring + attention indicator */}
-          <div className={`relative flex-shrink-0 mt-0.5 ${
+          <div className={`relative shrink-0 mt-0.5 ${
             attentionLevel ? 'ring-2 ring-offset-1 ring-offset-card rounded-full ring-blue-400 animate-pulse' : ''
           }`}>
             <SessionKindAvatar
@@ -470,7 +470,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
                     }}
                     onClick={(e) => e.stopPropagation()}
                     maxLength={80}
-                    className="w-full bg-surface-1 rounded px-1 py-0.5 text-xs font-medium text-foreground outline-none ring-1 ring-primary/40"
+                    className="w-full bg-surface-1 rounded px-1 py-0.5 text-xs font-medium text-foreground outline-hidden ring-1 ring-primary/40"
                   />
                 ) : (
                   <span className="text-xs font-medium text-foreground truncate">
@@ -478,7 +478,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
                 {conv.unreadCount > 0 && (
                   <span className="bg-blue-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
                     {conv.unreadCount}
@@ -497,7 +497,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
                   <SessionKindPill kind={session.sessionKind} />
                 )}
                 {workDirLeaf && (
-                  <span className="text-[10px] text-muted-foreground/50 font-mono truncate max-w-[8rem]" title={session?.workingDir || ''}>
+                  <span className="text-[10px] text-muted-foreground/50 font-mono truncate max-w-32" title={session?.workingDir || ''}>
                     {workDirLeaf}
                   </span>
                 )}
@@ -529,7 +529,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
   return (
     <div className="flex flex-col h-full bg-card">
       {/* Header */}
-      <div className="p-3 border-b border-border flex-shrink-0">
+      <div className="p-3 border-b border-border shrink-0">
         <div className="mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
       Sessions
         </div>
@@ -543,7 +543,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="w-full bg-surface-1 rounded-md pl-7 pr-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            className="w-full bg-surface-1 rounded-md pl-7 pr-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-hidden focus:ring-1 focus:ring-primary/30"
           />
         </div>
       </div>

@@ -705,7 +705,7 @@ function SessionsView({
                       {sessionInfo?.kind && <span>| {sessionInfo.kind}</span>}
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
+                  <div className="text-right shrink-0">
                     <div className="text-lg font-bold text-foreground">{formatCost(entry.totalCost)}</div>
                     <div className="text-xs text-muted-foreground">{formatNumber(entry.totalTokens)} tokens</div>
                   </div>

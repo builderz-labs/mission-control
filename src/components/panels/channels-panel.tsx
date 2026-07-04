@@ -203,7 +203,7 @@ function StatusRow({ label, value }: { label: string; value: string }) {
 function ErrorCallout({ message }: { message: string | null | undefined }) {
   if (!message) return null
   return (
-    <div className="text-xs text-red-400 bg-red-500/10 rounded px-2 py-1.5 mt-2 break-words">
+    <div className="text-xs text-red-400 bg-red-500/10 rounded px-2 py-1.5 mt-2 wrap-break-word">
       {message}
     </div>
   )
@@ -614,7 +614,7 @@ function AccountList({ accounts }: { accounts: ChannelAccount[] }) {
           <StatusRow label="Connected" value={yesNo(acct.connected)} />
           {acct.lastInboundAt && <StatusRow label="Last inbound" value={relativeTime(acct.lastInboundAt)} />}
           {acct.lastError && (
-            <div className="text-red-400 break-words mt-1">{acct.lastError}</div>
+            <div className="text-red-400 wrap-break-word mt-1">{acct.lastError}</div>
           )}
         </div>
       ))}

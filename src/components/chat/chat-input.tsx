@@ -191,7 +191,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
 
   return (
     <div
-      className={`relative border-t border-border bg-card/80 backdrop-blur-sm p-3 flex-shrink-0 safe-area-bottom ${isDragOver ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
+      className={`relative border-t border-border bg-card/80 backdrop-blur-xs p-3 shrink-0 safe-area-bottom ${isDragOver ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -270,7 +270,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
           disabled={disabled || isSendingMessage}
           variant="ghost"
           size="icon-sm"
-          className="rounded-lg flex-shrink-0"
+          className="rounded-lg shrink-0"
           title="Attach file"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -297,7 +297,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
           placeholder={disabled ? 'Select a conversation...' : 'Message... (@ to mention, Enter to send)'}
           disabled={disabled || isSendingMessage}
           rows={1}
-          className="flex-1 resize-none bg-surface-1 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-40 transition-all"
+          className="flex-1 resize-none bg-surface-1 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden focus:ring-1 focus:ring-primary/50 disabled:opacity-40 transition-all"
         />
 
         {/* Stop / Send button */}
@@ -306,7 +306,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
             onClick={onAbort}
             variant="ghost"
             size="icon-sm"
-            className="rounded-lg flex-shrink-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            className="rounded-lg shrink-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
             title="Stop generation"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -318,7 +318,7 @@ export function ChatInput({ onSend, onAbort, disabled, agents = [], isGenerating
             onClick={handleSend}
             disabled={(!chatInput.trim() && attachments.length === 0) || disabled || isSendingMessage}
             size="icon-sm"
-            className="rounded-lg flex-shrink-0"
+            className="rounded-lg shrink-0"
             title="Send message"
           >
             {isSendingMessage ? (

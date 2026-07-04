@@ -1085,7 +1085,7 @@ export function CronManagementPanel() {
                       >
                         <td className="py-2.5 pr-3">
                           <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${job.enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${job.enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
                             <span className="font-medium text-foreground truncate max-w-48">{job.name}</span>
                           </div>
                         </td>

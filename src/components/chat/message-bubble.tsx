@@ -106,7 +106,7 @@ function ToolCallBubble({ message }: { message: ChatMessage }) {
 
   return (
     <div className="flex gap-2 mt-2">
-      <div className="w-7 flex-shrink-0" />
+      <div className="w-7 shrink-0" />
       <div className="max-w-[85%] min-w-0">
         <button
           onClick={() => setExpanded(e => !e)}
@@ -197,11 +197,11 @@ export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProp
     <div className={`flex gap-2 ${isHuman ? 'flex-row-reverse' : 'flex-row'} ${isGrouped ? 'mt-0.5' : 'mt-3'}`}>
       {/* Avatar */}
       {!isGrouped ? (
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${theme.bg} ${theme.text} border ${theme.border}`}>
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold ${theme.bg} ${theme.text} border ${theme.border}`}>
           {message.from_agent.charAt(0).toUpperCase()}
         </div>
       ) : (
-        <div className="w-7 flex-shrink-0" />
+        <div className="w-7 shrink-0" />
       )}
 
       {/* Content */}
@@ -260,7 +260,7 @@ export function MessageBubble({ message, isHuman, isGrouped }: MessageBubbleProp
           {isCommand ? (
             <pre className="whitespace-pre-wrap">{message.content}</pre>
           ) : (
-            <div className="whitespace-pre-wrap break-words" dir={detectTextDirection(message.content)}>{renderContent(message.content)}</div>
+            <div className="whitespace-pre-wrap wrap-break-word" dir={detectTextDirection(message.content)}>{renderContent(message.content)}</div>
           )}
         </div>
       </div>

@@ -551,7 +551,7 @@ export function MemoryBrowserPanel() {
         {sidebarOpen && (
           <div className="w-60 shrink-0 border-r border-border bg-[hsl(var(--surface-0))] flex flex-col min-h-0">
             <div className="p-2">
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchFiles()} placeholder={t('searchPlaceholder')} className="w-full px-2 py-1.5 text-xs font-mono bg-[hsl(var(--surface-1))] border border-border/50 rounded text-foreground placeholder-muted-foreground/40 focus:outline-none focus:border-primary/30" />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchFiles()} placeholder={t('searchPlaceholder')} className="w-full px-2 py-1.5 text-xs font-mono bg-[hsl(var(--surface-1))] border border-border/50 rounded text-foreground placeholder-muted-foreground/40 focus:outline-hidden focus:border-primary/30" />
             </div>
             <div className="flex gap-0.5 px-2 pb-2">
               {(['all', 'daily', 'knowledge'] as const).map((f) => (
@@ -636,15 +636,15 @@ export function MemoryBrowserPanel() {
                   ) : memoryContent != null && selectedMemoryFile ? (
                     <div className="p-6 max-w-3xl">
                       {isEditing ? (
-                        <textarea value={editedContent} onChange={(e) => setEditedContent(e.target.value)} className="w-full min-h-[500px] p-3 bg-[hsl(var(--surface-1))] text-foreground font-mono text-sm border border-border/50 rounded-md resize-none focus:outline-none focus:border-primary/30 leading-relaxed" placeholder={t('editPlaceholder')} />
+                        <textarea value={editedContent} onChange={(e) => setEditedContent(e.target.value)} className="w-full min-h-[500px] p-3 bg-[hsl(var(--surface-1))] text-foreground font-mono text-sm border border-border/50 rounded-md resize-none focus:outline-hidden focus:border-primary/30 leading-relaxed" placeholder={t('editPlaceholder')} />
                       ) : selectedMemoryFile.endsWith('.md') ? (
                         <div>{renderMarkdown(memoryContent)}</div>
                       ) : selectedMemoryFile.endsWith('.json') ? (
-                        <pre className="text-sm font-mono overflow-auto whitespace-pre-wrap break-words text-foreground/80 leading-relaxed">
+                        <pre className="text-sm font-mono overflow-auto whitespace-pre-wrap wrap-break-word text-foreground/80 leading-relaxed">
                           <code>{(() => { try { return JSON.stringify(JSON.parse(memoryContent), null, 2) } catch { return memoryContent } })()}</code>
                         </pre>
                       ) : (
-                        <pre className="text-sm font-mono whitespace-pre-wrap break-words text-foreground/80 leading-relaxed">{memoryContent}</pre>
+                        <pre className="text-sm font-mono whitespace-pre-wrap wrap-break-word text-foreground/80 leading-relaxed">{memoryContent}</pre>
                       )}
                     </div>
                   ) : (
@@ -721,7 +721,7 @@ function HermesMemoryView({ data, isLoading, onRefresh }: { data: { agentMemory:
           />
         </div>
         {data.agentMemory ? (
-          <pre className="text-xs font-mono whitespace-pre-wrap break-words text-foreground/80 leading-relaxed max-h-80 overflow-y-auto bg-[hsl(var(--surface-0))] rounded-md p-3 border border-border/30">{data.agentMemory}</pre>
+          <pre className="text-xs font-mono whitespace-pre-wrap wrap-break-word text-foreground/80 leading-relaxed max-h-80 overflow-y-auto bg-[hsl(var(--surface-0))] rounded-md p-3 border border-border/30">{data.agentMemory}</pre>
         ) : (
           <div className="text-xs font-mono text-muted-foreground/40 py-4 text-center">{t('noAgentMemory')}</div>
         )}
@@ -745,7 +745,7 @@ function HermesMemoryView({ data, isLoading, onRefresh }: { data: { agentMemory:
           />
         </div>
         {data.userMemory ? (
-          <pre className="text-xs font-mono whitespace-pre-wrap break-words text-foreground/80 leading-relaxed max-h-80 overflow-y-auto bg-[hsl(var(--surface-0))] rounded-md p-3 border border-border/30">{data.userMemory}</pre>
+          <pre className="text-xs font-mono whitespace-pre-wrap wrap-break-word text-foreground/80 leading-relaxed max-h-80 overflow-y-auto bg-[hsl(var(--surface-0))] rounded-md p-3 border border-border/30">{data.userMemory}</pre>
         ) : (
           <div className="text-xs font-mono text-muted-foreground/40 py-4 text-center">{t('noUserMemory')}</div>
         )}
@@ -937,7 +937,7 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
     onClose()
   }
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
       <div className="bg-[hsl(var(--surface-1))] border border-border rounded-lg max-w-md w-full p-5 shadow-xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-sm font-semibold text-foreground font-mono">{t('newFileTitle')}</h3>
@@ -946,7 +946,7 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
         <div className="space-y-3">
           <div>
             <label className="block text-[11px] font-mono text-muted-foreground mb-1">{t('directory')}</label>
-            <select value={filePath} onChange={(e) => setFilePath(e.target.value)} className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-none focus:border-primary/30">
+            <select value={filePath} onChange={(e) => setFilePath(e.target.value)} className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-hidden focus:border-primary/30">
               <option value="knowledge-base/">knowledge-base/</option>
               <option value="memory/">memory/</option>
               <option value="knowledge/">knowledge/</option>
@@ -957,11 +957,11 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
           </div>
           <div>
             <label className="block text-[11px] font-mono text-muted-foreground mb-1">{t('fileName')}</label>
-            <input type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="my-file" className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-none focus:border-primary/30" autoFocus />
+            <input type="text" value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="my-file" className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-hidden focus:border-primary/30" autoFocus />
           </div>
           <div>
             <label className="block text-[11px] font-mono text-muted-foreground mb-1">{t('fileType')}</label>
-            <select value={fileType} onChange={(e) => { setFileType(e.target.value); setInitialContent(templates[e.target.value] || '') }} className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-none focus:border-primary/30">
+            <select value={fileType} onChange={(e) => { setFileType(e.target.value); setInitialContent(templates[e.target.value] || '') }} className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-hidden focus:border-primary/30">
               <option value="md">.md</option>
               <option value="json">.json</option>
               <option value="txt">.txt</option>
@@ -970,7 +970,7 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
           </div>
           <div>
             <label className="block text-[11px] font-mono text-muted-foreground mb-1">{t('content')}</label>
-            <textarea value={initialContent} onChange={(e) => setInitialContent(e.target.value)} className="w-full h-20 px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-none focus:border-primary/30 resize-none" placeholder={t('contentOptional')} />
+            <textarea value={initialContent} onChange={(e) => setInitialContent(e.target.value)} className="w-full h-20 px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-hidden focus:border-primary/30 resize-none" placeholder={t('contentOptional')} />
           </div>
           <div className="text-[10px] font-mono text-muted-foreground/40 bg-[hsl(var(--surface-0))] px-2 py-1 rounded">{filePath}{fileName || '...'}.{fileType}</div>
           <div className="flex gap-2 pt-2">
@@ -986,7 +986,7 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
 function DeleteConfirmModal({ fileName, onClose, onConfirm }: { fileName: string; onClose: () => void; onConfirm: () => void }) {
   const t = useTranslations('memoryBrowser')
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
       <div className="bg-[hsl(var(--surface-1))] border border-border rounded-lg max-w-sm w-full p-5 shadow-xl">
         <h3 className="text-sm font-semibold text-red-400 font-mono mb-3">{t('deleteFileTitle')}</h3>
         <div className="bg-red-500/5 border border-red-500/15 rounded-md p-3 mb-4">

@@ -237,7 +237,7 @@ export function LogViewerPanel() {
             <select
               value={logFilters.level || ''}
               onChange={(e) => handleFilterChange({ level: e.target.value || undefined })}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
             >
               <option value="">{t('allLevels')}</option>
               <option value="error">{t('levelError')}</option>
@@ -255,7 +255,7 @@ export function LogViewerPanel() {
             <select
               value={logFilters.source || ''}
               onChange={(e) => handleFilterChange({ source: e.target.value || undefined })}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
             >
               <option value="">{t('allSources')}</option>
               {availableSources.map((source) => (
@@ -274,7 +274,7 @@ export function LogViewerPanel() {
               value={logFilters.session || ''}
               onChange={(e) => handleFilterChange({ session: e.target.value || undefined })}
               placeholder={t('sessionPlaceholder')}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
@@ -288,7 +288,7 @@ export function LogViewerPanel() {
               value={logFilters.search || ''}
               onChange={(e) => handleFilterChange({ search: e.target.value || undefined })}
               placeholder={t('searchPlaceholder')}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
@@ -386,7 +386,7 @@ export function LogViewerPanel() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 text-foreground break-words">
+                    <div className="mt-1 text-foreground wrap-break-word">
                       {log.message}
                     </div>
                     {log.data && (

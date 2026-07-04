@@ -72,7 +72,7 @@ export function ActivityTimelineWidget({ data }: { data: DashboardData }) {
                     </span>
 
                     {/* Message */}
-                    <p className="flex-1 text-xs text-foreground/80 min-w-0 break-words leading-relaxed">
+                    <p className="flex-1 text-xs text-foreground/80 min-w-0 wrap-break-word leading-relaxed">
                       {log.message.length > 120 ? log.message.slice(0, 120) + '...' : log.message}
                     </p>
 

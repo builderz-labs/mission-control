@@ -372,7 +372,7 @@ export function AgentCommsPanel() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="text-base">📡</span>
@@ -410,7 +410,7 @@ export function AgentCommsPanel() {
       </div>
 
       {/* Filter bar — matches TUI FeedFilter */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-border/30 flex-shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border/30 shrink-0 overflow-x-auto">
         {FILTER_OPTIONS.map(opt => (
           <Button
             key={opt.value}
@@ -447,7 +447,7 @@ export function AgentCommsPanel() {
 
       {/* Live sessions strip */}
       {sessions.length > 0 && (
-        <div className="px-4 py-2 border-b border-border/20 flex-shrink-0">
+        <div className="px-4 py-2 border-b border-border/20 shrink-0">
           <div className="flex items-center gap-2 overflow-x-auto">
             {sessions.map(s => {
               const agentName = s.key.split(':')[1] || s.kind
@@ -505,7 +505,7 @@ export function AgentCommsPanel() {
 
       {/* Online agents bar */}
       {agents.length > 0 && (
-        <div className="flex items-center gap-1 px-4 py-2 border-t border-border/30 flex-shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1 px-4 py-2 border-t border-border/30 shrink-0 overflow-x-auto">
           {agents.map(a => {
             const id = getIdentity(a)
             const isSelected = target?.type === 'agent' && target.name === a
@@ -532,7 +532,7 @@ export function AgentCommsPanel() {
       )}
 
       {/* Composer */}
-      <div className="border-t border-border/40 p-3 md:p-4 bg-surface-1/60 flex-shrink-0">
+      <div className="border-t border-border/40 p-3 md:p-4 bg-surface-1/60 shrink-0">
         {target && (
           <div className="mb-1.5 flex items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground/60">{t('toLabel')}</span>
@@ -558,7 +558,7 @@ export function AgentCommsPanel() {
               }
             }}
             placeholder={target ? t('composerPlaceholderTarget', { name: getIdentity(target.name).label }) : t('composerPlaceholderBroadcast')}
-            className="flex-1 resize-none bg-card border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
+            className="flex-1 resize-none bg-card border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
             rows={2}
           />
           <Button
@@ -591,13 +591,13 @@ function FeedLine({ event }: { event: FeedEvent }) {
   return (
     <div className={`group flex items-start gap-2 px-2 py-0.5 rounded hover:bg-surface-1/50 transition-colors ${levelColor}`}>
       {/* Timestamp */}
-      <span className="text-[10px] text-muted-foreground/40 tabular-nums flex-shrink-0 pt-[2px]">
+      <span className="text-[10px] text-muted-foreground/40 tabular-nums shrink-0 pt-[2px]">
         {formatTs(event.ts)}
       </span>
 
       {/* Category tag */}
       <span
-        className="text-[9px] px-1.5 py-px rounded-full flex-shrink-0 mt-[2px]"
+        className="text-[9px] px-1.5 py-px rounded-full shrink-0 mt-[2px]"
         style={{ backgroundColor: cat.color + '18', color: cat.color }}
       >
         {cat.label}
@@ -605,14 +605,14 @@ function FeedLine({ event }: { event: FeedEvent }) {
 
       {/* Source */}
       <span
-        className="text-[11px] font-semibold flex-shrink-0"
+        className="text-[11px] font-semibold shrink-0"
         style={{ color: identity.color }}
       >
         {identity.label}
       </span>
 
       {/* Message */}
-      <span className="text-[12px] text-foreground/80 break-words min-w-0">
+      <span className="text-[12px] text-foreground/80 wrap-break-word min-w-0">
         {event.message}
       </span>
     </div>

@@ -369,7 +369,7 @@ export function AgentSquadPanelPhase3() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
+      <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
           
@@ -488,7 +488,7 @@ export function AgentSquadPanelPhase3() {
                   className="group relative overflow-hidden rounded-xl border border-border/70 bg-card p-4 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-border hover:shadow-lg cursor-pointer"
                   onClick={() => setSelectedAgent(agent)}
                 >
-                  <div className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${(statusCardStyles[agent.status] || defaultCardStyle).edge}`} />
+                  <div className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-linear-to-b ${(statusCardStyles[agent.status] || defaultCardStyle).edge}`} />
                   {agent.hidden ? <div className="absolute top-2 right-2 text-2xs text-slate-500">hidden</div> : null}
 
                   {/* Header: avatar + name + status */}
@@ -1235,7 +1235,7 @@ function QuickSpawnModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg max-w-md w-full p-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-bold text-foreground">

@@ -327,7 +327,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
   return (
     <div className={`flex h-full flex-col bg-card ${focusMode ? 'fixed inset-0 z-50' : ''}`}>
       {/* Header */}
-      <div className={`glass-strong flex h-12 flex-shrink-0 items-center justify-between border-b border-border px-4 ${focusMode ? 'h-10' : ''}`}>
+      <div className={`glass-strong flex h-12 shrink-0 items-center justify-between border-b border-border px-4 ${focusMode ? 'h-10' : ''}`}>
         <div className="flex items-center gap-3">
           {/* Back button on mobile when in chat view */}
           {isMobile && !showConversations && (
@@ -405,7 +405,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
       <div className="flex flex-1 overflow-hidden">
         {/* Conversations sidebar */}
         {showConversations && !focusMode && (
-          <div className={`${isMobile ? 'w-full' : 'w-56 border-r border-border'} flex-shrink-0`}>
+          <div className={`${isMobile ? 'w-full' : 'w-56 border-r border-border'} shrink-0`}>
             <ConversationList onNewConversation={handleNewConversation} />
           </div>
         )}
@@ -415,7 +415,7 @@ export function ChatWorkspace({ mode = 'embedded', onClose }: ChatWorkspaceProps
           <div className="flex min-w-0 flex-1 flex-col">
             {/* Conversation header */}
             {activeConversation && splitPanes.length === 0 && (
-              <div className="bg-surface-1 flex flex-shrink-0 items-center gap-2 border-b border-border/50 px-4 py-2">
+              <div className="bg-surface-1 flex shrink-0 items-center gap-2 border-b border-border/50 px-4 py-2">
                 <AgentAvatar
                   name={(selectedConversation?.name || activeConversation).replace('agent_', '')}
                   size="sm"
@@ -732,12 +732,12 @@ function SessionConversationView({
                 onChange={(e) => setNameDraft(e.target.value)}
                 placeholder="Rename session"
                 maxLength={80}
-                className="h-7 rounded border border-border/60 bg-surface-1 px-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="h-7 rounded border border-border/60 bg-surface-1 px-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden focus:ring-1 focus:ring-primary/30"
               />
               <select
                 value={colorDraft}
                 onChange={(e) => setColorDraft(e.target.value)}
-                className="h-7 rounded border border-border/60 bg-surface-1 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
+                className="h-7 rounded border border-border/60 bg-surface-1 px-2 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary/30"
               >
                 <option value="">No color</option>
                 <option value="slate">Slate</option>
@@ -826,7 +826,7 @@ function SessionConversationView({
               }
             }}
             placeholder={isGatewaySession ? 'Send message to this agent session...' : 'Send prompt to this local session...'}
-            className="h-7 flex-1 rounded border border-border/40 bg-surface-1 px-2 font-mono-tight text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            className="h-7 flex-1 rounded border border-border/40 bg-surface-1 px-2 font-mono-tight text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-hidden focus:ring-1 focus:ring-primary/30"
           />
           <Button
             onClick={handleContinueSession}
@@ -858,7 +858,7 @@ function ChatIndicators({ notifications }: { notifications: Array<{ id: number; 
   if (recentToasts.length === 0) return null
 
   return (
-    <div className="flex flex-col gap-1 px-4 py-1 flex-shrink-0">
+    <div className="flex flex-col gap-1 px-4 py-1 shrink-0">
       {recentToasts.map(toast => {
         const isCompaction = toast.title === 'Context Compaction'
         const isFallback = toast.title === 'Model Fallback'
@@ -922,7 +922,7 @@ function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }
   const sizeClass = size === 'sm' ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-xs'
 
   return (
-    <div className={`${sizeClass} ${colorClass} flex flex-shrink-0 items-center justify-center rounded-full font-bold`}>
+    <div className={`${sizeClass} ${colorClass} flex shrink-0 items-center justify-center rounded-full font-bold`}>
       {name.charAt(0).toUpperCase()}
     </div>
   )

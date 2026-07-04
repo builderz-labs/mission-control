@@ -85,7 +85,7 @@ export function NotificationsPanel() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
+      <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
         <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
         <Button
           onClick={markAllRead}
@@ -96,12 +96,12 @@ export function NotificationsPanel() {
         </Button>
       </div>
 
-      <div className="p-4 border-b border-border flex-shrink-0">
+      <div className="p-4 border-b border-border shrink-0">
         <label className="block text-sm text-muted-foreground mb-2">{t('recipientLabel')}</label>
         <input
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
-          className="w-full bg-surface-1 text-foreground rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+          className="w-full bg-surface-1 text-foreground rounded-md px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
           placeholder={t('recipientPlaceholder')}
         />
       </div>
@@ -143,7 +143,7 @@ export function NotificationsPanel() {
                     onClick={() => markRead(n.id)}
                     variant="link"
                     size="xs"
-                    className="flex-shrink-0 ml-2"
+                    className="shrink-0 ml-2"
                   >
                     {t('markRead')}
                   </Button>

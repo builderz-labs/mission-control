@@ -907,7 +907,7 @@ export function SettingsPanel() {
                       <select
                         value={currentValue}
                         onChange={e => handleEdit(setting.key, e.target.value)}
-                        className="w-64 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
+                        className="w-64 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-hidden"
                       >
                         {dropdownOptions.map(opt => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -932,14 +932,14 @@ export function SettingsPanel() {
                       type="number"
                       value={currentValue}
                       onChange={e => handleEdit(setting.key, e.target.value)}
-                      className="w-24 px-2 py-1 text-sm text-right bg-background border border-border rounded-md focus:border-primary focus:outline-none font-mono"
+                      className="w-24 px-2 py-1 text-sm text-right bg-background border border-border rounded-md focus:border-primary focus:outline-hidden font-mono"
                     />
                   ) : (
                     <input
                       type="text"
                       value={currentValue}
                       onChange={e => handleEdit(setting.key, e.target.value)}
-                      className="w-48 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-none"
+                      className="w-48 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-hidden"
                     />
                   )}
 

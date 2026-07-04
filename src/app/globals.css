@@ -1,6 +1,532 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Fonts are provided by next/font via the `--font-inter` /
+  `--font-jetbrains-mono` variables set on <body> (see src/app/layout.tsx).
+  `@theme inline` inlines the reference into the font-sans/font-mono
+  utilities so they resolve against the runtime next/font variables.
+*/
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-surface-0: hsl(var(--surface-0));
+  --color-surface-1: hsl(var(--surface-1));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-surface-3: hsl(var(--surface-3));
+  --color-void-cyan: hsl(var(--void-cyan));
+  --color-void-mint: hsl(var(--void-mint));
+  --color-void-amber: hsl(var(--void-amber));
+  --color-void-violet: hsl(var(--void-violet));
+  --color-void-crimson: hsl(var(--void-crimson));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-xs: 2px;
+
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 0.875rem;
+
+  --animate-fade-in: fadeIn 0.15s ease-out;
+  --animate-slide-in-right: slideInRight 0.2s ease-out;
+  --animate-slide-in-left: slideInLeft 0.2s ease-out;
+  --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
+  --animate-glow-pulse: glowPulse 3s ease-in-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-converge-top: convergeTop 0.9s cubic-bezier(0.16, 1, 0.3, 1)
+    forwards;
+  --animate-converge-left: convergeLeft 0.9s cubic-bezier(0.16, 1, 0.3, 1)
+    forwards;
+  --animate-converge-right: convergeRight 0.9s cubic-bezier(0.16, 1, 0.3, 1)
+    forwards;
+  --animate-converge-bottom: convergeBottom 0.9s cubic-bezier(0.16, 1, 0.3, 1)
+    forwards;
+  --animate-converge-burst: convergeBurst 0.5s ease-out 0.9s forwards;
+  --animate-pair-fade-out: pairFadeOut 0.5s ease-in 1.8s forwards;
+  --animate-mc-fade-in: mcFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 2s forwards;
+  --animate-grid-flow: gridFlow 20s linear infinite;
+  --animate-edge-glow: edgeGlow 2s ease-in-out infinite;
+
+  @keyframes glowPulse {
+    0%,
+    100% {
+      opacity: 1;
+      filter: brightness(1);
+    }
+    50% {
+      opacity: 0.7;
+      filter: brightness(1.3);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+  @keyframes gridFlow {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 40px 40px;
+    }
+  }
+  @keyframes edgeGlow {
+    0%,
+    100% {
+      opacity: 0.4;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  @keyframes convergeTop {
+    0% {
+      transform: translate(-50%, -40px);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+  }
+  @keyframes convergeLeft {
+    0% {
+      transform: translate(-40px, -50%);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(0, -50%);
+      opacity: 1;
+    }
+  }
+  @keyframes convergeRight {
+    0% {
+      transform: translate(40px, -50%);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(0, -50%);
+      opacity: 1;
+    }
+  }
+  @keyframes convergeBottom {
+    0% {
+      transform: translate(-50%, 40px);
+      opacity: 0;
+    }
+    100% {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+  }
+  @keyframes convergeBurst {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+  }
+  @keyframes pairFadeOut {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+  }
+  @keyframes mcFadeIn {
+    0% {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+/*
+  Tailwind CSS v4 preflight sets `cursor: default` on buttons (browser
+  default). This app relies on the v3 behavior of `cursor: pointer` for its
+  many raw <button> elements, so restore it.
+*/
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@utility drag-over {
+  /* Kanban drag-over highlight */
+  @apply border-primary/40;
+  background: hsl(var(--primary) / 0.02);
+}
+
+@utility glass {
+  /* Glass morphism effects */
+  @apply bg-card/80 backdrop-blur-xl border border-border/50;
+}
+
+@utility glass-strong {
+  @apply bg-card/90 backdrop-blur-2xl border border-border/60;
+}
+
+@utility surface-0 {
+  /* Surface levels */
+  background: hsl(var(--surface-0));
+}
+
+@utility surface-1 {
+  background: hsl(var(--surface-1));
+}
+
+@utility surface-2 {
+  background: hsl(var(--surface-2));
+}
+
+@utility surface-3 {
+  background: hsl(var(--surface-3));
+}
+
+@utility badge-success {
+  /* Status badge styles */
+  @apply bg-green-500/15 text-green-400 border border-green-500/20;
+}
+
+@utility badge-warning {
+  @apply bg-amber-500/15 text-amber-400 border border-amber-500/20;
+}
+
+@utility badge-error {
+  @apply bg-red-500/15 text-red-400 border border-red-500/20;
+}
+
+@utility badge-info {
+  @apply bg-blue-500/15 text-blue-400 border border-blue-500/20;
+}
+
+@utility badge-neutral {
+  @apply bg-muted text-muted-foreground border border-border;
+}
+
+@utility glow-primary {
+  /* Glow effects for active states */
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.15);
+}
+
+@utility glow-success {
+  box-shadow: 0 0 20px hsl(var(--success) / 0.15);
+}
+
+@utility transition-smooth {
+  /* Smooth transitions */
+  @apply transition-all duration-200 ease-out;
+}
+
+@utility glow-cyan {
+  /* Void glow utilities */
+  box-shadow:
+    0 0 20px hsl(var(--void-cyan) / 0.2),
+    0 0 40px hsl(var(--void-cyan) / 0.08);
+}
+
+@utility glow-mint {
+  box-shadow:
+    0 0 20px hsl(var(--void-mint) / 0.2),
+    0 0 40px hsl(var(--void-mint) / 0.08);
+}
+
+@utility glow-amber {
+  box-shadow:
+    0 0 20px hsl(var(--void-amber) / 0.2),
+    0 0 40px hsl(var(--void-amber) / 0.08);
+}
+
+@utility glow-violet {
+  box-shadow:
+    0 0 20px hsl(var(--void-violet) / 0.2),
+    0 0 40px hsl(var(--void-violet) / 0.08);
+}
+
+@utility void-panel {
+  /* Void panel — glass card with luminous border */
+  @apply bg-card/90 backdrop-blur-xs border border-border rounded-lg;
+  box-shadow:
+    inset 0 1px 0 hsl(var(--void-cyan) / 0.04),
+    0 4px 24px hsl(var(--background) / 0.5),
+    0 0 0 1px hsl(var(--void-cyan) / 0.04);
+}
+
+@utility void-border-glow {
+  /* Void border glow — animated gradient border */
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--void-cyan) / 0.3),
+      transparent 40%,
+      transparent 60%,
+      hsl(var(--void-violet) / 0.2)
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    padding: 1px;
+    pointer-events: none;
+    animation: edgeGlow 2s ease-in-out infinite;
+  }
+}
+
+@utility btn-neon {
+  /* Neon button hover effect */
+  @apply transition-all duration-200;
+  &:hover {
+    box-shadow: 0 0 16px hsl(var(--void-cyan) / 0.25);
+  }
+}
+
+@utility badge-glow-success {
+  /* Status badge glow variants */
+  box-shadow: 0 0 12px hsl(var(--void-mint) / 0.25);
+}
+
+@utility badge-glow-warning {
+  box-shadow: 0 0 12px hsl(var(--void-amber) / 0.25);
+}
+
+@utility badge-glow-error {
+  box-shadow: 0 0 12px hsl(var(--void-crimson) / 0.25);
+}
+
+@utility void-bg {
+  /* Void background — layered CSS gradients */
+  background-image:
+      /* Subtle cyan spotlight at top */
+    radial-gradient(
+      ellipse 60% 30% at 50% 0%,
+      hsl(var(--void-cyan) / 0.03),
+      transparent
+    ),
+    /* Grid lines */
+      repeating-linear-gradient(
+        0deg,
+        hsl(var(--border) / 0.08) 0px,
+        transparent 1px,
+        transparent 40px
+      ),
+    repeating-linear-gradient(
+      90deg,
+      hsl(var(--border) / 0.08) 0px,
+      transparent 1px,
+      transparent 40px
+    ),
+    /* Dot intersections */
+      radial-gradient(
+        circle 0.5px at 0px 0px,
+        hsl(var(--border) / 0.2) 0.5px,
+        transparent 0.5px
+      );
+  background-size:
+    100% 100%,
+    40px 40px,
+    40px 40px,
+    40px 40px;
+}
+
+@utility panel {
+  /* Panel styles */
+  @apply bg-card border border-border rounded-lg;
+}
+
+@utility panel-header {
+  @apply px-4 py-3 border-b border-border flex items-center justify-between;
+}
+
+@utility panel-body {
+  @apply p-4;
+}
+
+@utility font-mono-tight {
+  /* Mono/code font */
+  font-family:
+    'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace,
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility digital-clock {
+  /* Digital clock styling */
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+@utility pulse-live {
+  /* Pulse animations for status */
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+@utility pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@utility shimmer {
+  /* Shimmer loading */
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted-foreground) / 0.1) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@utility slide-in-right {
+  /* Slide-in for panels */
+  animation: slideInRight 0.2s ease-out;
+}
+
+@utility slide-in-left {
+  animation: slideInLeft 0.2s ease-out;
+}
+
+@utility fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+
+@utility command-palette-in {
+  animation: commandPaletteIn 0.1s ease-out;
+}
+
+@utility safe-area-bottom {
+  /* iOS safe area for bottom nav */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility touch-target {
+  @media (pointer: coarse) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@utility shimmer-bar {
+  /* Touch-friendly tap targets */
+
+  /* Progress bar shimmer */
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--primary-foreground) / 0.25) 50%,
+      transparent 100%
+    );
+    background-size: 50% 100%;
+    animation: shimmerBar 1.5s ease-in-out infinite;
+  }
+}
+
+@utility check-enter {
+  /* Step check entrance */
+  animation: checkEnter 0.3s ease-out;
+
+  /* Reduced motion */
+}
 
 @layer base {
   :root {
@@ -133,201 +659,14 @@
 }
 
 @layer utilities {
-  /* Kanban drag-over highlight */
-  .drag-over {
-    @apply border-primary/40;
-    background: hsl(var(--primary) / 0.02);
-  }
-
-  /* Glass morphism effects */
-  .glass {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50;
-  }
-
-  .glass-strong {
-    @apply bg-card/90 backdrop-blur-2xl border border-border/60;
-  }
-
-  /* Surface levels */
-  .surface-0 {
-    background: hsl(var(--surface-0));
-  }
-  .surface-1 {
-    background: hsl(var(--surface-1));
-  }
-  .surface-2 {
-    background: hsl(var(--surface-2));
-  }
-  .surface-3 {
-    background: hsl(var(--surface-3));
-  }
-
-  /* Status badge styles */
-  .badge-success {
-    @apply bg-green-500/15 text-green-400 border border-green-500/20;
-  }
-  .badge-warning {
-    @apply bg-amber-500/15 text-amber-400 border border-amber-500/20;
-  }
-  .badge-error {
-    @apply bg-red-500/15 text-red-400 border border-red-500/20;
-  }
-  .badge-info {
-    @apply bg-blue-500/15 text-blue-400 border border-blue-500/20;
-  }
-  .badge-neutral {
-    @apply bg-muted text-muted-foreground border border-border;
-  }
-
-  /* Glow effects for active states */
-  .glow-primary {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.15);
-  }
-  .glow-success {
-    box-shadow: 0 0 20px hsl(var(--success) / 0.15);
-  }
-
-  /* Smooth transitions */
-  .transition-smooth {
-    @apply transition-all duration-200 ease-out;
-  }
-
-  /* Void glow utilities */
-  .glow-cyan {
-    box-shadow: 0 0 20px hsl(var(--void-cyan) / 0.2), 0 0 40px hsl(var(--void-cyan) / 0.08);
-  }
-  .glow-mint {
-    box-shadow: 0 0 20px hsl(var(--void-mint) / 0.2), 0 0 40px hsl(var(--void-mint) / 0.08);
-  }
-  .glow-amber {
-    box-shadow: 0 0 20px hsl(var(--void-amber) / 0.2), 0 0 40px hsl(var(--void-amber) / 0.08);
-  }
-  .glow-violet {
-    box-shadow: 0 0 20px hsl(var(--void-violet) / 0.2), 0 0 40px hsl(var(--void-violet) / 0.08);
-  }
-
-  /* Void panel — glass card with luminous border */
-  .void-panel {
-    @apply bg-card/90 backdrop-blur-sm border border-border rounded-lg;
-    box-shadow:
-      inset 0 1px 0 hsl(var(--void-cyan) / 0.04),
-      0 4px 24px hsl(var(--background) / 0.5),
-      0 0 0 1px hsl(var(--void-cyan) / 0.04);
-  }
-
-  /* Void border glow — animated gradient border */
-  .void-border-glow {
-    position: relative;
-  }
-  .void-border-glow::before {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--void-cyan) / 0.3),
-      transparent 40%,
-      transparent 60%,
-      hsl(var(--void-violet) / 0.2)
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    padding: 1px;
-    pointer-events: none;
-    animation: edgeGlow 2s ease-in-out infinite;
-  }
-
-  /* Neon button hover effect */
-  .btn-neon {
-    @apply transition-all duration-200;
-  }
-  .btn-neon:hover {
-    box-shadow: 0 0 16px hsl(var(--void-cyan) / 0.25);
-  }
-
-  /* Status badge glow variants */
-  .badge-glow-success {
-    box-shadow: 0 0 12px hsl(var(--void-mint) / 0.25);
-  }
-  .badge-glow-warning {
-    box-shadow: 0 0 12px hsl(var(--void-amber) / 0.25);
-  }
-  .badge-glow-error {
-    box-shadow: 0 0 12px hsl(var(--void-crimson) / 0.25);
-  }
-
-  /* Void background — layered CSS gradients */
-  .void-bg {
-    background-image:
-      /* Subtle cyan spotlight at top */
-      radial-gradient(ellipse 60% 30% at 50% 0%, hsl(var(--void-cyan) / 0.03), transparent),
-      /* Grid lines */
-      repeating-linear-gradient(0deg, hsl(var(--border) / 0.08) 0px, transparent 1px, transparent 40px),
-      repeating-linear-gradient(90deg, hsl(var(--border) / 0.08) 0px, transparent 1px, transparent 40px),
-      /* Dot intersections */
-      radial-gradient(circle 0.5px at 0px 0px, hsl(var(--border) / 0.2) 0.5px, transparent 0.5px);
-    background-size: 100% 100%, 40px 40px, 40px 40px, 40px 40px;
-  }
-
-  /* Panel styles */
-  .panel {
-    @apply bg-card border border-border rounded-lg;
-  }
-
-  .panel-header {
-    @apply px-4 py-3 border-b border-border flex items-center justify-between;
-  }
-
-  .panel-body {
-    @apply p-4;
-  }
-
-  /* Mono/code font */
-  .font-mono-tight {
-    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* Digital clock styling */
-  .digital-clock {
-    font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* Pulse animations for status */
-  .pulse-live {
-    animation: pulse-live 2s ease-in-out infinite;
-  }
-
   @keyframes pulse-live {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
   }
 
-  .pulse-dot {
-    animation: pulse-dot 2s ease-in-out infinite;
-  }
-
   @keyframes pulse-dot {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.3); opacity: 0.7; }
-  }
-
-  /* Shimmer loading */
-  .shimmer {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--muted)) 0%,
-      hsl(var(--muted-foreground) / 0.1) 50%,
-      hsl(var(--muted)) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s ease-in-out infinite;
   }
 
   @keyframes shimmer {
@@ -341,18 +680,9 @@
     100% { transform: translateX(250%); width: 40%; }
   }
 
-  /* Slide-in for panels */
-  .slide-in-right {
-    animation: slideInRight 0.2s ease-out;
-  }
-
   @keyframes slideInRight {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
-  }
-
-  .slide-in-left {
-    animation: slideInLeft 0.2s ease-out;
   }
 
   @keyframes slideInLeft {
@@ -360,17 +690,9 @@
     to { transform: translateX(0); opacity: 1; }
   }
 
-  .fade-in {
-    animation: fadeIn 0.15s ease-out;
-  }
-
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
-  }
-
-  .command-palette-in {
-    animation: commandPaletteIn 0.1s ease-out;
   }
 
   @keyframes commandPaletteIn {
@@ -383,49 +705,15 @@
       transform: scale(1);
     }
   }
-
-  /* iOS safe area for bottom nav */
-  .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-
-  /* Touch-friendly tap targets */
-  @media (pointer: coarse) {
-    .touch-target {
-      min-height: 44px;
-      min-width: 44px;
-    }
-  }
-
-  /* Progress bar shimmer */
-  .shimmer-bar {
-    position: relative;
-    overflow: hidden;
-  }
-  .shimmer-bar::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, transparent 0%, hsl(var(--primary-foreground) / 0.25) 50%, transparent 100%);
-    background-size: 50% 100%;
-    animation: shimmerBar 1.5s ease-in-out infinite;
-  }
   @keyframes shimmerBar {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(200%); }
-  }
-
-  /* Step check entrance */
-  .check-enter {
-    animation: checkEnter 0.3s ease-out;
   }
   @keyframes checkEnter {
     0% { opacity: 0; transform: scale(0.5); }
     60% { transform: scale(1.15); }
     100% { opacity: 1; transform: scale(1); }
   }
-
-  /* Reduced motion */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

@@ -295,7 +295,7 @@ export function HeaderBar() {
   }
 
   return (
-    <header role="banner" aria-label="Application header" className="relative z-50 h-14 bg-card/80 backdrop-blur-sm border-b border-border px-3 md:px-4 shrink-0">
+    <header role="banner" aria-label="Application header" className="relative z-50 h-14 bg-card/80 backdrop-blur-xs border-b border-border px-3 md:px-4 shrink-0">
       <div className="h-full flex items-center gap-2 md:gap-3">
         {/* Left: Page title + context */}
         <div className="flex min-w-0 items-center gap-2.5 shrink-0">
@@ -325,7 +325,7 @@ export function HeaderBar() {
         </div>
 
         {/* Center: wide command search (desktop) */}
-        <div className="hidden md:flex items-center justify-center flex-1 min-w-0 max-w-[28rem] lg:max-w-[34rem] xl:max-w-[42rem]">
+        <div className="hidden md:flex items-center justify-center flex-1 min-w-0 max-w-md lg:max-w-136 xl:max-w-2xl">
           <Button
             variant="outline"
             size="sm"
@@ -388,14 +388,14 @@ export function HeaderBar() {
       {searchOpen && isMounted && createPortal(
         <div
           ref={searchRef}
-          className="fixed inset-0 z-[9999] isolate"
+          className="fixed inset-0 z-9999 isolate"
           role="dialog"
           aria-modal="true"
           aria-label="Command search"
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/30 to-black/30" onClick={() => setSearchOpen(false)} />
+          <div className="absolute inset-0 bg-linear-to-b from-black/30 via-black/30 to-black/30" onClick={() => setSearchOpen(false)} />
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="command-palette-in w-full max-w-[44rem] max-h-[min(78vh,40rem)] bg-card border border-border rounded-lg shadow-2xl overflow-hidden">
+            <div className="command-palette-in w-full max-w-176 max-h-[min(78vh,40rem)] bg-card border border-border rounded-lg shadow-2xl overflow-hidden">
               <div className="p-2 border-b border-border">
                 <input
                   ref={searchInputRef}
@@ -403,7 +403,7 @@ export function HeaderBar() {
                   value={searchQuery}
                   onChange={e => handleSearchInput(e.target.value)}
                   placeholder={th('searchPlaceholder')}
-                  className="w-full h-9 px-3 rounded-md bg-secondary border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  className="w-full h-9 px-3 rounded-md bg-secondary border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden"
                   autoFocus
                   role="combobox"
                   aria-expanded={searchOpen}

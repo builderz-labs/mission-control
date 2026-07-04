@@ -687,7 +687,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             value={form.name}
             onChange={e => setForm({ ...form, name: e.target.value })}
             placeholder={t('namePlaceholder')}
-            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
             required
           />
         </div>
@@ -697,7 +697,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             type="text"
             value={form.host}
             onChange={e => setForm({ ...form, host: e.target.value })}
-            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
             required
           />
         </div>
@@ -707,7 +707,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             type="number"
             value={form.port}
             onChange={e => setForm({ ...form, port: e.target.value })}
-            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
             required
           />
         </div>
@@ -718,7 +718,7 @@ function AddGatewayForm({ onAdded, onCancel }: { onAdded: () => void; onCancel: 
             value={form.token}
             onChange={e => setForm({ ...form, token: e.target.value })}
             placeholder={t('optional')}
-            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>

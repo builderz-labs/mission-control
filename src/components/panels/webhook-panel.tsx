@@ -489,7 +489,7 @@ function CreateWebhookForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Slack alerts"
-          className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-sm text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
         />
       </div>
 
@@ -499,7 +499,7 @@ function CreateWebhookForm({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://hooks.slack.com/services/..."
-          className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-sm text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full h-8 px-2.5 rounded-md bg-secondary border border-border text-sm text-foreground font-mono focus:outline-hidden focus:ring-1 focus:ring-primary"
         />
       </div>
 

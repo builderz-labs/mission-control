@@ -378,7 +378,7 @@ export function GitHubSyncPanel() {
                 value={repo}
                 onChange={e => setRepo(e.target.value)}
                 placeholder={t('placeholderRepo')}
-                className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -390,7 +390,7 @@ export function GitHubSyncPanel() {
                 value={labelFilter}
                 onChange={e => setLabelFilter(e.target.value)}
                 placeholder={t('placeholderLabels')}
-                className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -400,7 +400,7 @@ export function GitHubSyncPanel() {
               <select
                 value={stateFilter}
                 onChange={e => setStateFilter(e.target.value as any)}
-                className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
               >
                 <option value="open">{t('stateOpen')}</option>
                 <option value="closed">{t('stateClosed')}</option>
@@ -414,7 +414,7 @@ export function GitHubSyncPanel() {
               <select
                 value={assignAgent}
                 onChange={e => setAssignAgent(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
               >
                 <option value="">{t('unassigned')}</option>
                 {agents.map(a => (

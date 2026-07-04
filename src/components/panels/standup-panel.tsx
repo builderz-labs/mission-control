@@ -259,7 +259,7 @@ export function StandupPanel() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
+      <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
         <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
 
         <div className="flex items-center gap-3">
@@ -287,7 +287,7 @@ export function StandupPanel() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-surface-1 text-foreground rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
+                className="bg-surface-1 text-foreground rounded-md px-3 py-1.5 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50 border border-border"
               />
 
               <Button

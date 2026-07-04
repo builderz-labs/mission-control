@@ -32,7 +32,7 @@ export function SessionMessage({ message, showTimestamp }: SessionMessageProps) 
   return (
     <div className={`flex gap-0 border-l-2 ${config.borderClass} pl-3 py-1.5`}>
       {/* Timestamp gutter */}
-      <div className="hidden w-16 flex-shrink-0 text-right sm:block">
+      <div className="hidden w-16 shrink-0 text-right sm:block">
         {showTimestamp && timeStr && (
           <span className="font-mono-tight text-[10px] tabular-nums text-muted-foreground/50">
             {timeStr}
@@ -42,11 +42,11 @@ export function SessionMessage({ message, showTimestamp }: SessionMessageProps) 
 
       {/* Indicator */}
       {config.indicator && (
-        <div className={`w-5 flex-shrink-0 text-center font-mono-tight text-xs ${config.indicatorClass}`}>
+        <div className={`w-5 shrink-0 text-center font-mono-tight text-xs ${config.indicatorClass}`}>
           {config.indicator}
         </div>
       )}
-      {!config.indicator && <div className="w-5 flex-shrink-0" />}
+      {!config.indicator && <div className="w-5 shrink-0" />}
 
       {/* Content */}
       <div className="min-w-0 flex-1 space-y-1">
@@ -75,7 +75,7 @@ function PartRenderer({ part }: { part: MessageContentPart }) {
 
 function TextPart({ text }: { text: string }) {
   return (
-    <div className="font-mono-tight text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words">
+    <div className="font-mono-tight text-xs leading-relaxed text-foreground whitespace-pre-wrap wrap-break-word">
       {renderSessionContent(text)}
     </div>
   )
@@ -89,7 +89,7 @@ function ThinkingPart({ thinking }: { thinking: string }) {
         {open ? '\u25BE' : '\u25B8'} thinking ({thinking.length} chars)
       </summary>
       <div className="mt-1 border-l border-muted-foreground/20 pl-3">
-        <div className="font-mono-tight text-[11px] italic leading-relaxed text-muted-foreground/70 whitespace-pre-wrap break-words max-h-60 overflow-y-auto">
+        <div className="font-mono-tight text-[11px] italic leading-relaxed text-muted-foreground/70 whitespace-pre-wrap wrap-break-word max-h-60 overflow-y-auto">
           {thinking}
         </div>
       </div>
@@ -116,7 +116,7 @@ function ToolResultPart({ content, isError }: { content: string; isError?: boole
         {'\u25B8'}{icon} result ({content.length} chars)
       </summary>
       <div className="mt-1 max-h-40 overflow-y-auto rounded bg-black/20 px-3 py-1.5">
-        <pre className="font-mono-tight text-[11px] text-muted-foreground/70 whitespace-pre-wrap break-words">
+        <pre className="font-mono-tight text-[11px] text-muted-foreground/70 whitespace-pre-wrap wrap-break-word">
           {content}
         </pre>
       </div>

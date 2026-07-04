@@ -12,7 +12,7 @@ export function ChatPanel() {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:bg-black/20"
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs md:bg-black/20"
         onClick={() => setChatPanelOpen(false)}
       />
 

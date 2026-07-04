@@ -211,7 +211,7 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
       <div className="mt-5 flex items-center gap-3">
         <div className="flex-1 h-1.5 rounded-full bg-border/20 overflow-hidden relative">
           {completedCount < 3 && (
-            <div className="absolute inset-0 bg-gradient-to-r from-void-amber/10 to-void-cyan/10 animate-pulse" />
+            <div className="absolute inset-0 bg-linear-to-r from-void-amber/10 to-void-cyan/10 animate-pulse" />
           )}
           <div
             className="h-full rounded-full relative overflow-hidden transition-all duration-1000 ease-out"

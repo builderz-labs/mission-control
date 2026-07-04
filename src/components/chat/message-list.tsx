@@ -221,7 +221,7 @@ export function MessageList() {
       {/* Typing indicator */}
       {isSendingMessage && (
         <div className="flex gap-2 mt-3">
-          <div className="w-7 h-7 rounded-full bg-surface-2 flex items-center justify-center flex-shrink-0">
+          <div className="w-7 h-7 rounded-full bg-surface-2 flex items-center justify-center shrink-0">
             <div className="flex gap-0.5">
               <div className="w-1 h-1 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '0ms' }} />
               <div className="w-1 h-1 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '150ms' }} />

@@ -447,7 +447,7 @@ export function SkillsPanel() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('searchPlaceholder')}
-              className="h-9 w-full rounded-md border border-border bg-secondary/50 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/40"
+              className="h-9 w-full rounded-md border border-border bg-secondary/50 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-primary/40"
             />
             {query && (
               <button
@@ -531,7 +531,7 @@ export function SkillsPanel() {
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
                 placeholder="new-skill-name"
-                className="h-9 rounded-md border border-border bg-secondary/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                className="h-9 rounded-md border border-border bg-secondary/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden"
               />
               <Button variant="default" size="sm" onClick={createSkill} disabled={saving || !createName.trim()}>
                 {t('addSkill')}
@@ -540,7 +540,7 @@ export function SkillsPanel() {
             <textarea
               value={createContent}
               onChange={(e) => setCreateContent(e.target.value)}
-              className="w-full h-24 rounded-md border border-border bg-secondary/30 p-2 text-xs text-foreground font-mono focus:outline-none"
+              className="w-full h-24 rounded-md border border-border bg-secondary/30 p-2 text-xs text-foreground font-mono focus:outline-hidden"
               placeholder={t('initialContent')}
             />
             {createError && <p className="text-xs text-destructive">{createError}</p>}
@@ -652,7 +652,7 @@ export function SkillsPanel() {
                 onChange={(e) => setRegistryQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && searchRegistry()}
                 placeholder={t('registrySearchPlaceholder')}
-                className="h-9 flex-1 rounded-md border border-border bg-secondary/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                className="h-9 flex-1 rounded-md border border-border bg-secondary/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden"
               />
               <Button variant="default" size="sm" onClick={searchRegistry} disabled={registryLoading || !registryQuery.trim()}>
                 {registryLoading ? t('searching') : t('search')}
@@ -739,8 +739,8 @@ export function SkillsPanel() {
       )}
 
       {isMounted && installModal && createPortal(
-        <div className="fixed inset-0 z-[130]">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+        <div className="fixed inset-0 z-130">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-xs" />
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-card border border-border rounded-lg shadow-2xl overflow-hidden">
               <div className="px-5 pt-5 pb-4">
@@ -830,7 +830,7 @@ export function SkillsPanel() {
       )}
 
       {isMounted && selectedSkill && createPortal(
-        <div className="fixed inset-0 z-[120]">
+        <div className="fixed inset-0 z-120">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedSkill(null)} />
           <aside className="absolute right-0 top-0 h-full w-[min(52rem,100vw)] bg-card border-l border-border shadow-2xl flex flex-col">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
@@ -879,7 +879,7 @@ export function SkillsPanel() {
                   <textarea
                     value={draftContent}
                     onChange={(e) => setDraftContent(e.target.value)}
-                    className="w-full h-full min-h-[70vh] bg-card p-4 text-xs text-muted-foreground leading-5 font-mono whitespace-pre rounded-none border-0 focus:outline-none"
+                    className="w-full h-full min-h-[70vh] bg-card p-4 text-xs text-muted-foreground leading-5 font-mono whitespace-pre rounded-none border-0 focus:outline-hidden"
                   />
                 </>
               ) : (

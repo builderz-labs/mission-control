@@ -217,13 +217,13 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
       >
         {customizing && (
           <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
-            <span className="text-2xs text-muted-foreground bg-card/80 backdrop-blur-sm rounded px-1.5 py-0.5 border border-border/50 cursor-grab">
+            <span className="text-2xs text-muted-foreground bg-card/80 backdrop-blur-xs rounded px-1.5 py-0.5 border border-border/50 cursor-grab">
               :::
             </span>
             <button
               type="button"
               onClick={() => removeWidget(widgetId)}
-              className="text-2xs text-red-400 hover:text-red-300 bg-card/80 backdrop-blur-sm rounded px-1.5 py-0.5 border border-border/50"
+              className="text-2xs text-red-400 hover:text-red-300 bg-card/80 backdrop-blur-xs rounded px-1.5 py-0.5 border border-border/50"
             >
               x
             </button>

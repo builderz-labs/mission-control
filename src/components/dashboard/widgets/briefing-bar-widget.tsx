@@ -31,7 +31,7 @@ export function BriefingBarWidget({ data }: { data: DashboardData }) {
   const agentTotal = dbStats?.agents.total ?? agents.length
 
   return (
-    <div className="rounded-xl border border-border bg-card/80 backdrop-blur-sm px-4 py-3">
+    <div className="rounded-xl border border-border bg-card/80 backdrop-blur-xs px-4 py-3">
       {/* Top row: key counts */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
         <BriefingItem

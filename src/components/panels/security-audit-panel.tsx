@@ -382,7 +382,7 @@ export function SecurityAuditPanel() {
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="flex items-center gap-6">
               {/* Circular gauge */}
-              <div className="relative w-24 h-24 flex-shrink-0">
+              <div className="relative w-24 h-24 shrink-0">
                 <svg viewBox="0 0 36 36" className="w-24 h-24 -rotate-90">
                   <circle cx="18" cy="18" r="15.9" fill="none" className="stroke-muted" strokeWidth="2.5" />
                   <circle
@@ -683,7 +683,7 @@ export function SecurityAuditPanel() {
 
               {/* Convergence gauge + drift alerts */}
               <div className="flex items-center gap-6 mb-6">
-                <div className="relative w-20 h-20 flex-shrink-0">
+                <div className="relative w-20 h-20 shrink-0">
                   <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" className="stroke-muted" strokeWidth="2.5" />
                     <circle

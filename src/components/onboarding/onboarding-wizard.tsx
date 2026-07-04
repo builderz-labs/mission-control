@@ -229,7 +229,7 @@ export function OnboardingWizard() {
   const isGateway = dashboardMode === 'full' || gatewayAvailable
 
   return createPortal(
-    <div className={`fixed inset-0 z-[140] flex items-start justify-center overflow-y-auto p-2 sm:items-center sm:p-4 transition-opacity duration-300 ${closing ? 'opacity-0' : 'opacity-100'}`}>
+    <div className={`fixed inset-0 z-140 flex items-start justify-center overflow-y-auto p-2 sm:items-center sm:p-4 transition-opacity duration-300 ${closing ? 'opacity-0' : 'opacity-100'}`}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/82 backdrop-blur-md" onClick={skip} />
 
@@ -274,7 +274,7 @@ export function OnboardingWizard() {
             : 'opacity-100 translate-x-0'
         }`}>
           {completionMessage && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/95 backdrop-blur-xs">
               <div className={`text-2xl font-bold mb-2 ${isGateway ? 'text-void-cyan' : 'text-void-amber'}`}>{t('stationOnline')}</div>
               <p className="text-sm text-muted-foreground">{t('stationReady')}</p>
             </div>
@@ -417,7 +417,7 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
           />
         </div>
       </div>
-      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
+      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur-sm supports-backdrop-filter:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
         <Button variant="ghost" size="sm" onClick={onSkip} className="text-sm text-muted-foreground min-h-10 px-4">
           {t('skipSetup')}
         </Button>
@@ -525,7 +525,7 @@ function StepInterfaceMode({ isGateway, onNext, onBack }: {
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
+      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur-sm supports-backdrop-filter:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
         <Button variant="ghost" size="sm" onClick={onBack} className="text-sm text-muted-foreground min-h-10 px-4">{tc('back')}</Button>
         <Button onClick={onNext} size="sm" className={`${mc.bgBtn} ${mc.text} border ${mc.border} ${mc.hoverBg} min-h-10 px-4`}>
           {tc('continue')}
@@ -625,7 +625,7 @@ function StepGatewayLink({ isGateway, registration, onNext, onBack }: {
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
+      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur-sm supports-backdrop-filter:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
         <Button variant="ghost" size="sm" onClick={onBack} className="text-sm text-muted-foreground min-h-10 px-4">{tc('back')}</Button>
         <Button onClick={onNext} size="sm" className={`${mc.bgBtn} ${mc.text} border ${mc.border} ${mc.hoverBg} min-h-10 px-4`}>
           {tc('continue')}
@@ -721,7 +721,7 @@ function StepCredentials({
         )}
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
+      <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex items-center justify-between border-t border-border/30 bg-background/95 px-4 py-3 backdrop-blur-sm supports-backdrop-filter:bg-background/80 sm:static sm:z-auto sm:mx-0 sm:mt-6 sm:bg-transparent sm:px-0 sm:py-4 sm:backdrop-blur-0">
         <Button variant="ghost" size="sm" onClick={onBack} className="text-sm text-muted-foreground min-h-10 px-4">{tc('back')}</Button>
         <Button onClick={onFinish} size="sm" className={`${mc.bgBtn} ${mc.text} border ${mc.border} ${mc.hoverBg} min-h-10 px-4`}>
           {allGood ? t('launchStation') : t('launchAnyway')}

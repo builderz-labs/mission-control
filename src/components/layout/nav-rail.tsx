@@ -237,7 +237,7 @@ export function NavRail() {
       <nav
         role="navigation"
         aria-label="Main navigation"
-        className={`hidden md:flex flex-col bg-gradient-to-b from-card to-background border-r border-border shrink-0 transition-all duration-200 ease-in-out ${
+        className={`hidden md:flex flex-col bg-linear-to-b from-card to-background border-r border-border shrink-0 transition-all duration-200 ease-in-out ${
           sidebarExpanded ? 'w-[220px]' : 'w-14'
         }`}
       >
@@ -433,7 +433,7 @@ export function NavRail() {
               href="https://builderz.dev"
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-lg border border-void-cyan/20 bg-gradient-to-br from-void-cyan/5 to-transparent hover:from-void-cyan/10 hover:border-void-cyan/40 transition-all duration-200 p-2 group"
+              className="block rounded-lg border border-void-cyan/20 bg-linear-to-br from-void-cyan/5 to-transparent hover:from-void-cyan/10 hover:border-void-cyan/40 transition-all duration-200 p-2 group"
             >
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className="text-2xs font-bold text-foreground group-hover:text-void-cyan transition-colors">builderz</span>
@@ -643,7 +643,7 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
   if (!open) return null
 
   return (
-    <div className="md:hidden fixed inset-0 z-[60]">
+    <div className="md:hidden fixed inset-0 z-60">
       {/* Backdrop */}
       <div
         className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
@@ -1115,20 +1115,20 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                         onChange={(e) => setCreateForm(f => ({ ...f, username: e.target.value }))}
                         placeholder={tcs('usernamePlaceholder')}
                         autoFocus
-                        className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+                        className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden focus:border-primary/50"
                       />
                       <input
                         value={createForm.display_name}
                         onChange={(e) => setCreateForm(f => ({ ...f, display_name: e.target.value }))}
                         placeholder={tcs('displayNamePlaceholder')}
-                        className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+                        className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden focus:border-primary/50"
                       />
                       {!isLocal && (
                         <input
                           value={createForm.gateway_port}
                           onChange={(e) => setCreateForm(f => ({ ...f, gateway_port: e.target.value }))}
                           placeholder={tcs('gatewayPortPlaceholder')}
-                          className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+                          className="w-full h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden focus:border-primary/50"
                         />
                       )}
                       {/* Tool installation checkboxes */}

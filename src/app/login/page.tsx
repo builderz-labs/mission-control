@@ -394,7 +394,7 @@ export default function LoginPage() {
                     id="gateway-url"
                     value={gatewayPreset}
                     onChange={e => handleGatewayUrlChange(e.target.value)}
-                    className="flex-1 h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth appearance-none cursor-pointer"
+                    className="flex-1 h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth appearance-none cursor-pointer"
                   >
                     {GATEWAY_URL_PRESETS.map(url => (
                       <option key={url} value={url}>{url}</option>
@@ -408,7 +408,7 @@ export default function LoginPage() {
                     value={gatewayCustom}
                     onChange={e => handleGatewayCustomChange(e.target.value)}
                     placeholder={t('gatewayUrlPlaceholder')}
-                    className="mt-2 w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
+                    className="mt-2 w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
                   />
                 )}
               </div>
@@ -418,7 +418,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={handleTestConnection}
                   disabled={connectionStatus === 'testing' || !getEffectiveGatewayUrl()}
-                  className="h-9 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm hover:bg-muted-foreground/10 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  className="h-9 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm hover:bg-muted-foreground/10 focus:outline-hidden focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
                   {connectionStatus === 'testing' ? (
                     <>
@@ -463,7 +463,7 @@ export default function LoginPage() {
               type="button"
               onClick={handleGoogleSignIn}
               disabled={!googleReady || googleLoading || loading}
-              className="w-full h-10 flex items-center justify-center gap-3 rounded-lg border border-border bg-white text-[#3c4043] text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-10 flex items-center justify-center gap-3 rounded-lg border border-border bg-white text-[#3c4043] text-sm font-medium hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {googleLoading ? (
                 <>
@@ -498,7 +498,7 @@ export default function LoginPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
+              className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
               placeholder={t('enterUsername')}
               autoComplete="username"
               autoFocus
@@ -514,7 +514,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
+              className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/50 focus:border-primary transition-smooth"
               placeholder={t('enterPassword')}
               autoComplete="current-password"
               required

@@ -185,7 +185,7 @@ export function LogRow({ log }: { log: LogLike }) {
           'bg-blue-500/50'
         }`} />
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-foreground/80 break-words">{log.message.length > 100 ? log.message.slice(0, 100) + '...' : log.message}</p>
+          <p className="text-xs text-foreground/80 wrap-break-word">{log.message.length > 100 ? log.message.slice(0, 100) + '...' : log.message}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-2xs text-muted-foreground font-mono-tight">{log.source}</span>
             <span className="text-2xs text-muted-foreground/40">·</span>

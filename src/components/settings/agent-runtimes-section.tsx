@@ -181,7 +181,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
               {/* Installing shimmer + progress */}
               {isInstalling && (
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/5 to-transparent animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }} />
+                  <div className="absolute inset-0 bg-linear-to-r from-transparent via-emerald-500/5 to-transparent animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }} />
                   <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-border/20 overflow-hidden">
                     <div className="h-full bg-emerald-500/60 animate-[indeterminate_1.5s_infinite_ease-in-out]" />
                   </div>

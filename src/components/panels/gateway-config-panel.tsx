@@ -389,7 +389,7 @@ export function GatewayConfigPanel() {
               placeholder={t('searchPlaceholder')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full h-7 pl-7 pr-2 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50"
+              className="w-full h-7 pl-7 pr-2 text-xs bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50"
             />
             <svg className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
@@ -562,7 +562,7 @@ export function GatewayConfigPanel() {
             <textarea
               value={jsonText}
               onChange={e => setJsonText(e.target.value)}
-              className="w-full h-full min-h-[500px] p-3 text-xs font-mono bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y"
+              className="w-full h-full min-h-[500px] p-3 text-xs font-mono bg-background border border-border rounded-lg focus:outline-hidden focus:ring-1 focus:ring-primary/50 resize-y"
               spellCheck={false}
             />
           ) : (
@@ -710,7 +710,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
             const selected = schema.enum!.find(opt => String(opt) === e.target.value)
             onPatch(path, selected ?? e.target.value)
           }}
-          className="h-8 px-2 text-xs bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50 min-w-40"
+          className="h-8 px-2 text-xs bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 min-w-40"
         >
           <option value="">Select...</option>
           {schema.enum.map((opt, i) => (
@@ -738,7 +738,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
             className="sr-only peer"
           />
           <div className="w-9 h-5 bg-secondary rounded-full peer-checked:bg-primary/60 transition-colors" />
-          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-foreground rounded-full shadow transition-transform peer-checked:translate-x-4" />
+          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-foreground rounded-full shadow-sm transition-transform peer-checked:translate-x-4" />
         </div>
       </label>
     )
@@ -760,7 +760,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
             const num = Number(raw)
             onPatch(path, Number.isNaN(num) ? raw : (type === 'integer' ? Math.floor(num) : num))
           }}
-          className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50 w-32"
+          className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 w-32"
         />
       </FieldWrapper>
     )
@@ -777,7 +777,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
           placeholder={schema.default != null ? `Default: ${String(schema.default)}` : ''}
           disabled={isRedacted}
           onChange={e => onPatch(path, e.target.value)}
-          className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50 flex-1 min-w-40 disabled:opacity-50"
+          className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 flex-1 min-w-40 disabled:opacity-50"
         />
       </FieldWrapper>
     )
@@ -1061,7 +1061,7 @@ function FallbackField({ fieldKey, value, path, onPatch }: {
             className="sr-only peer"
           />
           <div className="w-9 h-5 bg-secondary rounded-full peer-checked:bg-primary/60 transition-colors" />
-          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-foreground rounded-full shadow transition-transform peer-checked:translate-x-4" />
+          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-foreground rounded-full shadow-sm transition-transform peer-checked:translate-x-4" />
         </div>
       </label>
     )
@@ -1082,7 +1082,7 @@ function FallbackField({ fieldKey, value, path, onPatch }: {
             onPatch(path, raw)
           }
         }}
-        className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/50 flex-1 min-w-40 disabled:opacity-50"
+        className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 flex-1 min-w-40 disabled:opacity-50"
       />
     </FieldWrapper>
   )

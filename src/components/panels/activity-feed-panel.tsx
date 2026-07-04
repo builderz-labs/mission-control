@@ -96,7 +96,7 @@ function ActivityRow({ activity }: { activity: Activity }) {
     <div className="bg-card rounded-lg p-3 border-l-2 border-border hover:bg-surface-1 transition-smooth">
       <div className="flex items-start gap-3">
         <div
-          className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+          className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
             activityColors[activity.type]
               ?.replace('text-', 'bg-')
               .replace('-400', '-500/15') || 'bg-surface-2'
@@ -165,7 +165,7 @@ function ActivityRow({ activity }: { activity: Activity }) {
               )}
             </div>
 
-            <div className="flex-shrink-0 text-[10px] text-muted-foreground/50">
+            <div className="shrink-0 text-[10px] text-muted-foreground/50">
               {formatRelativeTime(activity.created_at)}
             </div>
           </div>
@@ -180,7 +180,7 @@ function TimelineRow({ activity }: { activity: Activity }) {
   return (
     <div className="flex items-start gap-2.5 pl-3 py-1.5 hover:bg-secondary/30 rounded-r-lg transition-smooth relative">
       <span
-        className={`absolute -left-[5px] top-3 w-2 h-2 rounded-full bg-card border-2 ${
+        className={`absolute left-[-5px] top-3 w-2 h-2 rounded-full bg-card border-2 ${
           activity.type === 'agent_status_change'
             ? 'border-yellow-400'
             : activity.type.startsWith('task')
@@ -312,7 +312,7 @@ export function ActivityFeedPanel() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-border flex-shrink-0">
+      <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
           <div
@@ -334,7 +334,7 @@ export function ActivityFeedPanel() {
       </div>
 
       {/* Filters + Agent Selector */}
-      <div className="p-4 border-b border-border bg-surface-1 flex-shrink-0">
+      <div className="p-4 border-b border-border bg-surface-1 shrink-0">
         <div className="flex gap-4 flex-wrap items-end">
           {/* Agent filter */}
           <div>
@@ -384,7 +384,7 @@ export function ActivityFeedPanel() {
             <select
               value={filter.type}
               onChange={(e) => setFilter((prev) => ({ ...prev, type: e.target.value }))}
-              className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
+              className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-hidden focus:ring-1 focus:ring-primary/50 border border-border"
             >
               <option value="">{t('allTypes')}</option>
               {activityTypes.map((type) => (
@@ -401,7 +401,7 @@ export function ActivityFeedPanel() {
             <select
               value={filter.limit}
               onChange={(e) => setFilter((prev) => ({ ...prev, limit: parseInt(e.target.value) }))}
-              className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary/50 border border-border"
+              className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-hidden focus:ring-1 focus:ring-primary/50 border border-border"
             >
               <option value={25}>25</option>
               <option value={50}>50</option>
@@ -607,7 +607,7 @@ export function ActivityFeedPanel() {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border p-3 bg-surface-1 text-xs text-muted-foreground flex-shrink-0">
+      <div className="border-t border-border p-3 bg-surface-1 text-xs text-muted-foreground shrink-0">
         <div className="flex justify-between items-center">
           <span>
             {isAgentView

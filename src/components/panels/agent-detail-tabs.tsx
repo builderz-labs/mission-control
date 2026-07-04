@@ -217,7 +217,7 @@ export function OverviewTab({
                   type="text"
                   value={formData.role}
                   onChange={(e) => setFormData((prev: any) => ({ ...prev, role: e.target.value }))}
-                  className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 />
               ) : (
                 <span className="text-foreground">{agent.role}</span>
@@ -230,7 +230,7 @@ export function OverviewTab({
                 <select
                   value={formData.model || ''}
                   onChange={(e) => setFormData((prev: any) => ({ ...prev, model: e.target.value }))}
-                  className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                 >
                   <option value="">{t('default')}</option>
                   {availableModels.map((m) => (
@@ -260,7 +260,7 @@ export function OverviewTab({
                   type="text"
                   value={formData.session_key}
                   onChange={(e) => setFormData((prev: any) => ({ ...prev, session_key: e.target.value }))}
-                  className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="bg-surface-1 text-foreground border border-border rounded px-2.5 py-1.5 text-sm font-mono focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   placeholder={t('sessionKeyPlaceholder')}
                 />
               ) : (
@@ -339,13 +339,13 @@ export function OverviewTab({
               type="text"
               value={messageFrom}
               onChange={(e) => setMessageFrom(e.target.value)}
-              className="bg-surface-1 text-foreground rounded px-2.5 py-1.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+              className="bg-surface-1 text-foreground rounded px-2.5 py-1.5 text-xs border border-border focus:outline-hidden focus:ring-1 focus:ring-primary/50"
               placeholder={t('from')}
             />
             <textarea
               value={directMessage}
               onChange={(e) => setDirectMessage(e.target.value)}
-              className="flex-1 min-h-[80px] bg-surface-1 text-foreground rounded px-2.5 py-2 text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+              className="flex-1 min-h-[80px] bg-surface-1 text-foreground rounded px-2.5 py-2 text-sm border border-border focus:outline-hidden focus:ring-1 focus:ring-primary/50 resize-none"
               placeholder={t('sendMessagePlaceholder', { name: agent.name })}
             />
             <div className="flex justify-end">
@@ -423,7 +423,7 @@ export function SoulTab({
             <select
               value={selectedTemplate}
               onChange={(e) => setSelectedTemplate(e.target.value)}
-              className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+              className="flex-1 bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
             >
               <option value="">{t('selectTemplate')}</option>
               {templates.map(template => (
@@ -453,7 +453,7 @@ export function SoulTab({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={20}
-            className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+            className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50 font-mono text-sm"
             placeholder={t('soulEditorPlaceholder')}
           />
         ) : (
@@ -586,7 +586,7 @@ export function MemoryTab({
               value={newEntry}
               onChange={(e) => setNewEntry(e.target.value)}
               rows={5}
-              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
               placeholder={t('addMemoryEntryPlaceholder')}
             />
           </div>
@@ -595,7 +595,7 @@ export function MemoryTab({
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={15}
-            className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+            className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50 font-mono text-sm"
             placeholder={t('workingMemoryPlaceholder')}
           />
         ) : (
@@ -1026,10 +1026,10 @@ export function CreateAgentModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b border-border flex-shrink-0">
+        <div className="p-6 border-b border-border shrink-0">
           <div className="flex justify-between items-center">
             <div>
               <h3 className="text-xl font-bold text-foreground">{t('createNewAgent')}</h3>
@@ -1116,7 +1116,7 @@ export function CreateAgentModal({
                     type="text"
                     value={formData.name}
                     onChange={(e) => updateName(e.target.value)}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                     placeholder={t('displayNamePlaceholder')}
                     autoFocus
                   />
@@ -1127,7 +1127,7 @@ export function CreateAgentModal({
                     type="text"
                     value={formData.id}
                     onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50 font-mono text-sm"
                     placeholder="frontend-dev"
                   />
                 </div>
@@ -1140,7 +1140,7 @@ export function CreateAgentModal({
                     type="text"
                     value={formData.role}
                     onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                     placeholder="builder engineer"
                   />
                 </div>
@@ -1150,7 +1150,7 @@ export function CreateAgentModal({
                     type="text"
                     value={formData.emoji}
                     onChange={(e) => setFormData(prev => ({ ...prev, emoji: e.target.value }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                     placeholder="e.g. \ud83d\udee0\ufe0f"
                   />
                 </div>
@@ -1185,7 +1185,7 @@ export function CreateAgentModal({
                   value={formData.modelPrimary}
                   onChange={(e) => setFormData(prev => ({ ...prev, modelPrimary: e.target.value }))}
                   list="create-agent-model-suggestions"
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50 font-mono text-sm"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50 font-mono text-sm"
                   placeholder={DEFAULT_MODEL_BY_TIER[formData.modelTier]}
                 />
                 <datalist id="create-agent-model-suggestions">
@@ -1201,7 +1201,7 @@ export function CreateAgentModal({
                   <select
                     value={formData.workspaceAccess}
                     onChange={(e) => setFormData(prev => ({ ...prev, workspaceAccess: e.target.value as any }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="rw">{t('readWrite')}</option>
                     <option value="ro">{t('readOnly')}</option>
@@ -1213,7 +1213,7 @@ export function CreateAgentModal({
                   <select
                     value={formData.sandboxMode}
                     onChange={(e) => setFormData(prev => ({ ...prev, sandboxMode: e.target.value as any }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="all">{t('sandboxAll')}</option>
                     <option value="non-main">{t('sandboxNonMain')}</option>
@@ -1224,7 +1224,7 @@ export function CreateAgentModal({
                   <select
                     value={formData.dockerNetwork}
                     onChange={(e) => setFormData(prev => ({ ...prev, dockerNetwork: e.target.value as any }))}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="none">{t('networkIsolated')}</option>
                     <option value="bridge">{t('networkBridge')}</option>
@@ -1238,7 +1238,7 @@ export function CreateAgentModal({
                   type="text"
                   value={formData.session_key}
                   onChange={(e) => setFormData(prev => ({ ...prev, session_key: e.target.value }))}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   placeholder={t('sessionKeyPlaceholder')}
                 />
               </div>
@@ -1254,7 +1254,7 @@ export function CreateAgentModal({
                   <h4 className="text-sm font-medium text-muted-foreground mb-4">{t('settingUpAgent')}</h4>
                   {progressSteps.map((ps, i) => (
                     <div key={i} className="flex items-start gap-3">
-                      <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">
                         {ps.status === 'active' && (
                           <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         )}
@@ -1338,7 +1338,7 @@ export function CreateAgentModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-border flex gap-3 flex-shrink-0">
+        <div className="p-6 border-t border-border flex gap-3 shrink-0">
           {progressSteps ? (
             /* During/after progress */
             progressSteps.some(s => s.status === 'error') ? (
@@ -1662,7 +1662,7 @@ export function ConfigTab({
               value={jsonInput}
               onChange={(e) => setJsonInput(e.target.value)}
               rows={20}
-              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+              className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-hidden focus:ring-1 focus:ring-primary/50"
             />
           ) : (
             <pre className="bg-surface-1/30 rounded p-4 text-xs text-foreground/90 overflow-auto max-h-96 font-mono">
@@ -1685,7 +1685,7 @@ export function ConfigTab({
                     onChange={(e) => updateModelConfig((current) => ({ ...current, primary: e.target.value }))}
                     list="agent-model-suggestions"
                     placeholder="anthropic/claude-sonnet-4-20250514"
-                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm font-mono focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   />
                   <datalist id="agent-model-suggestions">
                     {availableModels.map((name) => (
@@ -1706,7 +1706,7 @@ export function ConfigTab({
                             updateModelConfig((current) => ({ ...current, fallbacks: next }))
                           }}
                           list="agent-model-suggestions"
-                          className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                          className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                         />
                         <Button
                           onClick={() => {
@@ -1726,7 +1726,7 @@ export function ConfigTab({
                         onChange={(e) => setNewFallbackModel(e.target.value)}
                         list="agent-model-suggestions"
                         placeholder={t('addFallbackModel')}
-                        className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs font-mono focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                       />
                       <Button
                         onClick={addFallbackModel}
@@ -1767,7 +1767,7 @@ export function ConfigTab({
                     <input
                       value={identityEmoji}
                       onChange={(e) => updateIdentityField('emoji', e.target.value)}
-                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm text-center focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                       placeholder="🤖"
                     />
                   </div>
@@ -1776,7 +1776,7 @@ export function ConfigTab({
                     <input
                       value={identity.name || ''}
                       onChange={(e) => updateIdentityField('name', e.target.value)}
-                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                       placeholder="Agent name"
                     />
                   </div>
@@ -1785,7 +1785,7 @@ export function ConfigTab({
                     <input
                       value={identity.theme || ''}
                       onChange={(e) => updateIdentityField('theme', e.target.value)}
-                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                       placeholder="e.g. backend engineer"
                     />
                   </div>
@@ -1796,7 +1796,7 @@ export function ConfigTab({
                     value={identity.content || ''}
                     onChange={(e) => updateIdentityField('content', e.target.value)}
                     rows={4}
-                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                     placeholder="Describe the agent's identity and personality..."
                   />
                 </div>
@@ -1844,7 +1844,7 @@ export function ConfigTab({
                   rows={6}
                   value={identityMdInput}
                   onChange={(e) => setIdentityMdInput(e.target.value)}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   placeholder="identity.md content..."
                 />
               ) : (
@@ -1868,7 +1868,7 @@ export function ConfigTab({
                   rows={8}
                   value={agentMdInput}
                   onChange={(e) => setAgentMdInput(e.target.value)}
-                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   placeholder="agent.md content..."
                 />
               ) : (
@@ -1914,7 +1914,7 @@ export function ConfigTab({
                   <select
                     value={sandbox.mode || ''}
                     onChange={(e) => updateSandboxField('mode', e.target.value)}
-                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="">{t('notConfigured')}</option>
                     <option value="all">{t('all')}</option>
@@ -1927,7 +1927,7 @@ export function ConfigTab({
                   <select
                     value={sandbox.workspaceAccess || ''}
                     onChange={(e) => updateSandboxField('workspaceAccess', e.target.value)}
-                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                   >
                     <option value="">{t('notConfigured')}</option>
                     <option value="rw">{t('readWrite')}</option>
@@ -1940,7 +1940,7 @@ export function ConfigTab({
                   <input
                     value={sandbox.network || ''}
                     onChange={(e) => updateSandboxField('network', e.target.value)}
-                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full bg-surface-1 text-foreground rounded px-3 py-2 text-sm focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                     placeholder={t('none')}
                   />
                 </div>
@@ -1975,7 +1975,7 @@ export function ConfigTab({
                       onChange={(e) => setNewAllowTool(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTool('allow', newAllowTool); setNewAllowTool('') } }}
                       placeholder={t('addAllowedTool')}
-                      className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                     />
                     <Button
                       onClick={() => { addTool('allow', newAllowTool); setNewAllowTool('') }}
@@ -2003,7 +2003,7 @@ export function ConfigTab({
                       onChange={(e) => setNewDenyTool(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTool('deny', newDenyTool); setNewDenyTool('') } }}
                       placeholder={t('addDeniedTool')}
-                      className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      className="flex-1 bg-surface-1 text-foreground rounded px-3 py-2 text-xs focus:outline-hidden focus:ring-1 focus:ring-primary/50"
                     />
                     <Button
                       onClick={() => { addTool('deny', newDenyTool); setNewDenyTool('') }}
@@ -2080,7 +2080,7 @@ export function ConfigTab({
                   <input
                     type="text"
                     placeholder={t('addSubAgentPlaceholder')}
-                    className="flex-1 px-2 py-1 text-xs border border-border rounded bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="flex-1 px-2 py-1 text-xs border border-border rounded bg-background text-foreground placeholder-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/50"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const val = (e.target as HTMLInputElement).value.trim()
@@ -2125,7 +2125,7 @@ export function ConfigTab({
                         subagents: { ...(prev.subagents || {}), model: e.target.value || undefined }
                       }))
                     }}
-                    className="w-full mt-1 px-2 py-1 text-xs border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    className="w-full mt-1 px-2 py-1 text-xs border border-border rounded bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-primary/50"
                   >
                     <option value="">{t('defaultInheritFromAgent')}</option>
                     {availableModels.map((m) => (
@@ -2353,7 +2353,7 @@ export function FilesTab({ agent }: { agent: Agent }) {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 rows={20}
-                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y"
+                className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 font-mono text-xs focus:outline-hidden focus:ring-1 focus:ring-primary/50 resize-y"
                 placeholder={activeEntry.exists ? '' : t('fileNotExistYet')}
               />
             </div>
@@ -2473,7 +2473,7 @@ export function ToolsTab({ agent }: { agent: Agent }) {
               }
             }}
             placeholder={t('addToolToAllowList')}
-            className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+            className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-hidden focus:ring-1 focus:ring-primary/50"
           />
           <Button onClick={() => { addToList(allowList, setAllowList, newAllow); setNewAllow('') }} variant="secondary" size="xs">
             {t('add')}
@@ -2520,7 +2520,7 @@ export function ToolsTab({ agent }: { agent: Agent }) {
               }
             }}
             placeholder={t('addToolToDenyList')}
-            className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+            className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-hidden focus:ring-1 focus:ring-primary/50"
           />
           <Button onClick={() => { addToList(denyList, setDenyList, newDeny); setNewDeny('') }} variant="secondary" size="xs">
             {t('add')}
@@ -2907,7 +2907,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
         <select
           value={primary}
           onChange={(e) => setPrimary(e.target.value)}
-          className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+          className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm font-mono focus:outline-hidden focus:ring-1 focus:ring-primary/50"
         >
           <option value="">{t('default')}</option>
           {availableModels.map(m => (
@@ -2974,7 +2974,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
             }}
             list="model-fallback-suggestions"
             placeholder={t('addFallbackModel')}
-            className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/50"
+            className="flex-1 bg-surface-1 text-foreground rounded px-3 py-1.5 text-xs font-mono focus:outline-hidden focus:ring-1 focus:ring-primary/50"
           />
           <datalist id="model-fallback-suggestions">
             {availableModels.map(m => (
