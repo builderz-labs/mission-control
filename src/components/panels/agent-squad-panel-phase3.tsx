@@ -1167,12 +1167,14 @@ function QuickSpawnModal({
   const [isSpawning, setIsSpawning] = useState(false)
   const [spawnResult, setSpawnResult] = useState<any>(null)
 
+  // Cost labels are input/output USD per MILLION tokens ("/1K" was a
+  // mislabel — these were always per-MTok prices). Values match MODEL_CATALOG.
   const models = [
-    { id: 'haiku', name: 'Claude Haiku', cost: '$0.25/1K', speed: 'Ultra Fast' },
-    { id: 'sonnet', name: 'Claude Sonnet', cost: '$3.00/1K', speed: 'Fast' },
-    { id: 'opus', name: 'Claude Opus', cost: '$15.00/1K', speed: 'Slow' },
-    { id: 'groq-fast', name: 'Groq Llama 8B', cost: '$0.05/1K', speed: '840 tok/s' },
-    { id: 'groq', name: 'Groq Llama 70B', cost: '$0.59/1K', speed: '150 tok/s' },
+    { id: 'haiku', name: 'Claude Haiku', cost: '$1/$5 per MTok', speed: 'Ultra Fast' },
+    { id: 'sonnet', name: 'Claude Sonnet', cost: '$3/$15 per MTok', speed: 'Fast' },
+    { id: 'opus', name: 'Claude Opus', cost: '$5/$25 per MTok', speed: 'Slow' },
+    { id: 'groq-fast', name: 'Groq Llama 8B', cost: '$0.05/$0.08 per MTok', speed: '840 tok/s' },
+    { id: 'groq', name: 'Groq Llama 70B', cost: '$0.59/$0.79 per MTok', speed: '150 tok/s' },
     { id: 'deepseek', name: 'DeepSeek R1', cost: 'FREE', speed: 'Local' },
   ]
 

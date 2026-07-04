@@ -35,6 +35,13 @@ describe('token pricing', () => {
     expect(getModelPricing('groq/llama-3.3-70b-versatile')).toMatchObject({ inputPerMTok: 0.59, outputPerMTok: 0.79 })
   })
 
+  it('uses current Moonshot and MiniMax pricing (verified 2026-07)', () => {
+    // Kimi K2.5 is $0.60/$3.00 and MiniMax M2.1 is $0.30/$1.20 per MTok —
+    // the old single "blended" rates undercounted output cost.
+    expect(getModelPricing('moonshot/kimi-k2.5')).toMatchObject({ inputPerMTok: 0.6, outputPerMTok: 3.0 })
+    expect(getModelPricing('minimax/minimax-m2.1')).toMatchObject({ inputPerMTok: 0.3, outputPerMTok: 1.2 })
+  })
+
   it('keeps local models at zero cost', () => {
     const cost = calculateTokenCost('ollama/qwen2.5-coder:14b', 50_000, 50_000)
     expect(cost).toBe(0)

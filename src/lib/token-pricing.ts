@@ -42,12 +42,15 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-sonnet-4-5-20250929': { inputPerMTok: 3.0, outputPerMTok: 15.0 },
   'claude-sonnet-4-6': { inputPerMTok: 3.0, outputPerMTok: 15.0 },
 
-  // For non-Anthropic models where we only have one published blended estimate,
-  // apply the same rate for both input and output.
+  // Non-Anthropic providers — verified 2026-07-04:
+  // Groq https://groq.com/pricing; Moonshot Kimi K2.5 $0.60/$3.00
+  // (https://openrouter.ai/moonshotai/kimi-k2.5, Moonshot list price);
+  // MiniMax M2.1 $0.30/$1.20 (https://platform.minimax.io/docs/guides/pricing-paygo);
+  // Venice https://docs.venice.ai/overview/pricing.
   'groq/llama-3.1-8b-instant': { inputPerMTok: 0.05, outputPerMTok: 0.08 },
   'groq/llama-3.3-70b-versatile': { inputPerMTok: 0.59, outputPerMTok: 0.79 },
-  'minimax/minimax-m2.1': { inputPerMTok: 0.3, outputPerMTok: 0.3 },
-  'moonshot/kimi-k2.5': { inputPerMTok: 1.0, outputPerMTok: 1.0 },
+  'minimax/minimax-m2.1': { inputPerMTok: 0.3, outputPerMTok: 1.2 },
+  'moonshot/kimi-k2.5': { inputPerMTok: 0.6, outputPerMTok: 3.0 },
   'ollama/deepseek-r1:14b': { inputPerMTok: 0.0, outputPerMTok: 0.0 },
   'ollama/qwen2.5-coder:14b': { inputPerMTok: 0.0, outputPerMTok: 0.0 },
   'ollama/qwen2.5-coder:7b': { inputPerMTok: 0.0, outputPerMTok: 0.0 },

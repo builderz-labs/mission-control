@@ -443,7 +443,7 @@ async function getAvailableModels() {
         name: `ollama/${m.name!.trim()}`,
         provider: 'ollama',
         description: 'Local model',
-        costPer1k: 0.0,
+        costPerMTok: { input: 0.0, output: 0.0 },
         size: typeof m.size === 'number' ? String(m.size) : 'unknown',
       }))
 

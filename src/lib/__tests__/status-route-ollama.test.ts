@@ -40,7 +40,7 @@ vi.mock('@/lib/models', () => ({
       name: 'openai/gpt-4.1-mini',
       provider: 'openai',
       description: 'baseline',
-      costPer1k: 0.001,
+      costPerMTok: { input: 0.4, output: 1.6 },
     },
   ],
 }))
