@@ -113,6 +113,12 @@ export const config = {
   // assignee stay unassigned). When set, new tasks with no assigned_to are
   // routed to this agent name.
   coordinatorAgent: (process.env.MC_COORDINATOR_AGENT || '').trim(),
+  // Workspace root for host-CLI dispatch cwd scoping (issue #720). Opt-in:
+  // empty string means the per-agent/per-task `dispatchCwd` feature is OFF
+  // and CLI dispatch always inherits the server's own cwd. When set, a
+  // requested cwd must resolve (symlinks included) to a directory inside
+  // this root or it is rejected.
+  workspaceRoot: (process.env.MC_WORKSPACE_ROOT || '').trim(),
   gnap: {
     enabled: process.env.GNAP_ENABLED === 'true',
     repoPath: resolvedGnapRepoPath,

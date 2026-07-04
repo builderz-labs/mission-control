@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync, statSync } from 'node:fs'
+import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { getDatabase, db_helpers } from './db'
 import { callOpenClawGateway } from './openclaw-gateway'
@@ -41,6 +42,8 @@ interface DispatchableTask {
   project_ticket_no: number | null
   project_id: number | null
   tags?: string[]
+  /** Raw tasks.metadata JSON — carries optional per-task sandbox overrides. */
+  metadata?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -76,6 +79,144 @@ function resolveGatewayAgentId(task: DispatchableTask): string {
     } catch { /* ignore */ }
   }
   return task.agent_name
+}
+
+// ---------------------------------------------------------------------------
+// Host-CLI sandbox flags (issue #720)
+// ---------------------------------------------------------------------------
+//
+// Opt-in safety flags for the host CLI dispatch paths (`claude` / `codex`).
+// Source of truth is the agent's config JSON (agents.config), using the same
+// flat naming style as `dispatchModel`:
+//
+//   { "dispatchAllowedTools": ["Read", "Grep"], "dispatchMaxBudgetUsd": 5,
+//     "dispatchCwd": "repos/my-project" }
+//
+// Each field can be overridden per task via tasks.metadata (camelCase or
+// snake_case, mirroring existing metadata keys like dispatch_session_id):
+//
+//   { "dispatch_allowed_tools": [...], "dispatch_max_budget_usd": 2,
+//     "dispatch_cwd": "..." }
+//
+// Absent config means today's behavior, byte-for-byte: no extra CLI flags,
+// no spawn cwd.
+
+/**
+ * Tool names the Claude Code CLI accepts for `--allowedTools`. Conservative
+ * exact-match allowlist — entries not listed here (including `Bash(...)`
+ * specifier syntax) are dropped with a warning. `--dangerously-skip-permissions`
+ * is never passed by task dispatch.
+ */
+export const CLAUDE_CLI_ALLOWED_TOOL_NAMES = [
+  'Task', 'Bash', 'Glob', 'Grep', 'Read', 'Edit', 'MultiEdit', 'Write',
+  'NotebookEdit', 'WebFetch', 'WebSearch', 'TodoWrite',
+] as const
+
+/** Ceiling for `--max-budget-usd` regardless of what the config asks for. */
+export const CLI_MAX_BUDGET_USD_CEILING = 100
+
+export interface CliDispatchSandboxOptions {
+  allowedTools: string[] | null
+  maxBudgetUsd: number | null
+  cwd: string | null
+}
+
+/**
+ * Validate a configured allowed-tools list against CLAUDE_CLI_ALLOWED_TOOL_NAMES.
+ * Unknown entries are dropped with a warning. Returns null when the input is
+ * not a list or nothing survives filtering — in `--print` mode, omitting
+ * `--allowedTools` is the more restrictive default (tools stay gated), so an
+ * all-invalid list fails closed, not open.
+ */
+export function filterCliAllowedTools(input: unknown, taskId?: number): string[] | null {
+  if (!Array.isArray(input)) return null
+  const valid: string[] = []
+  const rejected: string[] = []
+  for (const entry of input) {
+    if (typeof entry === 'string' && (CLAUDE_CLI_ALLOWED_TOOL_NAMES as readonly string[]).includes(entry)) {
+      if (!valid.includes(entry)) valid.push(entry)
+    } else {
+      rejected.push(typeof entry === 'string' ? entry : typeof entry)
+    }
+  }
+  if (rejected.length > 0) {
+    logger.warn({ taskId, rejected: rejected.slice(0, 20) },
+      'Ignoring allowed-tools entries not in the Claude CLI tool allowlist')
+  }
+  return valid.length > 0 ? valid : null
+}
+
+/** Clamp a configured max budget to a finite positive number ≤ the ceiling. */
+export function clampCliMaxBudgetUsd(input: unknown, taskId?: number): number | null {
+  if (typeof input !== 'number' || !Number.isFinite(input) || input <= 0) {
+    if (input !== undefined && input !== null) {
+      logger.warn({ taskId }, 'Ignoring invalid dispatch max budget (must be a finite positive number)')
+    }
+    return null
+  }
+  return Math.min(input, CLI_MAX_BUDGET_USD_CEILING)
+}
+
+/**
+ * Resolve a configured dispatch cwd to a real directory inside the operator's
+ * workspace root (config.workspaceRoot / MC_WORKSPACE_ROOT). Relative paths
+ * resolve against the root. Both sides go through fs.realpathSync before the
+ * prefix check, so `../` traversal and symlink escapes are rejected. Returns
+ * null (feature off) when no workspace root is configured.
+ */
+export function resolveCliDispatchCwd(input: unknown, workspaceRoot: string, taskId?: number): string | null {
+  if (typeof input !== 'string' || !input.trim()) return null
+  if (!workspaceRoot) {
+    logger.warn({ taskId }, 'Ignoring dispatch cwd: MC_WORKSPACE_ROOT is not configured')
+    return null
+  }
+  try {
+    const realRoot = realpathSync(path.resolve(workspaceRoot))
+    const realCwd = realpathSync(path.resolve(realRoot, input.trim()))
+    if (realCwd !== realRoot && !realCwd.startsWith(realRoot + path.sep)) {
+      logger.warn({ taskId }, 'Ignoring dispatch cwd: resolves outside the configured workspace root')
+      return null
+    }
+    if (!statSync(realCwd).isDirectory()) {
+      logger.warn({ taskId }, 'Ignoring dispatch cwd: not a directory')
+      return null
+    }
+    return realCwd
+  } catch {
+    logger.warn({ taskId }, 'Ignoring dispatch cwd: path does not exist or is not accessible')
+    return null
+  }
+}
+
+/**
+ * Resolve the opt-in CLI sandbox options for a task: agent config first,
+ * per-field override from tasks.metadata. All fields validated; anything
+ * invalid degrades to "flag not passed" (today's behavior).
+ */
+export function resolveCliSandboxOptions(
+  task: Pick<DispatchableTask, 'id' | 'agent_config' | 'metadata'>,
+  workspaceRoot: string = config.workspaceRoot,
+): CliDispatchSandboxOptions {
+  let agentCfg: Record<string, any> = {}
+  if (task.agent_config) {
+    try {
+      const parsed = JSON.parse(task.agent_config)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) agentCfg = parsed
+    } catch { /* ignore */ }
+  }
+  const meta = safeParseMetadata(task.metadata)
+
+  const pick = (camel: string, snake: string): unknown => {
+    if (meta[camel] !== undefined) return meta[camel]
+    if (meta[snake] !== undefined) return meta[snake]
+    return agentCfg[camel]
+  }
+
+  return {
+    allowedTools: filterCliAllowedTools(pick('dispatchAllowedTools', 'dispatch_allowed_tools'), task.id),
+    maxBudgetUsd: clampCliMaxBudgetUsd(pick('dispatchMaxBudgetUsd', 'dispatch_max_budget_usd'), task.id),
+    cwd: resolveCliDispatchCwd(pick('dispatchCwd', 'dispatch_cwd'), workspaceRoot, task.id),
+  }
 }
 
 function buildTaskPrompt(task: DispatchableTask, rejectionFeedback?: string | null): string {
@@ -725,15 +866,26 @@ async function callClaudeViaCli(
   model: string,
 ): Promise<AgentResponseParsed> {
   const soul = getAgentSoulContent(task)
+  const sandbox = resolveCliSandboxOptions(task)
   const args = ['--print', '--output-format', 'json', '--model', model]
+  if (sandbox.allowedTools) args.push('--allowedTools', sandbox.allowedTools.join(','))
+  if (sandbox.maxBudgetUsd !== null) args.push('--max-budget-usd', String(sandbox.maxBudgetUsd))
   if (soul) args.push('--append-system-prompt', soul)
 
-  logger.info({ taskId: task.id, model, agent: task.agent_name }, 'Dispatching task via Claude CLI')
+  const sandboxApplied = sandbox.allowedTools !== null || sandbox.maxBudgetUsd !== null || sandbox.cwd !== null
+  logger.info(
+    {
+      taskId: task.id, model, agent: task.agent_name,
+      ...(sandboxApplied ? { sandbox: { allowedTools: sandbox.allowedTools, maxBudgetUsd: sandbox.maxBudgetUsd, cwd: sandbox.cwd } } : {}),
+    },
+    'Dispatching task via Claude CLI',
+  )
 
   return await new Promise<AgentResponseParsed>((resolve, reject) => {
     const proc = spawn('claude', args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, CI: '1' },
+      ...(sandbox.cwd ? { cwd: sandbox.cwd } : {}),
     })
     let stdout = ''
     let stderr = ''
@@ -892,12 +1044,19 @@ async function callCodexViaCli(
   if (model && /^gpt-/i.test(model)) args.push('--model', model)
   args.push('-')
 
-  logger.info({ taskId: task.id, model, agent: task.agent_name }, 'Dispatching task via Codex CLI')
+  // Workspace-scoped cwd only (issue #720) — codex's own --sandbox flag
+  // handling above stays untouched.
+  const dispatchCwd = resolveCliSandboxOptions(task).cwd
+  logger.info(
+    { taskId: task.id, model, agent: task.agent_name, ...(dispatchCwd ? { sandbox: { cwd: dispatchCwd } } : {}) },
+    'Dispatching task via Codex CLI',
+  )
 
   return await new Promise<AgentResponseParsed>((resolve, reject) => {
     const proc = spawn('codex', args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env },
+      ...(dispatchCwd ? { cwd: dispatchCwd } : {}),
     })
     let stdout = ''
     let stderr = ''
