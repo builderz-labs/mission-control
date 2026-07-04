@@ -129,7 +129,7 @@ export async function PUT(request: NextRequest) {
   const body = result.data
 
   // Block writes to sensitive paths
-  const blockedPaths = ['gateway.auth.password', 'gateway.auth.secret']
+  const blockedPaths = ['gateway.auth.password', 'gateway.auth.secret', 'gateway.auth.token']
   for (const key of Object.keys(body.updates)) {
     if (blockedPaths.some(bp => key.startsWith(bp))) {
       return NextResponse.json({ error: `Cannot modify protected field: ${key}` }, { status: 403 })
