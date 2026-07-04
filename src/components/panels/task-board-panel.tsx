@@ -276,7 +276,13 @@ function MentionTextarea({
           detectMentionQuery(nextValue, e.target.selectionStart || 0)
         }}
         onClick={(e) => detectMentionQuery(value, (e.target as HTMLTextAreaElement).selectionStart || 0)}
-        onKeyUp={(e) => detectMentionQuery(value, (e.target as HTMLTextAreaElement).selectionStart || 0)}
+        onKeyUp={(e) => {
+          // Menu-navigation keys are fully handled in onKeyDown; re-running
+          // detectMentionQuery on their keyup would setActiveIndex(0) and
+          // reset the highlighted option on every arrow press (#661).
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') return
+          detectMentionQuery(value, (e.target as HTMLTextAreaElement).selectionStart || 0)
+        }}
         onKeyDown={(e) => {
           if (!open || filtered.length === 0) return
           if (e.key === 'ArrowDown') {
