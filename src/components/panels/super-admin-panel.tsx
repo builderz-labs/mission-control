@@ -83,6 +83,21 @@ interface GatewayOption {
   is_primary?: number
 }
 
+// Mission Control workspace row (issue #677 slice 1: native brand + isolation)
+interface WorkspaceRow {
+  id: number
+  slug: string
+  name: string
+  tenant_id: number
+  brand: string | null
+  isolation: 'shared' | 'strict'
+}
+
+interface WorkspaceDraft {
+  brand: string
+  isolation: 'shared' | 'strict'
+}
+
 interface SchedulerTask {
   id: string
   name: string
@@ -131,6 +146,10 @@ export function SuperAdminPanel() {
   const [gatewayOptions, setGatewayOptions] = useState<GatewayOption[]>([])
   const [gatewayLoadError, setGatewayLoadError] = useState<string | null>(null)
 
+  const [workspaces, setWorkspaces] = useState<WorkspaceRow[]>([])
+  const [workspaceDrafts, setWorkspaceDrafts] = useState<Record<number, WorkspaceDraft>>({})
+  const [savingWorkspaceId, setSavingWorkspaceId] = useState<number | null>(null)
+
   const [decommissionDialog, setDecommissionDialog] = useState<DecommissionDialogState>({
     open: false,
     tenant: null,
@@ -164,7 +183,7 @@ export function SuperAdminPanel() {
       // tenants/jobs failure), so swallow their failures here. We keep the
       // HTTP error around for gateways so we can still surface gatewayLoadError.
       let gatewayError: ApiError | null = null
-      const [tenantsJson, jobsJson, gatewaysJson, schedulerJson] = await Promise.all([
+      const [tenantsJson, jobsJson, gatewaysJson, schedulerJson, workspacesJson] = await Promise.all([
         // tenants & jobs: throwing on failure is intentional — caught below and
         // surfaced via setError, matching the original `if (!res.ok) throw` paths.
         apiFetch<any>('/api/super/tenants', { cache: 'no-store' }),
@@ -176,6 +195,8 @@ export function SuperAdminPanel() {
         isLocal
           ? apiFetch<any>('/api/scheduler', { cache: 'no-store' }).catch(() => ({}))
           : Promise.resolve(null),
+        // Workspaces degrade gracefully like gateways/scheduler.
+        apiFetch<any>('/api/workspaces', { cache: 'no-store' }).catch(() => ({})),
       ])
 
       let tenantRows = Array.isArray(tenantsJson?.tenants) ? tenantsJson.tenants : []
@@ -255,6 +276,7 @@ export function SuperAdminPanel() {
       setLocalJobEvents(localEvents)
       setGatewayOptions(gatewayRows.map((g: any) => ({ id: Number(g.id), name: String(g.name), status: g.status, is_primary: g.is_primary })))
       setGatewayLoadError(gatewayError ? apiErrorMessage(gatewayError, 'Failed to load gateways') : null)
+      setWorkspaces(Array.isArray(workspacesJson?.workspaces) ? workspacesJson.workspaces : [])
       setError(null)
     } catch (e) {
       setError(apiErrorMessage(e, 'Failed to load super admin data'))
@@ -262,6 +284,32 @@ export function SuperAdminPanel() {
       setLoading(false)
     }
   }, [currentUser?.username, isLocal])
+
+  const saveWorkspaceFields = async (ws: WorkspaceRow, draft: WorkspaceDraft) => {
+    setSavingWorkspaceId(ws.id)
+    try {
+      await apiFetch(`/api/workspaces/${ws.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: ws.name,
+          brand: draft.brand.trim() === '' ? null : draft.brand.trim(),
+          isolation: draft.isolation,
+        }),
+      })
+      setWorkspaceDrafts((d) => {
+        const next = { ...d }
+        delete next[ws.id]
+        return next
+      })
+      showFeedback(true, t('workspaceFieldsSaved', { name: ws.name }))
+      await load()
+    } catch (e) {
+      showFeedback(false, apiErrorMessage(e, 'Failed to update workspace'))
+    } finally {
+      setSavingWorkspaceId(null)
+    }
+  }
 
   const loadJobDetail = useCallback(async (jobId: number) => {
     if (isLocal && jobId < 0) {
@@ -701,6 +749,63 @@ export function SuperAdminPanel() {
             </div>
           </div>
       </div>
+      )}
+
+      {workspaces.length > 0 && (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <h3 className="text-sm font-medium text-foreground">{t('workspaceFieldsTitle')}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{t('workspaceFieldsDesc')}</p>
+          </div>
+          <div className="p-3 space-y-2">
+            {workspaces.map((ws) => {
+              const draft = workspaceDrafts[ws.id] ?? {
+                brand: ws.brand ?? '',
+                isolation: ws.isolation ?? 'shared',
+              }
+              const dirty =
+                draft.brand !== (ws.brand ?? '') || draft.isolation !== (ws.isolation ?? 'shared')
+              return (
+                <div key={ws.id} className="flex flex-col md:flex-row md:items-center gap-2">
+                  <div className="md:w-56 min-w-0">
+                    <div className="text-xs font-medium text-foreground truncate">{ws.name}</div>
+                    <div className="text-2xs text-muted-foreground truncate">{ws.slug}</div>
+                  </div>
+                  <input
+                    value={draft.brand}
+                    maxLength={64}
+                    onChange={(e) =>
+                      setWorkspaceDrafts((d) => ({ ...d, [ws.id]: { ...draft, brand: e.target.value } }))
+                    }
+                    placeholder={t('workspaceBrandPlaceholder')}
+                    className="h-8 flex-1 px-3 rounded-md bg-secondary border border-border text-xs text-foreground"
+                  />
+                  <select
+                    value={draft.isolation}
+                    onChange={(e) =>
+                      setWorkspaceDrafts((d) => ({
+                        ...d,
+                        [ws.id]: { ...draft, isolation: e.target.value as 'shared' | 'strict' },
+                      }))
+                    }
+                    className="h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground"
+                  >
+                    <option value="shared">{t('isolationShared')}</option>
+                    <option value="strict">{t('isolationStrict')}</option>
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!dirty || savingWorkspaceId === ws.id}
+                    onClick={() => saveWorkspaceFields(ws, draft)}
+                  >
+                    {savingWorkspaceId === ws.id ? t('saving') : t('save')}
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
 
       <div className="rounded-lg border border-border bg-card overflow-hidden">

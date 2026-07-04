@@ -1161,7 +1161,15 @@
     "decommissionQueuedDryRun": "Probelauf-Stilllegung für {slug} eingereiht",
     "decommissionQueued": "Stilllegung für {slug} eingereiht",
     "optionalReason": "Optionale Begründung für {action}:",
-    "jobActioned": "Job #{jobId} wurde {action}"
+    "jobActioned": "Job #{jobId} wurde {action}",
+    "workspaceFieldsTitle": "Workspaces",
+    "workspaceFieldsDesc": "Brand-Tag und Agenten-Speicher-Isolation pro Workspace.",
+    "workspaceBrandPlaceholder": "Brand (optional)",
+    "isolationShared": "Geteilt",
+    "isolationStrict": "Strikt",
+    "save": "Speichern",
+    "saving": "Speichert...",
+    "workspaceFieldsSaved": "Workspace {name} aktualisiert"
   },
   "auditTrail": {
     "title": "Prüfprotokoll",

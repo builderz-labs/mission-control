@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
+import { validateBody, updateWorkspaceSchema } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 
 /**
@@ -41,7 +42,7 @@ export async function GET(
 }
 
 /**
- * PUT /api/workspaces/[id] - Update workspace name
+ * PUT /api/workspaces/[id] - Update workspace name, brand, and isolation
  */
 export async function PUT(
   request: NextRequest,
@@ -54,10 +55,11 @@ export async function PUT(
     const db = getDatabase()
     const { id } = await params
     const tenantId = auth.user.tenant_id ?? 1
-    const body = await request.json()
-    const { name } = body
+    const validated = await validateBody(request, updateWorkspaceSchema)
+    if ('error' in validated) return validated.error
+    const { name, brand, isolation } = validated.data
 
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    if (name.trim().length === 0) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
@@ -69,11 +71,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
+    // Omitted fields keep their stored values; brand: null explicitly clears it.
+    const nextBrand = brand === undefined ? (existing.brand ?? null) : brand
+    const nextIsolation = isolation === undefined ? (existing.isolation ?? 'shared') : isolation
+
     // Don't allow renaming the default workspace slug
     const now = Math.floor(Date.now() / 1000)
     db.prepare(
-      'UPDATE workspaces SET name = ?, updated_at = ? WHERE id = ? AND tenant_id = ?'
-    ).run(name.trim(), now, Number(id), tenantId)
+      'UPDATE workspaces SET name = ?, brand = ?, isolation = ?, updated_at = ? WHERE id = ? AND tenant_id = ?'
+    ).run(name.trim(), nextBrand, nextIsolation, now, Number(id), tenantId)
 
     logAuditEvent({
       action: 'workspace_updated',
@@ -81,7 +87,14 @@ export async function PUT(
       actor_id: auth.user.id,
       target_type: 'workspace',
       target_id: Number(id),
-      detail: { old_name: existing.name, new_name: name.trim() },
+      detail: {
+        old_name: existing.name,
+        new_name: name.trim(),
+        old_brand: existing.brand ?? null,
+        new_brand: nextBrand,
+        old_isolation: existing.isolation ?? 'shared',
+        new_isolation: nextIsolation,
+      },
     })
 
     const updated = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(Number(id))

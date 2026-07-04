@@ -1,10 +1,20 @@
 import type Database from 'better-sqlite3'
 
+// Allowed workspace isolation policies (issue #677 slice 1):
+// - 'shared': cross-workspace memory access from agents is allowed (default)
+// - 'strict': cross-workspace memory access from agents is not allowed
+// SQLite ALTER TABLE cannot add CHECK constraints, so these values are the
+// single source of truth for the validation layer.
+export const WORKSPACE_ISOLATION_VALUES = ['shared', 'strict'] as const
+export type WorkspaceIsolation = (typeof WORKSPACE_ISOLATION_VALUES)[number]
+
 export interface WorkspaceRecord {
   id: number
   slug: string
   name: string
   tenant_id: number
+  brand: string | null
+  isolation: WorkspaceIsolation
   created_at: number
   updated_at: number
 }
@@ -62,7 +72,7 @@ export function getWorkspaceForTenant(
   tenantId: number
 ): WorkspaceRecord | null {
   const row = db.prepare(`
-    SELECT id, slug, name, tenant_id, created_at, updated_at
+    SELECT id, slug, name, tenant_id, brand, isolation, created_at, updated_at
     FROM workspaces
     WHERE id = ? AND tenant_id = ?
     LIMIT 1
@@ -75,7 +85,7 @@ export function listWorkspacesForTenant(
   tenantId: number
 ): WorkspaceRecord[] {
   return db.prepare(`
-    SELECT id, slug, name, tenant_id, created_at, updated_at
+    SELECT id, slug, name, tenant_id, brand, isolation, created_at, updated_at
     FROM workspaces
     WHERE tenant_id = ?
     ORDER BY CASE WHEN slug = 'default' THEN 0 ELSE 1 END, name COLLATE NOCASE ASC

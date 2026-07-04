@@ -1401,7 +1401,15 @@
     "decommissionQueuedDryRun": "已为 {slug} 排队预演停用",
     "decommissionQueued": "已为 {slug} 排队停用",
     "optionalReason": "{action} 的可选原因：",
-    "jobActioned": "任务 #{jobId} 已{action}"
+    "jobActioned": "任务 #{jobId} 已{action}",
+    "workspaceFieldsTitle": "工作区",
+    "workspaceFieldsDesc": "每个工作区的品牌标签和代理记忆隔离策略。",
+    "workspaceBrandPlaceholder": "品牌（可选）",
+    "isolationShared": "共享",
+    "isolationStrict": "严格",
+    "save": "保存",
+    "saving": "保存中...",
+    "workspaceFieldsSaved": "工作区 {name} 已更新"
   },
   "auditTrail": {
     "title": "审计日志",

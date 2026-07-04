@@ -771,7 +771,6 @@
     "colFailed": "Failed",
     "retryTask": "Retry Task",
     "colDone": "Done",
-    "colFailed": "Failed",
     "recurring": "RECURRING",
     "spawned": "SPAWNED",
     "spawnedFromTask": "Spawned from task #{id}",
@@ -1166,7 +1165,15 @@
     "decommissionQueuedDryRun": "Decommission job queued for {slug} (dry-run)",
     "decommissionQueued": "Decommission job queued for {slug}",
     "optionalReason": "Optional reason for {action}:",
-    "jobActioned": "Job #{jobId} {action}d"
+    "jobActioned": "Job #{jobId} {action}d",
+    "workspaceFieldsTitle": "Workspaces",
+    "workspaceFieldsDesc": "Brand tag and agent memory isolation per workspace.",
+    "workspaceBrandPlaceholder": "Brand (optional)",
+    "isolationShared": "Shared",
+    "isolationStrict": "Strict",
+    "save": "Save",
+    "saving": "Saving...",
+    "workspaceFieldsSaved": "Workspace {name} updated"
   },
   "auditTrail": {
     "title": "Audit Trail",

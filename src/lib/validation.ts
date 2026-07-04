@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ZodSchema, ZodError } from 'zod'
 import { z } from 'zod'
+import { WORKSPACE_ISOLATION_VALUES } from './workspaces'
 
 export async function validateBody<T>(
   request: Request,
@@ -116,6 +117,31 @@ export const createAgentSchema = z.object({
   provision_openclaw_workspace: z.boolean().optional(),
   openclaw_workspace_path: z.string().min(1).max(500).optional(),
   runtime_type: z.enum(['hermes', 'openclaw', 'claude', 'codex', 'custom']).optional(),
+})
+
+// Workspace fields (issue #677 slice 1). The `isolation` CHECK cannot live in
+// SQLite (ALTER TABLE cannot add constraints), so this enum is the enforcement
+// point for allowed values. `brand` is a free-text grouping tag; null clears it.
+const workspaceFields = {
+  name: z.string().min(1, 'Name is required').max(200),
+  slug: z.string().min(1).max(200),
+  brand: z.string().trim().min(1, 'Brand cannot be empty').max(64).nullable(),
+  isolation: z.enum(WORKSPACE_ISOLATION_VALUES),
+}
+
+export const createWorkspaceSchema = z.object({
+  name: workspaceFields.name,
+  slug: workspaceFields.slug.optional(),
+  brand: workspaceFields.brand.optional(),
+  isolation: workspaceFields.isolation.optional(),
+})
+
+// `brand`/`isolation` omitted ⇒ stored values are preserved (no defaults here,
+// same rationale as updateTaskSchema above).
+export const updateWorkspaceSchema = z.object({
+  name: workspaceFields.name,
+  brand: workspaceFields.brand.optional(),
+  isolation: workspaceFields.isolation.optional(),
 })
 
 export const bulkUpdateTaskStatusSchema = z.object({

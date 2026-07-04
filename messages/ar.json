@@ -1161,7 +1161,15 @@
     "decommissionQueuedDryRun": "تمت إضافة إيقاف التشغيل التجريبي لـ {slug} لقائمة الانتظار",
     "decommissionQueued": "تمت إضافة إيقاف تشغيل {slug} لقائمة الانتظار",
     "optionalReason": "سبب اختياري لـ {action}:",
-    "jobActioned": "تم {action} الوظيفة #{jobId}"
+    "jobActioned": "تم {action} الوظيفة #{jobId}",
+    "workspaceFieldsTitle": "مساحات العمل",
+    "workspaceFieldsDesc": "وسم العلامة التجارية وعزل ذاكرة الوكلاء لكل مساحة عمل.",
+    "workspaceBrandPlaceholder": "العلامة التجارية (اختياري)",
+    "isolationShared": "مشترك",
+    "isolationStrict": "صارم",
+    "save": "حفظ",
+    "saving": "جارٍ الحفظ...",
+    "workspaceFieldsSaved": "تم تحديث مساحة العمل {name}"
   },
   "auditTrail": {
     "title": "مسار التدقيق",

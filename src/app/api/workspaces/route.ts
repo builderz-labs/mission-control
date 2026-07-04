@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { listWorkspacesForTenant } from '@/lib/workspaces'
+import { validateBody, createWorkspaceSchema } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
@@ -32,10 +33,11 @@ export async function POST(request: NextRequest) {
   try {
     const db = getDatabase()
     const tenantId = auth.user.tenant_id ?? 1
-    const body = await request.json()
-    const { name, slug } = body
+    const validated = await validateBody(request, createWorkspaceSchema)
+    if ('error' in validated) return validated.error
+    const { name, slug, brand, isolation } = validated.data
 
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    if (name.trim().length === 0) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
@@ -56,8 +58,8 @@ export async function POST(request: NextRequest) {
 
     const now = Math.floor(Date.now() / 1000)
     const result = db.prepare(
-      'INSERT INTO workspaces (slug, name, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(resolvedSlug, name.trim(), tenantId, now, now)
+      'INSERT INTO workspaces (slug, name, tenant_id, brand, isolation, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(resolvedSlug, name.trim(), tenantId, brand ?? null, isolation ?? 'shared', now, now)
 
     const workspace = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(result.lastInsertRowid)
 
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
       actor_id: auth.user.id,
       target_type: 'workspace',
       target_id: Number(result.lastInsertRowid),
-      detail: { name: name.trim(), slug: resolvedSlug },
+      detail: { name: name.trim(), slug: resolvedSlug, brand: brand ?? null, isolation: isolation ?? 'shared' },
     })
 
     return NextResponse.json({ workspace }, { status: 201 })

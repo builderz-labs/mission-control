@@ -1161,7 +1161,15 @@
     "decommissionQueuedDryRun": "Пробный вывод для {slug} поставлен в очередь",
     "decommissionQueued": "Вывод для {slug} поставлен в очередь",
     "optionalReason": "Необязательная причина для {action}:",
-    "jobActioned": "Задача #{jobId} была {action}"
+    "jobActioned": "Задача #{jobId} была {action}",
+    "workspaceFieldsTitle": "Рабочие пространства",
+    "workspaceFieldsDesc": "Тег бренда и изоляция памяти агентов для каждого рабочего пространства.",
+    "workspaceBrandPlaceholder": "Бренд (необязательно)",
+    "isolationShared": "Общий",
+    "isolationStrict": "Строгий",
+    "save": "Сохранить",
+    "saving": "Сохранение...",
+    "workspaceFieldsSaved": "Рабочее пространство {name} обновлено"
   },
   "auditTrail": {
     "title": "Журнал аудита",

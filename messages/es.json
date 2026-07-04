@@ -1161,7 +1161,15 @@
     "decommissionQueuedDryRun": "Retiro simulacro encolado para {slug}",
     "decommissionQueued": "Retiro encolado para {slug}",
     "optionalReason": "Motivo opcional para {action}:",
-    "jobActioned": "Trabajo #{jobId} {action}"
+    "jobActioned": "Trabajo #{jobId} {action}",
+    "workspaceFieldsTitle": "Espacios de trabajo",
+    "workspaceFieldsDesc": "Etiqueta de marca y aislamiento de memoria de agentes por espacio de trabajo.",
+    "workspaceBrandPlaceholder": "Marca (opcional)",
+    "isolationShared": "Compartido",
+    "isolationStrict": "Estricto",
+    "save": "Guardar",
+    "saving": "Guardando...",
+    "workspaceFieldsSaved": "Espacio de trabajo {name} actualizado"
   },
   "auditTrail": {
     "title": "Registro de auditoría",

@@ -1161,7 +1161,15 @@
     "decommissionQueuedDryRun": "{slug}에 대한 드라이런 해제가 큐에 추가되었습니다",
     "decommissionQueued": "{slug}에 대한 해제가 큐에 추가되었습니다",
     "optionalReason": "{action}에 대한 선택적 이유:",
-    "jobActioned": "작업 #{jobId}가 {action}되었습니다"
+    "jobActioned": "작업 #{jobId}가 {action}되었습니다",
+    "workspaceFieldsTitle": "워크스페이스",
+    "workspaceFieldsDesc": "워크스페이스별 브랜드 태그 및 에이전트 메모리 격리 설정.",
+    "workspaceBrandPlaceholder": "브랜드 (선택)",
+    "isolationShared": "공유",
+    "isolationStrict": "엄격",
+    "save": "저장",
+    "saving": "저장 중...",
+    "workspaceFieldsSaved": "워크스페이스 {name} 업데이트됨"
   },
   "auditTrail": {
     "title": "감사 로그",

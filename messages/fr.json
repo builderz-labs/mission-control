@@ -1161,7 +1161,15 @@
     "decommissionQueuedDryRun": "Simulation de désaffectation mise en file pour {slug}",
     "decommissionQueued": "Désaffectation mise en file pour {slug}",
     "optionalReason": "Raison optionnelle pour {action} :",
-    "jobActioned": "Travail #{jobId} {action}"
+    "jobActioned": "Travail #{jobId} {action}",
+    "workspaceFieldsTitle": "Espaces de travail",
+    "workspaceFieldsDesc": "Tag de marque et isolation mémoire des agents par espace de travail.",
+    "workspaceBrandPlaceholder": "Marque (optionnel)",
+    "isolationShared": "Partagé",
+    "isolationStrict": "Strict",
+    "save": "Enregistrer",
+    "saving": "Enregistrement...",
+    "workspaceFieldsSaved": "Espace de travail {name} mis à jour"
   },
   "auditTrail": {
     "title": "Journal d'audit",

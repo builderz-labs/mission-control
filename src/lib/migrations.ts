@@ -1452,6 +1452,24 @@ const migrations: Migration[] = [
       }
       db.prepare("DELETE FROM settings WHERE key = 'security.api_key'").run()
     }
+  },
+  {
+    id: '052_workspace_brand_isolation',
+    up(db: Database.Database) {
+      // Issue #677 slice 1: native `brand` and `isolation` fields on workspaces.
+      // - brand: free-text tag for cross-tenant logical grouping (nullable).
+      // - isolation: 'shared' | 'strict' — whether cross-workspace memory access
+      //   from agents is allowed. SQLite's ALTER TABLE cannot add CHECK
+      //   constraints, so the allowed values are enforced in the validation
+      //   layer (see workspace schemas in src/lib/validation.ts).
+      const cols = db.prepare(`PRAGMA table_info(workspaces)`).all() as Array<{ name: string }>
+      if (!cols.some((c) => c.name === 'brand')) {
+        db.exec(`ALTER TABLE workspaces ADD COLUMN brand TEXT DEFAULT NULL`)
+      }
+      if (!cols.some((c) => c.name === 'isolation')) {
+        db.exec(`ALTER TABLE workspaces ADD COLUMN isolation TEXT NOT NULL DEFAULT 'shared'`)
+      }
+    }
   }
 ]
 

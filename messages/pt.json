@@ -1161,7 +1161,15 @@
     "decommissionQueuedDryRun": "Simulação de desativação enfileirada para {slug}",
     "decommissionQueued": "Desativação enfileirada para {slug}",
     "optionalReason": "Motivo opcional para {action}:",
-    "jobActioned": "Trabalho #{jobId} foi {action}"
+    "jobActioned": "Trabalho #{jobId} foi {action}",
+    "workspaceFieldsTitle": "Espaços de trabalho",
+    "workspaceFieldsDesc": "Etiqueta de marca e isolamento de memória dos agentes por espaço de trabalho.",
+    "workspaceBrandPlaceholder": "Marca (opcional)",
+    "isolationShared": "Compartilhado",
+    "isolationStrict": "Estrito",
+    "save": "Salvar",
+    "saving": "Salvando...",
+    "workspaceFieldsSaved": "Espaço de trabalho {name} atualizado"
   },
   "auditTrail": {
     "title": "Trilha de auditoria",

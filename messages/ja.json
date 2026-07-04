@@ -1161,7 +1161,15 @@
     "decommissionQueuedDryRun": "{slug} のドライラン廃止がキューされました",
     "decommissionQueued": "{slug} の廃止がキューされました",
     "optionalReason": "{action} の任意の理由：",
-    "jobActioned": "ジョブ #{jobId} が{action}されました"
+    "jobActioned": "ジョブ #{jobId} が{action}されました",
+    "workspaceFieldsTitle": "ワークスペース",
+    "workspaceFieldsDesc": "ワークスペースごとのブランドタグとエージェントメモリの分離設定。",
+    "workspaceBrandPlaceholder": "ブランド（任意）",
+    "isolationShared": "共有",
+    "isolationStrict": "厳格",
+    "save": "保存",
+    "saving": "保存中...",
+    "workspaceFieldsSaved": "ワークスペース {name} を更新しました"
   },
   "auditTrail": {
     "title": "監査ログ",
