@@ -6,6 +6,16 @@ All notable changes to Mission Control are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Opt-in sandbox flags for host CLI dispatch (#766, closes #720) — `allowedTools` (validated against an allowlist), `--max-budget-usd` (clamped), and a workspace-scoped `cwd` (escape-protected via `MC_WORKSPACE_ROOT`). Sourced from `agents.config` with per-task `tasks.metadata` override; absent config leaves dispatch byte-identical to before.
+- Native `brand` and `isolation` fields on workspaces (#767, refs #677) — migration `052`, isolation enum `shared | strict` enforced in validation, editable from the super-admin panel. (The workspace approval-rules engine from #677 remains deferred.)
+
+### Changed
+- Migrated to Tailwind CSS v4 (#768) — config converted to CSS `@theme`, `@tailwindcss/postcss`, `@custom-variant dark`. Visual QA verified across login, dashboard, task board, onboarding, and all 11 themes including the light Paper theme.
+
+### Fixed
+- Model catalog: `costPer1k` renamed to `costPerMTok` (the field held per-million values), `classifyDirectModel` now derives from the catalog instead of a parallel hard-coded list, and all prices re-verified against provider docs (#769, supersedes #751). Fixed two real billing-estimate undercounts — Kimi K2.5 and MiniMax M2.1 output rates.
+
 ---
 
 ## [2.1.0] - 2026-07-04
