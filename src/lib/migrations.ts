@@ -1428,6 +1428,30 @@ const migrations: Migration[] = [
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN signature TEXT DEFAULT NULL`)
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN public_key TEXT DEFAULT NULL`)
     }
+  },
+  {
+    id: '051_hash_global_api_key',
+    up(db: Database.Database) {
+      // Migrate the plaintext global API key (settings 'security.api_key') to a
+      // SHA-256 hash stored under 'security.api_key_hash'. After this migration
+      // the plaintext key is never at rest — it is only returned once at rotation,
+      // so a DB read (file copy, backup dump) no longer yields a live credential.
+      const row = db.prepare(
+        "SELECT value, updated_by, updated_at FROM settings WHERE key = 'security.api_key'"
+      ).get() as { value: string; updated_by: string | null; updated_at: number } | undefined
+      if (row?.value) {
+        const hashed = createHash('sha256').update(row.value).digest('hex')
+        db.prepare(`
+          INSERT INTO settings (key, value, description, category, updated_by, updated_at)
+          VALUES ('security.api_key_hash', ?, 'SHA-256 hash of the active API key (overrides API_KEY env var)', 'security', ?, ?)
+          ON CONFLICT(key) DO UPDATE SET
+            value = excluded.value,
+            updated_by = excluded.updated_by,
+            updated_at = excluded.updated_at
+        `).run(hashed, row.updated_by, row.updated_at)
+      }
+      db.prepare("DELETE FROM settings WHERE key = 'security.api_key'").run()
+    }
   }
 ]
 

@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
-import { requireRole } from '@/lib/auth'
+import { requireRole, hashApiKey } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { mutationLimiter } from '@/lib/rate-limit'
 
-interface ApiKeyRow {
-  value: string
+interface ApiKeyHashRow {
   updated_by: string | null
   updated_at: number
 }
@@ -13,6 +12,8 @@ interface ApiKeyRow {
 /**
  * Mask an API key for display: show first 4 and last 5 chars.
  * e.g. "mc_a1b2c3d4e5f6g7h8i9j0" -> "mc_a****j0"
+ * Only possible for env keys — DB keys are stored as sha256 hashes and
+ * cannot be displayed after creation.
  */
 function maskApiKey(key: string): string {
   if (key.length <= 9) return '****'
@@ -28,14 +29,16 @@ export async function GET(request: NextRequest) {
 
   const db = getDatabase()
 
-  // Check for DB-stored override first
+  // Check for DB-stored override first. Only the sha256 hash is stored,
+  // so the key itself cannot be shown (not even masked) after creation.
   const row = db.prepare(
-    "SELECT value, updated_by, updated_at FROM settings WHERE key = 'security.api_key'"
-  ).get() as ApiKeyRow | undefined
+    "SELECT updated_by, updated_at FROM settings WHERE key = 'security.api_key_hash'"
+  ).get() as ApiKeyHashRow | undefined
 
   if (row) {
     return NextResponse.json({
-      masked_key: maskApiKey(row.value),
+      masked_key: null,
+      configured: true,
       source: 'database',
       last_rotated_at: row.updated_at,
       last_rotated_by: row.updated_by,
@@ -47,6 +50,7 @@ export async function GET(request: NextRequest) {
   if (envKey) {
     return NextResponse.json({
       masked_key: maskApiKey(envKey),
+      configured: true,
       source: 'environment',
       last_rotated_at: null,
       last_rotated_by: null,
@@ -55,6 +59,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     masked_key: null,
+    configured: false,
     source: 'none',
     last_rotated_at: null,
     last_rotated_by: null,
@@ -63,6 +68,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/tokens/rotate - Generate and store a new API key
+ *
+ * Only sha256(key) is persisted (settings 'security.api_key_hash');
+ * the plaintext key is returned exactly once in this response.
  */
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
@@ -71,32 +79,43 @@ export async function POST(request: NextRequest) {
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck
 
-  // Generate a new key: mc_ prefix + 32 random hex chars
+  // Generate a new key: mc_ prefix + 48 random hex chars
   const newKey = 'mc_' + randomBytes(24).toString('hex')
 
   const db = getDatabase()
 
   // Get old key info for audit trail
-  const existing = db.prepare(
+  const existingHash = db.prepare(
+    "SELECT key FROM settings WHERE key = 'security.api_key_hash'"
+  ).get() as { key: string } | undefined
+  const existingLegacy = db.prepare(
     "SELECT value FROM settings WHERE key = 'security.api_key'"
   ).get() as { value: string } | undefined
 
-  const oldSource = existing ? 'database' : (process.env.API_KEY || '').trim() ? 'environment' : 'none'
-  const oldMasked = existing
-    ? maskApiKey(existing.value)
-    : (process.env.API_KEY || '').trim()
+  const oldSource = existingHash || existingLegacy
+    ? 'database'
+    : (process.env.API_KEY || '').trim() ? 'environment' : 'none'
+  // Hashed keys cannot be masked — only legacy plaintext or env keys can.
+  const oldMasked = existingLegacy
+    ? maskApiKey(existingLegacy.value)
+    : !existingHash && (process.env.API_KEY || '').trim()
       ? maskApiKey((process.env.API_KEY || '').trim())
       : null
 
-  // Store new key in settings table (overrides env var)
-  db.prepare(`
-    INSERT INTO settings (key, value, description, category, updated_by, updated_at)
-    VALUES ('security.api_key', ?, 'Active API key (overrides API_KEY env var)', 'security', ?, unixepoch())
-    ON CONFLICT(key) DO UPDATE SET
-      value = excluded.value,
-      updated_by = excluded.updated_by,
-      updated_at = unixepoch()
-  `).run(newKey, auth.user.username)
+  // Store only the hash in settings (overrides env var); remove any legacy
+  // plaintext row so the raw key never remains at rest.
+  const writeTxn = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO settings (key, value, description, category, updated_by, updated_at)
+      VALUES ('security.api_key_hash', ?, 'SHA-256 hash of the active API key (overrides API_KEY env var)', 'security', ?, unixepoch())
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        updated_by = excluded.updated_by,
+        updated_at = unixepoch()
+    `).run(hashApiKey(newKey), auth.user.username)
+    db.prepare("DELETE FROM settings WHERE key = 'security.api_key'").run()
+  })
+  writeTxn()
 
   // Audit log
   const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'

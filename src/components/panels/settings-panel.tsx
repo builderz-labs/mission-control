@@ -26,6 +26,7 @@ interface Setting {
 
 interface ApiKeyInfo {
   masked_key: string | null
+  configured: boolean
   source: string
   last_rotated_at: number | null
   last_rotated_by: string | null
@@ -702,7 +703,10 @@ export function SettingsPanel() {
             {/* Current key display */}
             <div className="mt-3 flex items-center gap-2">
               <code className="text-xs font-mono bg-background border border-border rounded px-2 py-1 text-muted-foreground">
-                {apiKeyLoading ? 'Loading...' : apiKeyInfo?.masked_key || 'No API key configured'}
+                {apiKeyLoading
+                  ? 'Loading...'
+                  : apiKeyInfo?.masked_key
+                    || (apiKeyInfo?.configured ? 'Configured (stored as hash — not displayable)' : 'No API key configured')}
               </code>
             </div>
 
