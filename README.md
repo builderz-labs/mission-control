@@ -466,10 +466,13 @@ If you find this project useful, consider supporting the open-source work:
 </div>
 
 <p align="center">
-  <a href="https://star-history.com/#builderz-labs/mission-control&Date">
-    <img src="https://api.star-history.com/svg?repos=builderz-labs/mission-control&type=Date" alt="Star History" width="400">
-  </a>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/star-history-dark.svg">
+    <img src="docs/star-history-light.svg" alt="Star history chart" width="600">
+  </picture>
 </p>
+
+<!-- Self-hosted charts, refreshed weekly by .github/workflows/star-chart.yml -->
 
 ## License
 
