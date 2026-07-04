@@ -1,7 +1,7 @@
 {
   "name": "mission-control",
   "version": "2.0.1",
-  "description": "OpenClaw Mission Control — open-source agent orchestration dashboard",
+  "description": "OpenClaw Mission Control \u2014 open-source agent orchestration dashboard",
   "scripts": {
     "verify:node": "node scripts/check-node-version.mjs",
     "api:parity": "node scripts/check-api-contract-parity.mjs --root . --openapi openapi.json --ignore-file scripts/api-contract-parity.ignore",
@@ -25,55 +25,55 @@
     "test:e2e:openclaw": "pnpm test:e2e:openclaw:local && pnpm test:e2e:openclaw:gateway",
     "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
     "quality:gate": "pnpm test:all",
-    "postinstall": "node -e \"try{require('better-sqlite3')}catch(e){if(e.code==='ERR_DLOPEN_FAILED'||/NODE_MODULE_VERSION/.test(e.message)){console.error('\\n⚠  better-sqlite3 compiled for wrong Node version. Run: pnpm rebuild better-sqlite3\\n');process.exit(1)}}\""
+    "postinstall": "node -e \"try{require('better-sqlite3')}catch(e){if(e.code==='ERR_DLOPEN_FAILED'||/NODE_MODULE_VERSION/.test(e.message)){console.error('\\n\u26a0  better-sqlite3 compiled for wrong Node version. Run: pnpm rebuild better-sqlite3\\n');process.exit(1)}}\""
   },
   "dependencies": {
-    "@radix-ui/react-slot": "^1.2.4",
-    "@scalar/api-reference-react": "^0.8.66",
+    "@radix-ui/react-slot": "^1.3.0",
+    "@scalar/api-reference-react": "^0.8.70",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^6.0.0",
-    "autoprefixer": "^10.4.20",
-    "better-sqlite3": "^12.6.2",
+    "autoprefixer": "^10.5.2",
+    "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "eslint": "^9.18.0",
-    "eslint-config-next": "^16.1.6",
-    "next": "^16.1.6",
-    "next-intl": "^4.8.3",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.10",
+    "next": "^16.2.10",
+    "next-intl": "^4.13.1",
     "next-themes": "^0.4.6",
     "node-pty": "^1.1.0",
     "pino": "^10.3.1",
-    "postcss": "^8.5.2",
-    "react": "^19.0.1",
-    "react-dom": "^19.0.1",
+    "postcss": "^8.5.16",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",
-    "reagraph": "^4.30.8",
-    "recharts": "^3.7.0",
+    "reagraph": "^4.32.0",
+    "recharts": "^3.9.2",
     "remark-gfm": "^4.0.1",
-    "tailwind-merge": "^3.4.0",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2",
-    "ws": "^8.19.0",
-    "zod": "^4.3.6",
-    "zustand": "^5.0.11"
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "ws": "^8.21.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@playwright/test": "^1.51.0",
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.1.0",
+    "@playwright/test": "^1.61.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.10.6",
-    "@types/react": "^19.0.8",
-    "@types/react-dom": "^19.0.3",
+    "@types/node": "^22.20.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^4.7.0",
     "@vitest/coverage-v8": "^2.1.9",
-    "jsdom": "^26.0.0",
+    "jsdom": "^26.1.0",
     "pino-pretty": "^13.1.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^2.1.5"
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=22"
@@ -103,6 +103,11 @@
       "unrs-resolver"
     ],
     "minimumReleaseAge": 10080,
-    "minimumReleaseAgeExclude": []
+    "minimumReleaseAgeExclude": [],
+    "overrides": {
+      "postcss@8": ">=8.5.10",
+      "ts-deepmerge": ">=8.0.0",
+      "eslint-plugin-react-hooks": "~7.0.1"
+    }
   }
 }
