@@ -62,7 +62,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6.1.0
         with:
           images: |
             ${{ env.GHCR_IMAGE }}
