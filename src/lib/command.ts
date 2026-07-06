@@ -119,6 +119,12 @@ export function runOpenClaw(args: string[], options: CommandOptions = {}) {
     OPENCLAW_STATE_DIR: config.openclawStateDir,
     ...options.env,
   }
+  // Do not pass legacy home aliases alongside OPENCLAW_STATE_DIR. OpenClaw
+  // treats OPENCLAW_HOME as a parent home and can re-resolve
+  // /Users/name/.openclaw as /Users/name/.openclaw/.openclaw.
+  delete env.OPENCLAW_HOME
+  delete env.CLAWDBOT_HOME
+
   return runCommand(config.openclawBin, args, {
     ...options,
     env,

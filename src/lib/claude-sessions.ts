@@ -51,6 +51,17 @@ const DEFAULT_PRICING = { input: 3 / 1_000_000, output: 15 / 1_000_000 }
 const ACTIVE_THRESHOLD_MS = 15 * 60 * 1000
 const FUTURE_TOLERANCE_MS = 60 * 1000
 
+export function isIgnoredClaudeSessionProject(projectSlug: string, projectPath: string | null = null): boolean {
+  const normalizedSlug = projectSlug.toLowerCase()
+  const normalizedPath = (projectPath || '').replace(/\\/g, '/')
+
+  // claude-mem runs background observer sessions through the Claude CLI.
+  // They are useful for memory maintenance, but they are not operator tabs and
+  // should not inflate Mission Control's active Claude session count.
+  return normalizedSlug.includes('claude-mem-observer-sessions') ||
+    /(?:^|\/)\.claude-mem\/observer-sessions(?:\/|$)/.test(normalizedPath)
+}
+
 interface SessionStats {
   sessionId: string
   projectSlug: string
@@ -258,6 +269,8 @@ export async function scanClaudeSessions(): Promise<SessionStats[]> {
   const sessions: SessionStats[] = []
 
   for (const projectSlug of projectDirs) {
+    if (isIgnoredClaudeSessionProject(projectSlug)) continue
+
     const projectDir = join(projectsDir, projectSlug)
 
     let stat
@@ -284,6 +297,7 @@ export async function scanClaudeSessions(): Promise<SessionStats[]> {
         continue // file disappeared between readdir and stat
       }
       const parsed = await parseSessionFile(filePath, projectSlug, fileStat.mtimeMs, fileStat.size)
+      if (parsed && isIgnoredClaudeSessionProject(projectSlug, parsed.projectPath)) continue
       if (parsed) sessions.push(parsed)
     }
   }

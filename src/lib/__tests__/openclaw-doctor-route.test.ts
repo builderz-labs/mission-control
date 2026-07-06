@@ -135,3 +135,50 @@ describe('GET /api/openclaw/doctor — single-flight + TTL cache (issue #613)', 
     expect(runOpenClaw).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('POST /api/openclaw/doctor — fix handling', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    requireRole.mockReturnValue({ user: { id: 1, username: 'admin', role: 'admin', workspace_id: 1 } })
+    runOpenClaw.mockReset()
+    archiveOrphanTranscriptsForStateDir.mockReturnValue({ archivedOrphans: 0, storesScanned: 1 })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('treats the gateway restart port-busy guard as non-fatal when the gateway is still reachable', async () => {
+    const busyPortDetail = [
+      'Error: gateway port 18789 is still busy before LaunchAgent restart',
+      'Port 18789 is already in use.',
+      '- pid 683: IPNExtension (100.122.102.15:18789)',
+      '- pid 70882: node (127.0.0.1:18789)',
+      '- Multiple listeners detected; ensure only one gateway/tunnel per port unless intentionally running isolated profiles.',
+    ].join('\n')
+
+    runOpenClaw
+      .mockRejectedValueOnce(Object.assign(new Error('doctor fix failed'), {
+        stdout: busyPortDetail,
+        stderr: '',
+        code: 1,
+      }))
+      .mockResolvedValueOnce({
+        stdout: 'Connectivity probe: ok\nCapability: admin-capable\n',
+        stderr: '',
+        code: 0,
+      })
+      .mockResolvedValueOnce({ stdout: 'sessions cleanup ok', stderr: '', code: 0 })
+      .mockResolvedValueOnce({ stdout: 'doctor ok', stderr: '', code: 0 })
+
+    const { POST } = await import('@/app/api/openclaw/doctor/route')
+
+    const res = await POST(fakeRequest())
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.success).toBe(true)
+    expect(body.progress[0].detail).toContain('Tailscale Serve')
+    expect(runOpenClaw).toHaveBeenNthCalledWith(2, ['gateway', 'status'], { timeoutMs: 15000 })
+  })
+})

@@ -25,6 +25,39 @@ function isMissingOpenClaw(detail: string): boolean {
   return /enoent|not installed|not reachable|command not found/i.test(detail)
 }
 
+function isGatewayRestartPortBusy(detail: string): boolean {
+  return /gateway port \d+ is still busy before LaunchAgent restart/i.test(detail) ||
+    /Port \d+ is already in use[\s\S]*Multiple listeners detected/i.test(detail)
+}
+
+function isOpenClawRootDirMissing(detail: string): boolean {
+  return /FsSafeError:\s*root dir not found|root dir not found/i.test(detail)
+}
+
+async function runDoctorCommand(args: string[], timeoutMs: number) {
+  try {
+    return await runOpenClaw(args, { timeoutMs })
+  } catch (error) {
+    const { detail } = getCommandDetail(error)
+    if (!isOpenClawRootDirMissing(detail)) throw error
+
+    // Some OpenClaw builds resolve a filesystem root during doctor startup.
+    // If the state-dir cwd trips that resolver, retry from the user's home
+    // directory before surfacing a fatal banner error.
+    return await runOpenClaw(args, { timeoutMs, cwd: config.homeDir })
+  }
+}
+
+async function gatewayStillReachableAfterRestartSkip(): Promise<boolean> {
+  try {
+    const result = await runOpenClaw(['gateway', 'status'], { timeoutMs: 15000 })
+    const output = `${result.stdout}\n${result.stderr}`
+    return /Connectivity probe:\s*ok/i.test(output) && /Capability:\s*admin-capable/i.test(output)
+  } catch {
+    return false
+  }
+}
+
 // ── Single-flight + TTL cache for ambient GET polling (closes #613) ──
 //
 // `openclaw doctor` spawns a Node subprocess that allocates ~300-600 MB
@@ -72,7 +105,7 @@ export function invalidateDoctorCache(): void {
 
 async function runAndCacheDoctor(): Promise<CachedDoctor> {
   try {
-    const result = await runOpenClaw(['doctor'], { timeoutMs: 15000 })
+    const result = await runDoctorCommand(['doctor'], 15000)
     const payload = parseOpenClawDoctorOutput(
       `${result.stdout}\n${result.stderr}`,
       result.code ?? 0,
@@ -147,8 +180,28 @@ export async function POST(request: Request) {
   try {
     const progress: Array<{ step: string; detail: string }> = []
 
-    const fixResult = await runOpenClaw(['doctor', '--fix'], { timeoutMs: 120000 })
-    progress.push({ step: 'doctor', detail: 'Applied OpenClaw doctor config fixes.' })
+    let fixOutput = ''
+    try {
+      const fixResult = await runDoctorCommand(['doctor', '--fix'], 120000)
+      fixOutput = `${fixResult.stdout}\n${fixResult.stderr}`.trim()
+      progress.push({ step: 'doctor', detail: 'Applied OpenClaw doctor config fixes.' })
+    } catch (error) {
+      const { detail } = getCommandDetail(error)
+      const gatewayReachable = isGatewayRestartPortBusy(detail)
+        ? await gatewayStillReachableAfterRestartSkip()
+        : false
+
+      if (!gatewayReachable) {
+        throw error
+      }
+
+      fixOutput = detail
+      progress.push({
+        step: 'doctor',
+        detail:
+          'OpenClaw doctor reached the gateway restart step, but skipped it because the gateway and Tailscale Serve intentionally share port 18789; the gateway is still reachable and admin-capable.',
+      })
+    }
 
     try {
       await runOpenClaw(['sessions', 'cleanup', '--all-agents', '--enforce', '--fix-missing'], { timeoutMs: 120000 })
@@ -167,7 +220,7 @@ export async function POST(request: Request) {
           : `No orphan transcript files found across ${orphanFix.storesScanned} session store(s).`,
     })
 
-    const postFix = await runOpenClaw(['doctor'], { timeoutMs: 15000 })
+    const postFix = await runDoctorCommand(['doctor'], 15000)
     const status = parseOpenClawDoctorOutput(`${postFix.stdout}\n${postFix.stderr}`, postFix.code ?? 0, {
       stateDir: config.openclawStateDir,
     })
@@ -191,7 +244,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      output: `${fixResult.stdout}\n${fixResult.stderr}`.trim(),
+      output: fixOutput,
       progress,
       status,
     })

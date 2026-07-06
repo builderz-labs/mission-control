@@ -178,6 +178,8 @@ For the full walkthrough, see the **[Quickstart Guide](docs/quickstart.md)**.
 | [CLI Reference](docs/cli-agent-control.md) | Full CLI command list for headless/scripted usage |
 | [CLI Integration](docs/cli-integration.md) | Connect Claude Code, Codex, or any CLI tool directly |
 | [Deployment](docs/deployment.md) | Production deployment, reverse proxy, VPS setup |
+| [OpenClaw Mission Control Pairing](docs/openclaw-mission-control-pairing.md) | Re-approve a browser/device when Mission Control cannot connect to OpenClaw |
+| [OpenClaw Security Runbook](docs/openclaw-security-runbook.md) | Local helix hardening notes, known doctor warnings, and safe verification commands |
 | [Security Hardening](docs/SECURITY-HARDENING.md) | Docker hardening, CSP, network isolation |
 | [Release Process](RELEASE.md) | SemVer policy, branch strategy, tag/release checklist |
 | [API Reference](openapi.json) | OpenAPI 3.1 spec — 101 REST endpoints with Scalar UI at `/api-docs` |

@@ -12,7 +12,7 @@ vi.mock('node:child_process', () => ({
   },
 }))
 
-import { runCommand } from '@/lib/command'
+import { runCommand, runOpenClaw } from '@/lib/command'
 
 class FakeChild extends EventEmitter {
   stdout = new EventEmitter()
@@ -51,5 +51,31 @@ describe('runCommand', () => {
     child.emit('close', 0)
 
     await expect(promise).resolves.toEqual({ stdout: 'hello', stderr: 'warn', code: 0 })
+  })
+
+  it('does not pass legacy OPENCLAW_HOME aliases to openclaw subprocesses', async () => {
+    const originalOpenClawHome = process.env.OPENCLAW_HOME
+    const originalClawdbotHome = process.env.CLAWDBOT_HOME
+    process.env.OPENCLAW_HOME = '/Users/doctor/.openclaw'
+    process.env.CLAWDBOT_HOME = '/Users/doctor/.openclaw'
+
+    try {
+      const child = new FakeChild()
+      spawnMock.mockReturnValue(child as any)
+
+      const promise = runOpenClaw(['doctor'])
+      child.emit('close', 0)
+      await promise
+
+      const options = spawnMock.mock.calls[0]?.[2]
+      expect(options.env.OPENCLAW_STATE_DIR).toBeTruthy()
+      expect(options.env.OPENCLAW_HOME).toBeUndefined()
+      expect(options.env.CLAWDBOT_HOME).toBeUndefined()
+    } finally {
+      if (originalOpenClawHome === undefined) delete process.env.OPENCLAW_HOME
+      else process.env.OPENCLAW_HOME = originalOpenClawHome
+      if (originalClawdbotHome === undefined) delete process.env.CLAWDBOT_HOME
+      else process.env.CLAWDBOT_HOME = originalClawdbotHome
+    }
   })
 })

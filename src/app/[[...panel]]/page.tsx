@@ -60,6 +60,7 @@ import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, ge
 import { Button } from '@/components/ui/button'
 import { useMissionControl, type CurrentUser } from '@/store'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { chooseGatewayConnectUrl, shouldClearStoredGatewayUrl } from '@/lib/gateway-url'
 
 interface GatewaySummary {
   id: number
@@ -187,8 +188,8 @@ export default function Home() {
     }
 
     const connectWithEnvFallback = (localGatewayUrl: string | null) => {
-      // localStorage user choice takes priority over env vars
-      const explicitWsUrl = localGatewayUrl || process.env.NEXT_PUBLIC_GATEWAY_URL || ''
+      // Deployment config is authoritative; a saved browser URL is only a manual fallback.
+      const explicitWsUrl = process.env.NEXT_PUBLIC_GATEWAY_URL || localGatewayUrl || ''
       if (explicitWsUrl) {
         connect(explicitWsUrl)
         return
@@ -233,10 +234,16 @@ export default function Home() {
           throw err
         }
         const resolvedWsUrl = typeof payload?.ws_url === 'string' ? payload.ws_url : ''
-        const wsUrl = preferredWsUrl?.trim() || resolvedWsUrl
+        const wsUrl = chooseGatewayConnectUrl({
+          resolvedWsUrl,
+          storedWsUrl: preferredWsUrl,
+        })
         const wsToken = typeof payload?.token === 'string' ? payload.token : ''
         if (!wsUrl) return { attempted: true, connected: false }
 
+        if (shouldClearStoredGatewayUrl({ resolvedWsUrl, storedWsUrl: preferredWsUrl })) {
+          localStorage.removeItem(STORAGE_GATEWAY_URL)
+        }
         connect(wsUrl, wsToken)
         return { attempted: true, connected: true }
       } catch {
@@ -315,10 +322,9 @@ export default function Home() {
           setInterfaceMode(data.interfaceMode)
         }
 
-        // User's explicit gateway URL choice (localStorage) takes PRIORITY over server's gateway flag.
-        // If user chose a URL from login page, always connect to it.
+        // A saved gateway URL unlocks full mode, but server-resolved primary gateways still
+        // win; the saved URL is fallback only so stale browser storage cannot pin MC.
         if (localGatewayUrl) {
-          // User explicitly chose a gateway URL — always set full mode
           setDashboardMode('full')
           setGatewayAvailable(true)
           if (data?.claudeHome) {

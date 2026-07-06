@@ -3,8 +3,7 @@ import { APP_VERSION } from './version'
 import { config } from './config'
 import { buildGatewayWebSocketUrl } from './gateway-url'
 import { getDetectedGatewayToken } from './gateway-runtime'
-
-const GATEWAY_PROTOCOL_VERSION = 3
+import { buildProtocolNegotiation } from './websocket-utils'
 const GATEWAY_CLIENT_ID = process.env.GATEWAY_CLIENT_ID || 'gateway-client'
 const GATEWAY_SCOPES = ['operator.admin', 'operator.write', 'operator.read']
 
@@ -140,8 +139,7 @@ export async function callOpenClawGateway<T = unknown>(
         method: 'connect',
         id: connectId,
         params: {
-          minProtocol: GATEWAY_PROTOCOL_VERSION,
-          maxProtocol: GATEWAY_PROTOCOL_VERSION,
+          ...buildProtocolNegotiation(),
           client: {
             id: GATEWAY_CLIENT_ID,
             displayName: 'Mission Control',
