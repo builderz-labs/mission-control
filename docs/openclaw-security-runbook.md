@@ -107,45 +107,86 @@ Examples: helix
 Puede contener estado viejo. No borrar sin confirmar que no se necesita.
 Mientras tanto queda protegido por permisos `700`.
 
-### Plaintext gateway token
+### Plaintext gateway token — RESUELTO (2026-07-08, HLX-219)
 
-Mensaje:
+Warning original:
 
 ```text
 openclaw.json contains plaintext secret-bearing config fields.
 Paths: gateway.auth.token
 ```
 
-Riesgo actual controlado parcialmente por `openclaw.json` en `600`, pero no
-cerrado por completo. La migracion correcta es moverlo a SecretRef y despues
-actualizar el arranque de Mission Control para resolver el SecretRef en vez de
-leer un string plano.
+Cerrado. `gateway.auth.token`, `channels.telegram.botToken` y el bloque
+`secrets` ya no contienen valores en plano: son SecretRefs
+(`{source,provider,id}`) que OpenClaw resuelve via el wrapper user-owned
+`~/.openclaw/secrets/kc-resolver.sh` contra el login Keychain. Grep de tokens
+en `openclaw.json` = 0 literales.
 
-No migrar este token a ciegas: Mission Control actualmente lo lee desde
-`openclaw.json` al arrancar.
+No se migro a `op://`: `op read` cuelga en contexto launchd/daemon (ver memoria
+op-launchd-incompatible), lo que romperia el arranque del gateway. Backend
+elegido = Keychain, no 1Password runtime.
+
+Cada `secrets.providers.kc_*` invoca el resolver con el nombre de servicio del
+item Keychain (ej. `helix-gateway-auth-token`, `helix-telegram-mac-bot-token`).
+El resolver hace `security find-generic-password -s <svc> -w` y quita el `\n`
+final que corrompe headers de auth.
+
+Restriccion de sesion: el resolver solo lee el login Keychain desde la sesion
+GUI del usuario (`gui/501`), donde el keychain esta desbloqueado. El gateway
+corre como LaunchAgent en `gui/501`, asi que resuelve bien. Una sesion
+"Background"/SSH NO alcanza el login Keychain (`User interaction is not
+allowed`) — no intentar validar el resolver ni re-seed desde ahi; da falso
+negativo.
 
 ## SecretRefs y 1Password
 
-Regla operativa: todos los secretos y contrasenas viven en 1Password. No guardar
-tokens nuevos en `openclaw.json`, Keychain, archivos locales, `.env`, logs,
-scripts ni el chat. La configuracion local solo debe contener SecretRefs o rutas
-`op://...` no secretas.
+Regla operativa: 1Password es la fuente de verdad de todo secreto. No guardar
+tokens en plano en `openclaw.json`, `.env`, logs, scripts ni el chat. La config
+local solo debe contener SecretRefs.
+
+Backend por contexto:
+
+- **Gateway (launchd/`gui/501`)**: SecretRef via Keychain (`kc-resolver.sh`). NO
+  usar `op://` runtime — `op read` cuelga en contexto daemon. El login Keychain
+  hace de cache local desbloqueado; 1Password sigue siendo la fuente desde la
+  que se siembra.
+- **Otros contextos con GUI/`op` estable**: `op://...` directo es aceptable.
 
 Desde SSH, no ejecutes `openclaw secrets audit --allow-exec` como unica fuente
 de verdad hasta validar acceso de `op read`. En esta instalacion la app de
 1Password puede estar abierta, pero `op` puede fallar desde una sesion SSH si no
 puede conectarse a la integracion de escritorio.
 
-Antes de mover `gateway.auth.token` a SecretRef:
+### Rotacion de un secreto Keychain (gateway/telegram)
 
-1. Validar que `op read 'op://Helix/Helix Secrets/<ID>/value'` resuelve desde
-   el mismo contexto donde corre el gateway o elegir un backend de 1Password
-   no interactivo aprobado.
-2. Ajustar `~/dev/helix-ops/scripts/start-mission-control.sh` para resolver
-   SecretRef, no solo plaintext JSON.
-3. Generar plan con `openclaw secrets configure --plan-out <archivo>`.
-4. Probar con `openclaw secrets apply --from <archivo> --dry-run`.
-5. Aplicar, recargar secretos y reiniciar gateway + Mission Control.
+Ejecutar desde la sesion GUI del usuario (`gui/501`), NO por SSH/Background.
+El valor nunca debe ir en argv (queda en historial y en `ps`). `-w` sin
+argumento hace que `security` pida el valor por prompt interactivo: copiar el
+secreto desde la app de 1Password y pegarlo ahi.
+
+```bash
+# 1. Re-sembrar el item. -U actualiza si ya existe. Al no pasar valor tras -w,
+#    security pide "password data for new item:" dos veces -> pegar el valor
+#    copiado de 1Password (fuente de verdad). No aparece en el shell history.
+security add-generic-password -U -a doctor -s helix-gateway-auth-token \
+  -T /usr/bin/security -w
+
+# 2. Verificar que el resolver lo lee (sin imprimir el secreto):
+~/.openclaw/secrets/kc-resolver.sh helix-gateway-auth-token >/dev/null && echo OK
+
+# 3. Recargar el gateway para que tome el valor nuevo:
+launchctl kickstart -k gui/501/ai.openclaw.gateway
+curl -fsS http://127.0.0.1:18789/health   # espera {"ok":true,"status":"live"}
+```
+
+Alternativa no interactiva (para automatizar): mantener el valor fuera de argv
+usando una variable de entorno leida de 1Password y `expect`, o el helper de
+seeding de OpenClaw si esta disponible. Nunca `-w "$TOKEN"` en una linea que
+quede en el history.
+
+Servicios Keychain vigentes: `helix-gateway-auth-token`,
+`helix-telegram-mac-bot-token`, `helix-anthropic-api-key`, `helix-minimax-token`,
+`helix-brave-api-key`, `helix-firecrawl-api-key`.
 
 ## Discord
 
