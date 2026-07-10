@@ -38,6 +38,7 @@ import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { SystemPanel } from '@/components/panels/system-panel'
+import { CockpitPanel } from '@/components/panels/cockpit-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
@@ -633,6 +634,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <SystemMonitorPanel />
     case 'system':
       return <SystemPanel />
+    case 'cockpit':
+      return <CockpitPanel />
     case 'skills':
       return <SkillsPanel />
     case 'channels':

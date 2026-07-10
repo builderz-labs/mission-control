@@ -50,6 +50,7 @@ const navGroups: NavGroup[] = [
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
       { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
       { id: 'system', label: 'Sistema', icon: <SystemIcon />, priority: false },
+      { id: 'cockpit', label: 'Cockpit', icon: <CockpitIcon />, priority: false },
     ],
   },
   {
@@ -1548,6 +1549,16 @@ function SystemIcon() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="2.5" />
       <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" />
+    </svg>
+  )
+}
+
+function CockpitIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12a6 6 0 0 1 12 0" />
+      <path d="M8 12l3-5" />
+      <path d="M2 12h12" />
     </svg>
   )
 }
