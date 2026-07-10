@@ -748,14 +748,13 @@ async function callClaudeDirectly(
       const db = getDatabase()
       const now = Math.floor(Date.now() / 1000)
       db.prepare(`
-        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, cost_usd, created_at, workspace_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         model,
         `task-${task.id}`,
         data.usage.input_tokens || 0,
         data.usage.output_tokens || 0,
-        (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
         0, // cost calculated separately
         now,
         task.workspace_id,
@@ -947,14 +946,13 @@ async function callClaudeViaCli(
             const db = getDatabase()
             const now = Math.floor(Date.now() / 1000)
             db.prepare(`
-              INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, cost_usd, created_at, workspace_id)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
             `).run(
               model,
               sessionId || `task-${task.id}`,
               parsed.usage.input_tokens || 0,
               parsed.usage.output_tokens || 0,
-              (parsed.usage.input_tokens || 0) + (parsed.usage.output_tokens || 0),
               0,
               now,
               task.workspace_id,
@@ -1015,14 +1013,13 @@ async function callOpenAICompatible(
       const db = getDatabase()
       const now = Math.floor(Date.now() / 1000)
       db.prepare(`
-        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, cost_usd, created_at, workspace_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         model,
         `task-${task.id}`,
         data.usage.prompt_tokens || 0,
         data.usage.completion_tokens || 0,
-        (data.usage.prompt_tokens || 0) + (data.usage.completion_tokens || 0),
         0,
         now,
         task.workspace_id,
