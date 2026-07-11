@@ -17,6 +17,7 @@ interface NavItem {
   priority: boolean // Show in mobile bottom bar
   essential?: boolean // Visible in Essential interface mode (default false)
   children?: NavItem[] // Nested sub-items (expandable parent)
+  externalUrl?: string // Opens in new tab instead of routing to a panel
 }
 
 interface NavGroup {
@@ -51,6 +52,7 @@ const navGroups: NavGroup[] = [
       { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
       { id: 'system', label: 'Sistema', icon: <SystemIcon />, priority: false },
       { id: 'cockpit', label: 'Cockpit', icon: <CockpitIcon />, priority: false },
+      { id: 'artifacts', label: 'Artifacts', icon: <ActivityIcon />, priority: false, externalUrl: 'https://helix.tail304cfc.ts.net:8446/' },
     ],
   },
   {
@@ -405,8 +407,8 @@ export function NavRail() {
                         item={item}
                         active={activeTab === item.id}
                         expanded={sidebarExpanded}
-                        onClick={() => navigateToPanel(item.id)}
-                        onPrefetch={() => prefetchPanel(item.id)}
+                        onClick={() => item.externalUrl ? window.open(item.externalUrl, '_blank', 'noopener') : navigateToPanel(item.id)}
+                        onPrefetch={() => { if (!item.externalUrl) prefetchPanel(item.id) }}
                       />
                     )
                   })}
