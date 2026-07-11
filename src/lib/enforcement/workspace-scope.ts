@@ -77,8 +77,12 @@ export function requireAgentSelfAccess(user: User, targetAgentIdOrName: string):
 
   const targetNumeric = Number(targetAgentIdOrName)
   if (Number.isFinite(targetNumeric) && targetNumeric > 0) {
-    // Numeric ID path: compare by agent_id when available
-    if (user.agent_id != null && user.agent_id !== targetNumeric) {
+    // Numeric ID path: compare by agent_id. Fail closed when agent_id is
+    // unknown — a genuine agent-scoped key always carries agent_id (auth.ts),
+    // so a missing agent_id means a session/proxy caller attributing an agent
+    // via X-Agent-Name. Such a caller must not reach another agent's numeric
+    // endpoint just because ownership can't be verified.
+    if (user.agent_id == null || user.agent_id !== targetNumeric) {
       return NextResponse.json(
         { error: 'Access denied: agent key may only access its own agent.' },
         { status: 403 },

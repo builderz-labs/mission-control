@@ -11,7 +11,7 @@ import { reconcileDeferredTaskCompletions } from '@/lib/task-dispatch';
 import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
-import { requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
+import { requireWorkspaceId, requireAgentTaskAccess } from '@/lib/enforcement/workspace-scope';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -413,6 +413,20 @@ export async function PUT(request: NextRequest) {
     `);
 
     const actor = auth.user.username
+
+    // Agent-scoped keys may only bulk-update tasks assigned to their own agent.
+    // Verify ownership up front so the batch fails atomically with a clean 403
+    // instead of partially applying, mirroring the single-task PUT guard.
+    if (auth.user.agent_name && auth.user.role !== 'admin') {
+      for (const task of tasks) {
+        const owned = db
+          .prepare('SELECT assigned_to FROM tasks WHERE id = ? AND workspace_id = ?')
+          .get(task.id, workspaceId) as { assigned_to: string | null } | undefined
+        if (!owned) continue
+        const taskDeny = requireAgentTaskAccess(auth.user, owned.assigned_to)
+        if (taskDeny) return taskDeny
+      }
+    }
 
     const transaction = db.transaction((tasksToUpdate: any[]) => {
       for (const task of tasksToUpdate) {

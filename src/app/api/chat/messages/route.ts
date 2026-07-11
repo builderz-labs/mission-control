@@ -261,6 +261,15 @@ export async function GET(request: NextRequest) {
     let query = 'SELECT * FROM messages WHERE workspace_id = ?'
     const params: any[] = [workspaceId]
 
+    // Agent-scoped keys (non-admin, agent_name set) may only read messages
+    // involving their own agent — never the whole workspace conversation log.
+    const agentScope =
+      auth.user.agent_name && auth.user.role !== 'admin' ? auth.user.agent_name : null
+    if (agentScope) {
+      query += ' AND (from_agent = ? OR to_agent = ?)'
+      params.push(agentScope, agentScope)
+    }
+
     if (conversation_id) {
       query += ' AND conversation_id = ?'
       params.push(conversation_id)

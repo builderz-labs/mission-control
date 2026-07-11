@@ -165,9 +165,11 @@ describe('requireAgentSelfAccess — agent key (numeric ID path)', () => {
     expect(result!.status).toBe(403)
   })
 
-  it('allows numeric path when agent_id is not set (falls through to workspace filter)', () => {
+  it('blocks numeric path when agent_id is not set (fail closed — cannot verify ownership)', () => {
     const user = makeUser({ agent_name: 'repo-steward', agent_id: null, role: 'operator' })
-    expect(requireAgentSelfAccess(user, '42')).toBeNull()
+    const result = requireAgentSelfAccess(user, '42')
+    expect(result).not.toBeNull()
+    expect(result!.status).toBe(403)
   })
 })
 
