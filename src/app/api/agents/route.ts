@@ -9,6 +9,7 @@ import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createAgentSchema } from '@/lib/validation';
 import { runOpenClaw } from '@/lib/command';
+import { getGatewayAgents, matchesGatewayAgent } from '@/lib/agent-gateway-liveness';
 import { config as appConfig } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
 import path from 'node:path';
@@ -100,6 +101,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Verdad del gateway: qué agentes existen realmente (best-effort, cacheado).
+    // Marca el drift del sqlite (agentes que ya no viven en el gateway) sin borrar.
+    const gatewayAgents = await getGatewayAgents()
+
     const agentsWithStats = agentsWithParsedData.map(agent => {
       const taskStats = taskStatsByAgent.get(agent.name) || {
         total: 0,
@@ -109,12 +114,17 @@ export async function GET(request: NextRequest) {
         done: 0,
       }
 
+      const gwMatch = matchesGatewayAgent(agent.name, gatewayAgents)
+
       return {
         ...agent,
         taskStats: {
           ...taskStats,
           completed: taskStats.done,
-        }
+        },
+        // undefined si el gateway no respondió (no afirmamos huérfano sin evidencia)
+        gatewayKnown: gatewayAgents.length > 0 ? Boolean(gwMatch) : undefined,
+        gatewayIdentity: gwMatch?.identityName,
       };
     });
     

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
 import { readFile, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 
 interface CronJob {
@@ -83,6 +84,78 @@ async function loadCronFile(): Promise<OpenClawCronFile | null> {
   }
 }
 
+// Fallback Helix: cuando no existe ~/.openclaw/cron/jobs.json (la flota real
+// son LaunchAgents, no jobs de OpenClaw), servir el canon docs/crons.json
+// (cron-expr + objetivo) fusionado con el estado vivo de system-inventory.json
+// (lastRun + exitCode). Solo lectura; los LaunchAgents no se editan desde aquí.
+const CRONS_CANON_PATH =
+  process.env.HELIX_CRONS_PATH ||
+  path.join(os.homedir(), 'dev/helix-ecosystem/docs/crons.json')
+
+interface CanonCron {
+  name: string
+  objetivo?: string
+  cadencia?: string
+  fuente?: string
+  log?: string | null
+}
+
+interface InventoryCron {
+  label: string
+  schedule?: string
+  objetivo?: string
+  lastRun?: number | null
+  exitCode?: number | null
+  loaded?: boolean
+}
+
+function normalizeCronName(s: string): string {
+  return s.replace(/^com\.helix\.(cron\.)?/, '').trim().toLowerCase()
+}
+
+async function loadLaunchdFallback(): Promise<CronJob[] | null> {
+  let canon: CanonCron[]
+  try {
+    const raw = await readFile(CRONS_CANON_PATH, 'utf-8')
+    const parsed = JSON.parse(raw)
+    // docs/crons.json: { _meta, crons: { "<file>.sh": {name, cadencia, ...} } }
+    const crons = Array.isArray(parsed) ? parsed : parsed.crons
+    canon = Array.isArray(crons) ? crons : Object.values(crons ?? {})
+    if (canon.length === 0) return null
+  } catch {
+    return null
+  }
+
+  // Estado vivo (opcional): si el colector no ha corrido, servimos solo el canon.
+  const stateByName = new Map<string, InventoryCron>()
+  try {
+    const invRaw = await readFile(path.join(config.dataDir, 'system-inventory.json'), 'utf-8')
+    const inv = JSON.parse(invRaw)
+    for (const c of (inv.crons ?? []) as InventoryCron[]) {
+      stateByName.set(normalizeCronName(c.label), c)
+    }
+  } catch {
+    /* sin inventario: crons sin estado de ejecución, pero visibles */
+  }
+
+  return canon.map(c => {
+    const st = stateByName.get(normalizeCronName(c.name))
+    const exit = st?.exitCode
+    const lastStatus =
+      exit == null ? undefined : exit === 0 ? 'success' : 'error'
+    return {
+      id: c.name,
+      name: c.name,
+      schedule: c.cadencia || st?.schedule || 'manual',
+      command: c.objetivo || st?.objetivo || '',
+      enabled: st?.loaded ?? true,
+      lastRun: st?.lastRun ?? undefined,
+      lastStatus,
+      lastError: lastStatus === 'error' ? `exit ${exit}` : undefined,
+    } satisfies CronJob
+  })
+}
+
 async function saveCronFile(data: OpenClawCronFile): Promise<boolean> {
   const filePath = getCronFilePath()
   if (!filePath) return false
@@ -141,12 +214,17 @@ export async function GET(request: NextRequest) {
 
     if (action === 'list') {
       const cronFile = await loadCronFile()
-      if (!cronFile || !cronFile.jobs) {
+      if (!cronFile || !cronFile.jobs || cronFile.jobs.length === 0) {
+        // Sin jobs.json de OpenClaw → la flota real son LaunchAgents (canon Helix).
+        const fallback = await loadLaunchdFallback()
+        if (fallback && fallback.length > 0) {
+          return NextResponse.json({ jobs: fallback, source: 'launchd', readOnly: true })
+        }
         return NextResponse.json({ jobs: [] })
       }
 
       const jobs = cronFile.jobs.map(mapOpenClawJob)
-      return NextResponse.json({ jobs })
+      return NextResponse.json({ jobs, source: 'openclaw' })
     }
 
     if (action === 'logs') {
