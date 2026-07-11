@@ -50,3 +50,4 @@ docs/_*.png
 
 # IDE state
 .vs/
+.gstack/
