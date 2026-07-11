@@ -25,6 +25,21 @@ interface ServiceEntry {
   exitCode: number | null
 }
 
+interface Capability {
+  capability: string
+  surface: string
+  trigger: string
+  gate: string
+  cost: string
+  notes: string
+}
+
+interface Catalog {
+  updatedAt: number
+  total: number
+  capabilities: Capability[]
+}
+
 interface Inventory {
   collectedAt: number
   crons: CronEntry[]
@@ -76,6 +91,8 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 export function SystemPanel() {
   const [data, setData] = useState<Inventory | null>(null)
+  const [catalog, setCatalog] = useState<Catalog | null>(null)
+  const [capFilter, setCapFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
@@ -89,6 +106,13 @@ export function SystemPanel() {
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar el inventario')
+    }
+    // Catálogo aparte: si falla, el resto del panel sigue vivo.
+    try {
+      const res = await fetch('/api/capabilities')
+      if (res.ok) setCatalog(await res.json())
+    } catch {
+      /* card de capacidades simplemente no se muestra */
     }
   }, [])
 
@@ -186,6 +210,50 @@ export function SystemPanel() {
           </table>
         </div>
       </Card>
+
+      {/* Capacidades (CAPABILITIES.md, canon helix-ecosystem) */}
+      {catalog && (
+        <Card title={`Capacidades (${catalog.total} · catálogo ${timeAgo(catalog.updatedAt)})`}>
+          <input
+            type="search"
+            value={capFilter}
+            onChange={e => setCapFilter(e.target.value)}
+            placeholder="Filtrar por nombre, trigger, gate, surface…"
+            className="w-full mb-3 rounded-md border border-border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <div className="overflow-x-auto max-h-96 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card">
+                <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                  <th className="py-2 pr-3 font-medium">Capacidad</th>
+                  <th className="py-2 pr-3 font-medium">Surface</th>
+                  <th className="py-2 pr-3 font-medium">Gate</th>
+                  <th className="py-2 pr-3 font-medium">Costo</th>
+                  <th className="py-2 font-medium">Trigger</th>
+                </tr>
+              </thead>
+              <tbody>
+                {catalog.capabilities
+                  .filter(c => {
+                    const q = capFilter.toLowerCase()
+                    return !q || [c.capability, c.surface, c.trigger, c.gate, c.cost].some(f => f.toLowerCase().includes(q))
+                  })
+                  .map(c => (
+                    <tr key={c.capability} className="border-b border-border/50 last:border-0 align-top">
+                      <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">{c.capability}</td>
+                      <td className="py-2 pr-3 text-xs whitespace-nowrap">{c.surface}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap">
+                        <Badge tone={c.gate === 'HARD' ? 'err' : c.gate === 'soft' ? 'warn' : 'muted'}>{c.gate || '—'}</Badge>
+                      </td>
+                      <td className="py-2 pr-3 text-xs whitespace-nowrap">{c.cost}</td>
+                      <td className="py-2 text-xs text-muted-foreground max-w-md">{c.trigger}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card title="Skills por runtime">
