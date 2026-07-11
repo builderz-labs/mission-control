@@ -209,6 +209,27 @@ export function extractDeferredCompletionText(waitPayload: any): string | null {
   return parts.length > 0 ? parts.join('\n').slice(0, 10_000) : null
 }
 
+const NO_DEFERRED_OUTPUT_RESOLUTION = 'Deferred agent run completed without textual output.'
+
+// A deferred run can "complete" while the agent only emitted a one-line
+// acknowledgement ("Reviso el contexto antes de responder.") and produced no
+// deliverable. Marking those `outcome = 'success'` is a false positive: review
+// reads as done when nothing was delivered. Treat a completion as a real
+// deliverable only if it carries an artifact signal or substantial prose.
+const DELIVERABLE_MIN_CHARS = 120
+
+export function looksLikeDeliverable(text: string | null): boolean {
+  if (!text) return false
+  const t = text.trim()
+  if (!t) return false
+  if (t === NO_DEFERRED_OUTPUT_RESOLUTION) return false
+  if (/<\/?[a-z][\s\S]*>/i.test(t)) return true // html/markup tag
+  if (t.includes('```')) return true // fenced code / artifact block
+  if (/^\s*\|.*\|/m.test(t)) return true // markdown table row
+  if (/https?:\/\//.test(t)) return true // link / cited source
+  return t.length >= DELIVERABLE_MIN_CHARS // substantial prose
+}
+
 function isCompletionStatus(status: string): boolean {
   return ['completed', 'complete', 'success', 'succeeded', 'done', 'ok'].includes(status)
 }
@@ -376,27 +397,32 @@ export async function reconcileDeferredTaskCompletions(options: {
     if (!completion.complete) continue
 
     const recoveredText = completion.text?.trim() || recoverDeferredCompletionTextFromTranscript(task, metadata)
-    const resolution = recoveredText || 'Deferred agent run completed without textual output.'
+    const resolution = recoveredText || NO_DEFERRED_OUTPUT_RESOLUTION
     const truncated = resolution.length > 10_000
       ? resolution.substring(0, 10_000) + '\n\n[Response truncated at 10,000 characters]'
       : resolution
+    // Only a real deliverable earns `success`; a stub acknowledgement lands in
+    // review as `partial` so it doesn't read as done.
+    const delivered = looksLikeDeliverable(recoveredText)
+    const outcome: 'success' | 'partial' = delivered ? 'success' : 'partial'
     const nextMetadata: Record<string, any> = {
       ...metadata,
       async_state: 'completed',
       async_completed_at: now,
+      deliverable_detected: delivered,
     }
 
     const update = db.prepare(`
       UPDATE tasks
       SET status = 'review',
-          outcome = 'success',
+          outcome = ?,
           resolution = ?,
           metadata = ?,
           updated_at = ?
       WHERE id = ?
         AND workspace_id = ?
         AND status = 'in_progress'
-    `).run(truncated, JSON.stringify(nextMetadata), now, task.id, task.workspace_id)
+    `).run(outcome, truncated, JSON.stringify(nextMetadata), now, task.id, task.workspace_id)
 
     if (update.changes === 0) continue
 
@@ -413,7 +439,7 @@ export async function reconcileDeferredTaskCompletions(options: {
     eventBus.broadcast('task.updated', {
       id: task.id,
       status: 'review',
-      outcome: 'success',
+      outcome,
       assigned_to: task.assigned_to,
       dispatch_session_id: nextMetadata.dispatch_session_id,
       dispatch_run_id: nextMetadata.dispatch_run_id,
@@ -424,8 +450,10 @@ export async function reconcileDeferredTaskCompletions(options: {
       'task',
       task.id,
       task.assigned_to || 'agent',
-      `Deferred agent completed task "${task.title}" - awaiting review`,
-      { response_length: truncated.length, dispatch_session_id: nextMetadata.dispatch_session_id, dispatch_run_id: nextMetadata.dispatch_run_id },
+      delivered
+        ? `Deferred agent completed task "${task.title}" - awaiting review`
+        : `Deferred agent returned no deliverable for task "${task.title}" - flagged partial, awaiting review`,
+      { response_length: truncated.length, deliverable_detected: delivered, dispatch_session_id: nextMetadata.dispatch_session_id, dispatch_run_id: nextMetadata.dispatch_run_id },
       task.workspace_id
     )
 
