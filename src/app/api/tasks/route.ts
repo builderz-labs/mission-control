@@ -213,7 +213,25 @@ export async function POST(request: NextRequest) {
     // Auto-route unassigned tasks to the configured coordinator agent, if any
     // (issue #663). Opt-in via MC_COORDINATOR_AGENT; when unset, tasks created
     // without an assignee stay unassigned (config.coordinatorAgent === '').
-    const finalAssignedTo = resolveTaskAssignee(assigned_to, config.coordinatorAgent)
+    let finalAssignedTo = resolveTaskAssignee(assigned_to, config.coordinatorAgent)
+
+    // Guard against a coordinator typo stranding tasks: the dispatcher inner-
+    // joins `agents`, so a task auto-routed to a coordinator that doesn't exist
+    // in this workspace would be assigned-but-never-dispatchable. Fall back to
+    // unassigned + warn. Explicit assignees are the caller's responsibility.
+    const autoRoutedToCoordinator = !(assigned_to && String(assigned_to).trim()) && finalAssignedTo !== null
+    if (autoRoutedToCoordinator) {
+      const coordinatorExists = db
+        .prepare('SELECT 1 FROM agents WHERE name = ? AND workspace_id = ?')
+        .get(finalAssignedTo, workspaceId)
+      if (!coordinatorExists) {
+        logger.warn(
+          { coordinator: finalAssignedTo, workspaceId },
+          'MC_COORDINATOR_AGENT not found in workspace; leaving task unassigned instead of stranding it',
+        )
+        finalAssignedTo = null
+      }
+    }
 
     const normalizedStatus = normalizeTaskCreateStatus(status, finalAssignedTo)
 

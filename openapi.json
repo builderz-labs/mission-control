@@ -6810,6 +6810,68 @@
         }
       }
     },
+    "/api/goals-inventory": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Goals inventory by horizon",
+        "description": "Serves the horizon goals JSON produced by the goals-collector cron. Read-only, viewer role. Returns 404 when the collector has not run yet.",
+        "operationId": "getGoalsInventory",
+        "responses": {
+          "200": {
+            "description": "Goals inventory payload (collector-defined shape)",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "404": {
+            "description": "Inventory not available (collector has not run)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "error": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system-inventory": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "System ecosystem inventory",
+        "description": "Serves the ecosystem inventory JSON (services, crons, skills) produced by the system-inventory collector cron. Read-only, viewer role. Returns 404 when the collector has not run yet.",
+        "operationId": "getSystemInventory",
+        "responses": {
+          "200": {
+            "description": "System inventory payload (collector-defined shape)",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "404": {
+            "description": "Inventory not available (collector has not run)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "error": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [

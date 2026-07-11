@@ -111,4 +111,20 @@ describe('apiFetch — global 401 / 403 / 5xx / network handling', () => {
     const data = await apiFetch('/api/sessions/123', { method: 'DELETE' })
     expect(data).toBeUndefined()
   })
+
+  it.each([400, 409, 422, 429])(
+    'throws ApiError on %i instead of returning the error body as success',
+    async (status) => {
+      global.fetch = vi.fn().mockResolvedValue(mockResponse(status, { error: 'nope' }))
+      await expect(apiFetch('/api/tasks', { method: 'POST' })).rejects.toMatchObject({
+        status,
+        payload: { error: 'nope' },
+      })
+    },
+  )
+
+  it('carries the server payload on a thrown 4xx so callers can read .error', async () => {
+    global.fetch = vi.fn().mockResolvedValue(mockResponse(422, { error: 'label blocked' }))
+    await expect(apiFetch('/api/spawn', { method: 'POST' })).rejects.toThrow(ApiError)
+  })
 })

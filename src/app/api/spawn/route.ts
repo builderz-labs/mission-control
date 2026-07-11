@@ -64,8 +64,15 @@ export async function POST(request: NextRequest) {
     // Modern equivalent for gateways that removed sessions_spawn (OpenClaw
     // 2026.5.x only exposes the `agent` method). Mirrors the task-dispatch
     // invocation: `gateway call agent` with a `message` param (issue #645).
+    // The modern `agent` method requires an agentId (unlike sessions_spawn).
+    // An ad-hoc spawn has no assigned agent, so route it to the configured
+    // coordinator agent (MC_COORDINATOR_AGENT). Without one, the fallback
+    // below surfaces an actionable error instead of the gateway's cryptic
+    // "agentId required".
+    const fallbackAgentId = config.coordinatorAgent
     const agentPayload: Record<string, unknown> = {
       message: task,
+      ...(fallbackAgentId ? { agentId: fallbackAgentId } : {}),
       ...(label ? { label } : {}),
       ...(model ? { model } : {}),
       idempotencyKey: `${spawnId}`,
@@ -96,6 +103,11 @@ export async function POST(request: NextRequest) {
         // Newer gateways removed sessions_spawn entirely → use the modern
         // `agent` method instead of surfacing "unknown method: sessions_spawn".
         if (!isUnknownMethodError(spawnError)) throw spawnError
+        if (!fallbackAgentId) {
+          throw new Error(
+            'sessions_spawn is unavailable on this gateway and no fallback agent is configured. Set MC_COORDINATOR_AGENT to the agent that should run ad-hoc spawns.',
+          )
+        }
         logger.info('sessions_spawn unavailable on gateway; falling back to modern agent invocation')
         result = await callOpenClawGateway('agent', agentPayload, 15_000)
         compatibilityFallbackUsed = true

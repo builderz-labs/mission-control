@@ -171,6 +171,8 @@ export function SystemPanel() {
                   <td className="py-2 pr-3 whitespace-nowrap">
                     {!cron.loaded ? (
                       <Badge tone="err">no cargado</Badge>
+                    ) : cron.exitCode === null ? (
+                      <Badge tone="muted">sin corridas</Badge>
                     ) : cron.exitCode !== 0 ? (
                       <Badge tone="err">exit {cron.exitCode}</Badge>
                     ) : (

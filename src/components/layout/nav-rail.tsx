@@ -26,6 +26,18 @@ interface NavGroup {
   items: NavItem[]
 }
 
+// Activate a nav item: open its external URL in a new tab, or route to its
+// panel. Used by every render path (desktop rail + mobile bar/sheet) so
+// external-link items behave the same everywhere instead of routing to a
+// non-existent panel on mobile.
+function activateNavItem(item: NavItem, navigateToPanel: (id: string) => void) {
+  if (item.externalUrl) {
+    window.open(item.externalUrl, '_blank', 'noopener')
+  } else {
+    navigateToPanel(item.id)
+  }
+}
+
 const navGroups: NavGroup[] = [
   {
     id: 'core',
@@ -52,7 +64,7 @@ const navGroups: NavGroup[] = [
       { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
       { id: 'system', label: 'Sistema', icon: <SystemIcon />, priority: false },
       { id: 'cockpit', label: 'Cockpit', icon: <CockpitIcon />, priority: false },
-      { id: 'artifacts', label: 'Artifacts', icon: <ActivityIcon />, priority: false, externalUrl: 'https://helix.tail304cfc.ts.net:8446/' },
+      { id: 'artifacts', label: 'Artifacts', icon: <ActivityIcon />, priority: false, externalUrl: process.env.NEXT_PUBLIC_ARTIFACTS_URL },
     ],
   },
   {
@@ -190,6 +202,9 @@ export function NavRail() {
         if (isLocal && gatewayOnlyPanels.has(i.id)) return null
         if (!isAdmin && adminOnlyPanels.has(i.id)) return null
         if (isEssential && !i.essential) return null
+        // External-link items (e.g. Artifacts) are opt-in via env; hide when
+        // no URL is configured so no dead link ships to other deployments.
+        if (i.id === 'artifacts' && !i.externalUrl) return null
         return i
       })
       .filter((i): i is NavItem => i !== null)
@@ -407,7 +422,7 @@ export function NavRail() {
                         item={item}
                         active={activeTab === item.id}
                         expanded={sidebarExpanded}
-                        onClick={() => item.externalUrl ? window.open(item.externalUrl, '_blank', 'noopener') : navigateToPanel(item.id)}
+                        onClick={() => activateNavItem(item, navigateToPanel)}
                         onPrefetch={() => { if (!item.externalUrl) prefetchPanel(item.id) }}
                       />
                     )
@@ -571,7 +586,7 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
             <Button
               key={item.id}
               variant="ghost"
-              onClick={() => navigateToPanel(item.id)}
+              onClick={() => activateNavItem(item, navigateToPanel)}
               className={`flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg min-w-[48px] min-h-[48px] h-auto ${
                 activeTab === item.id
                   ? 'text-primary hover:text-primary'
@@ -687,7 +702,7 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
                     key={item.id}
                     variant="ghost"
                     onClick={() => {
-                      navigateToPanel(item.id)
+                      activateNavItem(item, navigateToPanel)
                       handleClose()
                     }}
                     className={`flex items-center gap-2.5 px-3 min-h-[48px] h-auto rounded-lg justify-start ${

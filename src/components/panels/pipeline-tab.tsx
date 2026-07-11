@@ -152,7 +152,11 @@ export function PipelineTab() {
   }
 
   const deletePipeline = async (id: number) => {
-    await fetch(`/api/pipelines?id=${id}`, { method: 'DELETE' })
+    await fetch('/api/pipelines', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
     if (expandedId === id) setExpandedId(null)
     fetchData()
   }

@@ -28,6 +28,7 @@ export type ApiErrorCode =
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'SERVER_ERROR'
+  | 'REQUEST_FAILED'
   | 'NETWORK_ERROR'
   | 'PARSE_ERROR'
 
@@ -122,6 +123,20 @@ export async function apiFetch<T = unknown>(
         ? (payload as { error: string }).error
         : null) || `Server error ${response.status}`
     throw new ApiError('SERVER_ERROR', response.status, msg, payload)
+  }
+
+  // Any other non-2xx (400, 409, 422, 429, ...) — throw with the server payload
+  // so callers don't proceed on validation/conflict/rate-limit errors as if the
+  // response body were success data. Callers that need the raw error body opt in
+  // with `raw: true`.
+  if (!response.ok) {
+    const payload = await safeParseJson(response)
+    const msg =
+      (typeof payload === 'object' && payload !== null && 'error' in payload &&
+        typeof (payload as { error: unknown }).error === 'string'
+        ? (payload as { error: string }).error
+        : null) || `Request failed (${response.status})`
+    throw new ApiError('REQUEST_FAILED', response.status, msg, payload)
   }
 
   if (raw) return response as unknown as T

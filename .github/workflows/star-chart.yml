@@ -24,12 +24,12 @@ jobs:
 
       - name: Commit if changed
         run: |
-          if git diff --quiet -- assets; then
+          if git diff --quiet -- docs/star-history-light.svg docs/star-history-dark.svg; then
             echo "No chart changes."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/star-history-light.svg assets/star-history-dark.svg
+          git add docs/star-history-light.svg docs/star-history-dark.svg
           git commit -m "chore: refresh star-history charts"
           git push
