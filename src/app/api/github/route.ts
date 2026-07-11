@@ -10,11 +10,57 @@ import {
   githubFetch,
   fetchIssues,
   fetchIssue,
+  fetchPullRequests,
   createIssueComment,
   updateIssueState,
   type GitHubIssue,
 } from '@/lib/github'
 import { initializeLabels, pullFromGitHub } from '@/lib/github-sync-engine'
+
+// Repos del fork Helix cuyos PRs vigilamos (override: MC_GITHUB_REPOS coma-separado).
+const HELIX_REPOS = (
+  process.env.MC_GITHUB_REPOS ||
+  'musalabalpha/mission-control,musalabalpha/helix-ecosystem,musalabalpha/helix-ops,musalabalpha/helix-public,musalabalpha/helix-spark'
+)
+  .split(',')
+  .map(r => r.trim())
+  .filter(Boolean)
+
+async function handleGitHubPrs() {
+  const token = await getGitHubToken()
+  if (!token) {
+    return NextResponse.json(
+      { error: 'GITHUB_TOKEN no configurado — cablearlo desde Keychain en el arranque de MC', repos: [] },
+      { status: 200 }
+    )
+  }
+
+  // Por-repo resiliente: un repo sin acceso no tumba la lista completa.
+  const repos = await Promise.all(
+    HELIX_REPOS.map(async repo => {
+      try {
+        const prs = await fetchPullRequests(repo, { state: 'open', per_page: 30 })
+        return {
+          repo,
+          prs: prs.map(pr => ({
+            number: pr.number,
+            title: pr.title,
+            draft: pr.draft ?? false,
+            author: pr.user?.login ?? null,
+            branch: pr.head.ref,
+            url: pr.html_url,
+            updatedAt: pr.updated_at,
+          })),
+        }
+      } catch (err: any) {
+        return { repo, prs: [], error: err?.message || 'error' }
+      }
+    })
+  )
+
+  const openCount = repos.reduce((n, r) => n + r.prs.length, 0)
+  return NextResponse.json({ repos, openCount })
+}
 
 /**
  * GET /api/github?action=issues&repo=owner/repo&state=open&labels=bug
@@ -30,6 +76,10 @@ export async function GET(request: NextRequest) {
 
     if (action === 'stats') {
       return await handleGitHubStats()
+    }
+
+    if (action === 'prs') {
+      return await handleGitHubPrs()
     }
 
     if (action !== 'issues') {

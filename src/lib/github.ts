@@ -293,6 +293,8 @@ export interface GitHubPullRequest {
   body: string | null
   state: 'open' | 'closed'
   merged: boolean
+  draft?: boolean
+  user?: { login: string } | null
   head: { ref: string; sha: string }
   base: { ref: string }
   html_url: string

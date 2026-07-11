@@ -64,7 +64,7 @@ const navGroups: NavGroup[] = [
       { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
       { id: 'system', label: 'Sistema', icon: <SystemIcon />, priority: false },
       { id: 'cockpit', label: 'Cockpit', icon: <CockpitIcon />, priority: false },
-      { id: 'artifacts', label: 'Artifacts', icon: <ActivityIcon />, priority: false, externalUrl: process.env.NEXT_PUBLIC_ARTIFACTS_URL },
+      { id: 'artifacts', label: 'Artefactos', icon: <ActivityIcon />, priority: false },
     ],
   },
   {
@@ -202,9 +202,6 @@ export function NavRail() {
         if (isLocal && gatewayOnlyPanels.has(i.id)) return null
         if (!isAdmin && adminOnlyPanels.has(i.id)) return null
         if (isEssential && !i.essential) return null
-        // External-link items (e.g. Artifacts) are opt-in via env; hide when
-        // no URL is configured so no dead link ships to other deployments.
-        if (i.id === 'artifacts' && !i.externalUrl) return null
         return i
       })
       .filter((i): i is NavItem => i !== null)

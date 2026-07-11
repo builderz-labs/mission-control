@@ -29,6 +29,8 @@ import { GatewayControlPanel } from '@/components/panels/gateway-control-panel'
 import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
 import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
+import { GitHubPrsPanel } from '@/components/panels/github-prs-panel'
+import { ArtifactsPanel } from '@/components/panels/artifacts-panel'
 import { SkillsPanel } from '@/components/panels/skills-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
 import { ChannelsPanel } from '@/components/panels/channels-panel'
@@ -627,7 +629,14 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'super-admin':
       return <SuperAdminPanel />
     case 'github':
-      return <GitHubSyncPanel />
+      return (
+        <>
+          <GitHubPrsPanel />
+          <GitHubSyncPanel />
+        </>
+      )
+    case 'artifacts':
+      return <ArtifactsPanel />
     case 'office':
       return <OfficePanel />
     case 'monitor':
