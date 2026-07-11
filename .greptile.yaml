@@ -1,0 +1,52 @@
+# Greptile configuration for Mission Control (stroupaloop fork)
+# https://docs.greptile.com/
+
+review:
+  enabled: true
+
+  # Mission Control fork — AMS Global Ventures proprietary integrations
+  # on top of builderz-labs/mission-control open-source base.
+  custom_instructions: |
+    This repo is a private fork of builderz-labs/mission-control with
+    proprietary integrations for AMS Global Ventures: OAP (audit + approvals
+    bridge), LiteLLM (cost attribution + usage), MCP (audit pipeline), and
+    Resolver Intelligence (tool-resolver telemetry + overrides). Extensions
+    live under src/extensions/; only five upstream files may be touched
+    (see FORK.md and EXTENSIONS.md).
+
+    Authoritative docs:
+    - FORK.md (fork contract and hard rules)
+    - EXTENSIONS.md (extension namespace and allowlist)
+    - AGENTS.md (engineering and safety rules)
+    - src/extensions/__tests__/fork-contract.test.ts (CI-enforced gate)
+
+    Greptile is the automatic semantic-review baseline. GPT and Claude reviews
+    are manual, risk-triggered escalations (/review and /claude-review comments),
+    so do not assume another model will cover a category. Use deep repository
+    context to review:
+    1. Fork-contract compliance — changes outside src/extensions/ or the five
+       allowed upstream-touch paths in FORK.md are HIGH severity.
+    2. Cross-file consistency and contradictions with current extension patterns.
+    3. SQLite safety: prepared statements, transaction atomicity, schema
+       migration safety, and rollback paths.
+    4. Authentication, authorization, and secrets handling in API routes.
+    5. Correctness, idempotency, partial-failure behavior, and edge cases
+       in extension integrations.
+    6. Test gaps relative to existing extension test patterns.
+
+    Flag with HIGH severity:
+    - Fork-only logic bleeding outside src/extensions/ namespace
+    - Upstream-touch files not in the five allowed paths in FORK.md
+    - Credentials, tokens, or secrets in committed artifacts
+    - Schema changes without safe migrations and rollback
+    - Missing error handling in OAP/LiteLLM/MCP bridge paths
+
+    Skip style/lint nits covered by deterministic tooling. Prioritize concrete,
+    actionable findings with file/line evidence and the smallest safe fix.
+
+  # Auto-review on first PR open only. Push syncs do not re-trigger.
+  auto_review:
+    enabled: true
+    base_branches:
+      - main
+    draft_prs: false
