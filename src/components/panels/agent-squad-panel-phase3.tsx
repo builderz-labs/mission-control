@@ -509,6 +509,14 @@ export function AgentSquadPanelPhase3() {
                               {(agent as any).source}
                             </span>
                           )}
+                          {(agent as any).gatewayKnown === false && (
+                            <span
+                              className="text-2xs px-1.5 py-0.5 rounded-full border bg-amber-500/15 text-amber-300 border-amber-500/30"
+                              title="Registro en MC sin agente correspondiente en el gateway OpenClaw — probable drift"
+                            >
+                              no en gateway
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">
                           {agent.role}{modelName && <> · <span className="font-mono text-muted-foreground/80">{modelName}</span></>}
