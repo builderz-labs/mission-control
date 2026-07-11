@@ -31,6 +31,7 @@ import { OfficePanel } from '@/components/panels/office-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { GitHubPrsPanel } from '@/components/panels/github-prs-panel'
 import { ArtifactsPanel } from '@/components/panels/artifacts-panel'
+import { QuestsPanel } from '@/components/panels/quests-panel'
 import { SkillsPanel } from '@/components/panels/skills-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
 import { ChannelsPanel } from '@/components/panels/channels-panel'
@@ -637,6 +638,8 @@ function ContentRouter({ tab }: { tab: string }) {
       )
     case 'artifacts':
       return <ArtifactsPanel />
+    case 'quests':
+      return <QuestsPanel />
     case 'office':
       return <OfficePanel />
     case 'monitor':

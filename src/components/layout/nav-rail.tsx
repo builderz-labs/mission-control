@@ -64,6 +64,7 @@ const navGroups: NavGroup[] = [
       { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
       { id: 'system', label: 'Sistema', icon: <SystemIcon />, priority: false },
       { id: 'cockpit', label: 'Cockpit', icon: <CockpitIcon />, priority: false },
+      { id: 'quests', label: 'Quests', icon: <CockpitIcon />, priority: false },
       { id: 'artifacts', label: 'Artefactos', icon: <ActivityIcon />, priority: false },
     ],
   },
