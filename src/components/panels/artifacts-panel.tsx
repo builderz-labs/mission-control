@@ -84,7 +84,7 @@ export function ArtifactsPanel() {
               className="group flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium group-hover:text-primary">{a.title}</p>
+                <p className="truncate font-sans text-sm font-medium group-hover:text-primary">{a.title}</p>
                 <p className="truncate font-mono text-2xs text-muted-foreground">{a.name}</p>
               </div>
               <span className="shrink-0 text-2xs text-muted-foreground">{timeAgo(a.updatedAt)}</span>

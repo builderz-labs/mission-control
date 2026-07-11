@@ -121,8 +121,8 @@ export function QuestsPanel() {
             const inner = (
               <>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{q.name}</p>
-                  {q.why && <p className="truncate text-xs text-muted-foreground">{q.why}</p>}
+                  <p className="truncate font-sans text-sm font-medium">{q.name}</p>
+                  {q.why && <p className="truncate font-sans text-xs text-muted-foreground">{q.why}</p>}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {q.ref && <span className="font-mono text-2xs text-info">{q.ref}</span>}

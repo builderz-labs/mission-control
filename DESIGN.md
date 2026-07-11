@@ -42,11 +42,25 @@ Solo el tema `.dark` (MC es dark-first; light queda upstream sin marca).
 
 Reglas duras del canon: oro ≠ ámbar (identidad vs alerta, tokens separados) · morado nunca para links · coral nunca decorativo · el color es acento, no relleno.
 
-## Typography
+## Typography — híbrido intencional (decisión Musa 11-jul, opción B)
 
-- **Actual (bloque 1):** se conserva `--font-sans` para cuerpo; `--font-mono` + `tabular-nums` obligatorio en toda métrica, ID, timestamp y celda numérica.
-- **Canon completo (bloque 2, pendiente OK Musa):** BRAND.md pide UNA familia `ui-monospace` en todo (escala cockpit: h1 23px/700 tracking .42em, headers de panel 13px/600 MAYÚSCULAS tracking .18em, cuerpo 15.5px/1.62, KPI 31px/700, micro 12.5px — nunca menos). Cambio de sensación fuerte para tablas largas → se aplica como pasada dedicada con before/after, no de contrabando.
-- Labels y headers de sección: MAYÚSCULAS + tracking. Mínimo absoluto 12.5px.
+**Regla:** `font-mono` (JetBrains Mono) es el DEFAULT del `<body>` — identidad de
+cabina en todo el chrome, headers, labels, KPIs, tablas de datos, IDs y timestamps.
+El **texto de lectura larga** usa `font-sans` (Inter) PUNTUAL para no perder
+legibilidad ni densidad:
+
+- Objetivos de crons (panel Sistema)
+- Triggers de capacidades (panel Sistema)
+- Nombre + "por qué" de quests
+- Títulos de PRs (panel GitHub) y de artefactos
+
+Por qué híbrido y no mono-total: la mono se ve increíble en datos/cabina pero cuesta
+densidad y comodidad en párrafos (objetivos de crons pasan de 3 a 4 líneas — evidencia
+en el before/after de HLX-290). El sans queda como excepción marcada, no como default.
+
+Nuevos textos de lectura larga → marcarlos `font-sans` explícito. Todo lo demás hereda
+mono. `tabular-nums` obligatorio en toda métrica. Mínimo absoluto 12.5px. Labels y
+headers de sección: MAYÚSCULAS + tracking.
 
 ## Spacing & Density
 

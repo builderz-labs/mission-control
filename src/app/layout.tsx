@@ -108,7 +108,10 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`} suppressHydrationWarning>
+      {/* Híbrido Solar Throne (HLX-290 bloque 3): mono por default = identidad de
+          cabina; el texto de lectura larga (objetivos, descripciones) usa font-sans
+          puntual para no perder legibilidad ni densidad. */}
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-mono antialiased`} suppressHydrationWarning>
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"

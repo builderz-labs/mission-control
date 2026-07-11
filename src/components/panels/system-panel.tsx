@@ -203,7 +203,7 @@ export function SystemPanel() {
                       <Badge tone="ok">OK</Badge>
                     )}
                   </td>
-                  <td className="py-2 text-xs text-muted-foreground max-w-md">{cron.objetivo || '—'}</td>
+                  <td className="py-2 font-sans text-xs text-muted-foreground max-w-md">{cron.objetivo || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -246,7 +246,7 @@ export function SystemPanel() {
                         <Badge tone={c.gate === 'HARD' ? 'err' : c.gate === 'soft' ? 'warn' : 'muted'}>{c.gate || '—'}</Badge>
                       </td>
                       <td className="py-2 pr-3 text-xs whitespace-nowrap">{c.cost}</td>
-                      <td className="py-2 text-xs text-muted-foreground max-w-md">{c.trigger}</td>
+                      <td className="py-2 font-sans text-xs text-muted-foreground max-w-md">{c.trigger}</td>
                     </tr>
                   ))}
               </tbody>

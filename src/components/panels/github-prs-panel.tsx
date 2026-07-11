@@ -102,7 +102,7 @@ export function GitHubPrsPanel() {
                         href={pr.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="min-w-0 flex-1 truncate text-info hover:underline"
+                        className="min-w-0 flex-1 truncate font-sans text-info hover:underline"
                         title={pr.title}
                       >
                         {pr.title}
