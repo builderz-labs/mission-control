@@ -9,8 +9,17 @@ import { useMemo, useState } from 'react'
 
 const ARTIFACT_URL_RE = /https?:\/\/[^\s)"'<>\]]+?\.html(?:[?#][^\s)"'<>\]]*)?/g
 
+// Solo la galería helix-artifacts es embebible — allowlist de host:puerto parseada
+// con URL(), no substring (un comentario hostil podría colar evil.com/x.html?:8446).
+const ALLOWED_HOSTS = new Set(['helix.tail304cfc.ts.net:8446', 'localhost:8446', '127.0.0.1:8446'])
+
 function isArtifactUrl(url: string): boolean {
-  return url.includes(':8446') || url.includes('/artifacts')
+  try {
+    const u = new URL(url)
+    return (u.protocol === 'https:' || u.protocol === 'http:') && ALLOWED_HOSTS.has(u.host)
+  } catch {
+    return false
+  }
 }
 
 export function extractDeliverables(texts: Array<string | null | undefined>): string[] {
@@ -73,7 +82,7 @@ export function TaskDeliverables({ texts }: { texts: Array<string | null | undef
           <iframe
             src={open}
             title="Entregable de la task"
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-scripts"
             className="h-[420px] w-full bg-background"
           />
         </div>
