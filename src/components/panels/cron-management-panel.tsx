@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
+import { LaunchdFleet } from '@/components/panels/launchd-fleet'
 import { useMissionControl, CronJob } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
 import { apiFetch, ApiError } from '@/lib/api-client'
@@ -716,6 +717,8 @@ export function CronManagementPanel() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* HLX-298: flota launchd del Mac (historial + learnings) — población aparte de jobs.json */}
+      <LaunchdFleet />
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>

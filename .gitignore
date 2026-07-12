@@ -51,3 +51,4 @@ docs/_*.png
 # IDE state
 .vs/
 .gstack/
+.data-draft/

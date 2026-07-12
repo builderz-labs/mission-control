@@ -5,12 +5,17 @@ import { requireRole } from '@/lib/auth'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, githubSyncSchema } from '@/lib/validation'
+import path from 'node:path'
+import os from 'node:os'
+import { runCommand } from '@/lib/command'
 import {
   getGitHubToken,
   githubFetch,
   fetchIssues,
   fetchIssue,
   fetchPullRequests,
+  fetchCheckSummary,
+  fetchBranchSha,
   createIssueComment,
   updateIssueState,
   type GitHubIssue,
@@ -40,9 +45,9 @@ async function handleGitHubPrs() {
     HELIX_REPOS.map(async repo => {
       try {
         const prs = await fetchPullRequests(repo, { state: 'open', per_page: 30 })
-        return {
-          repo,
-          prs: prs.map(pr => ({
+        // Checks por PR (HLX-291): cap a 15 por repo para no quemar rate limit.
+        const withChecks = await Promise.all(
+          prs.slice(0, 15).map(async pr => ({
             number: pr.number,
             title: pr.title,
             draft: pr.draft ?? false,
@@ -50,8 +55,20 @@ async function handleGitHubPrs() {
             branch: pr.head.ref,
             url: pr.html_url,
             updatedAt: pr.updated_at,
-          })),
-        }
+            checks: await fetchCheckSummary(repo, pr.head.sha).catch(() => null),
+          }))
+        )
+        const rest = prs.slice(15).map(pr => ({
+          number: pr.number,
+          title: pr.title,
+          draft: pr.draft ?? false,
+          author: pr.user?.login ?? null,
+          branch: pr.head.ref,
+          url: pr.html_url,
+          updatedAt: pr.updated_at,
+          checks: null,
+        }))
+        return { repo, prs: [...withChecks, ...rest] }
       } catch (err: any) {
         return { repo, prs: [], error: err?.message || 'error' }
       }
@@ -60,6 +77,30 @@ async function handleGitHubPrs() {
 
   const openCount = repos.reduce((n, r) => n + r.prs.length, 0)
   return NextResponse.json({ repos, openCount })
+}
+
+// Drift deploy-vs-master (HLX-291): compara el SHA corriendo en este host
+// contra el head del branch de deploy en GitHub. Borrador: cubre mission-control.
+async function handleGitHubDrift() {
+  const token = await getGitHubToken()
+  if (!token) return NextResponse.json({ error: 'GITHUB_TOKEN no configurado', targets: [] }, { status: 200 })
+
+  const repoRoot = process.env.MC_REPO_ROOT || path.join(os.homedir(), 'dev', 'mission-control')
+  const local = await runCommand('git', ['-C', repoRoot, 'rev-parse', 'HEAD'], { timeoutMs: 5000 }).catch(() => null)
+  const localSha = local && local.code === 0 ? local.stdout.trim() : null
+  const branchRes = await runCommand('git', ['-C', repoRoot, 'branch', '--show-current'], { timeoutMs: 5000 }).catch(() => null)
+  const deployBranch = branchRes && branchRes.code === 0 && branchRes.stdout.trim() ? branchRes.stdout.trim() : 'master'
+  const remoteSha = await fetchBranchSha('musalabalpha/mission-control', deployBranch).catch(() => null)
+
+  return NextResponse.json({
+    targets: [{
+      name: 'mission-control',
+      deployBranch,
+      localSha,
+      remoteSha,
+      inSync: Boolean(localSha && remoteSha && localSha === remoteSha),
+    }],
+  })
 }
 
 /**
@@ -80,6 +121,10 @@ export async function GET(request: NextRequest) {
 
     if (action === 'prs') {
       return await handleGitHubPrs()
+    }
+
+    if (action === 'drift') {
+      return await handleGitHubDrift()
     }
 
     if (action !== 'issues') {

@@ -14,6 +14,7 @@ import { useFocusTrap } from '@/lib/use-focus-trap'
 
 import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { MarkdownRenderer } from '@/components/markdown-renderer'
+import { TaskDeliverables } from '@/components/panels/task-deliverable'
 import { Button } from '@/components/ui/button'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } from '@/components/chat/session-message'
@@ -1588,6 +1589,8 @@ function TaskDetailModal({
 
           {activeTab === 'details' && (
             <div id="tabpanel-details" role="tabpanel" aria-label={t('tabDetails')} className="space-y-4">
+              {/* Entregables embebidos (F4): artefactos citados en descripción/comentarios */}
+              <TaskDeliverables texts={[task.description, ...comments.map(c => c.content)]} />
               {/* Assignment row */}
               <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 border border-border/30">
                 <span className="text-xs text-muted-foreground shrink-0">{t('assignedTo')}</span>

@@ -15,6 +15,15 @@ interface Pr {
   branch: string
   url: string
   updatedAt: string
+  checks?: { passed: number; failed: number; pending: number } | null
+}
+
+interface DriftTarget {
+  name: string
+  deployBranch: string
+  localSha: string | null
+  remoteSha: string | null
+  inSync: boolean
 }
 
 interface RepoPrs {
@@ -34,6 +43,7 @@ function timeAgo(iso: string): string {
 
 export function GitHubPrsPanel() {
   const [repos, setRepos] = useState<RepoPrs[] | null>(null)
+  const [drift, setDrift] = useState<DriftTarget[]>([])
   const [openCount, setOpenCount] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +63,13 @@ export function GitHubPrsPanel() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar PRs')
     }
+    try {
+      const res = await fetch('/api/github?action=drift')
+      const data = await res.json()
+      setDrift(data.targets ?? [])
+    } catch {
+      setDrift([])
+    }
   }, [])
 
   useSmartPoll(fetchData, 90000)
@@ -69,6 +86,24 @@ export function GitHubPrsPanel() {
           </p>
         </div>
       </div>
+
+      {drift.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {drift.map(t => (
+            <span
+              key={t.name}
+              className={`rounded border px-2 py-1 font-mono text-2xs ${
+                t.inSync
+                  ? 'border-success/40 text-success'
+                  : 'border-warning/40 text-warning'
+              }`}
+              title={`local ${t.localSha?.slice(0, 7) ?? '?'} vs ${t.deployBranch} ${t.remoteSha?.slice(0, 7) ?? '?'}`}
+            >
+              {t.name}: {t.inSync ? 'deploy en sync' : `drift vs ${t.deployBranch}`}
+            </span>
+          ))}
+        </div>
+      )}
 
       {notice && (
         <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning">
@@ -107,6 +142,20 @@ export function GitHubPrsPanel() {
                       >
                         {pr.title}
                       </a>
+                      {pr.checks && (
+                        <span
+                          className={`shrink-0 rounded border px-1.5 font-mono text-2xs ${
+                            pr.checks.failed > 0
+                              ? 'border-destructive/40 text-destructive'
+                              : pr.checks.pending > 0
+                                ? 'border-warning/40 text-warning'
+                                : 'border-success/40 text-success'
+                          }`}
+                          title={`checks: ${pr.checks.passed} ok · ${pr.checks.failed} fail · ${pr.checks.pending} pendientes`}
+                        >
+                          {pr.checks.failed > 0 ? `✗ ${pr.checks.failed}` : pr.checks.pending > 0 ? `… ${pr.checks.pending}` : `✓ ${pr.checks.passed}`}
+                        </span>
+                      )}
                       <span className="hidden shrink-0 font-mono text-2xs text-muted-foreground sm:inline">
                         {pr.branch}
                       </span>

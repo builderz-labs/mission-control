@@ -6,6 +6,7 @@ import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
 import { Dashboard } from '@/components/dashboard/dashboard'
+import { HomeLauncher } from '@/components/panels/home-launcher'
 import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
 import { CronManagementPanel } from '@/components/panels/cron-management-panel'
 import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
@@ -528,7 +529,7 @@ export default function Home() {
 }
 
 const ESSENTIAL_PANELS = new Set([
-  'overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
+  'overview', 'dashboard', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
 ])
 
 function ContentRouter({ tab }: { tab: string }) {
@@ -570,6 +571,9 @@ function ContentRouter({ tab }: { tab: string }) {
 
   switch (tab) {
     case 'overview':
+      // HLX-299: home ADHD-friendly — launcher de tiles; el tablero denso vive en /dashboard
+      return <HomeLauncher />
+    case 'dashboard':
       return (
         <>
           <Dashboard />
