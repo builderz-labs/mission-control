@@ -1,5 +1,7 @@
 <div align="center">
 
+![Mission Control — orchestrate your AI agent fleet](docs/mission-control-header.png)
+
 # Mission Control
 
 **Open-source dashboard for AI agent orchestration.**
