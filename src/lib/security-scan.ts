@@ -4,6 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
+import { getSchedulerStatus } from '@/lib/scheduler'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +39,92 @@ export interface ScanResult {
     openclaw: Category
     runtime: Category
     os: Category
+  }
+}
+
+export interface BackupAutomationState {
+  enabled: boolean
+  schedulerRegistered: boolean
+  schedulerLastRun: number | null
+  schedulerLastResult?: { ok: boolean; message: string }
+}
+
+export function buildBackupCheck(
+  ageHours: number | null,
+  automation: BackupAutomationState,
+): Check {
+  if (ageHours !== null && ageHours < 24) {
+    return {
+      id: 'backup_recent',
+      name: 'Recent backup exists',
+      status: 'pass',
+      detail: `Latest backup is ${ageHours}h old`,
+      fix: '',
+      severity: 'medium',
+    }
+  }
+
+  let detail: string
+  let fix: string
+
+  if (!automation.enabled) {
+    detail = ageHours === null
+      ? 'No backups found; automatic backups are disabled'
+      : `Latest backup is ${ageHours}h old; automatic backups are disabled`
+    fix = 'Enable auto_backup in Settings or run: curl -X POST /api/backup'
+  } else if (!automation.schedulerRegistered) {
+    detail = ageHours === null
+      ? 'No backups found; auto_backup is enabled but the scheduler is not running'
+      : `Latest backup is ${ageHours}h old; auto_backup is enabled but the scheduler is not running`
+    fix = 'Keep Mission Control running and restart it to start the scheduler'
+  } else if (automation.schedulerLastResult?.ok === false) {
+    detail = ageHours === null
+      ? `No backups found; the last scheduled run failed: ${automation.schedulerLastResult.message}`
+      : `Latest backup is ${ageHours}h old; the last scheduled run failed: ${automation.schedulerLastResult.message}`
+    fix = 'Check the scheduler error and run: curl -X POST /api/backup'
+  } else if (automation.schedulerLastRun === null) {
+    detail = ageHours === null
+      ? 'No backups found; auto_backup is enabled and waiting for the first scheduled run'
+      : `Latest backup is ${ageHours}h old; auto_backup is enabled and waiting for the next scheduled run`
+    fix = 'Keep Mission Control running until the scheduled run, or run: curl -X POST /api/backup'
+  } else {
+    detail = ageHours === null
+      ? 'No backups found; auto_backup is enabled but no backup was created'
+      : `Latest backup is ${ageHours}h old; auto_backup is enabled but the backup is overdue`
+    fix = 'Check the scheduler status or run: curl -X POST /api/backup'
+  }
+
+  return {
+    id: 'backup_recent',
+    name: 'Recent backup exists',
+    status: ageHours !== null && ageHours >= 168 ? 'fail' : 'warn',
+    detail,
+    fix,
+    severity: 'medium',
+  }
+}
+
+function getBackupAutomationState(): BackupAutomationState {
+  let enabled = false
+  try {
+    const row = getDatabase()
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get('general.auto_backup') as { value: string } | undefined
+    enabled = row?.value === 'true'
+  } catch {
+    // Keep the safe default: if the setting cannot be read, do not claim it is enabled.
+  }
+
+  try {
+    const task = getSchedulerStatus().find((item) => item.id === 'auto_backup')
+    return {
+      enabled,
+      schedulerRegistered: Boolean(task),
+      schedulerLastRun: task?.lastRun ?? null,
+      schedulerLastResult: task?.lastResult,
+    }
+  } catch {
+    return { enabled, schedulerRegistered: false, schedulerLastRun: null }
   }
 }
 
@@ -535,6 +622,8 @@ function scanRuntime(): Category {
 
   try {
     const backupDir = path.join(path.dirname(config.dbPath), 'backups')
+    let ageHours: number | null = null
+
     if (existsSync(backupDir)) {
       const files = readdirSync(backupDir)
         .filter((f: string) => f.endsWith('.db'))
@@ -545,21 +634,11 @@ function scanRuntime(): Category {
         .sort((a: any, b: any) => b.mtime - a.mtime)
 
       if (files.length > 0) {
-        const ageHours = Math.round((Date.now() - files[0].mtime) / 3600000)
-        checks.push({
-          id: 'backup_recent',
-          name: 'Recent backup exists',
-          status: ageHours < 24 ? 'pass' : ageHours < 168 ? 'warn' : 'fail',
-          detail: `Latest backup is ${ageHours}h old`,
-          fix: ageHours >= 24 ? 'Enable auto_backup in Settings or run: curl -X POST /api/backup' : '',
-          severity: 'medium',
-        })
-      } else {
-        checks.push({ id: 'backup_recent', name: 'Recent backup exists', status: 'warn', detail: 'No backups found', fix: 'Enable auto_backup in Settings', severity: 'medium' })
+        ageHours = Math.round((Date.now() - files[0].mtime) / 3600000)
       }
-    } else {
-      checks.push({ id: 'backup_recent', name: 'Recent backup exists', status: 'warn', detail: 'No backup directory', fix: 'Enable auto_backup in Settings', severity: 'medium' })
     }
+
+    checks.push(buildBackupCheck(ageHours, getBackupAutomationState()))
   } catch {
     checks.push({ id: 'backup_recent', name: 'Recent backup exists', status: 'warn', detail: 'Could not check backups', fix: '', severity: 'medium' })
   }
