@@ -4,16 +4,11 @@
 
 **Open-source dashboard for AI agent orchestration.**
 
-Manage AI agent fleets, dispatch tasks, track costs, and coordinate multi-agent workflows — self-hosted, zero external dependencies, powered by SQLite.
+Manage AI agent fleets, dispatch tasks, track costs, and coordinate multi-agent workflows. Self-hosted, zero external dependencies, powered by SQLite.
 
+[![Quality Gate](https://github.com/builderz-labs/mission-control/actions/workflows/quality-gate.yml/badge.svg)](https://github.com/builderz-labs/mission-control/actions/workflows/quality-gate.yml)
+[![Release](https://img.shields.io/github/v/release/builderz-labs/mission-control)](https://github.com/builderz-labs/mission-control/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-577%20(282%20unit%20%2B%20295%20E2E)-brightgreen)](https://github.com/builderz-labs/mission-control)
-[![GitHub stars](https://img.shields.io/github/stars/builderz-labs/mission-control?style=social)](https://github.com/builderz-labs/mission-control/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/builderz-labs/mission-control?style=social)](https://github.com/builderz-labs/mission-control/network/members)
-[![Last commit](https://img.shields.io/github/last-commit/builderz-labs/mission-control)](https://github.com/builderz-labs/mission-control/commits/main)
-[![Open issues](https://img.shields.io/github/issues/builderz-labs/mission-control)](https://github.com/builderz-labs/mission-control/issues)
 
 ![Mission Control Dashboard](docs/mission-control-overview.png)
 
@@ -21,12 +16,13 @@ Manage AI agent fleets, dispatch tasks, track costs, and coordinate multi-agent 
 
 ---
 
-> **Alpha Software** — Mission Control is under active development. APIs, database schemas, and configuration formats may change between releases. Review the [security considerations](#security) before deploying to production.
+> **Alpha software.** This project is under active development. APIs, database schemas, and configuration formats may change between releases. Review the [security considerations](#security) before deploying to production.
 
 ## Contents
 
 - [Quick Start](#quick-start)
 - [Why teams adopt Mission Control](#why-teams-adopt-mission-control)
+- [When not to use it](#when-not-to-use-it)
 - [Use-case recipes](#use-case-recipes)
 - [Getting Started with Agents](#getting-started-with-agents)
 - [Documentation](#documentation)
@@ -43,7 +39,7 @@ Manage AI agent fleets, dispatch tasks, track costs, and coordinate multi-agent 
 - [License](#license)
 
 <table>
-<tr><td><b>32 panels</b></td><td>Tasks, agents, skills, logs, tokens, memory, security, cron, alerts, webhooks, pipelines, and more — all from a single SPA shell.</td></tr>
+<tr><td><b>32 panels</b></td><td>Tasks, agents, skills, logs, tokens, memory, security, cron, alerts, webhooks, pipelines, and more, all from a single SPA shell.</td></tr>
 <tr><td><b>Real-time everything</b></td><td>WebSocket + SSE push updates with smart polling that pauses when you're away. Zero stale data.</td></tr>
 <tr><td><b>Zero external deps</b></td><td>SQLite database, single <code>pnpm start</code> to run. No Redis, no Postgres, no Docker required.</td></tr>
 <tr><td><b>Role-based access</b></td><td>Viewer, operator, and admin roles with session + API key auth. Google Sign-In with admin approval workflow.</td></tr>
@@ -116,6 +112,13 @@ docker compose -f docker-compose.yml -f docker-compose.hardened.yml up -d
 - Local-first deployment: SQLite-backed stack with no mandatory Redis/Postgres dependency.
 - Security by default: RBAC, trust scoring, secret detection, and hardened deployment profile.
 
+## When not to use it
+
+- **You run a single agent.** One agent on one machine does not need a control plane. The dashboard earns its keep when you are coordinating a fleet and losing track of what ran where.
+- **You need a managed, multi-tenant SaaS.** This is self-hosted and single-tenant by design. SQLite is the point, not a stepping stone.
+- **You want a framework.** Mission Control observes and governs agents; it does not define how they think. Bring your own (OpenClaw, CrewAI, LangGraph, AutoGen, Claude SDK).
+- **You need production stability today.** The alpha notice above is not boilerplate. Schemas and APIs still move between releases.
+
 ## Use-case recipes
 
 1) Stand up a local control center in 5 minutes
@@ -141,7 +144,7 @@ docker compose -f docker-compose.yml -f docker-compose.hardened.yml up -d
 
 ## Getting Started with Agents
 
-Register your first agent in under 5 minutes — no gateway required:
+Register your first agent in under 5 minutes, no gateway required:
 
 ```bash
 export MC_URL=http://localhost:3000
@@ -172,7 +175,7 @@ For the full walkthrough, see the **[Quickstart Guide](docs/quickstart.md)**.
 
 | Guide | What You'll Learn |
 |-------|-------------------|
-| [Quickstart](docs/quickstart.md) | Register an agent, create a task, complete it — 5 minutes |
+| [Quickstart](docs/quickstart.md) | Register an agent, create a task, complete it. 5 minutes |
 | [Agent Setup](docs/agent-setup.md) | SOUL personalities, config, heartbeats, agent sources |
 | [Orchestration](docs/orchestration.md) | Multi-agent workflows, auto-dispatch, quality review gates |
 | [CLI Reference](docs/cli-agent-control.md) | Full CLI command list for headless/scripted usage |
@@ -180,11 +183,11 @@ For the full walkthrough, see the **[Quickstart Guide](docs/quickstart.md)**.
 | [Deployment](docs/deployment.md) | Production deployment, reverse proxy, VPS setup |
 | [Security Hardening](docs/SECURITY-HARDENING.md) | Docker hardening, CSP, network isolation |
 | [Release Process](RELEASE.md) | SemVer policy, branch strategy, tag/release checklist |
-| [API Reference](openapi.json) | OpenAPI 3.1 spec — 101 REST endpoints with Scalar UI at `/api-docs` |
+| [API Reference](openapi.json) | OpenAPI 3.1 spec: 101 REST endpoints with Scalar UI at `/api-docs` |
 
 ### Gateway Optional Mode
 
-Mission Control can run standalone without a gateway connection — useful for VPS deployments with firewall restrictions or when running primarily for project/task operations:
+Standalone mode runs without a gateway connection, which is useful for VPS deployments with firewall restrictions or when running primarily for project/task operations:
 
 ```bash
 NEXT_PUBLIC_GATEWAY_OPTIONAL=true pnpm start
@@ -194,12 +197,12 @@ Task board, projects, agents, sessions, scheduler, webhooks, alerts, and cost tr
 
 ### Project health files
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow and development standards
-- [SECURITY.md](SECURITY.md) — vulnerability disclosure and security policy
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community conduct expectations
-- [CHANGELOG.md](CHANGELOG.md) — release history
-- [RELEASE.md](RELEASE.md) — release process and checklist
-- [LICENSE](LICENSE) — MIT license
+- [CONTRIBUTING.md](CONTRIBUTING.md): contribution workflow and development standards
+- [SECURITY.md](SECURITY.md): vulnerability disclosure and security policy
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): community conduct expectations
+- [CHANGELOG.md](CHANGELOG.md): release history
+- [RELEASE.md](RELEASE.md): release process and checklist
+- [LICENSE](LICENSE): MIT license
 
 ---
 
@@ -253,9 +256,9 @@ Create recurring tasks with natural language like "every morning at 9am" or "eve
 
 ### Claude Code Integration
 
-- **Session Tracking** — Auto-discovers local Claude Code sessions from `~/.claude/projects/`, extracts token usage, model info, cost estimates, and active status.
-- **Task Bridge** — Read-only scanner surfaces team tasks and configs from `~/.claude/tasks/` and `~/.claude/teams/` on the dashboard.
-- **Direct CLI** — Connect Claude Code, Codex, or any CLI tool directly without requiring a gateway.
+- **Session Tracking**: Auto-discovers local Claude Code sessions from `~/.claude/projects/`, extracts token usage, model info, cost estimates, and active status.
+- **Task Bridge**: Read-only scanner surfaces team tasks and configs from `~/.claude/tasks/` and `~/.claude/teams/` on the dashboard.
+- **Direct CLI**: Connect Claude Code, Codex, or any CLI tool directly without requiring a gateway.
 
 ### Activity Feed
 
@@ -284,7 +287,7 @@ mission-control/
 ├── src/
 │   ├── proxy.ts               # Auth gate + CSRF + network access control
 │   ├── app/
-│   │   ├── page.tsx           # SPA shell — routes all panels
+│   │   ├── page.tsx           # SPA shell, routes all panels
 │   │   ├── login/page.tsx     # Login page
 │   │   └── api/               # 101 REST API routes
 │   ├── components/
@@ -325,7 +328,7 @@ mission-control/
 
 | Method | Details |
 |--------|---------|
-| Session cookie | `POST /api/auth/login` — 7-day expiry |
+| Session cookie | `POST /api/auth/login`, 7-day expiry |
 | API key | `x-api-key` header |
 | Google Sign-In | OAuth with admin approval workflow |
 
@@ -367,8 +370,8 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 | `AUTH_PASS` | No | Initial admin password (auto-generated if unset) |
 | `API_KEY` | No | API key for headless access (auto-generated if unset) |
 | `OPENCLAW_CONFIG_PATH` | No* | Absolute path to `openclaw.json` |
-| `OPENCLAW_STATE_DIR` | No* | Exact path to the OpenClaw state directory (default: `~/.openclaw`). Preferred over `OPENCLAW_HOME` — avoids double-nesting |
-| `OPENCLAW_HOME` | No* | Legacy alias — treated as *parent* home dir (`.openclaw` is appended). Use `OPENCLAW_STATE_DIR` when it already points to the state dir |
+| `OPENCLAW_STATE_DIR` | No* | Exact path to the OpenClaw state directory (default: `~/.openclaw`). Preferred over `OPENCLAW_HOME`, since it avoids double-nesting |
+| `OPENCLAW_HOME` | No* | Legacy alias, treated as *parent* home dir (`.openclaw` is appended). Use `OPENCLAW_STATE_DIR` when it already points to the state dir |
 | `MISSION_CONTROL_DATA_DIR` | No | Directory for all MC data files (DB, tokens, etc.). Use an absolute path with the standalone server to survive rebuilds. |
 | `MC_CLAUDE_HOME` | No | Path to `~/.claude` directory |
 | `MC_ALLOWED_HOSTS` | No | Host allowlist for production |
@@ -425,7 +428,7 @@ Teams and projects using Mission Control in production. [Add yours!](https://git
 
 | Project | Description |
 |---------|-------------|
-| [MUTX](https://x.com/mutxdev) | Agent infrastructure platform — ported and extended Mission Control for multi-agent orchestration |
+| [MUTX](https://x.com/mutxdev) | Agent infrastructure platform. Ported and extended Mission Control for multi-agent orchestration |
 | [Builderz](https://builderz.dev) | AI agent fleet management across 32+ shipped products |
 
 > **Using Mission Control?** We'd love to feature you. Open an issue with the `showcase` label or tweet [@nyk_builderz](https://x.com/nyk_builderz).
@@ -434,8 +437,8 @@ Teams and projects using Mission Control in production. [Add yours!](https://git
 
 See [open issues](https://github.com/builderz-labs/mission-control/issues) for planned work.
 
-- [ ] Agent-agnostic gateway support — connect any orchestration framework
-- [ ] **[Flight Deck](https://github.com/splitlabs/flight-deck)** — native desktop companion app (Tauri v2) with PTY terminal grid and system tray HUD
+- [ ] Agent-agnostic gateway support: connect any orchestration framework
+- [ ] **[Flight Deck](https://github.com/splitlabs/flight-deck)**: native desktop companion app (Tauri v2) with PTY terminal grid and system tray HUD
 - [ ] First-class per-agent cost breakdowns
 - [ ] OAuth approval UI improvements
 - [ ] API token rotation UI
@@ -459,7 +462,7 @@ If you find this project useful, consider supporting the open-source work:
 
 **Need agent infrastructure built for your team?**
 
-[Builderz](https://builderz.dev) builds production AI agent systems, trading infrastructure, and Solana applications — 32+ products shipped across 15 countries.
+[Builderz](https://builderz.dev) builds production AI agent systems, trading infrastructure, and Solana applications, with 32+ products shipped across 15 countries.
 
 [Get in touch](https://builderz.dev) | [@nyk_builderz](https://x.com/nyk_builderz)
 
@@ -483,7 +486,7 @@ If you find this project useful, consider supporting the open-source work:
 
 ### What is Mission Control?
 
-Mission Control is an open-source dashboard for AI agent orchestration. Manage AI agent fleets, dispatch tasks, track costs, and coordinate multi-agent workflows — self-hosted, zero external dependencies, powered by SQLite.
+Mission Control is an open-source dashboard for AI agent orchestration. Manage AI agent fleets, dispatch tasks, track costs, and coordinate multi-agent workflows. Self-hosted, zero external dependencies, powered by SQLite.
 
 ### Key Features
 
