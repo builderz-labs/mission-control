@@ -374,11 +374,16 @@ function DiscordCard({ status, accounts, onProbe, probing }: PlatformCardProps) 
   return (
     <CardShell platform="discord" status={status} accounts={accounts} onProbe={onProbe} probing={probing}>
       <div className="space-y-0.5">
-        <StatusRow label="Configured" value={yesNo(status?.configured)} />
+        <StatusRow label="Modo" value="Outbound-only" />
         <StatusRow label="Running" value={yesNo(status?.running)} />
         {botUsername && <StatusRow label="Bot" value={botUsername} />}
         <StatusRow label="Last start" value={relativeTime(status?.lastStartAt)} />
       </div>
+      {/* Discord no es channel nativo del gateway: es salida vía scripts con
+          bot token (The Lab). "Configured: No" es esperado, no un error. */}
+      <p className="mt-2 rounded-md border border-border bg-secondary/50 px-2 py-1.5 text-2xs text-muted-foreground">
+        Envío de avisos vía scripts (The Lab), no un canal interactivo del gateway. Sin config nativa por diseño.
+      </p>
       <ErrorCallout message={status?.lastError} />
       <ProbeResult probe={status?.probe} />
       {accounts.length > 1 && <AccountList accounts={accounts} />}

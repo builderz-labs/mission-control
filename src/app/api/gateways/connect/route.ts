@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/auth'
+import { requireRole, ROLE_LEVELS } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
-import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
+import { buildBrowserGatewayPathUrl, buildGatewayWebSocketUrl } from '@/lib/gateway-url'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 import {
   isTailscaleServe,
@@ -62,6 +62,15 @@ function getBrowserHostname(request: NextRequest): string {
   return hostHeader.split(':')[0]
 }
 
+/** Extract the browser-facing host, preserving non-default reverse proxy ports. */
+function getBrowserHost(request: NextRequest): string {
+  const origin = request.headers.get('origin') || request.headers.get('referer') || ''
+  if (origin) {
+    try { return new URL(origin).host } catch { /* ignore */ }
+  }
+  return (request.headers.get('x-forwarded-host') || request.headers.get('host') || '').split(',')[0]?.trim() || ''
+}
+
 /**
  * When the gateway is on localhost but the browser is remote, resolve the
  * correct WebSocket URL the browser should use.
@@ -78,6 +87,7 @@ function resolveRemoteGatewayUrl(
 
   const browserHost = getBrowserHostname(request)
   if (!browserHost || LOCALHOST_HOSTS.has(browserHost.toLowerCase())) return null // local access
+  const browserHostWithPort = getBrowserHost(request) || browserHost
 
   // Browser is remote — determine the correct proxied URL
   if (isTailscaleServe()) {
@@ -85,7 +95,11 @@ function resolveRemoteGatewayUrl(
     refreshTailscaleCache()
     const web = getCachedTailscaleWeb()
     if (hasGwPathHandler(web)) {
-      return `wss://${browserHost}/gw`
+      return buildBrowserGatewayPathUrl({
+        browserHost: browserHostWithPort,
+        path: '/gw',
+        browserProtocol: inferBrowserProtocol(request),
+      })
     }
     // Port-based proxy: find the Tailscale Serve port that proxies to the gateway port
     const tsPort = findTailscaleServePort(web, gateway.port)
@@ -177,10 +191,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Only return the real secret token to operator+ roles. Viewer-role
+  // callers still get connection metadata (ws_url) so existing flows
+  // that merely need to know a gateway exists keep working, but the
+  // actual bearer credential is no longer exposed to the lowest trust tier.
+  const canSeeToken = ROLE_LEVELS[auth.user.role] >= ROLE_LEVELS['operator']
+
   return NextResponse.json({
     id: gateway.id,
     ws_url,
-    token,
-    token_set: token.length > 0,
+    token: canSeeToken ? token : '',
+    token_set: canSeeToken && token.length > 0,
   })
 }

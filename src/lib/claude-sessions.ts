@@ -20,13 +20,26 @@ import { getDatabase } from './db'
 import { logger } from './logger'
 
 // Skip JSONL files larger than this to avoid excessive I/O
-const MAX_SESSION_FILE_BYTES = 50 * 1024 * 1024 // 50 MB
+const DEFAULT_MAX_SESSION_FILE_BYTES = 50 * 1024 * 1024 // 50 MB
+
+function getEnvPositiveInt(key: string, defaultValue: number): number {
+  const raw = process.env[key]
+  if (!raw) return defaultValue
+
+  const value = Number.parseInt(raw, 10)
+  return Number.isFinite(value) && value > 0 ? value : defaultValue
+}
+
+const MAX_SESSION_FILE_BYTES = getEnvPositiveInt('MC_MAX_SESSION_FILE_BYTES', DEFAULT_MAX_SESSION_FILE_BYTES)
 
 // Rough per-token pricing (USD) for cost estimation
+// Per-token prices (USD / token). Source: official Anthropic pricing docs,
+// verified 2026-05. Opus 4.5/4.6 = $5/$25, Sonnet 4.6 = $3/$15,
+// Haiku 4.5 = $1/$5 per MTok.
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  'claude-opus-4-6': { input: 15 / 1_000_000, output: 75 / 1_000_000 },
+  'claude-opus-4-6': { input: 5 / 1_000_000, output: 25 / 1_000_000 },
   'claude-sonnet-4-6': { input: 3 / 1_000_000, output: 15 / 1_000_000 },
-  'claude-haiku-4-5': { input: 0.8 / 1_000_000, output: 4 / 1_000_000 },
+  'claude-haiku-4-5': { input: 1 / 1_000_000, output: 5 / 1_000_000 },
 }
 
 const DEFAULT_PRICING = { input: 3 / 1_000_000, output: 15 / 1_000_000 }
@@ -37,6 +50,17 @@ const DEFAULT_PRICING = { input: 3 / 1_000_000, output: 15 / 1_000_000 }
 // time between user prompts in a live `claude` session.
 const ACTIVE_THRESHOLD_MS = 15 * 60 * 1000
 const FUTURE_TOLERANCE_MS = 60 * 1000
+
+export function isIgnoredClaudeSessionProject(projectSlug: string, projectPath: string | null = null): boolean {
+  const normalizedSlug = projectSlug.toLowerCase()
+  const normalizedPath = (projectPath || '').replace(/\\/g, '/')
+
+  // claude-mem runs background observer sessions through the Claude CLI.
+  // They are useful for memory maintenance, but they are not operator tabs and
+  // should not inflate Mission Control's active Claude session count.
+  return normalizedSlug.includes('claude-mem-observer-sessions') ||
+    /(?:^|\/)\.claude-mem\/observer-sessions(?:\/|$)/.test(normalizedPath)
+}
 
 interface SessionStats {
   sessionId: string
@@ -245,6 +269,8 @@ export async function scanClaudeSessions(): Promise<SessionStats[]> {
   const sessions: SessionStats[] = []
 
   for (const projectSlug of projectDirs) {
+    if (isIgnoredClaudeSessionProject(projectSlug)) continue
+
     const projectDir = join(projectsDir, projectSlug)
 
     let stat
@@ -271,6 +297,7 @@ export async function scanClaudeSessions(): Promise<SessionStats[]> {
         continue // file disappeared between readdir and stat
       }
       const parsed = await parseSessionFile(filePath, projectSlug, fileStat.mtimeMs, fileStat.size)
+      if (parsed && isIgnoredClaudeSessionProject(projectSlug, parsed.projectPath)) continue
       if (parsed) sessions.push(parsed)
     }
   }

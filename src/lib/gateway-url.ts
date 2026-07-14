@@ -67,6 +67,44 @@ export function buildGatewayPathFallbackUrls(rawUrl: string): string[] {
   return urls
 }
 
+function normalizeOptionalWebSocketUrl(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+export function chooseGatewayConnectUrl(input: {
+  resolvedWsUrl?: unknown
+  storedWsUrl?: unknown
+}): string {
+  const resolvedWsUrl = normalizeOptionalWebSocketUrl(input.resolvedWsUrl)
+  if (resolvedWsUrl) return resolvedWsUrl
+
+  return normalizeOptionalWebSocketUrl(input.storedWsUrl)
+}
+
+export function shouldClearStoredGatewayUrl(input: {
+  resolvedWsUrl?: unknown
+  storedWsUrl?: unknown
+}): boolean {
+  const resolvedWsUrl = normalizeOptionalWebSocketUrl(input.resolvedWsUrl)
+  const storedWsUrl = normalizeOptionalWebSocketUrl(input.storedWsUrl)
+  return Boolean(resolvedWsUrl && storedWsUrl && resolvedWsUrl !== storedWsUrl)
+}
+
+export function buildBrowserGatewayPathUrl(input: {
+  browserHost: string
+  path: string
+  browserProtocol?: string
+}): string {
+  const browserHost = String(input.browserHost || '').trim()
+  if (!browserHost) return ''
+
+  const protocol = input.browserProtocol === 'http:' ? 'ws' : 'wss'
+  const path = String(input.path || '/').startsWith('/')
+    ? String(input.path || '/')
+    : `/${String(input.path || '/')}`
+  return `${protocol}://${browserHost}${path}`
+}
+
 export function buildGatewayWebSocketUrl(input: {
   host: string
   port: number

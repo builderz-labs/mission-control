@@ -2,6 +2,29 @@
  * Pure utility functions extracted from the WebSocket module for testability.
  */
 
+/**
+ * Gateway protocol negotiation window. We advertise a [min, max] range in the
+ * connect handshake so the gateway can pick the highest mutually-supported
+ * version. OpenClaw 2026.5.18+ bumped its handshake to v4 (requires
+ * maxProtocol >= 4 && minProtocol <= 4); older gateways still accept v3.
+ * Advertising 3..4 satisfies both (issue #701). Bump `max` as support for newer
+ * protocol revisions is added.
+ */
+export const SUPPORTED_PROTOCOL = { min: 3, max: 4 } as const
+
+/** Build the {minProtocol, maxProtocol} pair sent in the connect handshake. */
+export function buildProtocolNegotiation(): { minProtocol: number; maxProtocol: number } {
+  return { minProtocol: SUPPORTED_PROTOCOL.min, maxProtocol: SUPPORTED_PROTOCOL.max }
+}
+
+/**
+ * Whether our advertised protocol range can satisfy a gateway that requires a
+ * specific version V (i.e. min <= V <= max). Mirrors the gateway-side check.
+ */
+export function protocolRangeSatisfies(requiredVersion: number): boolean {
+  return SUPPORTED_PROTOCOL.min <= requiredVersion && requiredVersion <= SUPPORTED_PROTOCOL.max
+}
+
 /** Known gateway connect error detail codes (structured error codes sent by newer gateways) */
 export const ConnectErrorDetailCodes = {
   AUTH_TOKEN_MISSING: 'AUTH_TOKEN_MISSING',

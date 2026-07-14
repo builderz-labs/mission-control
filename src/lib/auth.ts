@@ -69,6 +69,8 @@ export interface User {
   last_login_at: number | null
   /** Agent name when request is made on behalf of a specific agent (via X-Agent-Name header) */
   agent_name?: string | null
+  /** Numeric agent DB id — set only when authenticated via an agent-scoped API key */
+  agent_id?: number | null
 }
 
 export interface UserSession {
@@ -466,9 +468,8 @@ export function getUserFromRequest(request: Request): User | null {
 
   // Check API key - DB override first, then env var
   const apiKey = extractApiKeyFromHeaders(request.headers)
-  const configuredApiKey = resolveActiveApiKey()
 
-  if (configuredApiKey && apiKey && safeCompare(apiKey, configuredApiKey)) {
+  if (apiKey && matchesGlobalApiKey(apiKey)) {
     // FR-D2: Log warning when global admin API key is used.
     // Prefer agent-scoped keys (POST /api/agents/{id}/keys) for least-privilege access.
     try {
@@ -541,6 +542,7 @@ export function getUserFromRequest(request: Request): User | null {
             updated_at: now,
             last_login_at: now,
             agent_name: agent.name,
+            agent_id: agent.id,
           }
         }
       }
@@ -559,19 +561,36 @@ export function getUserFromRequest(request: Request): User | null {
 }
 
 /**
- * Resolve the active API key: check DB settings override first, then env var.
+ * Check a presented key against the active global API key.
+ *
+ * DB settings override the env var (same precedence as before):
+ * - 'security.api_key_hash' stores sha256(key) — compare hash-to-hash so the
+ *   plaintext key is never at rest in SQLite (S1).
+ * - Legacy 'security.api_key' (plaintext) is only honored when no hash row
+ *   exists; migration 051 converts and deletes it, so this is dead post-migration.
+ * - API_KEY env var is operator-controlled plaintext and compared directly.
  */
-function resolveActiveApiKey(): string {
+function matchesGlobalApiKey(presentedKey: string): boolean {
   try {
     const db = getDatabase()
-    const row = db.prepare(
+    const hashRow = db.prepare(
+      "SELECT value FROM settings WHERE key = 'security.api_key_hash'"
+    ).get() as { value: string } | undefined
+    if (hashRow?.value) {
+      return safeCompare(hashApiKey(presentedKey), hashRow.value)
+    }
+    // Legacy plaintext row (pre-migration databases only)
+    const legacyRow = db.prepare(
       "SELECT value FROM settings WHERE key = 'security.api_key'"
     ).get() as { value: string } | undefined
-    if (row?.value) return row.value
+    if (legacyRow?.value) {
+      return safeCompare(presentedKey, legacyRow.value)
+    }
   } catch {
     // DB not ready yet — fall back to env
   }
-  return (process.env.API_KEY || '').trim()
+  const envKey = (process.env.API_KEY || '').trim()
+  return envKey ? safeCompare(presentedKey, envKey) : false
 }
 
 function extractApiKeyFromHeaders(headers: Headers): string | null {
@@ -592,7 +611,7 @@ function extractApiKeyFromHeaders(headers: Headers): string | null {
   return null
 }
 
-function hashApiKey(rawKey: string): string {
+export function hashApiKey(rawKey: string): string {
   return createHash('sha256').update(rawKey).digest('hex')
 }
 
@@ -620,7 +639,7 @@ function deriveRoleFromScopes(scopes: Set<string>): User['role'] {
  * Role hierarchy levels for access control.
  * viewer < operator < admin
  */
-const ROLE_LEVELS: Record<string, number> = { viewer: 0, operator: 1, admin: 2 }
+export const ROLE_LEVELS: Record<string, number> = { viewer: 0, operator: 1, admin: 2 }
 
 /**
  * Check if a user meets the minimum role requirement.
@@ -639,4 +658,3 @@ export function requireRole(
   }
   return { user }
 }
-

@@ -17,6 +17,7 @@ function normalizeLine(line: string): string {
   return line
     .replace(/\u001b\[[0-9;]*m/g, '')
     .replace(/^[\s│┃║┆┊╎╏]+/, '')
+    .replace(/[│┃║┆┊╎╏]+$/, '')
     .trim()
 }
 
@@ -32,7 +33,19 @@ function isPositiveOrInstructionalLine(line: string): boolean {
 }
 
 function isDecorativeLine(line: string): boolean {
-  return /^[▄█▀░\s]+$/.test(line) || /openclaw doctor/i.test(line) || /🦞\s*openclaw\s*🦞/i.test(line)
+  return /^[▄█▀░\s]+$/.test(line) ||
+    /^[┌└├┤┬┴┼╭╮╯╰─━\s]+$/.test(line) ||
+    /openclaw doctor/i.test(line) ||
+    /🦞\s*openclaw\s*🦞/i.test(line)
+}
+
+function getDoctorSection(line: string): string | null {
+  const match = line.match(/^◇\s+(.+?)(?:\s+[─━].*)?$/)
+  return match ? match[1].trim().toLowerCase() : null
+}
+
+function isInformationalSection(section: string): boolean {
+  return section === 'doctor info' || section === 'skills status' || section === 'plugins'
 }
 
 function isStateDirectoryListLine(line: string): boolean {
@@ -123,6 +136,69 @@ function detectCategory(raw: string, issues: string[]): OpenClawDoctorCategory {
   return 'general'
 }
 
+function isKnownManualOnlyIssue(issue: string): boolean {
+  const normalized = issue.toLowerCase()
+  return normalized.includes('skipped memory core short-term recall import') ||
+    normalized.includes('memory core short-term recall') ||
+    normalized.includes('oauth dir not present') ||
+    normalized.includes('found 1 agent directory on disk without a matching agents.list') ||
+    normalized.includes('openclaw.json contains plaintext secret-bearing config') ||
+    normalized.includes('mcp.servers defines') ||
+    normalized.includes('tools.sandbox.tools.alsoallow')
+}
+
+function extractIssues(lines: string[]): string[] {
+  const issues: string[] = []
+  let section = ''
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? ''
+    const nextSection = getDoctorSection(line)
+    if (nextSection) {
+      section = nextSection
+      continue
+    }
+
+    if (isInformationalSection(section) || !/^[-*]\s+/.test(line)) continue
+
+    const parts = [line.replace(/^[-*]\s+/, '').trim()]
+    let cursor = index + 1
+    while (cursor < lines.length) {
+      const continuation = lines[cursor] ?? ''
+      if (
+        !continuation ||
+        getDoctorSection(continuation) ||
+        /^[-*]\s+/.test(continuation) ||
+        isDecorativeLine(continuation)
+      ) {
+        break
+      }
+
+      if (!isPositiveOrInstructionalLine(continuation)) {
+        parts.push(continuation)
+      }
+      cursor += 1
+    }
+
+    index = cursor - 1
+    const issue = parts.join(' ').replace(/\s+/g, ' ').trim()
+    if (
+      issue &&
+      !isSessionAgingLine(issue) &&
+      !isStateDirectoryListLine(issue) &&
+      !isPositiveOrInstructionalLine(issue)
+    ) {
+      issues.push(issue)
+    }
+  }
+
+  return issues
+}
+
+function isKnownManualOnlyDoctorOutput(issues: string[]): boolean {
+  return issues.length > 0 && issues.every(isKnownManualOnlyIssue)
+}
+
 export function parseOpenClawDoctorOutput(
   rawOutput: string,
   exitCode = 0,
@@ -134,18 +210,16 @@ export function parseOpenClawDoctorOutput(
     .map(normalizeLine)
     .filter(Boolean)
 
-  const issues = lines
-    .filter(line => /^[-*]\s+/.test(line))
-    .map(line => line.replace(/^[-*]\s+/, '').trim())
-    .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line) && !isPositiveOrInstructionalLine(line))
+  const issues = extractIssues(lines)
 
   // Strip positive/negated phrases before checking for warning keywords
   const rawForWarningCheck = raw.replace(/\bno\s+\w+\s+(?:security\s+)?warnings?\s+detected\b/gi, '')
+  const rawForErrorCheck = rawForWarningCheck.replace(/\berrors?:\s*0\b/gi, '')
   const mentionsWarnings = /\bwarning|warnings|problem|problems|invalid config|fix\b/i.test(rawForWarningCheck)
   const mentionsHealthy = /\bok\b|\bhealthy\b|\bno issues\b|\bno\b.*\bwarnings?\s+detected\b|\bvalid\b/i.test(raw)
 
   let level: OpenClawDoctorLevel = 'healthy'
-  if (exitCode !== 0 || /invalid config|failed|error/i.test(raw)) {
+  if (exitCode !== 0 || /invalid config|failed|\berror\b/i.test(rawForErrorCheck)) {
     level = 'error'
   } else if (issues.length > 0 || mentionsWarnings) {
     level = 'warning'
@@ -167,7 +241,8 @@ export function parseOpenClawDoctorOutput(
         ) ||
         'OpenClaw doctor reported configuration issues.'
 
-  const canFix = level !== 'healthy' || /openclaw doctor --fix/i.test(raw)
+  const hasDoctorFixInstruction = /openclaw doctor --fix/i.test(raw)
+  const canFix = hasDoctorFixInstruction && !isKnownManualOnlyDoctorOutput(issues)
 
   return {
     level,

@@ -51,6 +51,14 @@ function getSettingNumber(key: string, defaultValue: number): number {
   }
 }
 
+function getEnvNumber(key: string, defaultValue: number): number {
+  const raw = process.env[key]
+  if (!raw) return defaultValue
+
+  const value = Number.parseInt(raw, 10)
+  return Number.isFinite(value) && value > 0 ? value : defaultValue
+}
+
 /** Run a database backup */
 async function runBackup(): Promise<{ ok: boolean; message: string }> {
   ensureDirExists(BACKUP_DIR)
@@ -141,15 +149,23 @@ async function runCleanup(): Promise<{ ok: boolean; message: string }> {
       totalDeleted += sessionCleanup.deleted
     }
 
+    let analyzed = false
+    try {
+      db.prepare('ANALYZE').run()
+      analyzed = true
+    } catch (err) {
+      logger.warn({ err }, 'Database ANALYZE failed during cleanup')
+    }
+
     if (totalDeleted > 0) {
       logAuditEvent({
         action: 'auto_cleanup',
         actor: 'scheduler',
-        detail: { total_deleted: totalDeleted },
+        detail: { total_deleted: totalDeleted, analyzed },
       })
     }
 
-    return { ok: true, message: `Cleaned ${totalDeleted} stale record${totalDeleted === 1 ? '' : 's'}` }
+    return { ok: true, message: `Cleaned ${totalDeleted} stale record${totalDeleted === 1 ? '' : 's'}${analyzed ? ' and updated query planner statistics' : ''}` }
   } catch (err: any) {
     return { ok: false, message: `Cleanup failed: ${err.message}` }
   }
@@ -328,7 +344,7 @@ export function initScheduler() {
 
   tasks.set('claude_session_scan', {
     name: 'Claude Session Scan',
-    intervalMs: TICK_MS, // Every 60s — lightweight file stat checks
+    intervalMs: getEnvNumber('MC_CLAUDE_SCAN_INTERVAL_MS', TICK_MS), // Default: every 60s; tune for large ~/.claude/projects trees
     lastRun: null,
     nextRun: now + 5_000, // First scan 5s after startup
     enabled: true,

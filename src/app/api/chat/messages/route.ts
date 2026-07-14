@@ -261,6 +261,15 @@ export async function GET(request: NextRequest) {
     let query = 'SELECT * FROM messages WHERE workspace_id = ?'
     const params: any[] = [workspaceId]
 
+    // Agent-scoped keys (non-admin, agent_name set) may only read messages
+    // involving their own agent — never the whole workspace conversation log.
+    const agentScope =
+      auth.user.agent_name && auth.user.role !== 'admin' ? auth.user.agent_name : null
+    if (agentScope) {
+      query += ' AND (from_agent = ? OR to_agent = ?)'
+      params.push(agentScope, agentScope)
+    }
+
     if (conversation_id) {
       query += ' AND conversation_id = ?'
       params.push(conversation_id)
@@ -468,19 +477,27 @@ export async function POST(request: NextRequest) {
         if (!sessionKey && !openclawAgentId) {
           forwardInfo.reason = 'no_active_session'
 
-          // For coordinator messages, emit an immediate visible status reply
-          if (typeof conversation_id === 'string' && conversation_id.startsWith('coord:')) {
+          // Emit an immediate visible status reply so the user isn't left with
+          // silence when no live session exists — for both coordinator (coord:)
+          // and direct agent (agent_<name>) conversations (issue #611).
+          const isCoordConversation = typeof conversation_id === 'string' && conversation_id.startsWith('coord:')
+          const isAgentConversation = typeof conversation_id === 'string' && conversation_id.startsWith('agent_')
+          if (isCoordConversation || isAgentConversation) {
+            const replyFrom = isCoordConversation ? COORDINATOR_AGENT : String(to)
+            const replyText = isCoordConversation
+              ? 'I received your message, but my live coordinator session is offline right now. Start/restore the coordinator session and retry.'
+              : `Message received, but ${to} has no active gateway session right now. Start or restore the agent's session and retry.`
             try {
-                createChatReply(
-                  db,
-                  workspaceId,
-                  conversation_id,
-                  COORDINATOR_AGENT,
-                  from,
-                  'I received your message, but my live coordinator session is offline right now. Start/restore the coordinator session and retry.',
-                  'status',
-                  { status: 'offline', reason: 'no_active_session' }
-                )
+              createChatReply(
+                db,
+                workspaceId,
+                conversation_id as string,
+                replyFrom,
+                from,
+                replyText,
+                'status',
+                { status: 'offline', reason: 'no_active_session' }
+              )
             } catch (e) {
               logger.error({ err: e }, 'Failed to create offline status reply')
             }

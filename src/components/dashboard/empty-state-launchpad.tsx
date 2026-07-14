@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api-client'
 
 interface RuntimeStatus {
   id: string
@@ -24,27 +25,52 @@ export function EmptyStateLaunchpad({ agentCount, taskCount, onNavigate }: Props
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    // Try the agent-runtimes API first, fall back to capabilities endpoint
-    fetch('/api/agent-runtimes')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.runtimes) {
-          setRuntimes(d.runtimes)
-          return
-        }
-        // Fallback: use capabilities endpoint for detection
-        return fetch('/api/status?action=capabilities')
-          .then(r => r.ok ? r.json() : {})
-          .then((caps: Record<string, unknown>) => {
-            const detected: RuntimeStatus[] = []
-            if (caps.openclawHome) detected.push({ id: 'openclaw', name: 'OpenClaw', installed: true })
-            if (caps.hermesInstalled) detected.push({ id: 'hermes', name: 'Hermes Agent', installed: true })
-            if (caps.claudeHome) detected.push({ id: 'claude', name: 'Claude Code', installed: true })
-            setRuntimes(detected)
-          })
-      })
+    let cancelled = false
+
+    async function detectRuntimes() {
+      // Try the agent-runtimes API first, fall back to capabilities endpoint.
+      // apiFetch throws on any non-2xx (unlike the original r.ok check), so each
+      // call is wrapped in try/catch to preserve the original graceful degradation:
+      // a failed agent-runtimes call falls through to capabilities detection, and a
+      // failed capabilities call simply detects nothing.
+      let runtimesPayload: { runtimes?: RuntimeStatus[] } | null = null
+      try {
+        runtimesPayload = await apiFetch<{ runtimes?: RuntimeStatus[] }>('/api/agent-runtimes')
+      } catch {
+        // Non-2xx / network error — degrade to fallback detection below.
+        runtimesPayload = null
+      }
+
+      if (runtimesPayload?.runtimes) {
+        if (!cancelled) setRuntimes(runtimesPayload.runtimes)
+        return
+      }
+
+      // Fallback: use capabilities endpoint for detection
+      let caps: Record<string, unknown> = {}
+      try {
+        caps = await apiFetch<Record<string, unknown>>('/api/status?action=capabilities')
+      } catch {
+        // Non-2xx / network error — detect nothing (original returned {} on !ok).
+        caps = {}
+      }
+
+      const detected: RuntimeStatus[] = []
+      if (caps.openclawHome) detected.push({ id: 'openclaw', name: 'OpenClaw', installed: true })
+      if (caps.hermesInstalled) detected.push({ id: 'hermes', name: 'Hermes Agent', installed: true })
+      if (caps.claudeHome) detected.push({ id: 'claude', name: 'Claude Code', installed: true })
+      if (!cancelled) setRuntimes(detected)
+    }
+
+    detectRuntimes()
       .catch(() => {})
-      .finally(() => setLoaded(true))
+      .finally(() => {
+        if (!cancelled) setLoaded(true)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const installed = runtimes.filter(r => r.installed)

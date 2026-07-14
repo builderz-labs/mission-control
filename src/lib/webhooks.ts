@@ -231,6 +231,20 @@ async function deliverWebhook(
   try {
     const { getDatabase } = await import('./db')
     const db = getDatabase()
+    const workspaceId =
+      typeof webhook.workspace_id === 'number' &&
+      Number.isFinite(webhook.workspace_id) &&
+      webhook.workspace_id > 0
+        ? webhook.workspace_id
+        : null
+
+    if (workspaceId === null) {
+      logger.error(
+        { webhookId: webhook.id, name: webhook.name },
+        'Webhook delivery bookkeeping skipped: workspace context required',
+      )
+      return { success, status_code: statusCode, response_body: responseBody, error, duration_ms: durationMs, delivery_id: deliveryId }
+    }
 
     const insertResult = db.prepare(`
       INSERT INTO webhook_deliveries (webhook_id, event_type, payload, status_code, response_body, error, duration_ms, attempt, is_retry, parent_delivery_id, workspace_id)
@@ -246,7 +260,7 @@ async function deliverWebhook(
       attempt,
       attempt > 0 ? 1 : 0,
       parentDeliveryId,
-      webhook.workspace_id ?? 1
+      workspaceId
     )
     deliveryId = Number(insertResult.lastInsertRowid)
 
@@ -254,16 +268,16 @@ async function deliverWebhook(
     db.prepare(`
       UPDATE webhooks SET last_fired_at = unixepoch(), last_status = ?, updated_at = unixepoch()
       WHERE id = ? AND workspace_id = ?
-    `).run(statusCode ?? -1, webhook.id, webhook.workspace_id ?? 1)
+    `).run(statusCode ?? -1, webhook.id, workspaceId)
 
     // Circuit breaker + retry scheduling (skip for test deliveries)
     if (allowRetry) {
       if (success) {
         // Reset consecutive failures on success
-        db.prepare(`UPDATE webhooks SET consecutive_failures = 0 WHERE id = ? AND workspace_id = ?`).run(webhook.id, webhook.workspace_id ?? 1)
+        db.prepare(`UPDATE webhooks SET consecutive_failures = 0 WHERE id = ? AND workspace_id = ?`).run(webhook.id, workspaceId)
       } else {
         // Increment consecutive failures
-        db.prepare(`UPDATE webhooks SET consecutive_failures = consecutive_failures + 1 WHERE id = ? AND workspace_id = ?`).run(webhook.id, webhook.workspace_id ?? 1)
+        db.prepare(`UPDATE webhooks SET consecutive_failures = consecutive_failures + 1 WHERE id = ? AND workspace_id = ?`).run(webhook.id, workspaceId)
 
         if (attempt < MAX_RETRIES - 1) {
           // Schedule retry
@@ -272,9 +286,9 @@ async function deliverWebhook(
           db.prepare(`UPDATE webhook_deliveries SET next_retry_at = ? WHERE id = ?`).run(nextRetryAt, deliveryId)
         } else {
           // Exhausted retries — trip circuit breaker
-          const wh = db.prepare(`SELECT consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?`).get(webhook.id, webhook.workspace_id ?? 1) as { consecutive_failures: number } | undefined
+          const wh = db.prepare(`SELECT consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?`).get(webhook.id, workspaceId) as { consecutive_failures: number } | undefined
           if (wh && wh.consecutive_failures >= MAX_RETRIES) {
-            db.prepare(`UPDATE webhooks SET enabled = 0, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?`).run(webhook.id, webhook.workspace_id ?? 1)
+            db.prepare(`UPDATE webhooks SET enabled = 0, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?`).run(webhook.id, workspaceId)
             logger.warn({ webhookId: webhook.id, name: webhook.name }, 'Webhook circuit breaker tripped — disabled after exhausting retries')
           }
         }
@@ -287,7 +301,7 @@ async function deliverWebhook(
       WHERE webhook_id = ? AND workspace_id = ? AND id NOT IN (
         SELECT id FROM webhook_deliveries WHERE webhook_id = ? AND workspace_id = ? ORDER BY created_at DESC LIMIT 200
       )
-    `).run(webhook.id, webhook.workspace_id ?? 1, webhook.id, webhook.workspace_id ?? 1)
+    `).run(webhook.id, workspaceId, webhook.id, workspaceId)
   } catch (logErr) {
     logger.error({ err: logErr, webhookId: webhook.id }, 'Webhook delivery logging/pruning failed')
   }

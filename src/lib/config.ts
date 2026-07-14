@@ -108,6 +108,11 @@ export const config = {
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'templates', 'souls') : ''),
   homeDir: os.homedir(),
+  // Optional coordinator agent for auto-routing unassigned tasks (issue #663).
+  // Opt-in: empty string means the feature is OFF (tasks created without an
+  // assignee stay unassigned). When set, new tasks with no assigned_to are
+  // routed to this agent name.
+  coordinatorAgent: (process.env.MC_COORDINATOR_AGENT || '').trim(),
   gnap: {
     enabled: process.env.GNAP_ENABLED === 'true',
     repoPath: resolvedGnapRepoPath,

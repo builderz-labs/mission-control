@@ -50,46 +50,48 @@
 
   .dark {
     /* Void palette */
-    --background: 215 27% 4%;
-    --foreground: 210 20% 92%;
-    --card: 220 30% 8%;
-    --card-foreground: 210 20% 92%;
-    --popover: 220 30% 8%;
-    --popover-foreground: 210 20% 92%;
-    --primary: 187 82% 53%;
-    --primary-foreground: 220 30% 6%;
-    --secondary: 220 25% 11%;
-    --secondary-foreground: 210 20% 92%;
-    --muted: 220 20% 14%;
-    --muted-foreground: 220 15% 50%;
-    --accent: 220 20% 14%;
-    --accent-foreground: 210 20% 92%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 220 20% 14%;
-    --input: 220 20% 14%;
-    --ring: 187 82% 53%;
+    /* Solar Throne (canon: helix-ecosystem/docs/BRAND.md · mapeo en DESIGN.md)
+       Negro-galaxia de base, oro solar = identidad, semáforo = estado. */
+    --background: 249 28% 5%;
+    --foreground: 255 26% 82%;
+    --card: 251 32% 10%;
+    --card-foreground: 255 26% 82%;
+    --popover: 251 32% 10%;
+    --popover-foreground: 255 26% 82%;
+    --primary: 42 89% 64%;
+    --primary-foreground: 249 28% 8%;
+    --secondary: 251 30% 13%;
+    --secondary-foreground: 255 26% 82%;
+    --muted: 251 30% 13%;
+    --muted-foreground: 254 24% 65%;
+    --accent: 251 30% 13%;
+    --accent-foreground: 255 26% 82%;
+    --destructive: 351 100% 71%;
+    --destructive-foreground: 249 28% 8%;
+    --border: 256 34% 17%;
+    --input: 256 34% 17%;
+    --ring: 42 89% 64%;
 
-    /* Void accent colors */
-    --void-cyan: 187 82% 53%;
-    --void-mint: 160 60% 52%;
-    --void-amber: 38 92% 50%;
-    --void-violet: 263 90% 66%;
-    --void-crimson: 0 72% 51%;
+    /* Acentos (semáforo Solar Throne) */
+    --void-cyan: 216 100% 71%;    /* azul: interactivo/dato */
+    --void-mint: 155 71% 58%;     /* verde: sano/destacar */
+    --void-amber: 42 87% 55%;     /* ámbar: te-necesita */
+    --void-violet: 255 92% 76%;   /* morado: autonomía */
+    --void-crimson: 351 100% 71%; /* coral: problemas reales */
 
-    /* Void status */
-    --success: 160 60% 52%;
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 9%;
-    --info: 187 82% 53%;
-    --info-foreground: 0 0% 98%;
+    /* Estado */
+    --success: 155 71% 58%;
+    --success-foreground: 249 28% 8%;
+    --warning: 42 87% 55%;
+    --warning-foreground: 249 28% 8%;
+    --info: 216 100% 71%;
+    --info-foreground: 249 28% 8%;
 
-    /* Void surface hierarchy */
-    --surface-0: 215 27% 4%;
-    --surface-1: 222 35% 7%;
-    --surface-2: 220 30% 10%;
-    --surface-3: 220 25% 14%;
+    /* Jerarquía de superficies (galaxia) */
+    --surface-0: 249 28% 5%;
+    --surface-1: 250 33% 7%;
+    --surface-2: 251 32% 10%;
+    --surface-3: 256 34% 17%;
   }
 }
 

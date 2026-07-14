@@ -56,6 +56,23 @@ export function runCommand(
 
     child.on('error', (error) => {
       if (timeoutId) clearTimeout(timeoutId)
+
+      const enoent = error as NodeJS.ErrnoException
+      if (enoent?.code === 'ENOENT') {
+        const binHint =
+          command === config.openclawBin
+            ? 'OPENCLAW_BIN'
+            : command === config.clawdbotBin
+              ? 'CLAWDBOT_BIN'
+              : `${command.toUpperCase()}_BIN`
+        const friendly = new Error(
+          `Command not found: ${command}. Install it and ensure it is on PATH, or set ${binHint} to an absolute executable path.`
+        )
+        ;(friendly as any).code = enoent.code
+        reject(friendly)
+        return
+      }
+
       reject(error)
     })
 
@@ -102,6 +119,12 @@ export function runOpenClaw(args: string[], options: CommandOptions = {}) {
     OPENCLAW_STATE_DIR: config.openclawStateDir,
     ...options.env,
   }
+  // Do not pass legacy home aliases alongside OPENCLAW_STATE_DIR. OpenClaw
+  // treats OPENCLAW_HOME as a parent home and can re-resolve
+  // /Users/name/.openclaw as /Users/name/.openclaw/.openclaw.
+  delete env.OPENCLAW_HOME
+  delete env.CLAWDBOT_HOME
+
   return runCommand(config.openclawBin, args, {
     ...options,
     env,

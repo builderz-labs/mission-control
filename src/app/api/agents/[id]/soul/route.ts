@@ -6,6 +6,7 @@ import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
 import { getAgentWorkspaceCandidates, readAgentWorkspaceFile } from '@/lib/agent-workspace';
 import { requireRole } from '@/lib/auth';
+import { requireAgentSelfAccess } from '@/lib/enforcement/workspace-scope';
 import { logger } from '@/lib/logger';
 
 function resolveAgentWorkspacePath(workspace: string): string {
@@ -28,8 +29,10 @@ export async function GET(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
+    const selfDeny = requireAgentSelfAccess(auth.user, agentId);
+    if (selfDeny) return selfDeny;
     const workspaceId = auth.user.workspace_id ?? 1;
-    
+
     // Get agent by ID or name
     let agent: any;
     if (isNaN(Number(agentId))) {
@@ -37,11 +40,11 @@ export async function GET(
     } else {
       agent = db.prepare('SELECT * FROM agents WHERE id = ? AND workspace_id = ?').get(Number(agentId), workspaceId);
     }
-    
+
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
-    
+
     // Try reading soul.md from workspace first, fall back to DB
     let soulContent = ''
     let source: 'workspace' | 'database' | 'none' = 'none'
@@ -109,6 +112,8 @@ export async function PUT(
     const db = getDatabase();
     const resolvedParams = await params;
     const agentId = resolvedParams.id;
+    const selfDeny = requireAgentSelfAccess(auth.user, agentId);
+    if (selfDeny) return selfDeny;
     const workspaceId = auth.user.workspace_id ?? 1;
     const body = await request.json();
     const { soul_content, template_name } = body;

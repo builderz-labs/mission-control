@@ -7,12 +7,28 @@ function hasAssignee(assignedTo: string | null | undefined): boolean {
 }
 
 /**
+ * Resolve the effective assignee for a newly-created task (issue #663).
+ * Uses the explicit assignee when provided; otherwise falls back to the
+ * configured coordinator agent (auto-routing). Returns null when neither is
+ * set, so unassigned tasks stay unassigned when the coordinator is not
+ * configured. The coordinator value is opt-in (empty string disables it).
+ */
+export function resolveTaskAssignee(
+  requestedAssignee: string | null | undefined,
+  coordinatorAgent: string | null | undefined
+): string | null {
+  if (hasAssignee(requestedAssignee)) return (requestedAssignee as string).trim()
+  if (hasAssignee(coordinatorAgent)) return (coordinatorAgent as string).trim()
+  return null
+}
+
+/**
  * Keep task state coherent when a task is created with an assignee.
  * If caller asks for `inbox` but also sets `assigned_to`, normalize to `assigned`.
  */
 export function normalizeTaskCreateStatus(
   requestedStatus: TaskStatus | undefined,
-  assignedTo: string | undefined
+  assignedTo: string | null | undefined
 ): TaskStatus {
   const status = requestedStatus ?? 'inbox'
   if (status === 'inbox' && hasAssignee(assignedTo)) return 'assigned'

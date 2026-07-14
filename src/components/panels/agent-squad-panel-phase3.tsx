@@ -22,6 +22,7 @@ import {
   CreateAgentModal
 } from './agent-detail-tabs'
 import { formatModelName, buildTaskStatParts } from '@/lib/agent-card-helpers'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { useMissionControl, type Agent } from '@/store'
 
 const log = createClientLogger('AgentSquadPhase3')
@@ -112,15 +113,37 @@ export function AgentSquadPanelPhase3() {
     setSyncToast(null)
     try {
       const url = source === 'local' ? '/api/agents/sync?source=local' : '/api/agents/sync'
-      const response = await fetch(url, { method: 'POST' })
-      if (response.status === 401) {
-        window.location.assign('/login?next=%2Fagents')
-        return
+      // raw:true keeps the original Response-based branching (apiFetch only throws
+      // on 401/403/404/5xx; a 400 with {error} must still surface as a thrown error
+      // exactly as before). redirectOnUnauthenticated:false preserves this site's
+      // custom /login?next= redirect on 401 instead of apiFetch's /login?from=.
+      let response: Response
+      try {
+        response = await apiFetch<Response>(url, {
+          method: 'POST',
+          raw: true,
+          redirectOnUnauthenticated: false,
+        })
+      } catch (apiErr) {
+        if (apiErr instanceof ApiError) {
+          if (apiErr.code === 'UNAUTHENTICATED') {
+            window.location.assign('/login?next=%2Fagents')
+            return
+          }
+          if (apiErr.code === 'FORBIDDEN') {
+            throw new Error('Admin access required for agent sync')
+          }
+          // SERVER_ERROR / NOT_FOUND / NETWORK_ERROR / PARSE_ERROR — surface the message
+          const payload = apiErr.payload
+          const payloadError =
+            payload && typeof payload === 'object' && 'error' in payload
+              ? (payload as { error?: string }).error
+              : undefined
+          throw new Error(payloadError || apiErr.message || 'Sync failed')
+        }
+        throw apiErr
       }
       const data = await response.json()
-      if (response.status === 403) {
-        throw new Error('Admin access required for agent sync')
-      }
       if (!response.ok) throw new Error(data.error || 'Sync failed')
       if (source === 'local') {
         setSyncToast(data.message || 'Local agent sync complete')
@@ -144,13 +167,32 @@ export function AgentSquadPanelPhase3() {
       if (agents.length === 0) setLoading(true)
 
       const url = showHidden ? '/api/agents?show_hidden=true' : '/api/agents'
-      const response = await fetch(url)
-      if (response.status === 401) {
-        window.location.assign('/login?next=%2Fagents')
-        return
-      }
-      if (response.status === 403) {
-        throw new Error('Access denied')
+      // raw:true preserves the original Response branching (apiFetch only throws on
+      // 401/403/404/5xx; a 400 with {error} must still surface as before).
+      // redirectOnUnauthenticated:false keeps this site's /login?next= redirect.
+      let response: Response
+      try {
+        response = await apiFetch<Response>(url, {
+          raw: true,
+          redirectOnUnauthenticated: false,
+        })
+      } catch (apiErr) {
+        if (apiErr instanceof ApiError) {
+          if (apiErr.code === 'UNAUTHENTICATED') {
+            window.location.assign('/login?next=%2Fagents')
+            return
+          }
+          if (apiErr.code === 'FORBIDDEN') {
+            throw new Error('Access denied')
+          }
+          const payload = apiErr.payload
+          const payloadError =
+            payload && typeof payload === 'object' && 'error' in payload
+              ? (payload as { error?: string }).error
+              : undefined
+          throw new Error(payloadError || apiErr.message || 'Failed to fetch agents')
+        }
+        throw apiErr
       }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
@@ -172,18 +214,19 @@ export function AgentSquadPanelPhase3() {
   // Update agent status
   const updateAgentStatus = async (agentName: string, status: Agent['status'], activity?: string) => {
     try {
-      const response = await fetch('/api/agents', {
+      // apiFetch throws on any non-2xx, matching the original's single generic
+      // failure path. redirectOnUnauthenticated:false preserves the original
+      // behavior (a 401 here surfaced as a generic error, not a redirect).
+      await apiFetch('/api/agents', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: agentName,
           status,
           last_activity: activity || `Status changed to ${status}`
-        })
+        }),
+        redirectOnUnauthenticated: false,
       })
 
-      if (!response.ok) throw new Error('Failed to update agent status')
-      
       // Update store state
       setAgents(agents.map(agent =>
         agent.name === agentName
@@ -205,18 +248,16 @@ export function AgentSquadPanelPhase3() {
   // Wake agent via session_send
   const wakeAgent = async (agentName: string, sessionKey: string) => {
     try {
-      const response = await fetch(`/api/agents/${agentName}/wake`, {
+      // apiFetch throws on any non-2xx; the existing catch below sets a fixed
+      // error message (it never used data.error), so the throw is sufficient.
+      // redirectOnUnauthenticated:false preserves the original no-redirect behavior.
+      await apiFetch(`/api/agents/${agentName}/wake`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: `🤖 **Wake Up Call**\n\nAgent ${agentName}, you have been manually woken up.\nCheck Mission Control for any pending tasks or notifications.\n\n⏰ ${new Date().toLocaleString()}`
-        })
+        }),
+        redirectOnUnauthenticated: false,
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to wake agent')
-      }
 
       await updateAgentStatus(agentName, 'idle', 'Manually woken via session')
     } catch (error) {
@@ -233,10 +274,12 @@ export function AgentSquadPanelPhase3() {
 
   const toggleAgentHidden = async (agentId: number, hide: boolean) => {
     try {
-      const response = await fetch(`/api/agents/${agentId}/hide`, {
+      // apiFetch throws on any non-2xx; the catch below sets a fixed error message.
+      // redirectOnUnauthenticated:false preserves the original no-redirect behavior.
+      await apiFetch(`/api/agents/${agentId}/hide`, {
         method: hide ? 'POST' : 'DELETE',
+        redirectOnUnauthenticated: false,
       })
-      if (!response.ok) throw new Error('Failed to update visibility')
       fetchAgents()
     } catch (error) {
       log.error('Failed to toggle agent visibility:', error)
@@ -248,11 +291,30 @@ export function AgentSquadPanelPhase3() {
     const previousAgents = agents
     setAgents(agents.filter((agent) => agent.id !== agentId))
 
-    const response = await fetch(`/api/agents/${agentId}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ remove_workspace: removeWorkspace }),
-    })
+    // raw:true keeps the original Response branching so the error body (payload.error)
+    // is read on any non-ok status, exactly as before. apiFetch throws on 401/403/404/5xx
+    // before returning, so the catch reproduces the optimistic-update rollback + rethrow.
+    // redirectOnUnauthenticated:false preserves the original no-redirect behavior.
+    let response: Response
+    try {
+      response = await apiFetch<Response>(`/api/agents/${agentId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ remove_workspace: removeWorkspace }),
+        raw: true,
+        redirectOnUnauthenticated: false,
+      })
+    } catch (apiErr) {
+      setAgents(previousAgents)
+      if (apiErr instanceof ApiError) {
+        const payload = apiErr.payload
+        const payloadError =
+          payload && typeof payload === 'object' && 'error' in payload
+            ? (payload as { error?: string }).error
+            : undefined
+        throw new Error(payloadError || 'Failed to delete agent')
+      }
+      throw apiErr
+    }
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
@@ -445,6 +507,14 @@ export function AgentSquadPanelPhase3() {
                                   : 'bg-slate-500/15 text-slate-300 border-slate-500/30'
                             }`}>
                               {(agent as any).source}
+                            </span>
+                          )}
+                          {(agent as any).gatewayKnown === false && (
+                            <span
+                              className="text-2xs px-1.5 py-0.5 rounded-full border bg-amber-500/15 text-amber-300 border-amber-500/30"
+                              title="Registro en MC sin agente correspondiente en el gateway OpenClaw — probable drift"
+                            >
+                              no en gateway
                             </span>
                           )}
                         </div>
@@ -643,15 +713,23 @@ function AgentDetailModalPhase3({
 
   useEffect(() => {
     const loadCanonicalAgentData = async () => {
+      // This loader degrades gracefully: each response is checked with .ok and only
+      // applied on success; partial failures are silently tolerated. apiFetch throws
+      // on 401/403/404/5xx, which would reject Promise.all and break that partial-
+      // success contract — so each request uses raw:true and swallows the ApiError,
+      // yielding null (treated as "not ok"). redirectOnUnauthenticated:false preserves
+      // the original no-redirect behavior on auth failure.
+      const rawGet = (path: string): Promise<Response | null> =>
+        apiFetch<Response>(path, { raw: true, redirectOnUnauthenticated: false }).catch(() => null)
       try {
         const [agentRes, soulRes, memoryRes, filesRes] = await Promise.all([
-          fetch(`/api/agents/${agent.id}`),
-          fetch(`/api/agents/${agent.id}/soul`),
-          fetch(`/api/agents/${agent.id}/memory`),
-          fetch(`/api/agents/${agent.id}/files`),
+          rawGet(`/api/agents/${agent.id}`),
+          rawGet(`/api/agents/${agent.id}/soul`),
+          rawGet(`/api/agents/${agent.id}/memory`),
+          rawGet(`/api/agents/${agent.id}/files`),
         ])
 
-        if (agentRes.ok) {
+        if (agentRes?.ok) {
           const payload = await agentRes.json()
           if (payload?.agent) {
             const freshAgent = payload.agent as Agent & { config?: any; working_memory?: string }
@@ -665,17 +743,17 @@ function AgentDetailModalPhase3({
           }
         }
 
-        if (soulRes.ok) {
+        if (soulRes?.ok) {
           const payload = await soulRes.json()
           setFormData((prev) => ({ ...prev, soul_content: String(payload?.soul_content || '') }))
         }
 
-        if (memoryRes.ok) {
+        if (memoryRes?.ok) {
           const payload = await memoryRes.json()
           setFormData((prev) => ({ ...prev, working_memory: String(payload?.working_memory || '') }))
         }
 
-        if (filesRes.ok) {
+        if (filesRes?.ok) {
           const payload = await filesRes.json()
           setWorkspaceFiles({
             identityMd: String(payload?.files?.['identity.md']?.content || ''),
@@ -705,8 +783,13 @@ function AgentDetailModalPhase3({
   useEffect(() => {
     const loadTemplates = async () => {
       try {
-        const response = await fetch(`/api/agents/${agent.name}/soul`, {
-          method: 'PATCH'
+        // Graceful: only applied when response.ok; non-ok is silently ignored.
+        // raw:true keeps the .ok check; redirectOnUnauthenticated:false preserves
+        // the original no-redirect behavior on auth failure.
+        const response = await apiFetch<Response>(`/api/agents/${agent.name}/soul`, {
+          method: 'PATCH',
+          raw: true,
+          redirectOnUnauthenticated: false,
         })
         if (response.ok) {
           const data = await response.json()
@@ -726,7 +809,12 @@ function AgentDetailModalPhase3({
   const performHeartbeat = async () => {
     setLoadingHeartbeat(true)
     try {
-      const response = await fetch(`/api/agents/${agent.name}/heartbeat`)
+      // Graceful: only applied when response.ok. raw:true keeps the .ok check;
+      // redirectOnUnauthenticated:false preserves the original no-redirect behavior.
+      const response = await apiFetch<Response>(`/api/agents/${agent.name}/heartbeat`, {
+        raw: true,
+        redirectOnUnauthenticated: false,
+      })
       if (response.ok) {
         const data = await response.json()
         setHeartbeatData(data)
@@ -741,16 +829,17 @@ function AgentDetailModalPhase3({
   const handleSave = async () => {
     setSaveBusy(true)
     try {
-      const response = await fetch('/api/agents', {
+      // apiFetch throws on any non-2xx, matching the original throw-on-not-ok.
+      // The catch below only logs. redirectOnUnauthenticated:false preserves the
+      // original no-redirect behavior on auth failure.
+      await apiFetch('/api/agents', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: agentState.name,
           ...formData
-        })
+        }),
+        redirectOnUnauthenticated: false,
       })
-
-      if (!response.ok) throw new Error('Failed to update agent')
 
       setEditing(false)
       onUpdate()
@@ -763,17 +852,18 @@ function AgentDetailModalPhase3({
 
   const handleSoulSave = async (content: string, templateName?: string) => {
     try {
-      const response = await fetch(`/api/agents/${agentState.id}/soul`, {
+      // apiFetch throws on any non-2xx, matching the original throw-on-not-ok.
+      // The catch below only logs. redirectOnUnauthenticated:false preserves the
+      // original no-redirect behavior on auth failure.
+      await apiFetch(`/api/agents/${agentState.id}/soul`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           soul_content: content,
           template_name: templateName
-        })
+        }),
+        redirectOnUnauthenticated: false,
       })
 
-      if (!response.ok) throw new Error('Failed to update SOUL')
-      
       setFormData(prev => ({ ...prev, soul_content: content }))
       setAgentState(prev => ({ ...prev, soul_content: content }))
       onUpdate()
@@ -784,18 +874,18 @@ function AgentDetailModalPhase3({
 
   const handleMemorySave = async (content: string, append: boolean = false) => {
     try {
-      const response = await fetch(`/api/agents/${agentState.id}/memory`, {
+      // apiFetch throws on any non-2xx (matching throw-on-not-ok) and returns the
+      // parsed JSON body directly on success. The catch below only logs.
+      // redirectOnUnauthenticated:false preserves the original no-redirect behavior.
+      const data = await apiFetch<{ working_memory: string }>(`/api/agents/${agentState.id}/memory`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           working_memory: content,
           append
-        })
+        }),
+        redirectOnUnauthenticated: false,
       })
 
-      if (!response.ok) throw new Error('Failed to update memory')
-      
-      const data = await response.json()
       setFormData(prev => ({ ...prev, working_memory: data.working_memory }))
       setAgentState(prev => ({ ...prev, working_memory: data.working_memory }))
       onUpdate()
@@ -805,11 +895,29 @@ function AgentDetailModalPhase3({
   }
 
   const handleWorkspaceFileSave = async (file: 'identity.md' | 'agent.md', content: string) => {
-    const response = await fetch(`/api/agents/${agentState.id}/files`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file, content }),
-    })
+    // raw:true keeps the original Response branching so the error body (payload.error)
+    // is read on any non-ok status, exactly as before. apiFetch throws on 401/403/404/5xx
+    // before returning, so the catch rethrows with the same payload-derived message.
+    // redirectOnUnauthenticated:false preserves the original no-redirect behavior.
+    let response: Response
+    try {
+      response = await apiFetch<Response>(`/api/agents/${agentState.id}/files`, {
+        method: 'PUT',
+        body: JSON.stringify({ file, content }),
+        raw: true,
+        redirectOnUnauthenticated: false,
+      })
+    } catch (apiErr) {
+      if (apiErr instanceof ApiError) {
+        const payload = apiErr.payload
+        const payloadError =
+          payload && typeof payload === 'object' && 'error' in payload
+            ? (payload as { error?: string }).error
+            : undefined
+        throw new Error(payloadError || `Failed to save ${file}`)
+      }
+      throw apiErr
+    }
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
       throw new Error(payload?.error || `Failed to save ${file}`)
@@ -1084,21 +1192,41 @@ function QuickSpawnModal({
 
     setIsSpawning(true)
     try {
-      const response = await fetch('/api/spawn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...spawnData,
-          parentAgent: agent.name,
-          sessionKey: agent.session_key
+      // Graceful: a non-ok response is surfaced via alert(result.error), NOT thrown,
+      // and must not fall into the "Network error occurred" catch. raw:true keeps the
+      // original Response branching; the inner catch reproduces the else-branch alert
+      // for the statuses apiFetch throws on (401/403/404/5xx) using the error payload.
+      // redirectOnUnauthenticated:false preserves the original no-redirect behavior.
+      let response: Response
+      try {
+        response = await apiFetch<Response>('/api/spawn', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...spawnData,
+            parentAgent: agent.name,
+            sessionKey: agent.session_key
+          }),
+          raw: true,
+          redirectOnUnauthenticated: false,
         })
-      })
+      } catch (apiErr) {
+        if (apiErr instanceof ApiError && apiErr.code !== 'NETWORK_ERROR') {
+          const payload = apiErr.payload
+          const payloadError =
+            payload && typeof payload === 'object' && 'error' in payload
+              ? (payload as { error?: string }).error
+              : undefined
+          alert(payloadError || 'Failed to spawn agent')
+          return
+        }
+        throw apiErr
+      }
 
       const result = await response.json()
       if (response.ok) {
         setSpawnResult(result)
         onSpawned()
-        
+
         // Auto-close after 2 seconds if successful
         setTimeout(() => {
           onClose()

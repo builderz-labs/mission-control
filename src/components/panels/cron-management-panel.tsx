@@ -4,8 +4,10 @@ import { useTranslations } from 'next-intl'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
+import { LaunchdFleet } from '@/components/panels/launchd-fleet'
 import { useMissionControl, CronJob } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
+import { apiFetch, ApiError } from '@/lib/api-client'
 const log = createClientLogger('CronManagement')
 import { buildDayKey, getCronOccurrences } from '@/lib/cron-occurrences'
 import { describeCronFrequency } from '@/lib/cron-utils'
@@ -30,6 +32,25 @@ const AGENT_COLORS = [
 function getAgentColorClass(agentId: string, allAgents: string[]): string {
   const idx = allAgents.indexOf(agentId)
   return AGENT_COLORS[idx >= 0 ? idx % AGENT_COLORS.length : 0]
+}
+
+/**
+ * Extract the human-readable error message from a thrown ApiError.
+ * The API returns `{ error: string }` bodies on failure; apiFetch attaches
+ * that parsed body to `err.payload` for 403/5xx. Falls back to the error
+ * message (e.g. for 404/401 where no payload is attached).
+ */
+function extractApiErrorMessage(error: ApiError): string {
+  const payload = error.payload
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'error' in payload &&
+    typeof (payload as { error: unknown }).error === 'string'
+  ) {
+    return (payload as { error: string }).error
+  }
+  return error.message
 }
 
 interface NewJobForm {
@@ -153,8 +174,7 @@ export function CronManagementPanel() {
   const loadCronJobs = useCallback(async () => {
     setIsLoading(true)
     try {
-      const cronResponse = await fetch('/api/cron?action=list')
-      const cronData = await cronResponse.json()
+      const cronData = await apiFetch<{ jobs?: unknown }>('/api/cron?action=list')
       const cronList = Array.isArray(cronData.jobs) ? cronData.jobs : []
 
       if (!isLocalMode) {
@@ -162,8 +182,7 @@ export function CronManagementPanel() {
         return
       }
 
-      const schedulerResponse = await fetch('/api/scheduler')
-      const schedulerData = await schedulerResponse.json()
+      const schedulerData = await apiFetch<{ tasks?: unknown }>('/api/scheduler')
       const schedulerTasks = Array.isArray(schedulerData.tasks) ? schedulerData.tasks : []
       const mappedSchedulerJobs: CronJob[] = schedulerTasks.map((task: any) => ({
         id: task.id,
@@ -195,9 +214,7 @@ export function CronManagementPanel() {
   useEffect(() => {
     const loadAvailableModels = async () => {
       try {
-        const response = await fetch('/api/status?action=models')
-        if (!response.ok) return
-        const data = await response.json()
+        const data = await apiFetch<{ models?: unknown }>('/api/status?action=models')
         const models = Array.isArray(data.models) ? data.models : []
         const names = models
           .map((model: any) => String(model.name || model.alias || '').trim())
@@ -245,16 +262,14 @@ export function CronManagementPanel() {
 
   const cloneJob = async (job: CronJob) => {
     try {
-      const response = await fetch('/api/cron', {
+      const result = await apiFetch<{ success?: boolean; error?: string }>('/api/cron', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'clone',
           jobId: job.id,
           jobName: job.name,
         })
       })
-      const result = await response.json()
       if (result.success) {
         await loadCronJobs()
       } else {
@@ -262,7 +277,16 @@ export function CronManagementPanel() {
       }
     } catch (error) {
       log.error('Failed to clone job:', error)
-      alert('Network error occurred')
+      if (error instanceof ApiError) {
+        const payloadError = extractApiErrorMessage(error)
+        if (error.code === 'NETWORK_ERROR') {
+          alert('Network error occurred')
+        } else {
+          alert(`Failed to clone job: ${payloadError}`)
+        }
+      } else {
+        alert('Network error occurred')
+      }
     }
   }
 
@@ -274,8 +298,11 @@ export function CronManagementPanel() {
         page: String(page),
         ...(query ? { query } : {}),
       })
-      const response = await fetch(`/api/cron?${params}`)
-      const data = await response.json()
+      const data = await apiFetch<{
+        entries?: RunHistoryEntry[]
+        total?: number
+        hasMore?: boolean
+      }>(`/api/cron?${params}`)
       if (page === 1) {
         setRunHistory(data.entries || [])
       } else {
@@ -334,8 +361,7 @@ export function CronManagementPanel() {
     }
 
     try {
-      const response = await fetch(`/api/cron?action=logs&job=${encodeURIComponent(job.name)}`)
-      const data = await response.json()
+      const data = await apiFetch<{ logs?: any[] }>(`/api/cron?action=logs&job=${encodeURIComponent(job.name)}`)
       setJobLogs(data.logs || [])
     } catch (error) {
       log.error('Failed to load job logs:', error)
@@ -345,25 +371,22 @@ export function CronManagementPanel() {
 
   const toggleJob = async (job: CronJob) => {
     try {
-      const response = await fetch('/api/cron', {
+      await apiFetch('/api/cron', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'toggle',
           jobName: job.name,
           enabled: !job.enabled
         })
       })
-
-      if (response.ok) {
-        await loadCronJobs() // Reload to get updated status
-      } else {
-        const error = await response.json()
-        alert(`Failed to toggle job: ${error.error}`)
-      }
+      await loadCronJobs() // Reload to get updated status
     } catch (error) {
       log.error('Failed to toggle job:', error)
-      alert('Network error occurred')
+      if (error instanceof ApiError && error.code !== 'NETWORK_ERROR') {
+        alert(`Failed to toggle job: ${extractApiErrorMessage(error)}`)
+      } else {
+        alert('Network error occurred')
+      }
     }
   }
 
@@ -372,24 +395,33 @@ export function CronManagementPanel() {
     setRunDropdownJobId(null)
     try {
       if (isLocalAutomation) {
-        const response = await fetch('/api/scheduler', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task_id: job.id }),
-        })
-        const result = await response.json()
-        if (response.ok && result.ok) {
-          alert(`Local automation executed: ${result.message}`)
-        } else {
-          alert(`Local automation failed: ${result.error || result.message || 'Unknown error'}`)
+        // Original branched on (response.ok && result.ok) and reloaded jobs in
+        // both the success and failure paths. apiFetch throws on non-2xx, so
+        // surface the failure message from the thrown payload and still reload.
+        try {
+          const result = await apiFetch<{ ok?: boolean; message?: string; error?: string }>('/api/scheduler', {
+            method: 'POST',
+            body: JSON.stringify({ task_id: job.id }),
+          })
+          if (result.ok) {
+            alert(`Local automation executed: ${result.message}`)
+          } else {
+            alert(`Local automation failed: ${result.error || result.message || 'Unknown error'}`)
+          }
+        } catch (localError) {
+          if (localError instanceof ApiError && localError.code !== 'NETWORK_ERROR') {
+            const payload = localError.payload as { error?: string; message?: string } | null
+            alert(`Local automation failed: ${payload?.error || payload?.message || localError.message || 'Unknown error'}`)
+          } else {
+            throw localError
+          }
         }
         await loadCronJobs()
         return
       }
 
-      const response = await fetch('/api/cron', {
+      const result = await apiFetch<{ success?: boolean; stdout?: string; error?: string; stderr?: string }>('/api/cron', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'trigger',
           jobId: job.id,
@@ -398,8 +430,6 @@ export function CronManagementPanel() {
         })
       })
 
-      const result = await response.json()
-
       if (result.success) {
         alert(`Job executed successfully:\n${result.stdout}`)
       } else {
@@ -407,7 +437,15 @@ export function CronManagementPanel() {
       }
     } catch (error) {
       log.error('Failed to trigger job:', error)
-      alert('Network error occurred')
+      // The cron-trigger endpoint signals logical failures with HTTP errors as
+      // well as { success: false } bodies; surface the server message instead
+      // of swallowing it as a generic network error.
+      if (error instanceof ApiError && error.code !== 'NETWORK_ERROR') {
+        const payload = error.payload as { error?: string; stderr?: string } | null
+        alert(`Job failed:\n${payload?.error || error.message}\n${payload?.stderr || ''}`)
+      } else {
+        alert('Network error occurred')
+      }
     }
   }
 
@@ -418,9 +456,8 @@ export function CronManagementPanel() {
 
     try {
       const staggerVal = newJob.staggerSeconds.trim() ? Number(newJob.staggerSeconds) : undefined
-      const response = await fetch('/api/cron', {
+      await apiFetch('/api/cron', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'add',
           jobName: newJob.name,
@@ -431,25 +468,24 @@ export function CronManagementPanel() {
         })
       })
 
-      if (response.ok) {
-        setNewJob({
-          name: '',
-          schedule: '0 * * * *',
-          command: '',
-          description: '',
-          model: '',
-          staggerSeconds: '',
-        })
-        setFormErrors({})
-        setShowAddForm(false)
-        await loadCronJobs()
-      } else {
-        const error = await response.json()
-        alert(`Failed to add job: ${error.error}`)
-      }
+      setNewJob({
+        name: '',
+        schedule: '0 * * * *',
+        command: '',
+        description: '',
+        model: '',
+        staggerSeconds: '',
+      })
+      setFormErrors({})
+      setShowAddForm(false)
+      await loadCronJobs()
     } catch (error) {
       log.error('Failed to add job:', error)
-      alert('Network error occurred')
+      if (error instanceof ApiError && error.code !== 'NETWORK_ERROR') {
+        alert(`Failed to add job: ${extractApiErrorMessage(error)}`)
+      } else {
+        alert('Network error occurred')
+      }
     }
   }
 
@@ -459,27 +495,25 @@ export function CronManagementPanel() {
     }
 
     try {
-      const response = await fetch('/api/cron', {
+      await apiFetch('/api/cron', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'remove',
           jobName: job.name
         })
       })
 
-      if (response.ok) {
-        await loadCronJobs()
-        if (selectedJob?.name === job.name) {
-          setSelectedJob(null)
-        }
-      } else {
-        const error = await response.json()
-        alert(`Failed to remove job: ${error.error}`)
+      await loadCronJobs()
+      if (selectedJob?.name === job.name) {
+        setSelectedJob(null)
       }
     } catch (error) {
       log.error('Failed to remove job:', error)
-      alert('Network error occurred')
+      if (error instanceof ApiError && error.code !== 'NETWORK_ERROR') {
+        alert(`Failed to remove job: ${extractApiErrorMessage(error)}`)
+      } else {
+        alert('Network error occurred')
+      }
     }
   }
 
@@ -683,6 +717,8 @@ export function CronManagementPanel() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* HLX-298: flota launchd del Mac (historial + learnings) — población aparte de jobs.json */}
+      <LaunchdFleet />
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between">
           <div>
@@ -1549,8 +1585,7 @@ function ClaudeCodeTeamsSection() {
 
   useEffect(() => {
     if (!expanded || loaded) return
-    fetch('/api/claude-tasks')
-      .then(r => r.json())
+    apiFetch<{ teams: any[]; tasks: any[] }>('/api/claude-tasks')
       .then(d => { setData(d); setLoaded(true) })
       .catch(() => setLoaded(true))
   }, [expanded, loaded])

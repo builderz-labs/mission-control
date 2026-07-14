@@ -193,7 +193,7 @@ export function SystemMonitorPanel() {
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={30} tickFormatter={v => `${v}%`} />
                 <Tooltip
                   contentStyle={{ fontSize: 12, background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
-                  formatter={(v: number | undefined) => [`${v ?? 0}%`, 'CPU']}
+                  formatter={(v) => [`${Number(v ?? 0)}%`, 'CPU']}
                 />
                 <Area
                   type="monotone"
@@ -229,7 +229,7 @@ export function SystemMonitorPanel() {
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={30} tickFormatter={v => `${v}%`} />
                 <Tooltip
                   contentStyle={{ fontSize: 12, background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
-                  formatter={(v: number | undefined) => [`${v ?? 0}%`, 'Memory']}
+                  formatter={(v) => [`${Number(v ?? 0)}%`, 'Memory']}
                 />
                 <Area
                   type="monotone"
@@ -303,7 +303,7 @@ export function SystemMonitorPanel() {
                       <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={30} tickFormatter={v => `${v}%`} />
                       <Tooltip
                         contentStyle={{ fontSize: 12, background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
-                        formatter={(v: number | undefined) => [`${v ?? 0}%`, 'GPU Memory']}
+                        formatter={(v) => [`${Number(v ?? 0)}%`, 'GPU Memory']}
                       />
                       <Area
                         type="monotone"
@@ -393,8 +393,8 @@ export function SystemMonitorPanel() {
                     <YAxis tick={{ fontSize: 10 }} width={50} tickFormatter={v => formatRate(v)} />
                     <Tooltip
                       contentStyle={{ fontSize: 12, background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
-                      formatter={(v: number | undefined, name?: string) => [
-                        formatRate(v ?? 0),
+                      formatter={(v, name) => [
+                        formatRate(Number(v ?? 0)),
                         name === 'netRxRate' ? 'Download' : 'Upload',
                       ]}
                     />

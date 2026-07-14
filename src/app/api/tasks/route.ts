@@ -6,11 +6,12 @@ import { mutationLimiter } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { validateBody, createTaskSchema, bulkUpdateTaskStatusSchema } from '@/lib/validation';
 import { resolveMentionRecipients } from '@/lib/mentions';
-import { normalizeTaskCreateStatus } from '@/lib/task-status';
+import { normalizeTaskCreateStatus, resolveTaskAssignee } from '@/lib/task-status';
 import { reconcileDeferredTaskCompletions } from '@/lib/task-dispatch';
 import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
+import { requireWorkspaceId, requireAgentTaskAccess } from '@/lib/enforcement/workspace-scope';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -69,7 +70,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const workspaceId = auth.user.workspace_id;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
     const { searchParams } = new URL(request.url);
 
     // Parse query parameters
@@ -102,11 +105,19 @@ export async function GET(request: NextRequest) {
       params.push(status);
     }
     
-    if (assigned_to) {
+    // Agent keys (non-admin) may only list their own tasks
+    const agentScope = auth.user.agent_name && auth.user.role !== 'admin'
+      ? auth.user.agent_name
+      : null;
+
+    if (agentScope) {
+      query += ' AND t.assigned_to = ?';
+      params.push(agentScope);
+    } else if (assigned_to) {
       query += ' AND t.assigned_to = ?';
       params.push(assigned_to);
     }
-    
+
     if (priority) {
       query += ' AND t.priority = ?';
       params.push(priority);
@@ -133,7 +144,10 @@ export async function GET(request: NextRequest) {
       countQuery += ' AND status = ?';
       countParams.push(status);
     }
-    if (assigned_to) {
+    if (agentScope) {
+      countQuery += ' AND assigned_to = ?';
+      countParams.push(agentScope);
+    } else if (assigned_to) {
       countQuery += ' AND assigned_to = ?';
       countParams.push(assigned_to);
     }
@@ -166,7 +180,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const workspaceId = auth.user.workspace_id;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
     const validated = await validateBody(request, createTaskSchema);
     if ('error' in validated) return validated.error;
     const body = validated.data;
@@ -193,7 +209,31 @@ export async function POST(request: NextRequest) {
       tags = [],
       metadata = {}
     } = body;
-    const normalizedStatus = normalizeTaskCreateStatus(status, assigned_to)
+
+    // Auto-route unassigned tasks to the configured coordinator agent, if any
+    // (issue #663). Opt-in via MC_COORDINATOR_AGENT; when unset, tasks created
+    // without an assignee stay unassigned (config.coordinatorAgent === '').
+    let finalAssignedTo = resolveTaskAssignee(assigned_to, config.coordinatorAgent)
+
+    // Guard against a coordinator typo stranding tasks: the dispatcher inner-
+    // joins `agents`, so a task auto-routed to a coordinator that doesn't exist
+    // in this workspace would be assigned-but-never-dispatchable. Fall back to
+    // unassigned + warn. Explicit assignees are the caller's responsibility.
+    const autoRoutedToCoordinator = !(assigned_to && String(assigned_to).trim()) && finalAssignedTo !== null
+    if (autoRoutedToCoordinator) {
+      const coordinatorExists = db
+        .prepare('SELECT 1 FROM agents WHERE name = ? AND workspace_id = ?')
+        .get(finalAssignedTo, workspaceId)
+      if (!coordinatorExists) {
+        logger.warn(
+          { coordinator: finalAssignedTo, workspaceId },
+          'MC_COORDINATOR_AGENT not found in workspace; leaving task unassigned instead of stranding it',
+        )
+        finalAssignedTo = null
+      }
+    }
+
+    const normalizedStatus = normalizeTaskCreateStatus(status, finalAssignedTo)
 
     // Resolve project_id for the task
     const resolvedProjectId = resolveProjectId(db, workspaceId, project_id)
@@ -237,7 +277,7 @@ export async function POST(request: NextRequest) {
         priority,
         resolvedProjectId,
         row.ticket_counter,
-        assigned_to,
+        finalAssignedTo,
         actor,
         now,
         now,
@@ -265,7 +305,7 @@ export async function POST(request: NextRequest) {
       title,
       status: normalizedStatus,
       priority,
-      assigned_to,
+      assigned_to: finalAssignedTo,
       ...(outcome ? { outcome } : {})
     }, workspaceId);
 
@@ -287,11 +327,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create notification if assigned
-    if (assigned_to) {
-      db_helpers.ensureTaskSubscription(taskId, assigned_to, workspaceId)
+    // Create notification if assigned (including coordinator auto-routing)
+    if (finalAssignedTo) {
+      db_helpers.ensureTaskSubscription(taskId, finalAssignedTo, workspaceId)
       db_helpers.createNotification(
-        assigned_to,
+        finalAssignedTo,
         'assignment',
         'Task Assigned',
         `You have been assigned to task: ${title}`,
@@ -352,7 +392,9 @@ export async function PUT(request: NextRequest) {
 
   try {
     const db = getDatabase();
-    const workspaceId = auth.user.workspace_id;
+    const wsResult = requireWorkspaceId(auth.user);
+    if (!('workspaceId' in wsResult)) return wsResult.response;
+    const { workspaceId } = wsResult;
     const validated = await validateBody(request, bulkUpdateTaskStatusSchema);
     if ('error' in validated) return validated.error;
     const { tasks } = validated.data;
@@ -371,6 +413,20 @@ export async function PUT(request: NextRequest) {
     `);
 
     const actor = auth.user.username
+
+    // Agent-scoped keys may only bulk-update tasks assigned to their own agent.
+    // Verify ownership up front so the batch fails atomically with a clean 403
+    // instead of partially applying, mirroring the single-task PUT guard.
+    if (auth.user.agent_name && auth.user.role !== 'admin') {
+      for (const task of tasks) {
+        const owned = db
+          .prepare('SELECT assigned_to FROM tasks WHERE id = ? AND workspace_id = ?')
+          .get(task.id, workspaceId) as { assigned_to: string | null } | undefined
+        if (!owned) continue
+        const taskDeny = requireAgentTaskAccess(auth.user, owned.assigned_to)
+        if (taskDeny) return taskDeny
+      }
+    }
 
     const transaction = db.transaction((tasksToUpdate: any[]) => {
       for (const task of tasksToUpdate) {

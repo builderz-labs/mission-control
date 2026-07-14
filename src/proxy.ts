@@ -193,9 +193,11 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // Allow login, setup, auth API, docs, and container health probe without session
+  // Allow login, setup, auth API, docs, and container health probes without session
   const isPublicHealthProbe = pathname === '/api/status' && request.nextUrl.searchParams.get('action') === 'health'
-  if (pathname === '/login' || pathname === '/setup' || pathname.startsWith('/api/auth/') || pathname === '/api/setup' || pathname === '/api/docs' || pathname === '/docs' || isPublicHealthProbe) {
+  // Exact-match only (no prefix/wildcard) so this exempts just the two health routes.
+  const isPublicHealthRoute = pathname === '/api/health' || pathname === '/health'
+  if (pathname === '/login' || pathname === '/setup' || pathname.startsWith('/api/auth/') || pathname === '/api/setup' || pathname === '/api/docs' || pathname === '/docs' || isPublicHealthProbe || isPublicHealthRoute) {
     const { response, nonce } = nextResponseWithNonce(request)
     return addSecurityHeaders(response, request, nonce)
   }
@@ -209,11 +211,13 @@ export function proxy(request: NextRequest) {
     const apiKey = extractApiKeyFromRequest(request)
     const hasValidApiKey = Boolean(configuredApiKey && apiKey && safeCompare(apiKey, configuredApiKey))
 
-    // Agent-scoped keys are validated in route auth (DB-backed) and should be
-    // allowed to pass through proxy auth gate.
-    const looksLikeAgentApiKey = /^mca_[a-f0-9]{48}$/i.test(apiKey)
+    // DB-backed keys (dashboard-rotated `mc_` global keys and `mca_` agent
+    // keys) are validated in route auth — the edge runtime cannot query
+    // SQLite, so the proxy only shape-checks them and lets route auth decide.
+    // Both formats are exactly 48 hex chars after the prefix.
+    const looksLikeDbBackedApiKey = /^mca?_[a-f0-9]{48}$/i.test(apiKey)
 
-    if (sessionToken || hasValidApiKey || looksLikeAgentApiKey) {
+    if (sessionToken || hasValidApiKey || looksLikeDbBackedApiKey) {
       const { response, nonce } = nextResponseWithNonce(request)
       return addSecurityHeaders(response, request, nonce)
     }

@@ -293,6 +293,8 @@ export interface GitHubPullRequest {
   body: string | null
   state: 'open' | 'closed'
   merged: boolean
+  draft?: boolean
+  user?: { login: string } | null
   head: { ref: string; sha: string }
   base: { ref: string }
   html_url: string
@@ -346,4 +348,39 @@ export async function createPullRequest(
     throw new Error(`GitHub API error ${res.status}: ${text}`)
   }
   return res.json()
+}
+
+export interface CheckSummary {
+  passed: number
+  failed: number
+  pending: number
+}
+
+/**
+ * Resumen de check-runs de un commit (HLX-291). Devuelve null si el repo
+ * no tiene checks o la API falla — el caller lo trata como "sin CI".
+ */
+export async function fetchCheckSummary(repo: string, ref: string): Promise<CheckSummary | null> {
+  const res = await githubFetch(`/repos/${repo}/commits/${ref}/check-runs?per_page=50`)
+  if (!res.ok) return null
+  const data = await res.json()
+  const runs: Array<{ status: string; conclusion: string | null }> = data.check_runs ?? []
+  if (runs.length === 0) return null
+  const summary: CheckSummary = { passed: 0, failed: 0, pending: 0 }
+  for (const run of runs) {
+    if (run.status !== 'completed') summary.pending++
+    else if (run.conclusion === 'success' || run.conclusion === 'neutral' || run.conclusion === 'skipped') summary.passed++
+    else summary.failed++
+  }
+  return summary
+}
+
+/**
+ * SHA del head de una rama remota (para drift deploy-vs-master, HLX-291).
+ */
+export async function fetchBranchSha(repo: string, branch: string): Promise<string | null> {
+  const res = await githubFetch(`/repos/${repo}/branches/${encodeURIComponent(branch)}`)
+  if (!res.ok) return null
+  const data = await res.json()
+  return data?.commit?.sha ?? null
 }

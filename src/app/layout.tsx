@@ -6,6 +6,7 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 import { THEME_IDS } from '@/lib/themes'
 import { ThemeBackground } from '@/components/ui/theme-background'
+import { AuthExpiredListener } from '@/components/auth-expired-listener'
 import './globals.css'
 
 const inter = Inter({
@@ -107,7 +108,10 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`} suppressHydrationWarning>
+      {/* Híbrido Solar Throne (HLX-290 bloque 3): mono por default = identidad de
+          cabina; el texto de lectura larga (objetivos, descripciones) usa font-sans
+          puntual para no perder legibilidad ni densidad. */}
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-mono antialiased`} suppressHydrationWarning>
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"
@@ -118,6 +122,7 @@ export default async function RootLayout({
             nonce={nonce}
           >
             <ThemeBackground />
+            <AuthExpiredListener />
             <div className="h-screen overflow-hidden bg-background text-foreground">
               {children}
             </div>

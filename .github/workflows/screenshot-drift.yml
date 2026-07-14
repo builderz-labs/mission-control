@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Check for UI changes
         id: ui_changed
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { data: files } = await github.rest.pulls.listFiles({
@@ -40,8 +40,9 @@ jobs:
             core.setOutput('paths', uiPaths.slice(0, 10).join('\n'));
 
       - name: Add label if UI changed
-        if: steps.ui_changed.outputs.count > 0
-        uses: actions/github-script@v7
+        # Fork PRs get a read-only token — label/comment calls would 403.
+        if: steps.ui_changed.outputs.count > 0 && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v9
         with:
           script: |
             // Ensure the label exists
@@ -63,8 +64,9 @@ jobs:
             });
 
       - name: Post checklist comment
-        if: steps.ui_changed.outputs.count > 0
-        uses: actions/github-script@v7
+        # Fork PRs get a read-only token — label/comment calls would 403.
+        if: steps.ui_changed.outputs.count > 0 && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v9
         with:
           script: |
             const paths = `${{ steps.ui_changed.outputs.paths }}`;

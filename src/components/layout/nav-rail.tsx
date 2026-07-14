@@ -17,12 +17,25 @@ interface NavItem {
   priority: boolean // Show in mobile bottom bar
   essential?: boolean // Visible in Essential interface mode (default false)
   children?: NavItem[] // Nested sub-items (expandable parent)
+  externalUrl?: string // Opens in new tab instead of routing to a panel
 }
 
 interface NavGroup {
   id: string
   label?: string // undefined = no header (core group)
   items: NavItem[]
+}
+
+// Activate a nav item: open its external URL in a new tab, or route to its
+// panel. Used by every render path (desktop rail + mobile bar/sheet) so
+// external-link items behave the same everywhere instead of routing to a
+// non-existent panel on mobile.
+function activateNavItem(item: NavItem, navigateToPanel: (id: string) => void) {
+  if (item.externalUrl) {
+    window.open(item.externalUrl, '_blank', 'noopener')
+  } else {
+    navigateToPanel(item.id)
+  }
 }
 
 const navGroups: NavGroup[] = [
@@ -49,6 +62,10 @@ const navGroups: NavGroup[] = [
       { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
       { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
+      { id: 'system', label: 'Sistema', icon: <SystemIcon />, priority: false },
+      { id: 'cockpit', label: 'Cockpit', icon: <CockpitIcon />, priority: false },
+      { id: 'quests', label: 'Quests', icon: <CockpitIcon />, priority: false },
+      { id: 'artifacts', label: 'Artefactos', icon: <ActivityIcon />, priority: false },
     ],
   },
   {
@@ -403,8 +420,8 @@ export function NavRail() {
                         item={item}
                         active={activeTab === item.id}
                         expanded={sidebarExpanded}
-                        onClick={() => navigateToPanel(item.id)}
-                        onPrefetch={() => prefetchPanel(item.id)}
+                        onClick={() => activateNavItem(item, navigateToPanel)}
+                        onPrefetch={() => { if (!item.externalUrl) prefetchPanel(item.id) }}
                       />
                     )
                   })}
@@ -567,7 +584,7 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
             <Button
               key={item.id}
               variant="ghost"
-              onClick={() => navigateToPanel(item.id)}
+              onClick={() => activateNavItem(item, navigateToPanel)}
               className={`flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg min-w-[48px] min-h-[48px] h-auto ${
                 activeTab === item.id
                   ? 'text-primary hover:text-primary'
@@ -683,7 +700,7 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
                     key={item.id}
                     variant="ghost"
                     onClick={() => {
-                      navigateToPanel(item.id)
+                      activateNavItem(item, navigateToPanel)
                       handleClose()
                     }}
                     className={`flex items-center gap-2.5 px-3 min-h-[48px] h-auto rounded-lg justify-start ${
@@ -1538,6 +1555,25 @@ function MonitorIcon() {
       <rect x="1" y="2" width="14" height="10" rx="1.5" />
       <polyline points="4,9 6,6 8,8 12,4" />
       <path d="M5 14h6" />
+    </svg>
+  )
+}
+
+function SystemIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="2.5" />
+      <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" />
+    </svg>
+  )
+}
+
+function CockpitIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12a6 6 0 0 1 12 0" />
+      <path d="M8 12l3-5" />
+      <path d="M2 12h12" />
     </svg>
   )
 }

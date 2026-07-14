@@ -8,6 +8,38 @@ All notable changes to Mission Control are documented in this file.
 
 ---
 
+## [2.1.0] - 2026-07-04
+
+Three months of merged work promoted to a release, plus a security-audit sprint.
+
+### Security
+- **Global API key hashed at rest** (#757) — the dashboard-rotated admin key was stored plaintext in SQLite; now only a sha256 hash is stored and the plaintext is shown exactly once at rotation. A DB read or backup dump no longer yields a live admin credential. Migration `051` converts existing deployments automatically.
+- **Dependency tree refreshed: 52 production vulnerabilities → 0** (#756) — including the Next.js middleware/proxy-bypass advisories (critical for this app: all auth is middleware-enforced), ws DoS, and critical shell-quote.
+- Gateway bearer token no longer exposed to viewer-role callers (#747, thanks @LHMisme420) and can no longer be overwritten via config update (`gateway.auth.token` write-guard, #755).
+- Prompt-injection guard detects homoglyph, zero-width, ROT13/URL/base64 bypasses; device key moved to non-extractable IndexedDB (#657).
+- Internal business documents removed from the public tree (#752).
+
+### Added
+- Direct multi-provider dispatch: Anthropic API, OpenAI, and local OpenAI-compatible endpoints (Ollama/LM Studio/LiteLLM) without an OpenClaw gateway (#648).
+- Host CLI dispatch: run tasks through your own `claude` login — no API key — with Claude CLI detection outside Docker, and new Codex CLI dispatch (#738, thanks @snifram).
+- Chat session continuity with the host Claude CLI + CSP nonce hydration fixes (#647).
+- Docker: `NEXT_PUBLIC_*` exposed as build args (#643).
+- Self-hosted star-history charts (light/dark) refreshed weekly, replacing the third-party embed.
+
+### Fixed
+- API proxy rejected dashboard-rotated `mc_` API keys at the edge before route auth could validate them (#753, closes #733).
+- Task-board @mention menu: arrow-key highlight no longer snaps back to the top on every keypress (#754, closes #661).
+- Legacy agent fallback config was written back to OpenClaw with an incompatible `fallbacks` field (#750, thanks @Obrais-cloud).
+- Recurring tasks: sub-daily crons include HH:MM in child titles (#659); openclaw-doctor single-flight + 30s TTL cache stops CPU/RAM spikes (#658).
+- Open issue/PR backlog: security audits, fixes, and apiFetch migration (#723).
+
+### Changed
+- Dependabot policy: js-deps group restricted to minor+patch (majors arrive individually), GitHub Actions bumps grouped, docker base image tracks the Node LTS line (#755).
+- Screenshot-drift workflow no longer fails on fork PRs (#755).
+- Model pricing updates: Groq (#736, thanks @oskarkocol) and Anthropic (#644).
+
+---
+
 ## [2.0.1] - 2026-03-18
 
 Mission Control 2.0.1 is the first patch release after the v2 launch. It rolls up the full set of fixes and follow-on features that landed after `v2.0.0`, including HTTP/Tailscale login hardening, zero-config onboarding, internationalization, gateway/runtime stability fixes, deeper task-routing automation, and the latest OpenClaw compatibility updates.

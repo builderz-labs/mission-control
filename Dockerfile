@@ -1,5 +1,7 @@
-FROM node:22.22.0-slim AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM node:24.18.0-slim AS base
+# Pin pnpm to v10 to match CI and package.json#packageManager. pnpm 11 turns
+# ERR_PNPM_IGNORED_BUILDS into a hard error, breaking fresh Docker builds.
+RUN corepack enable && corepack prepare pnpm@10.29.3 --activate
 WORKDIR /app
 
 FROM base AS deps
@@ -47,7 +49,7 @@ ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
 
 RUN pnpm build
 
-FROM node:22.22.0-slim AS runtime
+FROM node:24.18.0-slim AS runtime
 
 ARG MC_VERSION=dev
 LABEL org.opencontainers.image.source="https://github.com/builderz-labs/mission-control"

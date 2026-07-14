@@ -209,6 +209,27 @@ export function extractDeferredCompletionText(waitPayload: any): string | null {
   return parts.length > 0 ? parts.join('\n').slice(0, 10_000) : null
 }
 
+const NO_DEFERRED_OUTPUT_RESOLUTION = 'Deferred agent run completed without textual output.'
+
+// A deferred run can "complete" while the agent only emitted a one-line
+// acknowledgement ("Reviso el contexto antes de responder.") and produced no
+// deliverable. Marking those `outcome = 'success'` is a false positive: review
+// reads as done when nothing was delivered. Treat a completion as a real
+// deliverable only if it carries an artifact signal or substantial prose.
+const DELIVERABLE_MIN_CHARS = 120
+
+export function looksLikeDeliverable(text: string | null): boolean {
+  if (!text) return false
+  const t = text.trim()
+  if (!t) return false
+  if (t === NO_DEFERRED_OUTPUT_RESOLUTION) return false
+  if (/<\/?[a-z][\s\S]*>/i.test(t)) return true // html/markup tag
+  if (t.includes('```')) return true // fenced code / artifact block
+  if (/^\s*\|.*\|/m.test(t)) return true // markdown table row
+  if (/https?:\/\//.test(t)) return true // link / cited source
+  return t.length >= DELIVERABLE_MIN_CHARS // substantial prose
+}
+
 function isCompletionStatus(status: string): boolean {
   return ['completed', 'complete', 'success', 'succeeded', 'done', 'ok'].includes(status)
 }
@@ -376,27 +397,32 @@ export async function reconcileDeferredTaskCompletions(options: {
     if (!completion.complete) continue
 
     const recoveredText = completion.text?.trim() || recoverDeferredCompletionTextFromTranscript(task, metadata)
-    const resolution = recoveredText || 'Deferred agent run completed without textual output.'
+    const resolution = recoveredText || NO_DEFERRED_OUTPUT_RESOLUTION
     const truncated = resolution.length > 10_000
       ? resolution.substring(0, 10_000) + '\n\n[Response truncated at 10,000 characters]'
       : resolution
+    // Only a real deliverable earns `success`; a stub acknowledgement lands in
+    // review as `partial` so it doesn't read as done.
+    const delivered = looksLikeDeliverable(recoveredText)
+    const outcome: 'success' | 'partial' = delivered ? 'success' : 'partial'
     const nextMetadata: Record<string, any> = {
       ...metadata,
       async_state: 'completed',
       async_completed_at: now,
+      deliverable_detected: delivered,
     }
 
     const update = db.prepare(`
       UPDATE tasks
       SET status = 'review',
-          outcome = 'success',
+          outcome = ?,
           resolution = ?,
           metadata = ?,
           updated_at = ?
       WHERE id = ?
         AND workspace_id = ?
         AND status = 'in_progress'
-    `).run(truncated, JSON.stringify(nextMetadata), now, task.id, task.workspace_id)
+    `).run(outcome, truncated, JSON.stringify(nextMetadata), now, task.id, task.workspace_id)
 
     if (update.changes === 0) continue
 
@@ -413,7 +439,7 @@ export async function reconcileDeferredTaskCompletions(options: {
     eventBus.broadcast('task.updated', {
       id: task.id,
       status: 'review',
-      outcome: 'success',
+      outcome,
       assigned_to: task.assigned_to,
       dispatch_session_id: nextMetadata.dispatch_session_id,
       dispatch_run_id: nextMetadata.dispatch_run_id,
@@ -424,8 +450,10 @@ export async function reconcileDeferredTaskCompletions(options: {
       'task',
       task.id,
       task.assigned_to || 'agent',
-      `Deferred agent completed task "${task.title}" - awaiting review`,
-      { response_length: truncated.length, dispatch_session_id: nextMetadata.dispatch_session_id, dispatch_run_id: nextMetadata.dispatch_run_id },
+      delivered
+        ? `Deferred agent completed task "${task.title}" - awaiting review`
+        : `Deferred agent returned no deliverable for task "${task.title}" - flagged partial, awaiting review`,
+      { response_length: truncated.length, deliverable_detected: delivered, dispatch_session_id: nextMetadata.dispatch_session_id, dispatch_run_id: nextMetadata.dispatch_run_id },
       task.workspace_id
     )
 
@@ -663,19 +691,50 @@ function stripProviderPrefix(model: string): string {
  * the operator's existing login, plan, and rate limits without requiring
  * an `ANTHROPIC_API_KEY` to be exported into the container.
  */
+let claudeCliAvailableCache: boolean | null = null
 function isClaudeCliAvailable(): boolean {
   try {
-    return existsSync('/home/nextjs/.local/bin/claude')
+    if (existsSync('/home/nextjs/.local/bin/claude')
       || existsSync('/usr/local/bin/claude')
-      || existsSync('/usr/bin/claude')
+      || existsSync('/usr/bin/claude')) return true
+    // Windows native install (~/.local/bin/claude.exe) or any PATH-resolvable
+    // binary: the container paths above never exist outside Docker, so fall
+    // back to actually resolving the CLI. Cached — spawnSync costs ~1s.
+    if (claudeCliAvailableCache !== null) return claudeCliAvailableCache
+    const os = require('node:os')
+    const path = require('node:path')
+    if (existsSync(path.join(os.homedir(), '.local', 'bin', 'claude.exe'))) {
+      claudeCliAvailableCache = true
+      return true
+    }
+    const { spawnSync } = require('node:child_process')
+    const r = spawnSync('claude', ['--version'], { stdio: 'ignore', timeout: 5000 })
+    claudeCliAvailableCache = r.status === 0
+    return claudeCliAvailableCache
+  } catch { return false }
+}
+
+/**
+ * The Codex CLI authenticated via ChatGPT subscription login. When present,
+ * OpenAI-model tasks can dispatch through `codex exec` without an
+ * OPENAI_API_KEY — same idea as the Claude Code CLI path above.
+ */
+let codexCliAvailableCache: boolean | null = null
+function isCodexCliAvailable(): boolean {
+  try {
+    if (codexCliAvailableCache !== null) return codexCliAvailableCache
+    const { spawnSync } = require('node:child_process')
+    const r = spawnSync('codex', ['--version'], { stdio: 'ignore', timeout: 5000 })
+    codexCliAvailableCache = r.status === 0
+    return codexCliAvailableCache
   } catch { return false }
 }
 
 function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
   if (provider === 'anthropic') return !!getAnthropicApiKey() || isClaudeCliAvailable()
-  if (provider === 'openai') return !!getOpenAIApiKey()
+  if (provider === 'openai') return !!getOpenAIApiKey() || isCodexCliAvailable()
   if (provider === 'local') return !!getLocalEndpoint()
-  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable()
+  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable() || isCodexCliAvailable()
 }
 
 /**
@@ -825,8 +884,74 @@ async function callOpenAICompatible(
 
 async function callOpenAIDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
   const apiKey = getOpenAIApiKey()
-  if (!apiKey) throw new Error('OPENAI_API_KEY not set — cannot dispatch to OpenAI without gateway')
+  if (!apiKey) {
+    // No API key — fall back to the host Codex CLI (ChatGPT subscription
+    // login), mirroring the Claude CLI path used for Anthropic models.
+    if (isCodexCliAvailable()) return callCodexViaCli(task, prompt, stripProviderPrefix(model))
+    throw new Error('OPENAI_API_KEY not set and Codex CLI not found — cannot dispatch to OpenAI without gateway')
+  }
   return callOpenAICompatible(task, prompt, 'https://api.openai.com/v1', apiKey, stripProviderPrefix(model), 'openai')
+}
+
+/**
+ * Dispatch via the host Codex CLI using the operator's ChatGPT login (no API
+ * key required). One-shot `codex exec` run: prompt over stdin (`-` arg, avoids
+ * Windows argv length limits and quoting), clean result text retrieved via
+ * --output-last-message. The agent soul has no system-prompt flag on codex,
+ * so it is prepended to the prompt body.
+ */
+async function callCodexViaCli(
+  task: DispatchableTask,
+  prompt: string,
+  model: string,
+): Promise<AgentResponseParsed> {
+  const os = require('node:os')
+  const path = require('node:path')
+  const { readFileSync, rmSync } = require('node:fs')
+  const outPath = path.join(os.tmpdir(), `mc-codex-task-${task.id}-${process.pid}-${Date.now()}.txt`)
+
+  const soul = getAgentSoulContent(task)
+  const fullPrompt = soul ? `${soul}\n\n---\n\n${prompt}` : prompt
+
+  const args = ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '--output-last-message', outPath]
+  // ChatGPT-subscription auth only supports the account's model lineup (e.g.
+  // gpt-5.5); claude-* or unsupported gpt ids would 400. Pass --model only for
+  // explicit gpt overrides, otherwise let the CLI use its configured default.
+  if (model && /^gpt-/i.test(model)) args.push('--model', model)
+  args.push('-')
+
+  logger.info({ taskId: task.id, model, agent: task.agent_name }, 'Dispatching task via Codex CLI')
+
+  return await new Promise<AgentResponseParsed>((resolve, reject) => {
+    const proc = spawn('codex', args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env },
+    })
+    let stdout = ''
+    let stderr = ''
+    const timeoutMs = 300_000
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM')
+      reject(new Error(`Codex CLI timed out after ${timeoutMs / 1000}s`))
+    }, timeoutMs)
+
+    proc.stdout.on('data', (d) => { stdout += d.toString() })
+    proc.stderr.on('data', (d) => { stderr += d.toString() })
+    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
+    proc.on('close', (code) => {
+      clearTimeout(timer)
+      let text: string | null = null
+      try { text = (readFileSync(outPath, 'utf8') as string).trim() || null } catch { /* no output file written */ }
+      try { rmSync(outPath, { force: true }) } catch { /* ignore */ }
+      if (code !== 0 && !text) {
+        return reject(new Error(`codex CLI exited ${code}: ${(stderr || stdout).slice(0, 500)}`))
+      }
+      resolve({ text: text || stdout.trim() || null, sessionId: null })
+    })
+
+    proc.stdin.write(fullPrompt)
+    proc.stdin.end()
+  })
 }
 
 async function callLocalDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
@@ -1237,9 +1362,19 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
   const now = Math.floor(Date.now() / 1000)
 
   for (const task of tasks) {
-    // Mark as in_progress immediately to prevent re-dispatch
-    db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
+    // Atomically claim the task: only flip to in_progress if it is still
+    // 'assigned'. If two dispatchers race (e.g. concurrent scheduler ticks or
+    // multiple workers polling), exactly one UPDATE reports changes=1 and the
+    // loser skips this task — preventing double-dispatch (issue/PR #698).
+    const claim = db
+      .prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = 'assigned'")
       .run('in_progress', now, task.id)
+
+    if (claim.changes === 0) {
+      // Another dispatcher won the race (or the task was cancelled between
+      // SELECT and UPDATE). Skip silently — no event, no activity, no work.
+      continue
+    }
 
     eventBus.broadcast('task.status_changed', {
       id: task.id,

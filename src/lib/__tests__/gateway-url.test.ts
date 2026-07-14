@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildGatewayPathFallbackUrls, buildGatewayWebSocketUrl } from '@/lib/gateway-url'
+import {
+  buildBrowserGatewayPathUrl,
+  buildGatewayPathFallbackUrls,
+  buildGatewayWebSocketUrl,
+  chooseGatewayConnectUrl,
+  shouldClearStoredGatewayUrl,
+} from '@/lib/gateway-url'
 
 describe('buildGatewayWebSocketUrl', () => {
   it('builds ws URL with host and port for local dev', () => {
@@ -132,5 +138,55 @@ describe('buildGatewayPathFallbackUrls', () => {
 
   it('returns no fallbacks when URL already has a non-root path', () => {
     expect(buildGatewayPathFallbackUrls('wss://gateway.example.com/gateway-ws')).toEqual([])
+  })
+})
+
+describe('buildBrowserGatewayPathUrl', () => {
+  it('preserves the browser-facing reverse proxy port for path-based gateways', () => {
+    expect(buildBrowserGatewayPathUrl({
+      browserHost: 'helix.tail304cfc.ts.net:8443',
+      path: '/gw',
+      browserProtocol: 'https:',
+    })).toBe('wss://helix.tail304cfc.ts.net:8443/gw')
+  })
+
+  it('uses ws for HTTP browser contexts', () => {
+    expect(buildBrowserGatewayPathUrl({
+      browserHost: 'helix:3000',
+      path: 'gw',
+      browserProtocol: 'http:',
+    })).toBe('ws://helix:3000/gw')
+  })
+})
+
+describe('chooseGatewayConnectUrl', () => {
+  it('prefers the server-resolved gateway URL over stale browser storage', () => {
+    expect(chooseGatewayConnectUrl({
+      resolvedWsUrl: 'wss://helix.tail304cfc.ts.net:8443',
+      storedWsUrl: 'ws://127.0.0.1:18789',
+    })).toBe('wss://helix.tail304cfc.ts.net:8443')
+  })
+
+  it('falls back to the stored browser URL only when the server has no URL', () => {
+    expect(chooseGatewayConnectUrl({
+      resolvedWsUrl: '',
+      storedWsUrl: 'ws://127.0.0.1:18789',
+    })).toBe('ws://127.0.0.1:18789')
+  })
+})
+
+describe('shouldClearStoredGatewayUrl', () => {
+  it('clears browser storage when a resolved URL supersedes it', () => {
+    expect(shouldClearStoredGatewayUrl({
+      resolvedWsUrl: 'wss://helix.tail304cfc.ts.net:8443',
+      storedWsUrl: 'ws://127.0.0.1:18789',
+    })).toBe(true)
+  })
+
+  it('keeps browser storage when it matches the resolved URL', () => {
+    expect(shouldClearStoredGatewayUrl({
+      resolvedWsUrl: 'ws://127.0.0.1:18789',
+      storedWsUrl: 'ws://127.0.0.1:18789',
+    })).toBe(false)
   })
 })

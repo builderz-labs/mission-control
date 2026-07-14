@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { requireAgentSelfAccess } from '@/lib/enforcement/workspace-scope'
 import { config } from '@/lib/config'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, resolve } from 'node:path'
@@ -53,6 +54,8 @@ export async function GET(
 
   try {
     const { id } = await params
+    const selfDeny = requireAgentSelfAccess(auth.user, id)
+    if (selfDeny) return selfDeny
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1
     const agent = getAgentByIdOrName(db, id, workspaceId)
@@ -110,6 +113,8 @@ export async function PUT(
       return NextResponse.json({ error: `Unsupported file: ${file}` }, { status: 400 })
     }
 
+    const selfDeny = requireAgentSelfAccess(auth.user, id)
+    if (selfDeny) return selfDeny
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1
     const agent = getAgentByIdOrName(db, id, workspaceId)
