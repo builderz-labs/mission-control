@@ -47,7 +47,7 @@ beforeAll(async () => {
         type: 'res',
         id: frame.id,
         ok: true,
-        result: { ok: true, echo: frame.params, expectFinal: frame.expectFinal === true },
+        result: { ok: true, echo: frame.params },
       }))
     })
   })
@@ -90,7 +90,6 @@ describe('callOpenClawGateway', () => {
 
     expect(result).toEqual({
       ok: true,
-      expectFinal: true,
       echo: {
         message: 'hello',
         deliver: false,
@@ -100,12 +99,14 @@ describe('callOpenClawGateway', () => {
     expect(mocks.requestFrames[0]).toMatchObject({
       type: 'req',
       method: 'agent',
-      expectFinal: true,
       params: {
         message: 'hello',
         deliver: false,
       },
     })
+    // expectFinal is a local-only option (accepted-vs-final wait semantics);
+    // it must never be attached to the outgoing wire frame (HLX-300).
+    expect(mocks.requestFrames[0]).not.toHaveProperty('expectFinal')
   })
 
   it('rejects gateway RPC errors', async () => {

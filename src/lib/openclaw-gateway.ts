@@ -18,7 +18,6 @@ interface GatewayFrame {
   ok?: boolean
   result?: any
   error?: { message?: string; code?: string; details?: any; [key: string]: any } | string
-  expectFinal?: boolean
 }
 
 interface CallGatewayOptions {
@@ -148,7 +147,6 @@ export async function callOpenClawGateway<T = unknown>(
         id: requestId,
         params: params ?? {},
       }
-      if (options.expectFinal) frame.expectFinal = true
       sendFrame(frame)
     }
 

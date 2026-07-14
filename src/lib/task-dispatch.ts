@@ -1070,15 +1070,36 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       const errorMsg = err.message || 'Unknown error'
       logger.error({ taskId: task.id, err }, 'Aegis review failed')
 
-      // Revert to review so it can be retried
-      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
-        .run('review', Math.floor(Date.now() / 1000), task.id)
+      // Cap retries so a persistently failing review (e.g. gateway down) can't
+      // loop forever instead of reverting to 'review' every cron tick (HLX-300).
+      const now = Math.floor(Date.now() / 1000)
+      const currentAttempts = (db.prepare('SELECT dispatch_attempts FROM tasks WHERE id = ?').get(task.id) as { dispatch_attempts: number } | undefined)?.dispatch_attempts ?? 0
+      const newAttempts = currentAttempts + 1
+      const maxAegisErrorRetries = 5
 
-      eventBus.broadcast('task.status_changed', {
-        id: task.id,
-        status: 'review',
-        previous_status: 'quality_review',
-      })
+      if (newAttempts >= maxAegisErrorRetries) {
+        db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+          .run('failed', `Aegis review failed ${newAttempts} times: ${errorMsg}`.substring(0, 500), newAttempts, now, task.id)
+
+        eventBus.broadcast('task.status_changed', {
+          id: task.id,
+          status: 'failed',
+          previous_status: 'quality_review',
+          error_message: `Aegis review failed ${newAttempts} times`,
+          reason: 'max_aegis_error_retries_exceeded',
+        })
+        syncAndEscalateIfFailed(task, 'failed', `Aegis review failed ${newAttempts} times`, newAttempts)
+      } else {
+        // Revert to review so it can be retried
+        db.prepare('UPDATE tasks SET status = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
+          .run('review', newAttempts, now, task.id)
+
+        eventBus.broadcast('task.status_changed', {
+          id: task.id,
+          status: 'review',
+          previous_status: 'quality_review',
+        })
+      }
 
       results.push({ id: task.id, verdict: 'error', error: errorMsg.substring(0, 100) })
     }
