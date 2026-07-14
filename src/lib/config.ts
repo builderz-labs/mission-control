@@ -104,6 +104,14 @@ export const config = {
     defaultMemoryDir === openclawWorkspaceDir
       ? ['memory/', 'knowledge-base/']
       : [],
+  // Path prefixes (relative to the scanned memory root) that are machine-
+  // generated state, not knowledge-graph notes — e.g. cron state files that
+  // are overwritten on each run. Excluded from the wiki-link graph so they
+  // don't register as false-positive "orphans" in connectivity health.
+  // Override with OPENCLAW_MEMORY_GRAPH_EXCLUDE (comma-separated prefixes).
+  memoryGraphExclude: (process.env.OPENCLAW_MEMORY_GRAPH_EXCLUDE
+    ? process.env.OPENCLAW_MEMORY_GRAPH_EXCLUDE.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['crons/']),
   soulTemplatesDir:
     process.env.OPENCLAW_SOUL_TEMPLATES_DIR ||
     (openclawStateDir ? path.join(openclawStateDir, 'templates', 'souls') : ''),

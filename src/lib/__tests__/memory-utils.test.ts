@@ -1,9 +1,38 @@
 import { describe, test, expect } from 'vitest'
+import { mkdtemp, mkdir, writeFile, rm } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import {
   extractWikiLinks,
   extractSchema,
   validateSchema,
+  buildLinkGraph,
 } from '../memory-utils'
+
+describe('buildLinkGraph orphan exclusion', () => {
+  test('machine-generated prefixes are excluded from the graph (no false-positive orphans)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mc-graph-'))
+    try {
+      // A genuinely orphan note + a cron state file (machine-generated).
+      await writeFile(join(dir, 'lonely-note.md'), '# Lonely\nNo links here.\n')
+      await mkdir(join(dir, 'crons', 'cost-collector'), { recursive: true })
+      await writeFile(join(dir, 'crons', 'cost-collector', 'state.md'), '# state\nrun=1\n')
+
+      // Default exclude (crons/) → only the real note counts as orphan.
+      const excluded = await buildLinkGraph(dir, undefined, ['crons/'])
+      expect(excluded.orphans).toEqual(['lonely-note.md'])
+      expect(Object.keys(excluded.nodes)).not.toContain('crons/cost-collector/state.md')
+
+      // No exclusion → the cron state file is (falsely) an orphan too.
+      const all = await buildLinkGraph(dir, undefined, [])
+      expect(all.orphans.sort()).toEqual(
+        ['crons/cost-collector/state.md', 'lonely-note.md'],
+      )
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('extractWikiLinks', () => {
   test('extracts basic wiki-links', () => {

@@ -6,6 +6,7 @@
 import { readdir, readFile, stat } from 'fs/promises'
 import { join, relative, extname, basename, dirname } from 'path'
 import { logger } from './logger'
+import { config } from './config'
 
 // ─── Wiki-link extraction ────────────────────────────────────────
 
@@ -196,9 +197,23 @@ export interface LinkGraph {
 
 /**
  * Build a complete wiki-link graph from all markdown files in a directory.
+ *
+ * `excludePrefixes` drops machine-generated state files (e.g. cron state,
+ * overwritten every run) from the graph so they don't count as false-positive
+ * orphans. Defaults to `config.memoryGraphExclude`; pass `[]` to include all.
  */
-export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFileInfo[]): Promise<LinkGraph> {
-  const files = existingFiles ?? await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+export async function buildLinkGraph(
+  baseDir: string,
+  existingFiles?: MemoryFileInfo[],
+  excludePrefixes: string[] = config.memoryGraphExclude ?? [],
+): Promise<LinkGraph> {
+  const scanned = existingFiles ?? await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+  const files = excludePrefixes.length
+    ? scanned.filter((f) => {
+        const rel = f.path.replace(/\\/g, '/')
+        return !excludePrefixes.some((p) => rel === p.replace(/\/$/, '') || rel.startsWith(p))
+      })
+    : scanned
   const nodes: Record<string, LinkGraphNode> = {}
 
   // Build a lookup: stem -> relative path
