@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
+import { apiFetch } from '@/lib/api-client'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 
 interface GoogleCredentialResponse {
@@ -176,8 +177,9 @@ export default function LoginPage() {
 
   // Check if first-time setup is needed on page load — auto-redirect to /setup
   useEffect(() => {
-    fetch('/api/setup')
-      .then((res) => res.json())
+    apiFetch<{ needsSetup?: boolean }>('/api/setup', {
+      redirectOnUnauthenticated: false,
+    })
       .then((data) => {
         if (data.needsSetup) {
           window.location.href = '/setup'

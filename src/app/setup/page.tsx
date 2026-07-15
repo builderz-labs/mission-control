@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { fetchSetupStatusWithRetry } from '@/lib/setup-status'
 
 type SetupStep = 'form' | 'creating'
@@ -134,14 +135,15 @@ export default function SetupPage() {
     // Step 2: Creating account
     updateProgress(1, 'active')
     try {
-      const res = await fetch('/api/setup', {
+      const res = await apiFetch<Response>('/api/setup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username,
           password,
           displayName: displayName || undefined,
         }),
+        redirectOnUnauthenticated: false,
+        raw: true,
       })
 
       if (!res.ok) {
@@ -169,9 +171,19 @@ export default function SetupPage() {
 
       await new Promise((r) => setTimeout(r, 500))
       window.location.href = '/'
-    } catch {
+    } catch (error) {
       updateProgress(1, 'error')
-      setError(t('networkError'))
+      const payload = error instanceof ApiError ? error.payload : null
+      const message =
+        payload && typeof payload === 'object' && 'error' in payload &&
+        typeof (payload as { error?: unknown }).error === 'string'
+          ? (payload as { error: string }).error
+          : null
+      const fallback =
+        error instanceof ApiError && error.status > 0
+          ? t('setupFailed')
+          : t('networkError')
+      setError(message || fallback)
       await new Promise((r) => setTimeout(r, 1500))
       setStep('form')
       setProgress(getInitialProgress(t))
