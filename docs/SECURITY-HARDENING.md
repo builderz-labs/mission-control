@@ -175,6 +175,31 @@ MC_RETAIN_TOKEN_USAGE_DAYS=90      # Token/cost records
 MC_RETAIN_GATEWAY_SESSIONS_DAYS=90 # Gateway session history
 ```
 
+### 11. Runtime Installer Integrity
+
+Dashboard-triggered OpenClaw and Hermes installations execute third-party
+shell installers. Local runtime installation is disabled by default. Enable it
+only after reviewing the source and rollback path. Mission Control also
+requires an operator-approved SHA-256 digest before either remote script can
+run:
+
+```env
+MC_ENABLE_RUNTIME_INSTALLS=1
+MC_OPENCLAW_INSTALLER_SHA256=<64 lowercase hex characters>
+MC_HERMES_INSTALLER_SHA256=<64 lowercase hex characters>
+# Required only for per-user installs from the super-admin organization flow:
+MC_OPENCLAW_GIT_COMMIT=<reviewed 40-character commit SHA>
+MC_CLAUDE_CODE_VERSION=<exact semver>
+MC_CODEX_VERSION=<exact semver>
+```
+
+Download the installer separately through a trusted channel, inspect it, and
+calculate its digest with `sha256sum install.sh` (Linux) or
+`shasum -a 256 install.sh` (macOS). If the publisher changes the installer,
+the dashboard install fails closed until you review the new bytes and update
+the configured digest. Regex and optional AI review remain defense-in-depth;
+they do not replace provenance verification.
+
 ---
 
 ## OpenClaw Gateway Hardening

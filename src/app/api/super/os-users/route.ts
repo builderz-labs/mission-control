@@ -6,6 +6,8 @@ import path from 'path'
 import { requireRole, getUserFromRequest } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import { resolvePinnedUserToolSpec, runtimeInstallsEnabled } from '@/lib/runtime-install-security'
+import type { UserRuntimeTool } from '@/lib/runtime-install-security'
 
 export interface OsUser {
   username: string
@@ -63,11 +65,13 @@ function checkToolExists(homeDir: string, tool: string): boolean {
 function installToolForUser(
   homeDir: string,
   username: string,
-  tool: 'openclaw' | 'claude' | 'codex'
+  tool: UserRuntimeTool,
+  packageSpec: string,
 ): { success: boolean; error?: string } {
   try {
     if (tool === 'openclaw') {
-      // openclaw is managed by MC — create dir structure + install latest from npm
+      // OpenClaw is managed by MC — create its directory structure and install
+      // the operator-reviewed immutable Git commit.
       const openclawDir = path.join(/*turbopackIgnore: true*/ homeDir, '.openclaw')
       const workspaceDir = path.join(/*turbopackIgnore: true*/ homeDir, 'workspace')
       for (const dir of [openclawDir, workspaceDir]) {
@@ -78,9 +82,8 @@ function installToolForUser(
           fs.mkdirSync(/*turbopackIgnore: true*/ dir, { recursive: true })
         }
       }
-      // Install latest openclaw from GitHub (always latest) with npm fallback
       try {
-        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', 'openclaw/openclaw'], {
+        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', packageSpec], {
           timeout: 120000,
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
@@ -97,7 +100,7 @@ function installToolForUser(
     if (tool === 'claude') {
       // Install claude code CLI globally for the user
       try {
-        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', '@anthropic-ai/claude-code@latest'], {
+        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', packageSpec], {
           timeout: 120000,
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
@@ -119,7 +122,7 @@ function installToolForUser(
     if (tool === 'codex') {
       // Install codex CLI globally for the user
       try {
-        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', '@openai/codex@latest'], {
+        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', packageSpec], {
           timeout: 120000,
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
@@ -270,6 +273,27 @@ export async function POST(request: NextRequest) {
   const installOpenclaw = !!body.install_openclaw
   const installClaude = !!body.install_claude
   const installCodex = !!body.install_codex
+  const toolsToInstall: UserRuntimeTool[] = []
+  if (installOpenclaw) toolsToInstall.push('openclaw')
+  // When OpenClaw is selected, Claude and Codex are bundled.
+  if (installClaude && !installOpenclaw) toolsToInstall.push('claude')
+  if (installCodex && !installOpenclaw) toolsToInstall.push('codex')
+
+  const pinnedToolSpecs = new Map<UserRuntimeTool, string>()
+  if (toolsToInstall.length > 0) {
+    if (!runtimeInstallsEnabled()) {
+      return NextResponse.json({
+        error: 'Runtime installs are disabled. Set MC_ENABLE_RUNTIME_INSTALLS=1 after reviewing the supply-chain requirements.',
+      }, { status: 403 })
+    }
+    for (const tool of toolsToInstall) {
+      const resolved = resolvePinnedUserToolSpec(tool)
+      if ('error' in resolved) {
+        return NextResponse.json({ error: resolved.error, tool }, { status: 400 })
+      }
+      pinnedToolSpecs.set(tool, resolved.spec)
+    }
+  }
 
   // Validate username (safe for OS user creation — alphanumeric + dash/underscore)
   if (!/^[a-z][a-z0-9_-]{1,30}[a-z0-9]$/.test(username)) {
@@ -396,14 +420,8 @@ export async function POST(request: NextRequest) {
 
     // Install requested tools (non-fatal)
     const installResults: Record<string, { success: boolean; error?: string }> = {}
-    const toolsToInstall: Array<'openclaw' | 'claude' | 'codex'> = []
-    if (installOpenclaw) toolsToInstall.push('openclaw')
-    // When openclaw is selected, claude+codex are bundled — skip separate installs
-    if (installClaude && !installOpenclaw) toolsToInstall.push('claude')
-    if (installCodex && !installOpenclaw) toolsToInstall.push('codex')
-
     for (const tool of toolsToInstall) {
-      installResults[tool] = installToolForUser(homeDir, username, tool)
+      installResults[tool] = installToolForUser(homeDir, username, tool, pinnedToolSpecs.get(tool)!)
     }
 
     const installSummary = Object.entries(installResults)
