@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
 import { validateBody, gatewayConfigUpdateSchema } from '@/lib/validation'
-import { mutationLimiter } from '@/lib/rate-limit'
+import { gatewayConfigMutationLimiter } from '@/lib/rate-limit'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 import { parseJsonRelaxed } from '@/lib/json-relaxed'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
@@ -64,11 +64,11 @@ export async function GET(request: NextRequest) {
       raw_size: raw.length,
       hash,
     })
-  } catch (err: any) {
-    if (err.code === 'ENOENT') {
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
       return NextResponse.json({ error: 'Config file not found', path: configPath }, { status: 404 })
     }
-    return NextResponse.json({ error: `Failed to read config: ${err.message}` }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to read gateway configuration' }, { status: 500 })
   }
 }
 
@@ -111,7 +111,8 @@ export async function PUT(request: NextRequest) {
   const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
   if (isolationDeny) return isolationDeny
 
-  const rateCheck = mutationLimiter(request)
+  const limitKey = `${auth.user.tenant_id ?? 1}:${auth.user.workspace_id ?? 1}:${auth.user.id}`
+  const rateCheck = gatewayConfigMutationLimiter(limitKey)
   if (rateCheck) return rateCheck
 
   const action = request.nextUrl.searchParams.get('action')
@@ -161,7 +162,7 @@ export async function PUT(request: NextRequest) {
 
     for (const dotPath of Object.keys(body.updates)) {
       const [rootKey] = dotPath.split('.')
-      if (!rootKey || !(rootKey in parsed)) {
+      if (!rootKey || !Object.hasOwn(parsed, rootKey)) {
         return NextResponse.json(
           { error: `Unknown config root: ${rootKey || dotPath}` },
           { status: 400 },
@@ -194,8 +195,8 @@ export async function PUT(request: NextRequest) {
       count: appliedKeys.length,
       hash: computeHash(newRaw),
     })
-  } catch (err: any) {
-    return NextResponse.json({ error: `Failed to update config: ${err.message}` }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: 'Failed to update gateway configuration' }, { status: 500 })
   }
 }
 
@@ -220,9 +221,8 @@ async function applyConfig(request: NextRequest, auth: any): Promise<NextRespons
     })
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '')
       return NextResponse.json(
-        { error: `Apply failed (${res.status}): ${text}` },
+        { error: `Gateway rejected config apply with status ${res.status}` },
         { status: 502 },
       )
     }
@@ -258,9 +258,8 @@ async function updateSystem(request: NextRequest, auth: any): Promise<NextRespon
     })
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '')
       return NextResponse.json(
-        { error: `Update failed (${res.status}): ${text}` },
+        { error: `Gateway rejected system update with status ${res.status}` },
         { status: 502 },
       )
     }

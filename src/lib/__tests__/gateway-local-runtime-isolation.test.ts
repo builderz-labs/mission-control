@@ -26,7 +26,7 @@ describe('gateway and local host runtime isolation', () => {
   it('guards deployment gateway configuration before reads, RPC, or mutation work', () => {
     const file = 'src/app/api/gateway-config/route.ts'
     expectGuardBefore(file, 'GET', 'request.nextUrl.searchParams')
-    expectGuardBefore(file, 'PUT', 'mutationLimiter(request)')
+    expectGuardBefore(file, 'PUT', 'gatewayConfigMutationLimiter(limitKey)')
   })
 
   it('guards gateway status, control, and discovery before host access', () => {
