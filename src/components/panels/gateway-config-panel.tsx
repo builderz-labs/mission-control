@@ -3,12 +3,33 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { schemaType, normalizeSchema, extractSchemaTags } from '@/lib/config-schema-utils'
 import type { JsonSchema } from '@/lib/config-schema-utils'
 
 type FormMode = 'form' | 'json'
 
 type Feedback = { ok: boolean; text: string } | null
+
+interface GatewayConfigResponse {
+  config: Record<string, unknown>
+  path: string
+  hash?: string | null
+}
+
+interface GatewayConfigSaveResponse {
+  count: number
+  hash?: string | null
+}
+
+function getApiErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null
+  const payload = error.payload
+  if (!payload || typeof payload !== 'object' || !('error' in payload)) return null
+  return typeof (payload as { error?: unknown }).error === 'string'
+    ? (payload as { error: string }).error
+    : null
+}
 
 // ── Section metadata ───────────────────────────────────────────────────────
 
@@ -161,23 +182,19 @@ export function GatewayConfigPanel() {
   const fetchConfig = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/gateway-config')
-      if (res.status === 403) { setError('Admin access required'); return }
-      if (res.status === 404) {
-        const data = await res.json()
-        setError(data.error || 'Config not found')
-        return
-      }
-      if (!res.ok) { setError('Failed to load config'); return }
-      const data = await res.json()
+      const data = await apiFetch<GatewayConfigResponse>('/api/gateway-config')
       setConfig(data.config)
       setOriginalConfig(data.config)
       setConfigPath(data.path)
       setConfigHash(data.hash ?? null)
       setJsonText(JSON.stringify(data.config, null, 2))
       setError(null)
-    } catch {
-      setError('Failed to load gateway config')
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) {
+        setError('Admin access required')
+      } else {
+        setError(getApiErrorMessage(error) || 'Failed to load gateway config')
+      }
     } finally {
       setLoading(false)
     }
@@ -186,11 +203,10 @@ export function GatewayConfigPanel() {
   const fetchSchema = useCallback(async () => {
     setSchemaLoading(true)
     try {
-      const res = await fetch('/api/gateway-config?action=schema')
-      if (res.ok) {
-        const data = await res.json()
-        setSchema(data.schema ?? data)
-      }
+      const data = await apiFetch<JsonSchema & { schema?: JsonSchema }>(
+        '/api/gateway-config?action=schema',
+      )
+      setSchema(data.schema ?? data)
     } catch {
       // Schema is optional - form still works without it
     } finally {
@@ -243,8 +259,9 @@ export function GatewayConfigPanel() {
     setConfig(prev => prev ? deepSet(prev, path, value) : prev)
   }, [])
 
-  const handleSave = useCallback(async () => {
-    if (!hasChanges || saving) return
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (!hasChanges) return true
+    if (saving) return false
     setSaving(true)
 
     try {
@@ -267,8 +284,7 @@ export function GatewayConfigPanel() {
           flatten(parsed)
         } catch {
           showFeedback(false, 'Invalid JSON')
-          setSaving(false)
-          return
+          return false
         }
       } else {
         for (const d of diff) {
@@ -276,23 +292,20 @@ export function GatewayConfigPanel() {
         }
       }
 
-      const res = await fetch('/api/gateway-config', {
+      const data = await apiFetch<GatewayConfigSaveResponse>('/api/gateway-config', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates, hash: configHash }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        showFeedback(true, `Saved ${data.count} field${data.count !== 1 ? 's' : ''}`)
-        setConfigHash(data.hash ?? null)
-        fetchConfig()
-      } else if (res.status === 409) {
-        showFeedback(false, data.error || 'Conflict - please reload')
-      } else {
-        showFeedback(false, data.error || 'Failed to save')
-      }
-    } catch {
-      showFeedback(false, 'Network error')
+      showFeedback(true, `Saved ${data.count} field${data.count !== 1 ? 's' : ''}`)
+      setConfigHash(data.hash ?? null)
+      fetchConfig()
+      return true
+    } catch (error) {
+      const fallback = error instanceof ApiError && error.status > 0
+        ? 'Failed to save'
+        : 'Network error'
+      showFeedback(false, getApiErrorMessage(error) || fallback)
+      return false
     } finally {
       setSaving(false)
     }
@@ -303,22 +316,17 @@ export function GatewayConfigPanel() {
     setApplying(true)
     try {
       // Save first if there are changes
-      if (hasChanges) {
-        await handleSave()
-      }
-      const res = await fetch('/api/gateway-config?action=apply', {
+      if (hasChanges && !(await handleSave())) return
+      await apiFetch('/api/gateway-config?action=apply', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
-      const data = await res.json()
-      if (res.ok) {
-        showFeedback(true, 'Config applied (hot reload)')
-      } else {
-        showFeedback(false, data.error || 'Apply failed')
-      }
-    } catch {
-      showFeedback(false, 'Network error')
+      showFeedback(true, 'Config applied (hot reload)')
+    } catch (error) {
+      const fallback = error instanceof ApiError && error.status > 0
+        ? 'Apply failed'
+        : 'Network error'
+      showFeedback(false, getApiErrorMessage(error) || fallback)
     } finally {
       setApplying(false)
     }
@@ -328,19 +336,16 @@ export function GatewayConfigPanel() {
     if (updating) return
     setUpdating(true)
     try {
-      const res = await fetch('/api/gateway-config?action=update', {
+      await apiFetch('/api/gateway-config?action=update', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
-      const data = await res.json()
-      if (res.ok) {
-        showFeedback(true, 'System update initiated')
-      } else {
-        showFeedback(false, data.error || 'Update failed')
-      }
-    } catch {
-      showFeedback(false, 'Network error')
+      showFeedback(true, 'System update initiated')
+    } catch (error) {
+      const fallback = error instanceof ApiError && error.status > 0
+        ? 'Update failed'
+        : 'Network error'
+      showFeedback(false, getApiErrorMessage(error) || fallback)
     } finally {
       setUpdating(false)
     }
