@@ -3,6 +3,7 @@ import { requireRole, ROLE_LEVELS } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import {
   isTailscaleServe,
   refreshTailscaleCache,
@@ -129,6 +130,8 @@ export async function POST(request: NextRequest) {
   // which then fails as "device identity required".
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const db = getDatabase()
   ensureTable(db)

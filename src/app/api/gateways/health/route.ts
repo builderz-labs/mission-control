@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireRole } from "@/lib/auth"
 import { getDatabase } from "@/lib/db"
+import { denyUnscopedResourceForStrictWorkspace } from "@/lib/workspace-isolation"
 
 function ensureGatewaysTable(db: ReturnType<typeof getDatabase>) {
   db.exec(`
@@ -162,6 +163,8 @@ function buildGatewayProbeUrl(host: string, port: number): string | null {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, "viewer")
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, "runtime_configuration", new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const db = getDatabase()
   ensureGatewaysTable(db)

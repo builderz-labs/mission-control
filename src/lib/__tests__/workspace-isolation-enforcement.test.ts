@@ -219,4 +219,18 @@ describe('direct session API coverage', () => {
       expect(source.match(/'host_administration'/g), file).toHaveLength(operations)
     }
   })
+
+  it('guards the deployment-global gateway registry and health data', () => {
+    const expectedOperations = new Map([
+      ['src/app/api/gateways/route.ts', 4],
+      ['src/app/api/gateways/connect/route.ts', 1],
+      ['src/app/api/gateways/health/route.ts', 1],
+      ['src/app/api/gateways/health/history/route.ts', 1],
+    ])
+
+    for (const [file, operations] of expectedOperations) {
+      const source = readFileSync(join(process.cwd(), file), 'utf8')
+      expect(source.match(/["']runtime_configuration["']/g), file).toHaveLength(operations)
+    }
+  })
 })
