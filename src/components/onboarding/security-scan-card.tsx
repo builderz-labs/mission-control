@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 type CheckSeverity = 'critical' | 'high' | 'medium' | 'low'
 type FixSafety = 'safe' | 'requires-restart' | 'requires-review' | 'manual-only'
@@ -33,6 +34,25 @@ interface ScanResult {
     runtime: Category
     os: Category
   }
+}
+
+interface FixResponse {
+  attempted?: number
+  fixed?: number
+  failed?: number
+  remaining?: number
+  remainingAutoFixable?: number
+  remainingManual?: number
+  note?: string
+  error?: string
+}
+
+function requestErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    if (error.code === 'UNAUTHENTICATED' || error.code === 'FORBIDDEN') return 'Admin access required'
+    return error.message || fallback
+  }
+  return error instanceof Error ? error.message : fallback
 }
 
 // Check IDs that the /api/security-scan/fix endpoint can auto-fix, with safety levels
@@ -118,19 +138,14 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
     }
   }, [])
 
-  const runScan = useCallback(async () => {
+  const runScan = useCallback(async (preserveFixResult = false) => {
     setLoading(true)
     setError(null)
-    setFixResult(null)
+    if (!preserveFixResult) setFixResult(null)
     try {
-      const res = await fetch('/api/security-scan')
-      if (!res.ok) {
-        setError(res.status === 401 ? 'Admin access required' : 'Scan failed')
-        return
-      }
-      setResult(await res.json())
-    } catch {
-      setError('Failed to connect')
+      setResult(await apiFetch<ScanResult>('/api/security-scan'))
+    } catch (err) {
+      setError(requestErrorMessage(err, 'Scan failed'))
     } finally {
       setLoading(false)
     }
@@ -141,18 +156,18 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
     setFixing(fixKey)
     setFixResult(null)
     try {
-      const res = await fetch('/api/security-scan/fix', {
+      const res = await apiFetch<Response>('/api/security-scan/fix', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: ids ? JSON.stringify({ ids }) : '{}',
+        raw: true,
       })
+      const data = await res.json().catch(() => ({})) as FixResponse
       if (!res.ok) {
-        setFixResult({ attempted: 0, fixed: 0, failed: 1, remaining: 0, remainingAutoFixable: 0, remainingManual: 0, note: res.status === 401 ? 'Admin access required' : 'Fix failed' })
+        setFixResult({ attempted: 0, fixed: 0, failed: 1, remaining: 0, remainingAutoFixable: 0, remainingManual: 0, note: data.error || 'Fix failed' })
         return
       }
-      const data = await res.json()
       setFixResult({
-        attempted: data.attempted ?? data.fixed + data.failed,
+        attempted: data.attempted ?? (data.fixed ?? 0) + (data.failed ?? 0),
         fixed: data.fixed ?? 0,
         failed: data.failed ?? 0,
         remaining: data.remaining ?? 0,
@@ -160,12 +175,11 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
         remainingManual: data.remainingManual ?? 0,
         note: data.note,
       })
-      // Re-scan after fixes
-      setTimeout(() => runScan(), 1500)
-    } catch {
-      setFixResult({ attempted: 0, fixed: 0, failed: 1, remaining: 0, remainingAutoFixable: 0, remainingManual: 0, note: 'Network error' })
+      await runScan(true)
+    } catch (err) {
+      setFixResult({ attempted: 0, fixed: 0, failed: 1, remaining: 0, remainingAutoFixable: 0, remainingManual: 0, note: requestErrorMessage(err, 'Fix failed') })
     } finally {
-      setTimeout(() => setFixing(null), 1500)
+      setFixing(null)
     }
   }, [runScan])
 
@@ -182,7 +196,7 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
           <p className="text-sm text-muted-foreground mb-1">Run a comprehensive security scan of your installation</p>
           <p className="text-xs text-muted-foreground/60">Checks credentials, network config, OpenClaw hardening, and runtime security</p>
         </div>
-        <Button onClick={runScan} variant="outline" size="sm" className="border-void-cyan/30 text-void-cyan hover:bg-void-cyan/10">
+        <Button onClick={() => runScan()} variant="outline" size="sm" className="border-void-cyan/30 text-void-cyan hover:bg-void-cyan/10">
           Run Security Scan
         </Button>
       </div>
@@ -234,8 +248,8 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
   if (error) {
     return (
       <div className="flex flex-col items-center gap-3 py-6">
-        <p className="text-sm text-red-400">{error}</p>
-        <Button onClick={runScan} variant="outline" size="sm">Retry</Button>
+        <p role="alert" className="text-sm text-red-400">{error}</p>
+        <Button onClick={() => runScan()} variant="outline" size="sm">Retry</Button>
       </div>
     )
   }
@@ -261,7 +275,7 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
             <div className="text-xs text-muted-foreground">Security score</div>
           </div>
         </div>
-        <Button onClick={runScan} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
+        <Button onClick={() => runScan()} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
           Re-scan
         </Button>
       </div>
@@ -302,7 +316,7 @@ export function SecurityScanCard({ compact = false, autoScan = false }: { compac
 
       {/* Fix result feedback */}
       {fixResult && (
-        <div className={`text-xs px-3 py-2 rounded-lg border ${fixResult.failed > 0 ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' : 'bg-green-500/10 border-green-500/20 text-green-300'}`}>
+        <div role="status" className={`text-xs px-3 py-2 rounded-lg border ${fixResult.failed > 0 ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' : 'bg-green-500/10 border-green-500/20 text-green-300'}`}>
           {fixResult.attempted > 0 && <span>{fixResult.attempted} auto-fix attempt{fixResult.attempted > 1 ? 's' : ''}. </span>}
           {fixResult.fixed > 0 && <span>{fixResult.fixed} issue{fixResult.fixed > 1 ? 's' : ''} fixed. </span>}
           {fixResult.failed > 0 && <span>{fixResult.failed} failed. </span>}

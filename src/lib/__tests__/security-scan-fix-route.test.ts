@@ -1,11 +1,20 @@
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+
+const { requireRoleMock, securityFixLimiterMock } = vi.hoisted(() => ({
+  requireRoleMock: vi.fn(),
+  securityFixLimiterMock: vi.fn(),
+}))
 
 vi.mock('@/lib/auth', () => ({
-  requireRole: vi.fn(() => ({ user: { role: 'admin', workspace_id: 1 } })),
+  requireRole: requireRoleMock,
+}))
+
+vi.mock('@/lib/rate-limit', () => ({
+  securityFixLimiter: securityFixLimiterMock,
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -23,6 +32,7 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/lib/security-scan', () => ({
   FIX_SAFETY: {
     rate_limiting: 'safe',
+    world_writable: 'safe',
   },
   runSecurityScan: vi.fn(() => ({
     categories: {
@@ -44,11 +54,62 @@ describe('security-scan fix route env mutation', () => {
   let tempDir = ''
 
   beforeEach(() => {
+    vi.clearAllMocks()
+    requireRoleMock.mockReturnValue({ user: { id: 7, username: 'admin', role: 'admin', workspace_id: 3 } })
+    securityFixLimiterMock.mockReturnValue(null)
     tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-security-fix-'))
     process.chdir(tempDir)
     writeFileSync(path.join(tempDir, '.env'), 'MC_DISABLE_RATE_LIMIT=1\n', 'utf-8')
     writeFileSync(path.join(tempDir, '.env.local'), '', 'utf-8')
     process.env = { ...originalEnv }
+  })
+
+  function request(body: string) {
+    return new NextRequest('http://localhost/api/security-scan/fix', {
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
+
+  it('authenticates before rate limiting or parsing mutation input', async () => {
+    requireRoleMock.mockReturnValue({ error: 'Authentication required', status: 401 })
+    const { POST } = await import('@/app/api/security-scan/fix/route')
+
+    const response = await POST(request('{not-json'))
+
+    expect(response.status).toBe(401)
+    expect(securityFixLimiterMock).not.toHaveBeenCalled()
+    expect(readFileSync(path.join(tempDir, '.env'), 'utf-8')).toContain('MC_DISABLE_RATE_LIMIT=1')
+  })
+
+  it('rate limits by workspace and admin before parsing or mutation', async () => {
+    securityFixLimiterMock.mockReturnValue(
+      NextResponse.json({ error: 'Too many security fix attempts' }, { status: 429 }),
+    )
+    const { POST } = await import('@/app/api/security-scan/fix/route')
+
+    const response = await POST(request('{not-json'))
+
+    expect(response.status).toBe(429)
+    expect(securityFixLimiterMock).toHaveBeenCalledWith('3:7')
+    expect(readFileSync(path.join(tempDir, '.env'), 'utf-8')).toContain('MC_DISABLE_RATE_LIMIT=1')
+  })
+
+  it.each([
+    ['malformed JSON', '{not-json'],
+    ['empty ids', JSON.stringify({ ids: [] })],
+    ['unknown ids', JSON.stringify({ ids: ['not-a-fix'] })],
+    ['extra fields', JSON.stringify({ unexpected: true })],
+    ['oversized ids', JSON.stringify({ ids: Array.from({ length: 51 }, () => 'rate_limiting') })],
+  ])('rejects %s without applying broad fixes', async (_label, body) => {
+    const { POST } = await import('@/app/api/security-scan/fix/route')
+
+    const response = await POST(request(body))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid security fix request' })
+    expect(readFileSync(path.join(tempDir, '.env'), 'utf-8')).toContain('MC_DISABLE_RATE_LIMIT=1')
   })
 
   afterEach(() => {
@@ -88,5 +149,17 @@ describe('security-scan fix route env mutation', () => {
     const response = await POST(request)
     expect(response.status).toBe(200)
     expect(process.env.MC_DISABLE_RATE_LIMIT).toBeUndefined()
+  })
+
+  it('removes only the world-write bit without granting execute permissions', async () => {
+    const filePath = path.join(tempDir, 'world-writable.txt')
+    writeFileSync(filePath, 'data', 'utf-8')
+    chmodSync(filePath, 0o666)
+
+    const { POST } = await import('@/app/api/security-scan/fix/route')
+    const response = await POST(request(JSON.stringify({ ids: ['world_writable'] })))
+
+    expect(response.status).toBe(200)
+    expect(statSync(filePath).mode & 0o777).toBe(0o664)
   })
 })

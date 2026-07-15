@@ -8,6 +8,8 @@ import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { FIX_SAFETY, runSecurityScan, type FixSafety } from '@/lib/security-scan'
+import { securityFixLimiter } from '@/lib/rate-limit'
+import { z } from 'zod'
 
 export interface FixResult {
   id: string
@@ -16,6 +18,12 @@ export interface FixResult {
   detail: string
   fixSafety?: FixSafety
 }
+
+const fixRequestSchema = z.object({
+  ids: z.array(
+    z.string().min(1).max(128).refine((id) => id in FIX_SAFETY, 'Unknown security check id'),
+  ).min(1).max(50).optional(),
+}).strict()
 
 function shouldMutateRuntimeEnv() {
   return process.env.MISSION_CONTROL_TEST_MODE !== '1'
@@ -59,14 +67,15 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  // Optional: pass { ids: ["check_id"] } to fix only specific issues
-  let targetIds: Set<string> | null = null
-  try {
-    const body = await request.json()
-    if (Array.isArray(body?.ids) && body.ids.length > 0) {
-      targetIds = new Set(body.ids as string[])
-    }
-  } catch { /* no body = fix all */ }
+  const rateCheck = securityFixLimiter(`${auth.user.workspace_id}:${auth.user.id}`)
+  if (rateCheck) return rateCheck
+
+  // Omit ids to intentionally fix all currently supported checks.
+  const parsed = fixRequestSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid security fix request' }, { status: 400 })
+  }
+  const targetIds = parsed.data.ids ? new Set(parsed.data.ids) : null
 
   const shouldFix = (id: string) => !targetIds || targetIds.has(id)
 
@@ -338,7 +347,14 @@ export async function POST(request: NextRequest) {
       const files = wwOutput.split('\n').filter(Boolean).slice(0, 20)
       let fixedCount = 0
       for (const f of files) {
-        try { chmodSync(f, 0o755); fixedCount++ } catch { /* skip */ }
+        try {
+          const currentMode = statSync(f).mode & 0o777
+          const hardenedMode = currentMode & ~0o002
+          if (hardenedMode !== currentMode) {
+            chmodSync(f, hardenedMode)
+            fixedCount++
+          }
+        } catch { /* skip */ }
       }
       if (fixedCount > 0) {
         results.push({ id: 'world_writable', name: 'World-writable files', fixed: true, detail: `Fixed permissions on ${fixedCount} file(s)`, fixSafety: FIX_SAFETY['world_writable'] })

@@ -241,6 +241,14 @@ export const execApprovalLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** Privileged security configuration and filesystem repairs: 5/min per admin. */
+export const securityFixLimiter = createKeyedRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 5,
+  message: 'Too many security fix attempts. Try again in a minute.',
+  critical: true,
+})
+
 /** Self-registration: 5/min per IP (prevent spam registrations) */
 export const selfRegisterLimiter = createRateLimiter({
   windowMs: 60_000,
