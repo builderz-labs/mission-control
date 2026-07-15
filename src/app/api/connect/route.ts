@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
 
   // Deactivate previous connections for this agent
   db.prepare(
-    `UPDATE direct_connections SET status = 'disconnected', updated_at = ? WHERE agent_id = ? AND status = 'connected'`
-  ).run(now, agent.id)
+    `UPDATE direct_connections SET status = 'disconnected', updated_at = ? WHERE agent_id = ? AND status = 'connected' AND workspace_id = ?`
+  ).run(now, agent.id, workspaceId)
 
   // Create new connection
   const connectionId = randomUUID()
@@ -128,13 +128,13 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
   }
 
-  db.prepare('UPDATE direct_connections SET status = ?, updated_at = ? WHERE connection_id = ?')
-    .run('disconnected', now, connection_id)
+  db.prepare('UPDATE direct_connections SET status = ?, updated_at = ? WHERE connection_id = ? AND workspace_id = ?')
+    .run('disconnected', now, connection_id, workspaceId)
 
   // Check if agent has other active connections; if not, set offline
   const otherActive = db.prepare(
-    'SELECT COUNT(*) as count FROM direct_connections WHERE agent_id = ? AND status = ? AND connection_id != ?'
-  ).get(conn.agent_id, 'connected', connection_id) as any
+    'SELECT COUNT(*) as count FROM direct_connections WHERE agent_id = ? AND status = ? AND connection_id != ? AND workspace_id = ?'
+  ).get(conn.agent_id, 'connected', connection_id, workspaceId) as any
   if (!otherActive?.count) {
     db.prepare('UPDATE agents SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
       .run('offline', now, conn.agent_id, workspaceId)

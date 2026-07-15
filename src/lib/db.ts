@@ -465,15 +465,16 @@ export const db_helpers = {
   /**
    * Get recent activities for feed
    */
-  getRecentActivities: (limit: number = 50): Activity[] => {
+  getRecentActivities: (limit: number = 50, workspaceId: number = 1): Activity[] => {
     const db = getDatabase();
     const stmt = db.prepare(`
-      SELECT * FROM activities 
+      SELECT * FROM activities
+      WHERE workspace_id = ?
       ORDER BY created_at DESC 
       LIMIT ?
     `);
     
-    return stmt.all(limit) as Activity[];
+    return stmt.all(workspaceId, limit) as Activity[];
   },
 
   /**

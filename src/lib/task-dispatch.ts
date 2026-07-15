@@ -701,7 +701,8 @@ function classifyDirectModel(task: DispatchableTask): string {
   if (descLength > 2000) return anthropicDispatchId('opus', 'claude-opus-4-6')
   try {
     const db = getDatabase()
-    const row = db.prepare('SELECT estimated_hours FROM tasks WHERE id = ?').get(task.id) as { estimated_hours: number | null } | undefined
+    const row = db.prepare('SELECT estimated_hours FROM tasks WHERE id = ? AND workspace_id = ?')
+      .get(task.id, task.workspace_id) as { estimated_hours: number | null } | undefined
     if (row?.estimated_hours && row.estimated_hours >= 4) return anthropicDispatchId('opus', 'claude-opus-4-6')
   } catch { /* ignore */ }
 
@@ -1440,8 +1441,8 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
     const newAttempts = (task.dispatch_attempts ?? 0) + 1
 
     if (newAttempts >= maxDispatchRetries) {
-      db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-        .run('failed', `Task stuck in_progress ${newAttempts} times — agent "${task.assigned_to}" offline. Moved to failed.`, newAttempts, now, task.id)
+      db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+        .run('failed', `Task stuck in_progress ${newAttempts} times — agent "${task.assigned_to}" offline. Moved to failed.`, newAttempts, now, task.id, task.workspace_id)
 
       eventBus.broadcast('task.status_changed', {
         id: task.id,
@@ -1455,8 +1456,8 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
       syncAndEscalateIfFailed(task as any, 'failed', `Task stuck in_progress ${newAttempts} times`, newAttempts)
       failed++
     } else {
-      db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-        .run('assigned', `Requeued: agent "${task.assigned_to}" went offline while task was in_progress`, newAttempts, now, task.id)
+      db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+        .run('assigned', `Requeued: agent "${task.assigned_to}" went offline while task was in_progress`, newAttempts, now, task.id, task.workspace_id)
 
       // Add a comment explaining the requeue
       db.prepare(`
@@ -1526,8 +1527,8 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
     // multiple workers polling), exactly one UPDATE reports changes=1 and the
     // loser skips this task — preventing double-dispatch (issue/PR #698).
     const claim = db
-      .prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = 'assigned'")
-      .run('in_progress', now, task.id)
+      .prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = 'assigned' AND workspace_id = ?")
+      .run('in_progress', now, task.id, task.workspace_id)
 
     if (claim.changes === 0) {
       // Another dispatcher won the race (or the task was cancelled between
@@ -1556,9 +1557,9 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       // Check for previous Aegis rejection feedback
       const rejectionRow = db.prepare(`
         SELECT content FROM comments
-        WHERE task_id = ? AND author = 'aegis' AND content LIKE 'Quality Review Rejected:%'
+        WHERE task_id = ? AND author = 'aegis' AND content LIKE 'Quality Review Rejected:%' AND workspace_id = ?
         ORDER BY created_at DESC LIMIT 1
-      `).get(task.id) as { content: string } | undefined
+      `).get(task.id, task.workspace_id) as { content: string } | undefined
       const rejectionFeedback = rejectionRow?.content?.replace(/^Quality Review Rejected:\n?/, '') || null
 
       const prompt = buildTaskPrompt(task, rejectionFeedback)
@@ -1566,7 +1567,8 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       // Check if task has a target session specified in metadata
       const taskMeta = (() => {
         try {
-          const row = db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata: string } | undefined
+          const row = db.prepare('SELECT metadata FROM tasks WHERE id = ? AND workspace_id = ?')
+            .get(task.id, task.workspace_id) as { metadata: string } | undefined
           return row?.metadata ? JSON.parse(row.metadata) : {}
         } catch { return {} }
       })()
@@ -1616,8 +1618,8 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           async_state: asyncState,
           async_dispatched_at: Math.floor(Date.now() / 1000),
         }
-        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?')
-          .run(JSON.stringify(pendingMeta), Math.floor(Date.now() / 1000), task.id)
+        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+          .run(JSON.stringify(pendingMeta), Math.floor(Date.now() / 1000), task.id, task.workspace_id)
 
         eventBus.broadcast('task.updated', {
           id: task.id,
@@ -1686,8 +1688,8 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           async_state: asyncState,
           async_dispatched_at: Math.floor(Date.now() / 1000),
         }
-        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?')
-          .run(JSON.stringify(pendingMeta), Math.floor(Date.now() / 1000), task.id)
+        db.prepare('UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+          .run(JSON.stringify(pendingMeta), Math.floor(Date.now() / 1000), task.id, task.workspace_id)
 
         eventBus.broadcast('task.updated', {
           id: task.id,
@@ -1726,7 +1728,8 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       // Merge dispatch_session_id into existing metadata
       const existingMeta = (() => {
         try {
-          const row = db.prepare('SELECT metadata FROM tasks WHERE id = ?').get(task.id) as { metadata: string } | undefined
+          const row = db.prepare('SELECT metadata FROM tasks WHERE id = ? AND workspace_id = ?')
+            .get(task.id, task.workspace_id) as { metadata: string } | undefined
           return row?.metadata ? JSON.parse(row.metadata) : {}
         } catch { return {} }
       })()
@@ -1736,8 +1739,8 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       // Update task: status → review, set outcome
       db.prepare(`
-        UPDATE tasks SET status = ?, outcome = ?, resolution = ?, metadata = ?, updated_at = ? WHERE id = ?
-      `).run('review', 'success', truncated, JSON.stringify(existingMeta), Math.floor(Date.now() / 1000), task.id)
+        UPDATE tasks SET status = ?, outcome = ?, resolution = ?, metadata = ?, updated_at = ? WHERE id = ? AND workspace_id = ?
+      `).run('review', 'success', truncated, JSON.stringify(existingMeta), Math.floor(Date.now() / 1000), task.id, task.workspace_id)
 
       // Add a comment from the agent with the full response
       db.prepare(`
@@ -1785,15 +1788,16 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       logger.error({ taskId: task.id, agent: task.agent_name, err }, 'Task dispatch failed')
 
       // Increment dispatch_attempts and decide next status
-      const currentAttempts = (db.prepare('SELECT dispatch_attempts FROM tasks WHERE id = ?').get(task.id) as { dispatch_attempts: number } | undefined)?.dispatch_attempts ?? 0
+      const currentAttempts = (db.prepare('SELECT dispatch_attempts FROM tasks WHERE id = ? AND workspace_id = ?')
+        .get(task.id, task.workspace_id) as { dispatch_attempts: number } | undefined)?.dispatch_attempts ?? 0
       const newAttempts = currentAttempts + 1
       const maxDispatchRetries = 5
 
       if (newAttempts >= maxDispatchRetries) {
         const failureMessage = `Dispatch failed ${newAttempts} times. Last: ${errorMsg.substring(0, 5000)}`
         // Too many failures — move to failed
-        db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-          .run('failed', failureMessage, newAttempts, Math.floor(Date.now() / 1000), task.id)
+        db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+          .run('failed', failureMessage, newAttempts, Math.floor(Date.now() / 1000), task.id, task.workspace_id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
@@ -1806,8 +1810,8 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         syncAndEscalateIfFailed(task, 'failed', `Dispatch failed ${newAttempts} times`, newAttempts)
       } else {
         // Revert to assigned so it can be retried on the next tick
-        db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-          .run('assigned', errorMsg.substring(0, 5000), newAttempts, Math.floor(Date.now() / 1000), task.id)
+        db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+          .run('assigned', errorMsg.substring(0, 5000), newAttempts, Math.floor(Date.now() / 1000), task.id, task.workspace_id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,

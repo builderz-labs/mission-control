@@ -226,14 +226,14 @@ export function runDriftCheck(
   const currentTokens = db.prepare(`
     SELECT AVG(input_tokens + output_tokens) as avg_tokens
     FROM token_usage
-    WHERE agent_name = ? AND created_at > ?
-  `).get(agentName, currentStart) as any
+    WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
+  `).get(agentName, workspaceId, currentStart) as any
 
   const baselineTokens = db.prepare(`
     SELECT AVG(input_tokens + output_tokens) as avg_tokens
     FROM token_usage
-    WHERE agent_name = ? AND created_at > ? AND created_at <= ?
-  `).get(agentName, baselineStart, baselineEnd) as any
+    WHERE agent_name = ? AND workspace_id = ? AND created_at > ? AND created_at <= ?
+  `).get(agentName, workspaceId, baselineStart, baselineEnd) as any
 
   const tokenDrift = checkDrift(
     currentTokens?.avg_tokens ?? 0,
@@ -314,8 +314,8 @@ export function getDriftTimeline(
     const tokens = db.prepare(`
       SELECT AVG(input_tokens + output_tokens) as avg_tokens
       FROM token_usage
-      WHERE agent_name = ? AND created_at > ? AND created_at <= ?
-    `).get(agentName, weekStart, weekEnd) as any
+      WHERE agent_name = ? AND workspace_id = ? AND created_at > ? AND created_at <= ?
+    `).get(agentName, workspaceId, weekStart, weekEnd) as any
 
     const tools = db.prepare(`
       SELECT

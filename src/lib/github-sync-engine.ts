@@ -46,7 +46,7 @@ export async function pushTaskToGitHub(
     priority: string
     github_issue_number?: number | null
     github_repo?: string | null
-    workspace_id?: number
+    workspace_id: number
   },
   project: {
     id: number
@@ -90,8 +90,8 @@ export async function pushTaskToGitHub(
 
     // Mark synced to prevent ping-pong
     db.prepare(`
-      UPDATE tasks SET github_synced_at = ? WHERE id = ?
-    `).run(now, task.id)
+      UPDATE tasks SET github_synced_at = ? WHERE id = ? AND workspace_id = ?
+    `).run(now, task.id, task.workspace_id)
 
     logger.info({ repo, issue: task.github_issue_number }, 'Pushed task update to GitHub')
   } else if (project.github_sync_enabled) {
@@ -108,8 +108,8 @@ export async function pushTaskToGitHub(
     db.prepare(`
       UPDATE tasks
       SET github_issue_number = ?, github_repo = ?, github_synced_at = ?
-      WHERE id = ?
-    `).run(created.number, repo, now, task.id)
+      WHERE id = ? AND workspace_id = ?
+    `).run(created.number, repo, now, task.id, task.workspace_id)
 
     logger.info({ repo, issue: created.number, taskId: task.id }, 'Created GitHub issue for task')
   }
@@ -280,7 +280,7 @@ export function syncTaskOutbound(
         'SELECT id, github_repo, github_sync_enabled FROM projects WHERE id = ? AND workspace_id = ?'
       ).get(task.project_id, workspaceId) as { id: number; github_repo?: string | null; github_sync_enabled?: number | null } | undefined
       if (project?.github_sync_enabled) {
-        pushTaskToGitHub(task as any, project).catch(err =>
+        pushTaskToGitHub({ ...task, workspace_id: workspaceId }, project).catch(err =>
           logger.warn({ err, taskId: task.id }, 'Outbound GitHub sync failed')
         )
       }

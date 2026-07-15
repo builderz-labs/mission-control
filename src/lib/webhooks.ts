@@ -332,7 +332,8 @@ async function deliverWebhook(
           // Schedule retry
           const delaySec = nextRetryDelay(attempt)
           const nextRetryAt = Math.floor(Date.now() / 1000) + delaySec
-          db.prepare(`UPDATE webhook_deliveries SET next_retry_at = ? WHERE id = ?`).run(nextRetryAt, deliveryId)
+          db.prepare(`UPDATE webhook_deliveries SET next_retry_at = ? WHERE id = ? AND workspace_id = ?`)
+            .run(nextRetryAt, deliveryId, workspaceId)
         } else {
           // Exhausted retries — trip circuit breaker
           const wh = db.prepare(`SELECT consecutive_failures FROM webhooks WHERE id = ? AND workspace_id = ?`).get(webhook.id, workspaceId) as { consecutive_failures: number } | undefined

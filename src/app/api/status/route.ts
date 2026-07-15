@@ -190,8 +190,8 @@ function getDbStats(workspaceId: number) {
     let pipelineActive = 0
     let pipelineRecent = 0
     try {
-      pipelineActive = (db.prepare("SELECT COUNT(*) as c FROM pipeline_runs WHERE status = 'running'").get() as any).c
-      pipelineRecent = (db.prepare('SELECT COUNT(*) as c FROM pipeline_runs WHERE created_at > ?').get(day) as any).c
+      pipelineActive = (db.prepare("SELECT COUNT(*) as c FROM pipeline_runs WHERE status = 'running' AND workspace_id = ?").get(workspaceId) as any).c
+      pipelineRecent = (db.prepare('SELECT COUNT(*) as c FROM pipeline_runs WHERE created_at > ? AND workspace_id = ?').get(day, workspaceId) as any).c
     } catch {
       // Pipeline tables may not exist yet
     }
@@ -231,7 +231,7 @@ function getDbStats(workspaceId: number) {
     // Webhook configs count
     let webhookCount = 0
     try {
-      webhookCount = (db.prepare('SELECT COUNT(*) as c FROM webhooks').get() as any).c
+      webhookCount = (db.prepare('SELECT COUNT(*) as c FROM webhooks WHERE workspace_id = ?').get(workspaceId) as any).c
     } catch {
       // table may not exist
     }
