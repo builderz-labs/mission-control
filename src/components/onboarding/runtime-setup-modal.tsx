@@ -107,12 +107,15 @@ function OpenClawSetup({ onClose, onComplete }: { onClose: () => void; onComplet
     setRunning(true)
     setError(null)
     try {
-      const data = await apiFetch<{ success?: boolean; output?: string }>('/api/openclaw/doctor', { method: 'POST' })
+      const data = await apiFetch<{ success?: boolean }>('/api/openclaw/doctor', {
+        method: 'POST',
+        body: JSON.stringify({ confirmation: 'fix_openclaw' }),
+      })
       if (data.success) {
         setStep('done')
         setOutput('All issues resolved')
       } else {
-        setOutput(data.output || 'Fix attempt completed with warnings')
+        setOutput('Fix attempt completed with warnings')
       }
     } catch (err) {
       // Preserve graceful degradation: a non-ok response previously did

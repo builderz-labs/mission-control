@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const requireRole = vi.fn()
 const runOpenClaw = vi.fn()
 const archiveOrphanTranscriptsForStateDir = vi.fn()
+const openClawMaintenanceLimiter = vi.fn()
 
 vi.mock('@/lib/auth', () => ({ requireRole }))
 vi.mock('@/lib/command', () => ({ runOpenClaw }))
 vi.mock('@/lib/db', () => ({
-  getDatabase: vi.fn(() => ({ prepare: () => ({ run: vi.fn() }) })),
+  logAuditEvent: vi.fn(),
 }))
+vi.mock('@/lib/rate-limit', () => ({ openClawMaintenanceLimiter }))
 vi.mock('@/lib/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }))
@@ -27,6 +29,11 @@ vi.mock('@/lib/config', () => ({
 }))
 
 const fakeRequest = () => new Request('http://localhost/api/openclaw/doctor')
+const fakeFixRequest = () => new Request('http://localhost/api/openclaw/doctor', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ confirmation: 'fix_openclaw' }),
+})
 
 describe('GET /api/openclaw/doctor — single-flight + TTL cache (issue #613)', () => {
   beforeEach(() => {
@@ -34,6 +41,8 @@ describe('GET /api/openclaw/doctor — single-flight + TTL cache (issue #613)', 
     vi.resetModules()
     requireRole.mockReturnValue({ user: { id: 1, username: 'admin', role: 'admin', workspace_id: 1 } })
     runOpenClaw.mockReset()
+    openClawMaintenanceLimiter.mockReset()
+    openClawMaintenanceLimiter.mockReturnValue(null)
     // Default TTL — long enough that the cache hit test is reliable.
     process.env.MC_DOCTOR_TTL_MS = '30000'
   })
@@ -129,7 +138,7 @@ describe('GET /api/openclaw/doctor — single-flight + TTL cache (issue #613)', 
     await route.GET(fakeRequest())
     expect(runOpenClaw).toHaveBeenCalledTimes(1)
 
-    await route.POST(fakeRequest())
+    await route.POST(fakeFixRequest())
     expect(runOpenClaw).toHaveBeenCalledTimes(4)
 
     // POST invalidates the cache, so the next GET re-runs doctor.

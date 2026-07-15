@@ -9941,16 +9941,24 @@
           "404": {
             "description": "Not found"
           },
+          "429": {
+            "description": "Too many maintenance attempts"
+          },
           "500": {
             "description": "Internal server error"
           }
         },
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["confirmation"],
+                "properties": {
+                  "confirmation": { "type": "string", "enum": ["fix_openclaw"] }
+                }
               }
             }
           }
@@ -10009,16 +10017,24 @@
           "404": {
             "description": "Not found"
           },
+          "429": {
+            "description": "Too many maintenance attempts"
+          },
           "500": {
             "description": "Internal server error"
           }
         },
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["confirmation"],
+                "properties": {
+                  "confirmation": { "type": "string", "enum": ["update_openclaw"] }
+                }
               }
             }
           }

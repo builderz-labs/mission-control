@@ -307,6 +307,14 @@ export const releaseUpdateSchema = z.object({
   confirmation: z.literal('update_mission_control'),
 }).strict()
 
+export const openClawUpdateSchema = z.object({
+  confirmation: z.literal('update_openclaw'),
+}).strict()
+
+export const openClawDoctorFixSchema = z.object({
+  confirmation: z.literal('fix_openclaw'),
+}).strict()
+
 export const accessRequestActionSchema = z.object({
   request_id: z.number(),
   action: z.enum(['approve', 'reject']),

@@ -78,6 +78,7 @@ export function OpenClawDoctorBanner() {
     try {
       const res = await apiFetch<Response>('/api/openclaw/doctor', {
         method: 'POST',
+        body: JSON.stringify({ confirmation: 'fix_openclaw' }),
         raw: true,
       })
       const data = await res.json()
@@ -85,10 +86,7 @@ export function OpenClawDoctorBanner() {
 
       if (!res.ok) {
         setState('error')
-        setErrorMsg(data.detail || data.error || t('fixFailed'))
-        if (data.status) {
-          setDoctor(data.status)
-        }
+        setErrorMsg(data.error || t('fixFailed'))
         setFixProgress('')
         return
       }
@@ -102,13 +100,7 @@ export function OpenClawDoctorBanner() {
       window.clearInterval(progressTimer)
       setState('error')
       if (error instanceof ApiError && error.code !== 'NETWORK_ERROR') {
-        const payload = error.payload
-        const detail = payload && typeof payload === 'object' && 'detail' in payload
-          && typeof payload.detail === 'string' ? payload.detail : null
-        const status = payload && typeof payload === 'object' && 'status' in payload
-          ? payload.status as OpenClawDoctorStatus : null
-        setErrorMsg(detail || error.message || t('fixFailed'))
-        if (status) setDoctor(status)
+        setErrorMsg(error.message || t('fixFailed'))
       } else {
         setErrorMsg(t('networkError'))
       }

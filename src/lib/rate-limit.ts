@@ -273,6 +273,14 @@ export const releaseUpdateLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** OpenClaw runtime updates and repairs: 5 attempts per 10 minutes per admin. */
+export const openClawMaintenanceLimiter = createKeyedRateLimiter({
+  windowMs: 10 * 60_000,
+  maxRequests: 5,
+  message: 'Too many OpenClaw maintenance attempts. Try again later.',
+  critical: true,
+})
+
 /** Self-registration: 5/min per IP (prevent spam registrations) */
 export const selfRegisterLimiter = createRateLimiter({
   windowMs: 60_000,
