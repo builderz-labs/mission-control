@@ -38,9 +38,9 @@ describe('deployment-global runtime execution isolation', () => {
     const get = route.slice(route.indexOf('export async function GET'))
 
     expect(post.indexOf("'runtime_configuration'")).toBeGreaterThan(-1)
-    expect(post.indexOf("'runtime_configuration'")).toBeLessThan(post.indexOf('syncLocalAgents()'))
+    expect(post.indexOf("'runtime_configuration'")).toBeLessThan(post.indexOf('syncLocalAgents('))
     expect(post.indexOf("'runtime_configuration'")).toBeLessThan(post.indexOf('syncAgentsFromConfig('))
     expect(get.indexOf("'runtime_configuration'")).toBeGreaterThan(-1)
-    expect(get.indexOf("'runtime_configuration'")).toBeLessThan(get.indexOf('previewSyncDiff()'))
+    expect(get.indexOf("'runtime_configuration'")).toBeLessThan(get.indexOf('previewSyncDiff('))
   })
 })

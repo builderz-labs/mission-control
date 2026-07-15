@@ -35,6 +35,6 @@ export async function POST(request: NextRequest) {
     }, { status: 400 })
   }
 
-  const result = await triggerTask(taskId)
+  const result = await triggerTask(taskId, auth.user.workspace_id)
   return NextResponse.json(result, { status: result.ok ? 200 : 500 })
 }
