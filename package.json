@@ -10,7 +10,7 @@
     "mc:mcp": "node scripts/mc-mcp-server.cjs",
     "mc:tui": "node scripts/mc-tui.cjs",
     "dev": "pnpm run verify:node && next dev --hostname 127.0.0.1 --port ${PORT:-3000}",
-    "build": "pnpm run verify:node && next build && pnpm artifact:prepare",
+    "build": "pnpm run verify:node && next build --webpack && pnpm artifact:prepare",
     "artifact:prepare": "node scripts/prepare-standalone-artifact.mjs",
     "artifact:check": "node scripts/check-standalone-artifact.mjs",
     "start": "pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}",

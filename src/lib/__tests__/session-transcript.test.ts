@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import Database from 'better-sqlite3'
-import { __testables } from '@/app/api/sessions/transcript/route'
+import { __testables } from '@/lib/session-transcript-route'
 
 const tempDirs: string[] = []
 
