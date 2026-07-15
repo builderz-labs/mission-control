@@ -1,17 +1,19 @@
 # Summary
-Describe what changed and why.
+Describe the user-visible or operational change and why it belongs in this PR.
 
 # Risk Level
-Low / Medium / High (pick one)
+Low / Medium / High (pick one and explain the main failure mode)
 
-# Tests
-List commands run and results.
+# Evidence
+List the commands you ran and their results. Add screenshots for visible UI changes.
 
 # Contribution Checklist
-- [ ] Tests added/updated for behavior changes
-- [ ] Lint/typecheck/build passing
-- [ ] Security review done if auth/data/crypto touched
-- [ ] DB migration tested if schema changed
+- [ ] This PR has one reviewable purpose and no unrelated cleanup
+- [ ] Tests cover behavior changes and failure paths
+- [ ] `pnpm lint`, `pnpm typecheck`, and relevant tests pass
+- [ ] Auth, data scope, command execution, and secret handling were reviewed when touched
+- [ ] Schema changes include forward migration and upgrade-path tests
+- [ ] Public text, logs, fixtures, screenshots, and commits contain no secrets or private data
 
 # Notes
-Anything reviewers should know.
+Call out compatibility limits, follow-up work, or review areas that need extra attention.

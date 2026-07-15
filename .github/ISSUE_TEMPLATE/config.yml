@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/builderz-labs/mission-control/security/policy
+    about: Read the private reporting instructions. Do not publish vulnerability details in an issue.

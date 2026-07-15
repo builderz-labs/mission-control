@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a reproducible problem in Mission Control
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report vulnerabilities here. Use the private security link in the issue picker.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the failure and its effect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the smallest reliable sequence, configuration, or sample data.
+      placeholder: |
+        1. Start Mission Control with the relevant configuration.
+        2. Open the affected panel.
+        3. Run the action that fails.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Mission Control version or commit
+      placeholder: v2.1.0 or a commit SHA
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Node.js version, install method, and browser when relevant.
+      placeholder: Ubuntu 24.04, Node 22.14.0, Docker, Firefox 128
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Redact credentials, tokens, private prompts, personal data, hostnames, and internal paths.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched open and closed issues for this problem.
+          required: true
+        - label: This report does not contain a vulnerability or sensitive data.
+          required: true
