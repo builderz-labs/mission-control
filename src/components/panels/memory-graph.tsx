@@ -109,7 +109,7 @@ const obsidianTheme: Theme = {
 export function MemoryGraph() {
   const t = useTranslations('memoryGraph')
   const { memoryGraphAgents, setMemoryGraphAgents } = useMissionControl()
-  const agents = memoryGraphAgents || []
+  const agents = useMemo(() => memoryGraphAgents || [], [memoryGraphAgents])
   const [selectedAgent, setSelectedAgent] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(memoryGraphAgents === null)
   const [error, setError] = useState<string | null>(null)
