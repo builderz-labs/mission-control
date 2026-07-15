@@ -1470,6 +1470,18 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE workspaces ADD COLUMN isolation TEXT NOT NULL DEFAULT 'shared'`)
       }
     }
+  },
+  {
+    id: '053_audit_log_workspace',
+    up(db: Database.Database) {
+      const cols = db.prepare(`PRAGMA table_info(audit_log)`).all() as Array<{ name: string }>
+      if (!cols.some((column) => column.name === 'workspace_id')) {
+        // Legacy rows predate workspace attribution. Keep them visible only in
+        // the default workspace rather than guessing ownership.
+        db.exec(`ALTER TABLE audit_log ADD COLUMN workspace_id INTEGER NOT NULL DEFAULT 1`)
+      }
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_workspace_created ON audit_log(workspace_id, created_at DESC)`)
+    }
   }
 ]
 

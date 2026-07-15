@@ -48,9 +48,13 @@ function logTenantAccessDenied(
   tenantId: number,
   context: AccessAuditContext
 ) {
+  const actorWorkspace = context.actorId
+    ? db.prepare('SELECT workspace_id FROM users WHERE id = ?').get(context.actorId) as { workspace_id?: number } | undefined
+    : undefined
+  const workspaceId = actorWorkspace?.workspace_id ?? 1
   db.prepare(`
-    INSERT INTO audit_log (action, actor, actor_id, target_type, target_id, detail, ip_address, user_agent)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO audit_log (action, actor, actor_id, target_type, target_id, detail, ip_address, user_agent, workspace_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     'tenant_access_denied',
     context.actor || 'unknown',
@@ -62,7 +66,8 @@ function logTenantAccessDenied(
       route: context.route || null,
     }),
     context.ipAddress ?? null,
-    context.userAgent ?? null
+    context.userAgent ?? null,
+    workspaceId
   )
 }
 

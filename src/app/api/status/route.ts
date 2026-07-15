@@ -168,13 +168,13 @@ function getDbStats(workspaceId: number) {
     }
 
     // Audit events (24h / 7d)
-    const auditDay = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ?').get(day) as any).c
-    const auditWeek = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ?').get(week) as any).c
+    const auditDay = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ? AND workspace_id = ?').get(day, workspaceId) as any).c
+    const auditWeek = (db.prepare('SELECT COUNT(*) as c FROM audit_log WHERE created_at > ? AND workspace_id = ?').get(week, workspaceId) as any).c
 
     // Security events (login failures in last 24h)
     const loginFailures = (db.prepare(
-      "SELECT COUNT(*) as c FROM audit_log WHERE action = 'login_failed' AND created_at > ?"
-    ).get(day) as any).c
+      "SELECT COUNT(*) as c FROM audit_log WHERE action = 'login_failed' AND created_at > ? AND workspace_id = ?"
+    ).get(day, workspaceId) as any).c
 
     // Activities (24h)
     const activityDay = (

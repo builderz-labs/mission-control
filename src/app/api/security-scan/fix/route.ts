@@ -366,8 +366,8 @@ export async function POST(request: NextRequest) {
   try {
     const db = getDatabase()
     db.prepare(
-      'INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)'
-    ).run('security.auto_fix', auth.user.username, JSON.stringify({ fixes: results.filter(r => r.fixed).map(r => r.id) }))
+      'INSERT INTO audit_log (action, actor, detail, workspace_id) VALUES (?, ?, ?, ?)'
+    ).run('security.auto_fix', auth.user.username, JSON.stringify({ fixes: results.filter(r => r.fixed).map(r => r.id) }), auth.user.workspace_id ?? 1)
   } catch { /* non-critical */ }
 
   const fixed = results.filter(r => r.fixed).length

@@ -53,9 +53,11 @@ export async function GET(request: NextRequest) {
 
   switch (type) {
     case 'audit': {
-      // audit_log is instance-global (no workspace_id column); export is admin-only so this is safe
-      rows = db.prepare(`SELECT * FROM audit_log ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
-      headers = ['id', 'action', 'actor', 'actor_id', 'target_type', 'target_id', 'detail', 'ip_address', 'user_agent', 'created_at']
+      conditions.unshift('workspace_id = ?')
+      params.unshift(workspaceId)
+      const scopedWhere = `WHERE ${conditions.join(' AND ')}`
+      rows = db.prepare(`SELECT * FROM audit_log ${scopedWhere} ORDER BY created_at DESC LIMIT ?`).all(...params, limit)
+      headers = ['id', 'action', 'actor', 'actor_id', 'target_type', 'target_id', 'detail', 'ip_address', 'user_agent', 'workspace_id', 'created_at']
       filename = 'audit-log'
       break
     }
@@ -96,6 +98,7 @@ export async function GET(request: NextRequest) {
     actor_id: auth.user.id,
     detail: { type, format, row_count: rows.length },
     ip_address: ipAddress,
+    workspace_id: workspaceId,
   })
 
   const dateStr = new Date().toISOString().split('T')[0]

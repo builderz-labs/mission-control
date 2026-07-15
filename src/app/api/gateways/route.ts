@@ -125,8 +125,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      db.prepare('INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)').run(
-        'gateway_added', auth.user?.username || 'system', `Added gateway: ${name} (${host}:${port})${agentsRegistered ? `, registered ${agentsRegistered} agent(s)` : ''}`
+      db.prepare('INSERT INTO audit_log (action, actor, detail, workspace_id) VALUES (?, ?, ?, ?)').run(
+        'gateway_added', auth.user?.username || 'system', `Added gateway: ${name} (${host}:${port})${agentsRegistered ? `, registered ${agentsRegistered} agent(s)` : ''}`, auth.user.workspace_id ?? 1
       )
     } catch { /* audit might not exist */ }
 
@@ -234,8 +234,8 @@ export async function DELETE(request: NextRequest) {
   const result = db.prepare('DELETE FROM gateways WHERE id = ?').run(id)
 
   try {
-    db.prepare('INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)').run(
-      'gateway_removed', auth.user?.username || 'system', `Removed gateway: ${gw?.name}`
+    db.prepare('INSERT INTO audit_log (action, actor, detail, workspace_id) VALUES (?, ?, ?, ?)').run(
+      'gateway_removed', auth.user?.username || 'system', `Removed gateway: ${gw?.name}`, auth.user.workspace_id ?? 1
     )
   } catch { /* audit might not exist */ }
 

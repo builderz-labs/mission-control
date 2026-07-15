@@ -95,10 +95,11 @@ export async function POST(request: NextRequest) {
 
     // Audit log
     try {
-      db.prepare('INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)').run(
+      db.prepare('INSERT INTO audit_log (action, actor, detail, workspace_id) VALUES (?, ?, ?, ?)').run(
         'alert_rule_created',
         auth.user?.username || 'system',
-        `Created alert rule: ${name}`
+        `Created alert rule: ${name}`,
+        workspaceId
       )
     } catch { /* audit table might not exist */ }
 
@@ -177,10 +178,11 @@ export async function DELETE(request: NextRequest) {
   const result = db.prepare('DELETE FROM alert_rules WHERE id = ? AND workspace_id = ?').run(id, workspaceId)
 
   try {
-    db.prepare('INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)').run(
+    db.prepare('INSERT INTO audit_log (action, actor, detail, workspace_id) VALUES (?, ?, ?, ?)').run(
       'alert_rule_deleted',
       auth.user?.username || 'system',
-      `Deleted alert rule #${id}`
+      `Deleted alert rule #${id}`,
+      workspaceId
     )
   } catch { /* audit table might not exist */ }
 

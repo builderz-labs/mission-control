@@ -152,16 +152,16 @@ function buildAuditTrail(db: any, agentName: string, workspaceId: number, since:
     LIMIT 200
   `).all(agentName, workspaceId, since) as any[];
 
-  // Audit log entries (system-wide, may reference agent)
+  // Audit log entries owned by this workspace that may reference the agent
   let auditEntries: any[] = [];
   try {
     auditEntries = db.prepare(`
       SELECT id, action, actor, detail, created_at
       FROM audit_log
-      WHERE (actor = ? OR detail LIKE ?) AND created_at >= ?
+      WHERE workspace_id = ? AND (actor = ? OR detail LIKE ?) AND created_at >= ?
       ORDER BY created_at DESC
       LIMIT 100
-    `).all(agentName, `%${agentName}%`, since) as any[];
+    `).all(workspaceId, agentName, `%${agentName}%`, since) as any[];
   } catch {
     // audit_log table may not exist
   }

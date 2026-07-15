@@ -296,6 +296,7 @@ export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ 
         action: 'local_agent_sync',
         actor: 'scheduler',
         detail: { created, updated, removed, total: diskAgents.length },
+        workspace_id: workspaceId,
       })
     }
     return { ok: true, message: msg }

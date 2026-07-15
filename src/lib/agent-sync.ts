@@ -303,10 +303,11 @@ export async function syncAgentsFromConfig(actor: string = 'system', requestedWo
       action: 'agent_config_sync',
       actor,
       detail: { synced, created, updated, agents: results.filter(a => a.action !== 'unchanged').map(a => a.name) },
+      workspace_id: workspaceId,
     })
 
     // Broadcast sync event
-    eventBus.broadcast('agent.created', { type: 'sync', synced, created, updated })
+    eventBus.broadcast('agent.created', { type: 'sync', synced, created, updated, workspace_id: workspaceId })
   }
 
   logger.info({ synced, created, updated }, 'Agent sync complete')

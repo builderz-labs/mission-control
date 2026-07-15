@@ -48,7 +48,39 @@ vi.mock('@/lib/event-bus', () => ({
 }))
 
 // Import after mocks — the real db_helpers will use our mocked getDatabase
-import { db_helpers } from '@/lib/db'
+import { db_helpers, logAuditEvent } from '@/lib/db'
+
+describe('logAuditEvent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('persists explicit workspace ownership and includes it in security broadcasts', () => {
+    logAuditEvent({
+      action: 'password_change',
+      actor: 'admin',
+      workspace_id: 7,
+    })
+
+    expect(mockRun).toHaveBeenCalledWith(
+      'password_change', 'admin', null, null, null, null, null, null, 7,
+    )
+    expect(mockBroadcast).toHaveBeenCalledWith(
+      'audit.security',
+      expect.objectContaining({ action: 'password_change', workspace_id: 7 }),
+    )
+  })
+
+  it('derives workspace ownership from an authenticated actor', () => {
+    mockGet.mockReturnValueOnce({ workspace_id: 9 })
+
+    logAuditEvent({ action: 'profile_update', actor: 'operator', actor_id: 42 })
+
+    expect(mockRun).toHaveBeenCalledWith(
+      'profile_update', 'operator', 42, null, null, null, null, null, 9,
+    )
+  })
+})
 
 describe('parseMentions', () => {
   it('extracts multiple mentions', () => {

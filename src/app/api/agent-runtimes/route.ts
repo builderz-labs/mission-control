@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       action: 'agent_runtime.install',
       actor: auth.user.username,
       detail: JSON.stringify({ runtime, mode }),
+      workspace_id: auth.user.workspace_id ?? 1,
     })
 
     const job = startInstall(runtime, mode)

@@ -103,14 +103,15 @@ export async function GET(request: NextRequest) {
     } catch { /* table might not exist */ }
   }
 
-  // Search audit log (admin-only — audit_log is instance-global)
+  // Search audit log (admin-only and workspace-scoped)
   if ((!typeFilter || typeFilter === 'audit') && auth.user.role === 'admin') {
     try {
       const audits = db.prepare(`
         SELECT id, action, actor, detail, created_at
-        FROM audit_log WHERE action LIKE ? OR actor LIKE ? OR detail LIKE ?
+        FROM audit_log
+        WHERE workspace_id = ? AND (action LIKE ? OR actor LIKE ? OR detail LIKE ?)
         ORDER BY created_at DESC LIMIT ?
-      `).all(likeQ, likeQ, likeQ, limit) as any[]
+      `).all(workspaceId, likeQ, likeQ, likeQ, limit) as any[]
       for (const a of audits) {
         results.push({
           type: 'audit',
