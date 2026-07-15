@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       const upsertAgent = db.prepare(`
         INSERT INTO agents (name, role, status, last_seen, source, workspace_id, updated_at)
         VALUES (?, ?, 'idle', ?, 'gateway', ?, ?)
-        ON CONFLICT(name) DO UPDATE SET
+        ON CONFLICT(name, workspace_id) DO UPDATE SET
           status = 'idle',
           last_seen = excluded.last_seen,
           source = 'gateway',
