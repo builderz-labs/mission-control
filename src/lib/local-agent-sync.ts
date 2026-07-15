@@ -17,6 +17,7 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { getDatabase, logAuditEvent } from './db'
 import { logger } from './logger'
+import { resolveSharedRuntimeWorkspaceId } from './workspace-isolation'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -222,7 +223,12 @@ function scanLocalAgents(): DiskAgent[] {
 // Sync engine
 // ---------------------------------------------------------------------------
 
-export async function syncLocalAgents(): Promise<{ ok: boolean; message: string }> {
+export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ ok: boolean; message: string }> {
+  const workspaceId = resolveSharedRuntimeWorkspaceId(requestedWorkspaceId)
+  if (workspaceId === null) {
+    return { ok: false, message: 'Local agent sync requires one unambiguous shared workspace' }
+  }
+
   try {
     const db = getDatabase()
     const diskAgents = scanLocalAgents()
@@ -235,8 +241,8 @@ export async function syncLocalAgents(): Promise<{ ok: boolean; message: string 
 
     // Fetch DB agents with source='local'
     const dbRows = db.prepare(
-      `SELECT id, name, role, soul_content, status, source, content_hash, workspace_path, config FROM agents WHERE source = 'local'`
-    ).all() as AgentRow[]
+      `SELECT id, name, role, soul_content, status, source, content_hash, workspace_path, config FROM agents WHERE source = 'local' AND workspace_id = ?`
+    ).all(workspaceId) as AgentRow[]
 
     const dbMap = new Map<string, AgentRow>()
     for (const r of dbRows) {
@@ -248,15 +254,15 @@ export async function syncLocalAgents(): Promise<{ ok: boolean; message: string 
     let removed = 0
 
     const insertStmt = db.prepare(`
-      INSERT INTO agents (name, role, soul_content, status, source, content_hash, workspace_path, config, created_at, updated_at)
-      VALUES (?, ?, ?, 'offline', 'local', ?, ?, ?, ?, ?)
+      INSERT INTO agents (name, role, soul_content, status, source, content_hash, workspace_path, config, created_at, updated_at, workspace_id)
+      VALUES (?, ?, ?, 'offline', 'local', ?, ?, ?, ?, ?, ?)
     `)
     const updateStmt = db.prepare(`
       UPDATE agents SET role = ?, soul_content = ?, content_hash = ?, workspace_path = ?, config = ?, updated_at = ?
-      WHERE id = ?
+      WHERE id = ? AND workspace_id = ?
     `)
     const markRemovedStmt = db.prepare(`
-      UPDATE agents SET status = 'offline', updated_at = ? WHERE id = ?
+      UPDATE agents SET status = 'offline', updated_at = ? WHERE id = ? AND workspace_id = ?
     `)
 
     db.transaction(() => {
@@ -266,10 +272,10 @@ export async function syncLocalAgents(): Promise<{ ok: boolean; message: string 
         const configJson = disk.configContent ? disk.configContent : null
 
         if (!existing) {
-          insertStmt.run(name, disk.role, disk.soulContent, disk.contentHash, disk.dir, configJson, now, now)
+          insertStmt.run(name, disk.role, disk.soulContent, disk.contentHash, disk.dir, configJson, now, now, workspaceId)
           created++
         } else if (existing.content_hash !== disk.contentHash) {
-          updateStmt.run(disk.role, disk.soulContent, disk.contentHash, disk.dir, configJson, now, existing.id)
+          updateStmt.run(disk.role, disk.soulContent, disk.contentHash, disk.dir, configJson, now, existing.id, workspaceId)
           updated++
         }
       }
@@ -277,7 +283,7 @@ export async function syncLocalAgents(): Promise<{ ok: boolean; message: string 
       // Agents that vanished from disk — mark offline but don't delete
       for (const [name, row] of dbMap) {
         if (!diskMap.has(name) && row.status !== 'offline') {
-          markRemovedStmt.run(now, row.id)
+          markRemovedStmt.run(now, row.id, workspaceId)
           removed++
         }
       }

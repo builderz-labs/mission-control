@@ -42,6 +42,32 @@ export function getWorkspaceIsolation(user: User): WorkspaceIsolation | null {
   return readIsolation(user)?.isolation ?? null
 }
 
+/**
+ * Deployment-global runtimes may populate one shared workspace, but they cannot
+ * choose between multiple shared workspaces without ownership metadata.
+ */
+export function resolveSharedRuntimeWorkspaceId(requestedWorkspaceId?: number): number | null {
+  const db = getDatabase()
+  if (requestedWorkspaceId !== undefined) {
+    const row = db.prepare(`
+      SELECT id
+      FROM workspaces
+      WHERE id = ? AND isolation = 'shared'
+      LIMIT 1
+    `).get(requestedWorkspaceId) as { id: number } | undefined
+    return row?.id ?? null
+  }
+
+  const rows = db.prepare(`
+    SELECT id
+    FROM workspaces
+    WHERE isolation = 'shared'
+    ORDER BY id
+    LIMIT 2
+  `).all() as Array<{ id: number }>
+  return rows.length === 1 ? rows[0].id : null
+}
+
 function auditDenial(user: User, resource: UnscopedWorkspaceResource, route: string): void {
   try {
     logAuditEvent({

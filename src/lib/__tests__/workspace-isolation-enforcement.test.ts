@@ -25,6 +25,7 @@ import type { User } from '@/lib/auth'
 import { rebuildIndex, searchMemory } from '@/lib/memory-search'
 import {
   denyUnscopedResourceForStrictWorkspace,
+  resolveSharedRuntimeWorkspaceId,
   resolveWorkspaceMemoryAccess,
 } from '@/lib/workspace-isolation'
 
@@ -98,6 +99,19 @@ describe('workspace isolation policy', () => {
     const denied = denyUnscopedResourceForStrictWorkspace(mismatched, 'session_transcripts', '/api/sessions/transcript')
     expect(denied?.status).toBe(403)
     expect(resolveWorkspaceMemoryAccess(mismatched)).toBeNull()
+  })
+
+  it('resolves only explicit or unambiguous shared runtime ownership', () => {
+    expect(resolveSharedRuntimeWorkspaceId()).toBe(1)
+    expect(resolveSharedRuntimeWorkspaceId(1)).toBe(1)
+    expect(resolveSharedRuntimeWorkspaceId(2)).toBeNull()
+    expect(resolveSharedRuntimeWorkspaceId(999)).toBeNull()
+
+    state.db?.prepare(
+      "INSERT INTO workspaces (id, tenant_id, isolation) VALUES (3, 10, 'shared')",
+    ).run()
+    expect(resolveSharedRuntimeWorkspaceId()).toBeNull()
+    state.db?.prepare('DELETE FROM workspaces WHERE id = 3').run()
   })
 })
 
@@ -253,5 +267,18 @@ describe('direct session API coverage', () => {
     expect(pipelines).toContain("action === 'start' || action === 'advance'")
     expect(pipelines).toContain("'runtime_tasks'")
     expect(agentSync.match(/'runtime_configuration'/g)).toHaveLength(2)
+  })
+
+  it('binds global agent synchronization to shared workspace ownership', () => {
+    const gatewaySync = readFileSync(join(process.cwd(), 'src/lib/agent-sync.ts'), 'utf8')
+    const localSync = readFileSync(join(process.cwd(), 'src/lib/local-agent-sync.ts'), 'utf8')
+    const scheduler = readFileSync(join(process.cwd(), 'src/lib/scheduler.ts'), 'utf8')
+
+    expect(gatewaySync).toContain('resolveSharedRuntimeWorkspaceId(requestedWorkspaceId)')
+    expect(gatewaySync.match(/workspace_id/g)?.length).toBeGreaterThanOrEqual(4)
+    expect(localSync).toContain('resolveSharedRuntimeWorkspaceId(requestedWorkspaceId)')
+    expect(localSync.match(/workspace_id/g)?.length).toBeGreaterThanOrEqual(4)
+    expect(scheduler).toContain('resolveSharedRuntimeWorkspaceId(requestedWorkspaceId)')
+    expect(scheduler).toContain("if (r.error) return { ok: false, message: r.error }")
   })
 })

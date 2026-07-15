@@ -12,6 +12,7 @@ import { syncSkillsFromDisk } from './skill-sync'
 import { syncLocalAgents } from './local-agent-sync'
 import { dispatchAssignedTasks, runAegisReviews, requeueStaleTasks, autoRouteInboxTasks, reconcileDeferredTaskCompletions } from './task-dispatch'
 import { spawnRecurringTasks } from './recurring-tasks'
+import { resolveSharedRuntimeWorkspaceId } from './workspace-isolation'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -230,16 +231,19 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
 }
 
 /** Sync live agent statuses from gateway session files into the DB */
-async function syncAgentLiveStatuses(): Promise<number> {
+async function syncAgentLiveStatuses(requestedWorkspaceId?: number): Promise<number> {
+  const workspaceId = resolveSharedRuntimeWorkspaceId(requestedWorkspaceId)
+  if (workspaceId === null) return 0
+
   const liveStatuses = getAgentLiveStatuses()
   if (liveStatuses.size === 0) return 0
 
   const db = getDatabase()
-  const agents = db.prepare('SELECT id, name, config FROM agents').all() as Array<{
+  const agents = db.prepare('SELECT id, name, config FROM agents WHERE workspace_id = ?').all(workspaceId) as Array<{
     id: number; name: string; config: string | null
   }>
 
-  const update = db.prepare('UPDATE agents SET status = ?, last_seen = ?, last_activity = ?, updated_at = ? WHERE id = ?')
+  const update = db.prepare('UPDATE agents SET status = ?, last_seen = ?, last_activity = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
   let refreshed = 0
 
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')
@@ -271,7 +275,7 @@ async function syncAgentLiveStatuses(): Promise<number> {
 
       const now = Math.floor(Date.now() / 1000)
       const activity = `Gateway session (${matched.channel || 'unknown'})`
-      update.run(matched.status, now, activity, now, agent.id)
+      update.run(matched.status, now, activity, now, agent.id, workspaceId)
       refreshed++
 
       eventBus.broadcast('agent.status_changed', {
@@ -296,9 +300,13 @@ export function initScheduler() {
   if (tickInterval) return // Already running
 
   // Auto-sync agents from openclaw.json on startup
-  syncAgentsFromConfig('startup').catch(err => {
-    logger.warn({ err }, 'Agent auto-sync failed')
-  })
+  syncAgentsFromConfig('startup')
+    .then(result => {
+      if (result.error) logger.warn({ reason: result.error }, 'Agent auto-sync skipped')
+    })
+    .catch(err => {
+      logger.warn({ err }, 'Agent auto-sync failed')
+    })
 
   // Register tasks
   const now = Date.now()
@@ -462,6 +470,7 @@ async function tick() {
         : id === 'skill_sync' ? await syncSkillsFromDisk()
         : id === 'local_agent_sync' ? await syncLocalAgents()
         : id === 'gateway_agent_sync' ? await syncAgentsFromConfig('scheduled').then(async r => {
+            if (r.error) return { ok: false, message: r.error }
             const refreshed = await syncAgentLiveStatuses()
             return { ok: true, message: `Gateway sync: ${r.created} created, ${r.updated} updated, ${r.synced} total | Live status: ${refreshed} refreshed` }
           })
@@ -527,15 +536,15 @@ export function getSchedulerStatus() {
 }
 
 /** Manually trigger a scheduled task */
-export async function triggerTask(taskId: string): Promise<{ ok: boolean; message: string }> {
+export async function triggerTask(taskId: string, workspaceId?: number): Promise<{ ok: boolean; message: string }> {
   if (taskId === 'auto_backup') return runBackup()
   if (taskId === 'auto_cleanup') return runCleanup()
   if (taskId === 'agent_heartbeat') return runHeartbeatCheck()
   if (taskId === 'webhook_retry') return processWebhookRetries()
   if (taskId === 'claude_session_scan') return syncClaudeSessions()
   if (taskId === 'skill_sync') return syncSkillsFromDisk()
-  if (taskId === 'local_agent_sync') return syncLocalAgents()
-  if (taskId === 'gateway_agent_sync') return syncAgentsFromConfig('manual').then(r => ({ ok: true, message: `Gateway sync: ${r.created} created, ${r.updated} updated, ${r.synced} total` }))
+  if (taskId === 'local_agent_sync') return syncLocalAgents(workspaceId)
+  if (taskId === 'gateway_agent_sync') return syncAgentsFromConfig('manual', workspaceId).then(r => ({ ok: !r.error, message: r.error || `Gateway sync: ${r.created} created, ${r.updated} updated, ${r.synced} total` }))
   if (taskId === 'task_dispatch') return autoRouteInboxTasks().then(async (r) => { const c = await reconcileDeferredTaskCompletions(); const d = await dispatchAssignedTasks(); return { ok: r.ok && c.ok && d.ok, message: [c.message, r.message, d.message].filter(m => m && !m.includes('No ') && !m.includes('none completed')).join(' | ') || 'No tasks' } })
   if (taskId === 'aegis_review') return runAegisReviews()
   if (taskId === 'recurring_task_spawn') return spawnRecurringTasks()

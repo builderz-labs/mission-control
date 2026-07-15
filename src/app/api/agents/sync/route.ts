@@ -21,11 +21,11 @@ export async function POST(request: NextRequest) {
 
   try {
     if (source === 'local') {
-      const result = await syncLocalAgents()
+      const result = await syncLocalAgents(auth.user.workspace_id)
       return NextResponse.json(result)
     }
 
-    const result = await syncAgentsFromConfig(auth.user.username)
+    const result = await syncAgentsFromConfig(auth.user.username, auth.user.workspace_id)
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 500 })
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   if (isolationDeny) return isolationDeny
 
   try {
-    const diff = await previewSyncDiff()
+    const diff = await previewSyncDiff(auth.user.workspace_id)
     return NextResponse.json(diff)
   } catch (error: any) {
     logger.error({ err: error }, 'GET /api/agents/sync error')
