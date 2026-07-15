@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface GatewayStatus {
   type: string
@@ -16,6 +17,21 @@ interface GatewayStatus {
   error?: string
 }
 
+interface GatewayActionResponse {
+  success?: boolean
+  output?: string
+  error?: string
+}
+
+function getApiErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null
+  const payload = error.payload
+  if (!payload || typeof payload !== 'object' || !('error' in payload)) return null
+  return typeof (payload as { error?: unknown }).error === 'string'
+    ? (payload as { error: string }).error
+    : null
+}
+
 export function GatewayControlPanel() {
   const t = useTranslations('gatewayControl')
   const [gateways, setGateways] = useState<GatewayStatus[]>([])
@@ -25,11 +41,8 @@ export function GatewayControlPanel() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/gateways/control')
-      if (res.ok) {
-        const data = await res.json()
-        setGateways(data.gateways || [])
-      }
+      const data = await apiFetch<{ gateways?: GatewayStatus[] }>('/api/gateways/control')
+      setGateways(data.gateways || [])
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }, [])
@@ -41,17 +54,15 @@ export function GatewayControlPanel() {
     setActionInProgress(key)
     setOutput(null)
     try {
-      const res = await fetch('/api/gateways/control', {
+      const data = await apiFetch<GatewayActionResponse>('/api/gateways/control', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gateway, action }),
       })
-      const data = await res.json()
       setOutput({ gateway, text: data.output || data.error || 'Done', ok: data.success !== false })
       // Refresh status after action
       await fetchStatus()
-    } catch (err) {
-      setOutput({ gateway, text: 'Action failed', ok: false })
+    } catch (error) {
+      setOutput({ gateway, text: getApiErrorMessage(error) || 'Action failed', ok: false })
     } finally {
       setActionInProgress(null)
     }
