@@ -1,13 +1,41 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createRateLimiter } from '@/lib/rate-limit'
+import { createKeyedRateLimiter, createRateLimiter } from '@/lib/rate-limit'
 
 describe('createRateLimiter', () => {
+  const originalDisableRateLimit = process.env.MC_DISABLE_RATE_LIMIT
+  const originalTestMode = process.env.MISSION_CONTROL_TEST_MODE
+
   beforeEach(() => {
     vi.useFakeTimers()
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    if (originalDisableRateLimit === undefined) delete process.env.MC_DISABLE_RATE_LIMIT
+    else process.env.MC_DISABLE_RATE_LIMIT = originalDisableRateLimit
+    if (originalTestMode === undefined) delete process.env.MISSION_CONTROL_TEST_MODE
+    else process.env.MISSION_CONTROL_TEST_MODE = originalTestMode
+  })
+
+  it('tracks authenticated identities independently with a keyed limiter', () => {
+    const limiter = createKeyedRateLimiter({ windowMs: 60_000, maxRequests: 1 })
+
+    expect(limiter('workspace-1:user-1')).toBeNull()
+    expect(limiter('workspace-1:user-2')).toBeNull()
+    expect(limiter('workspace-1:user-1')?.status).toBe(429)
+  })
+
+  it('does not bypass a critical keyed limiter in test mode', () => {
+    process.env.MC_DISABLE_RATE_LIMIT = '1'
+    process.env.MISSION_CONTROL_TEST_MODE = '1'
+    const limiter = createKeyedRateLimiter({
+      windowMs: 60_000,
+      maxRequests: 1,
+      critical: true,
+    })
+
+    expect(limiter('workspace-1:user-1')).toBeNull()
+    expect(limiter('workspace-1:user-1')?.status).toBe(429)
   })
 
   function makeRequest(ip: string = '127.0.0.1'): Request {

@@ -3,7 +3,27 @@ import { createHash } from 'node:crypto'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
+import { execApprovalLimiter } from '@/lib/rate-limit'
 import path from 'node:path'
+import { z } from 'zod'
+
+const allowlistPatternSchema = z.object({
+  pattern: z.string().max(4096),
+}).strict()
+
+const allowlistUpdateSchema = z.object({
+  agents: z.record(
+    z.string().min(1).max(256),
+    z.array(allowlistPatternSchema).max(500),
+  ).refine((agents) => Object.keys(agents).length <= 500),
+  hash: z.union([z.literal(''), z.string().regex(/^[a-f0-9]{64}$/i)]).optional(),
+}).strict()
+
+const approvalResponseSchema = z.object({
+  id: z.string().trim().min(1).max(512),
+  action: z.enum(['approve', 'deny', 'always_allow']),
+  reason: z.string().trim().max(2000).optional(),
+}).strict()
 
 function gatewayUrl(p: string): string {
   return `http://${config.gatewayHost}:${config.gatewayPort}${p}`
@@ -94,16 +114,14 @@ export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  let body: { agents: Record<string, { pattern: string }[]>; hash?: string }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
+  const rateCheck = execApprovalLimiter(`${auth.user.workspace_id}:${auth.user.id}`)
+  if (rateCheck) return rateCheck
 
-  if (!body.agents || typeof body.agents !== 'object') {
-    return NextResponse.json({ error: 'Missing required field: agents' }, { status: 400 })
+  const parsed = allowlistUpdateSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid execution allowlist request' }, { status: 400 })
   }
+  const body = parsed.data
 
   const filePath = execApprovalsPath()
   try {
@@ -164,21 +182,14 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  let body: { id: string; action: string; reason?: string }
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
+  const rateCheck = execApprovalLimiter(`${auth.user.workspace_id}:${auth.user.id}`)
+  if (rateCheck) return rateCheck
 
-  if (!body.id || typeof body.id !== 'string') {
-    return NextResponse.json({ error: 'Missing required field: id' }, { status: 400 })
+  const parsed = approvalResponseSchema.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid execution approval response' }, { status: 400 })
   }
-
-  const validActions = ['approve', 'deny', 'always_allow']
-  if (!validActions.includes(body.action)) {
-    return NextResponse.json({ error: `Invalid action. Must be one of: ${validActions.join(', ')}` }, { status: 400 })
-  }
+  const body = parsed.data
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 5000)

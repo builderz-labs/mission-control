@@ -233,6 +233,14 @@ export const passwordChangeLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** Execution approvals and persistent allowlist edits: 30/min per operator. */
+export const execApprovalLimiter = createKeyedRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 30,
+  message: 'Too many execution approval changes. Try again in a minute.',
+  critical: true,
+})
+
 /** Self-registration: 5/min per IP (prevent spam registrations) */
 export const selfRegisterLimiter = createRateLimiter({
   windowMs: 60_000,

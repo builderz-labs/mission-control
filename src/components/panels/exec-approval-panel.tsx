@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useMissionControl, type ExecApprovalRequest } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
 import { matchesGlobPattern } from '@/lib/exec-approval-utils'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 type FilterTab = 'all' | 'pending' | 'resolved'
 type PanelView = 'approvals' | 'allowlist'
@@ -42,6 +43,8 @@ export function ExecApprovalPanel() {
   const { sendMessage } = useWebSocket()
   const [filter, setFilter] = useState<FilterTab>('pending')
   const [view, setView] = useState<PanelView>('approvals')
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const pendingCount = execApprovals.filter(a => a.status === 'pending').length
 
@@ -62,7 +65,11 @@ export function ExecApprovalPanel() {
     })
   }, [execApprovals, filter, now])
 
-  const handleAction = (id: string, decision: 'allow-once' | 'allow-always' | 'deny') => {
+  const handleAction = async (id: string, decision: 'allow-once' | 'allow-always' | 'deny') => {
+    if (resolvingId) return
+    setResolvingId(id)
+    setActionError(null)
+
     const sent = sendMessage({
       type: 'req',
       method: 'exec.approval.resolve',
@@ -72,15 +79,29 @@ export function ExecApprovalPanel() {
 
     if (!sent) {
       const action = decision === 'deny' ? 'deny' : decision === 'allow-always' ? 'always_allow' : 'approve'
-      fetch('/api/exec-approvals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action }),
-      }).catch(() => {})
+      try {
+        const res = await apiFetch<Response>('/api/exec-approvals', {
+          method: 'POST',
+          body: JSON.stringify({ id, action }),
+          raw: true,
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || 'Failed to send decision')
+        }
+      } catch (error) {
+        const payload = error instanceof ApiError ? error.payload : null
+        const detail = payload && typeof payload === 'object' && 'error' in payload
+          && typeof payload.error === 'string' ? payload.error : null
+        setActionError(detail || (error instanceof Error ? error.message : 'Failed to send decision'))
+        setResolvingId(null)
+        return
+      }
     }
 
     const newStatus = decision === 'deny' ? 'denied' : 'approved'
     updateExecApproval(id, { status: newStatus as ExecApprovalRequest['status'] })
+    setResolvingId(null)
   }
 
   return (
@@ -124,6 +145,12 @@ export function ExecApprovalPanel() {
         </button>
       </div>
 
+      {actionError && (
+        <div role="alert" className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+          {actionError}
+        </div>
+      )}
+
       {view === 'approvals' ? (
         <>
           {/* Filter tabs */}
@@ -157,6 +184,7 @@ export function ExecApprovalPanel() {
                   key={approval.id}
                   approval={approval}
                   onAction={handleAction}
+                  busy={resolvingId === approval.id}
                 />
               ))}
             </div>
@@ -185,7 +213,7 @@ function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/exec-approvals?action=allowlist')
+      const res = await apiFetch<Response>('/api/exec-approvals?action=allowlist', { raw: true })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || `HTTP ${res.status}`)
@@ -207,10 +235,10 @@ function AllowlistEditor({ execApprovals }: { execApprovals: ExecApprovalRequest
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch('/api/exec-approvals', {
+      const res = await apiFetch<Response>('/api/exec-approvals', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agents, hash }),
+        raw: true,
       })
       const data = await res.json()
       if (!res.ok) {
@@ -438,9 +466,11 @@ function AgentAllowlistCard({
 function ApprovalCard({
   approval,
   onAction,
+  busy,
 }: {
   approval: ExecApprovalRequest
-  onAction: (id: string, decision: 'allow-once' | 'allow-always' | 'deny') => void
+  onAction: (id: string, decision: 'allow-once' | 'allow-always' | 'deny') => Promise<void>
+  busy: boolean
 }) {
   const t = useTranslations('execApproval')
   const riskBorder = RISK_BORDER[approval.risk]
@@ -500,6 +530,7 @@ function ApprovalCard({
             <Button
               size="sm"
               className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={busy}
               onClick={() => onAction(approval.id, 'allow-once')}
             >
               {t('allowOnce')}
@@ -507,6 +538,7 @@ function ApprovalCard({
             <Button
               variant="outline"
               size="sm"
+              disabled={busy}
               onClick={() => onAction(approval.id, 'allow-always')}
             >
               {t('alwaysAllow')}
@@ -514,6 +546,7 @@ function ApprovalCard({
             <Button
               size="sm"
               className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={busy}
               onClick={() => onAction(approval.id, 'deny')}
             >
               {t('deny')}

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { useMissionControl, type ExecApprovalRequest } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 const RISK_BORDER: Record<ExecApprovalRequest['risk'], string> = {
   low: 'border-l-green-500',
@@ -48,13 +49,14 @@ export function ExecApprovalOverlay() {
 
   const pending = execApprovals.filter(a => a.status === 'pending')
   const active = pending[0]
+  const activeId = active?.id
 
   // Tick every second to update expiry countdown
   useEffect(() => {
-    if (!active) return
+    if (!activeId) return
     const interval = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(interval)
-  }, [active?.id])
+  }, [activeId])
 
   // Auto-expire client-side
   useEffect(() => {
@@ -81,10 +83,10 @@ export function ExecApprovalOverlay() {
       // Fallback to HTTP
       try {
         const action = decision === 'deny' ? 'deny' : decision === 'allow-always' ? 'always_allow' : 'approve'
-        const res = await fetch('/api/exec-approvals', {
+        const res = await apiFetch<Response>('/api/exec-approvals', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: active.id, action }),
+          raw: true,
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -92,8 +94,15 @@ export function ExecApprovalOverlay() {
           setBusy(false)
           return
         }
-      } catch {
-        setError('Failed to reach gateway')
+      } catch (requestError) {
+        if (requestError instanceof ApiError && requestError.code !== 'NETWORK_ERROR') {
+          const payload = requestError.payload
+          const detail = payload && typeof payload === 'object' && 'error' in payload
+            && typeof payload.error === 'string' ? payload.error : null
+          setError(detail || requestError.message || 'Failed to send decision')
+        } else {
+          setError('Failed to reach gateway')
+        }
         setBusy(false)
         return
       }
