@@ -353,7 +353,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Broadcast to SSE clients
-    eventBus.broadcast('task.created', parsedTask);
+    eventBus.broadcast('task.created', { ...parsedTask, workspace_id: workspaceId });
 
     return NextResponse.json({ task: parsedTask }, { status: 201 });
   } catch (error) {
@@ -431,6 +431,7 @@ export async function PUT(request: NextRequest) {
     // Broadcast status changes to SSE clients + outbound sync
     for (const task of tasks) {
       eventBus.broadcast('task.status_changed', {
+        workspace_id: workspaceId,
         id: task.id,
         status: task.status,
         updated_at: Math.floor(Date.now() / 1000),

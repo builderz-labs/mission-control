@@ -280,6 +280,7 @@ async function syncAgentLiveStatuses(requestedWorkspaceId?: number): Promise<num
       refreshed++
 
       eventBus.broadcast('agent.status_changed', {
+        workspace_id: workspaceId,
         id: agent.id,
         name: agent.name,
         status: matched.status,

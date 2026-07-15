@@ -34,17 +34,21 @@ vi.mock('../adapter', async (importOriginal) => {
 
 // ─── Test Data ───────────────────────────────────────────────────────────────
 
+const TEST_WORKSPACE_ID = 42
+
 const testAgent: AgentRegistration = {
   agentId: 'test-agent-001',
   name: 'Test Agent',
   framework: 'test-framework',
   metadata: { version: '1.0', runtime: 'node' },
+  workspaceId: TEST_WORKSPACE_ID,
 }
 
 const testHeartbeat: HeartbeatPayload = {
   agentId: 'test-agent-001',
   status: 'busy',
   metrics: { cpu: 42, memory: 1024, tasksCompleted: 5 },
+  workspaceId: TEST_WORKSPACE_ID,
 }
 
 const testReport: TaskReport = {
@@ -53,6 +57,7 @@ const testReport: TaskReport = {
   progress: 75,
   status: 'in_progress',
   output: { summary: 'Processing step 3 of 4' },
+  workspaceId: TEST_WORKSPACE_ID,
 }
 
 // ─── Shared Compliance Tests ─────────────────────────────────────────────────
@@ -111,8 +116,8 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
         adapter.register(testAgent),
         adapter.heartbeat(testHeartbeat),
         adapter.reportTask(testReport),
-        adapter.getAssignments('any-id'),
-        adapter.disconnect('any-id'),
+        adapter.getAssignments('any-id', TEST_WORKSPACE_ID),
+        adapter.disconnect('any-id', TEST_WORKSPACE_ID),
       ]
 
       // All should be thenables
@@ -163,6 +168,7 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
         agentId: 'minimal-agent',
         name: 'Minimal',
         framework,
+        workspaceId: TEST_WORKSPACE_ID,
       })
 
       expect(mockBroadcast).toHaveBeenCalledWith(
@@ -202,6 +208,7 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
       await adapter.heartbeat({
         agentId: 'test-agent-001',
         status: 'idle',
+        workspaceId: TEST_WORKSPACE_ID,
       })
 
       expect(mockBroadcast).toHaveBeenCalledWith(
@@ -243,6 +250,7 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
         agentId: 'test-agent-001',
         progress: 100,
         status: 'completed',
+        workspaceId: TEST_WORKSPACE_ID,
       })
 
       expect(mockBroadcast).toHaveBeenCalledWith(
@@ -264,16 +272,16 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
       ]
       mockQuery.mockResolvedValue(mockAssignments)
 
-      const result = await adapter.getAssignments('test-agent-001')
+      const result = await adapter.getAssignments('test-agent-001', TEST_WORKSPACE_ID)
 
-      expect(mockQuery).toHaveBeenCalledWith('test-agent-001')
+      expect(mockQuery).toHaveBeenCalledWith('test-agent-001', TEST_WORKSPACE_ID)
       expect(result).toEqual(mockAssignments)
     })
 
     it('returns empty array when no assignments', async () => {
       mockQuery.mockResolvedValue([])
 
-      const result = await adapter.getAssignments('idle-agent')
+      const result = await adapter.getAssignments('idle-agent', TEST_WORKSPACE_ID)
 
       expect(result).toEqual([])
     })
@@ -281,7 +289,7 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
     it('does not broadcast events', async () => {
       mockQuery.mockResolvedValue([])
 
-      await adapter.getAssignments('test-agent-001')
+      await adapter.getAssignments('test-agent-001', TEST_WORKSPACE_ID)
 
       expect(mockBroadcast).not.toHaveBeenCalled()
     })
@@ -289,7 +297,7 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
 
   describe('disconnect()', () => {
     it('broadcasts agent.status_changed with offline status', async () => {
-      await adapter.disconnect('test-agent-001')
+      await adapter.disconnect('test-agent-001', TEST_WORKSPACE_ID)
 
       expect(mockBroadcast).toHaveBeenCalledTimes(1)
       expect(mockBroadcast).toHaveBeenCalledWith(
@@ -302,7 +310,7 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
     })
 
     it('tags disconnect event with framework', async () => {
-      await adapter.disconnect('test-agent-001')
+      await adapter.disconnect('test-agent-001', TEST_WORKSPACE_ID)
 
       const payload = mockBroadcast.mock.calls[0][1]
       expect(payload.framework).toBe(framework)
@@ -318,7 +326,7 @@ describe.each(ALL_FRAMEWORKS)('FrameworkAdapter compliance: %s', (framework) => 
       await adapter.register(testAgent)
       await adapter.heartbeat(testHeartbeat)
       await adapter.reportTask(testReport)
-      await adapter.disconnect('test-agent-001')
+      await adapter.disconnect('test-agent-001', TEST_WORKSPACE_ID)
 
       // All 4 event-emitting calls should tag with framework
       for (const call of mockBroadcast.mock.calls) {
@@ -348,7 +356,7 @@ describe('Cross-adapter consistency', () => {
       await adapter.register(testAgent)
       await adapter.heartbeat(testHeartbeat)
       await adapter.reportTask(testReport)
-      await adapter.disconnect('test-agent-001')
+      await adapter.disconnect('test-agent-001', TEST_WORKSPACE_ID)
 
       eventsByFramework[fw] = mockBroadcast.mock.calls.map(c => c[0])
     }
@@ -366,7 +374,7 @@ describe('Cross-adapter consistency', () => {
 
     for (const fw of ALL_FRAMEWORKS) {
       const adapter = getAdapter(fw)
-      const result = await adapter.getAssignments('shared-agent')
+      const result = await adapter.getAssignments('shared-agent', TEST_WORKSPACE_ID)
       expect(result).toEqual(mockAssignments)
     }
   })
@@ -385,6 +393,7 @@ describe('GenericAdapter special behavior', () => {
       agentId: 'custom-agent',
       name: 'Custom Framework Agent',
       framework: 'my-custom-framework',
+      workspaceId: TEST_WORKSPACE_ID,
     })
 
     const payload = mockBroadcast.mock.calls[0][1]
@@ -397,6 +406,7 @@ describe('GenericAdapter special behavior', () => {
       agentId: 'unknown-agent',
       name: 'Unknown Agent',
       framework: '',
+      workspaceId: TEST_WORKSPACE_ID,
     })
 
     const payload = mockBroadcast.mock.calls[0][1]

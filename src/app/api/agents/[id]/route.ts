@@ -191,6 +191,7 @@ export async function PUT(
 
     // Broadcast update
     eventBus.broadcast('agent.updated', {
+      workspace_id: workspaceId,
       id: agent.id,
       name: agent.name,
       config: newConfig,
@@ -286,7 +287,7 @@ export async function DELETE(
       workspaceId
     )
 
-    eventBus.broadcast('agent.deleted', { id: agent.id, name: agent.name })
+    eventBus.broadcast('agent.deleted', { id: agent.id, name: agent.name, workspace_id: workspaceId })
 
     return NextResponse.json({
       success: true,

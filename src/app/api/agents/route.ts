@@ -327,7 +327,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Broadcast to SSE clients
-    eventBus.broadcast('agent.created', parsedAgent);
+    eventBus.broadcast('agent.created', { ...parsedAgent, workspace_id: workspaceId });
 
     // Write to gateway config if requested
     if (write_to_gateway && finalConfig) {
@@ -470,6 +470,7 @@ export async function PUT(request: NextRequest) {
 
       // Broadcast update to SSE clients
       eventBus.broadcast('agent.updated', {
+        workspace_id: workspaceId,
         id: agent.id,
         name,
         ...(status !== undefined && { status }),

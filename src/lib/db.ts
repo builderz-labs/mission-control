@@ -212,6 +212,7 @@ export interface Task {
   completed_at?: number;
   tags?: string; // JSON string
   metadata?: string; // JSON string
+  workspace_id: number;
 }
 
 export interface Agent {
@@ -448,6 +449,7 @@ export const db_helpers = {
     // Broadcast agent status change to SSE clients
     if (agent) {
       eventBus.broadcast('agent.status_changed', {
+        workspace_id: workspaceId,
         id: agent.id,
         name: agentName,
         status,

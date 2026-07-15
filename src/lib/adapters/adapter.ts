@@ -1,19 +1,20 @@
 import { getDatabase } from '@/lib/db'
 
-export function queryPendingAssignments(agentId: string): Assignment[] {
+export function queryPendingAssignments(agentId: string, workspaceId: number): Assignment[] {
   try {
     const db = getDatabase()
     const rows = db.prepare(`
       SELECT id, title, description, priority
       FROM tasks
       WHERE (assigned_to = ? OR assigned_to IS NULL)
+        AND workspace_id = ?
         AND status IN ('assigned', 'inbox')
       ORDER BY
         CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC,
         due_date ASC,
         created_at ASC
       LIMIT 5
-    `).all(agentId) as Array<{ id: number; title: string; description: string | null; priority: string }>
+    `).all(agentId, workspaceId) as Array<{ id: number; title: string; description: string | null; priority: string }>
 
     return rows.map(row => ({
       taskId: String(row.id),
@@ -30,12 +31,14 @@ export interface AgentRegistration {
   name: string
   framework: string
   metadata?: Record<string, unknown>
+  workspaceId: number
 }
 
 export interface HeartbeatPayload {
   agentId: string
   status: string
   metrics?: Record<string, unknown>
+  workspaceId: number
 }
 
 export interface TaskReport {
@@ -44,6 +47,7 @@ export interface TaskReport {
   progress: number
   status: string
   output?: unknown
+  workspaceId: number
 }
 
 export interface Assignment {
@@ -58,6 +62,6 @@ export interface FrameworkAdapter {
   register(agent: AgentRegistration): Promise<void>
   heartbeat(payload: HeartbeatPayload): Promise<void>
   reportTask(report: TaskReport): Promise<void>
-  getAssignments(agentId: string): Promise<Assignment[]>
-  disconnect(agentId: string): Promise<void>
+  getAssignments(agentId: string, workspaceId: number): Promise<Assignment[]>
+  disconnect(agentId: string, workspaceId: number): Promise<void>
 }

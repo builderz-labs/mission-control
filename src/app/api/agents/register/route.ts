@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       ip_address: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
     })
 
-    eventBus.broadcast('agent.created', { id: agentId, name, role, status: 'idle' })
+    eventBus.broadcast('agent.created', { id: agentId, name, role, status: 'idle', workspace_id: workspaceId })
 
     return NextResponse.json({
       agent: {

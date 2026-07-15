@@ -35,6 +35,7 @@ async function simulateAdapterAction(
   action: string,
   payload: Record<string, unknown>
 ): Promise<{ ok?: boolean; assignments?: unknown[]; error?: string }> {
+  const workspaceId = 7
   let adapter
   try {
     adapter = getAdapter(framework)
@@ -51,6 +52,7 @@ async function simulateAdapterAction(
         name: name as string,
         framework,
         metadata: metadata as Record<string, unknown>,
+        workspaceId,
       })
       return { ok: true }
     }
@@ -61,6 +63,7 @@ async function simulateAdapterAction(
         agentId: agentId as string,
         status: (status as string) || 'online',
         metrics: metrics as Record<string, unknown>,
+        workspaceId,
       })
       return { ok: true }
     }
@@ -73,19 +76,20 @@ async function simulateAdapterAction(
         progress: (progress as number) ?? 0,
         status: (status as string) || 'in_progress',
         output,
+        workspaceId,
       })
       return { ok: true }
     }
     case 'assignments': {
       const { agentId } = payload
       if (!agentId) return { error: 'payload.agentId required' }
-      const assignments = await adapter.getAssignments(agentId as string)
+      const assignments = await adapter.getAssignments(agentId as string, workspaceId)
       return { assignments }
     }
     case 'disconnect': {
       const { agentId } = payload
       if (!agentId) return { error: 'payload.agentId required' }
-      await adapter.disconnect(agentId as string)
+      await adapter.disconnect(agentId as string, workspaceId)
       return { ok: true }
     }
     default:

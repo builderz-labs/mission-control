@@ -590,6 +590,7 @@ export async function reconcileDeferredTaskCompletions(options: {
       id: task.id,
       status: 'review',
       previous_status: 'in_progress',
+      workspace_id: task.workspace_id,
     })
     eventBus.broadcast('task.updated', {
       id: task.id,
@@ -598,6 +599,7 @@ export async function reconcileDeferredTaskCompletions(options: {
       assigned_to: task.assigned_to,
       dispatch_session_id: nextMetadata.dispatch_session_id,
       dispatch_run_id: nextMetadata.dispatch_run_id,
+      workspace_id: task.workspace_id,
     })
 
     db_helpers.logActivity(
@@ -1245,6 +1247,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       id: task.id,
       status: 'quality_review',
       previous_status: 'review',
+      workspace_id: task.workspace_id,
     })
 
     try {
@@ -1304,6 +1307,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
           id: task.id,
           status: 'done',
           previous_status: 'quality_review',
+          workspace_id: task.workspace_id,
         })
         syncAndEscalateIfFailed(task, 'done')
       } else {
@@ -1324,6 +1328,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
             previous_status: 'quality_review',
             error_message: `Aegis rejected ${newAttempts} times`,
             reason: 'max_aegis_retries_exceeded',
+            workspace_id: task.workspace_id,
           })
           syncAndEscalateIfFailed(task, 'failed', `Aegis rejected ${newAttempts} times`, newAttempts)
         } else {
@@ -1337,6 +1342,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
             previous_status: 'quality_review',
             error_message: `Aegis rejected: ${verdict.notes}`,
             reason: 'aegis_rejection',
+            workspace_id: task.workspace_id,
           })
           syncAndEscalateIfFailed(task, 'assigned')
         }
@@ -1372,6 +1378,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
         id: task.id,
         status: 'review',
         previous_status: 'quality_review',
+        workspace_id: task.workspace_id,
       })
 
       results.push({ id: task.id, verdict: 'error', error: errorMsg.substring(0, 100) })
@@ -1442,6 +1449,7 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
         previous_status: 'in_progress',
         error_message: `Stale task — agent offline after ${newAttempts} attempts`,
         reason: 'stale_task_max_retries',
+        workspace_id: task.workspace_id,
       })
 
       syncAndEscalateIfFailed(task as any, 'failed', `Task stuck in_progress ${newAttempts} times`, newAttempts)
@@ -1462,6 +1470,7 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
         previous_status: 'in_progress',
         error_message: `Agent "${task.assigned_to}" went offline`,
         reason: 'stale_task_requeue',
+        workspace_id: task.workspace_id,
       })
       syncAndEscalateIfFailed(task as any, 'assigned')
 
@@ -1530,6 +1539,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       id: task.id,
       status: 'in_progress',
       previous_status: 'assigned',
+      workspace_id: task.workspace_id,
     })
 
     db_helpers.logActivity(
@@ -1616,6 +1626,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           dispatch_session_id: targetSession,
           dispatch_run_id: pendingMeta.dispatch_run_id,
           async_state: asyncState,
+          workspace_id: task.workspace_id,
         })
 
         db_helpers.logActivity(
@@ -1685,6 +1696,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           dispatch_session_id: dispatchSessionId,
           dispatch_run_id: pendingMeta.dispatch_run_id,
           async_state: asyncState,
+          workspace_id: task.workspace_id,
         })
 
         db_helpers.logActivity(
@@ -1743,6 +1755,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         id: task.id,
         status: 'review',
         previous_status: 'in_progress',
+        workspace_id: task.workspace_id,
       })
 
       eventBus.broadcast('task.updated', {
@@ -1751,6 +1764,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         outcome: 'success',
         assigned_to: task.assigned_to,
         dispatch_session_id: agentResponse.sessionId,
+        workspace_id: task.workspace_id,
       })
       syncAndEscalateIfFailed(task, 'review')
 
@@ -1787,6 +1801,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           previous_status: 'in_progress',
           error_message: failureMessage,
           reason: 'max_dispatch_retries_exceeded',
+          workspace_id: task.workspace_id,
         })
         syncAndEscalateIfFailed(task, 'failed', `Dispatch failed ${newAttempts} times`, newAttempts)
       } else {
@@ -1800,6 +1815,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
           previous_status: 'in_progress',
           error_message: errorMsg.substring(0, 500),
           reason: 'dispatch_failed',
+          workspace_id: task.workspace_id,
         })
         syncAndEscalateIfFailed(task, 'assigned')
       }
@@ -1956,7 +1972,7 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
         { agent: alt.agent.name, role: alt.agent.role, score: alt.score },
         task.workspace_id)
 
-      eventBus.broadcast('task.status_changed', { id: task.id, status: 'assigned', previous_status: 'inbox', assigned_to: alt.agent.name })
+      eventBus.broadcast('task.status_changed', { id: task.id, status: 'assigned', previous_status: 'inbox', assigned_to: alt.agent.name, workspace_id: task.workspace_id })
       syncAndEscalateIfFailed(task as any, 'assigned')
       routed++
       continue
@@ -1970,7 +1986,7 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
       { agent: best.name, role: best.role, score: scored[0].score },
       task.workspace_id)
 
-    eventBus.broadcast('task.status_changed', { id: task.id, status: 'assigned', previous_status: 'inbox', assigned_to: best.name })
+    eventBus.broadcast('task.status_changed', { id: task.id, status: 'assigned', previous_status: 'inbox', assigned_to: best.name, workspace_id: task.workspace_id })
     syncAndEscalateIfFailed(task as any, 'assigned')
     routed++
   }

@@ -170,6 +170,7 @@ export async function POST(
       )
 
       eventBus.broadcast('task.updated', {
+        workspace_id: workspaceId,
         id: taskId,
         github_pr_number: pr.number,
         github_pr_state: 'open',
@@ -225,6 +226,7 @@ export async function POST(
     )
 
     eventBus.broadcast('task.updated', {
+      workspace_id: workspaceId,
       id: taskId,
       github_branch: branchName,
     })

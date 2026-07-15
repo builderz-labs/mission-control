@@ -7,6 +7,7 @@ export class GenericAdapter implements FrameworkAdapter {
 
   async register(agent: AgentRegistration): Promise<void> {
     eventBus.broadcast('agent.created', {
+      workspace_id: agent.workspaceId,
       id: agent.agentId,
       name: agent.name,
       framework: agent.framework || this.framework,
@@ -17,6 +18,7 @@ export class GenericAdapter implements FrameworkAdapter {
 
   async heartbeat(payload: HeartbeatPayload): Promise<void> {
     eventBus.broadcast('agent.status_changed', {
+      workspace_id: payload.workspaceId,
       id: payload.agentId,
       status: payload.status,
       metrics: payload.metrics ?? {},
@@ -26,6 +28,7 @@ export class GenericAdapter implements FrameworkAdapter {
 
   async reportTask(report: TaskReport): Promise<void> {
     eventBus.broadcast('task.updated', {
+      workspace_id: report.workspaceId,
       id: report.taskId,
       agentId: report.agentId,
       progress: report.progress,
@@ -35,12 +38,13 @@ export class GenericAdapter implements FrameworkAdapter {
     })
   }
 
-  async getAssignments(agentId: string): Promise<Assignment[]> {
-    return queryPendingAssignments(agentId)
+  async getAssignments(agentId: string, workspaceId: number): Promise<Assignment[]> {
+    return queryPendingAssignments(agentId, workspaceId)
   }
 
-  async disconnect(agentId: string): Promise<void> {
+  async disconnect(agentId: string, workspaceId: number): Promise<void> {
     eventBus.broadcast('agent.status_changed', {
+      workspace_id: workspaceId,
       id: agentId,
       status: 'offline',
       framework: this.framework,

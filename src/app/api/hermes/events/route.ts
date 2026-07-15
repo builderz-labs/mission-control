@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Broadcast to SSE clients
     eventBus.broadcast('session.updated', {
+      workspace_id: workspaceId,
       source: 'hermes',
       event,
       session_id,

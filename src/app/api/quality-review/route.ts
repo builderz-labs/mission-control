@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
       db.prepare('UPDATE tasks SET status = ?, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
         .run('done', taskId, workspaceId)
       eventBus.broadcast('task.status_changed', {
+        workspace_id: workspaceId,
         id: taskId,
         status: 'done',
         previous_status: 'review',
@@ -119,6 +120,7 @@ export async function POST(request: NextRequest) {
       db.prepare('UPDATE tasks SET status = ?, error_message = ?, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
         .run('in_progress', `Quality review rejected by ${reviewer}: ${notes}`, taskId, workspaceId)
       eventBus.broadcast('task.status_changed', {
+        workspace_id: workspaceId,
         id: taskId,
         status: 'in_progress',
         previous_status: 'review',

@@ -186,7 +186,7 @@ export function createRun(run: AgentRun, workspaceId?: number): AgentRun {
   )
 
   const created = getRun(id, wsId)!
-  eventBus.broadcast('run.created', created)
+  eventBus.broadcast('run.created', { ...created, workspace_id: wsId })
   return created
 }
 
@@ -243,7 +243,7 @@ export function updateRun(id: string, updates: Partial<AgentRun>, workspaceId?: 
     const eventType = updated.status === 'completed' || updated.status === 'failed'
       ? 'run.completed' as const
       : 'run.updated' as const
-    eventBus.broadcast(eventType, updated)
+    eventBus.broadcast(eventType, { ...updated, workspace_id: wsId })
   }
   return updated
 }
@@ -267,7 +267,7 @@ export function attachEval(runId: string, evalResult: EvalResult, workspaceId?: 
   )
 
   const updated = getRun(runId, wsId)
-  if (updated) eventBus.broadcast('run.eval_attached', updated)
+  if (updated) eventBus.broadcast('run.eval_attached', { ...updated, workspace_id: wsId })
   return updated
 }
 

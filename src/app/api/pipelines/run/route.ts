@@ -206,6 +206,7 @@ async function startPipeline(db: ReturnType<typeof getDatabase>, pipelineId: num
   db_helpers.logActivity('pipeline_started', 'pipeline', pipelineId, triggeredBy, `Started pipeline: ${pipeline.name}`, { run_id: runId }, workspaceId)
 
   eventBus.broadcast('activity.created', {
+    workspace_id: workspaceId,
     type: 'pipeline_started',
     entity_type: 'pipeline',
     entity_id: pipelineId,
@@ -260,6 +261,7 @@ async function advanceRun(db: ReturnType<typeof getDatabase>, runId: number, suc
       .run(finalStatus, currentIdx, JSON.stringify(steps), now, runId, workspaceId)
 
     eventBus.broadcast('activity.created', {
+      workspace_id: workspaceId,
       type: 'pipeline_completed',
       entity_type: 'pipeline',
       entity_id: run.pipeline_id,

@@ -107,6 +107,7 @@ function createChatReply(
     .get(replyInsert.lastInsertRowid, workspaceId) as Message
 
   eventBus.broadcast('chat.message', {
+    workspace_id: workspaceId,
     ...row,
     metadata: safeParseMetadata(row.metadata),
   })
@@ -742,7 +743,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Broadcast to SSE clients
-    eventBus.broadcast('chat.message', parsedMessage)
+    eventBus.broadcast('chat.message', { ...parsedMessage, workspace_id: workspaceId })
 
     return NextResponse.json({ message: parsedMessage, forward: forwardInfo }, { status: 201 })
   } catch (error) {

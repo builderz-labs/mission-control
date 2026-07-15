@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { eventBelongsToWorkspace, type ServerEvent } from '@/lib/event-bus'
 
 function event(data: unknown): ServerEvent {
-  return { type: 'task.updated', data, timestamp: Date.now() }
+  return { type: 'task.updated', data: data as Record<string, unknown>, timestamp: Date.now() }
 }
 
 describe('event workspace isolation', () => {

@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
   const framework = typeof body?.framework === 'string' ? body.framework.trim() : ''
   const action = typeof body?.action === 'string' ? body.action.trim() : ''
   const payload = body?.payload ?? {}
+  const workspaceId = auth.user.workspace_id ?? 1
 
   if (!framework || !action) {
     return NextResponse.json({ error: 'framework and action are required' }, { status: 400 })
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
         if (!agentId || !name) {
           return NextResponse.json({ error: 'payload.agentId and payload.name required' }, { status: 400 })
         }
-        await adapter.register({ agentId, name, framework, metadata })
+        await adapter.register({ agentId, name, framework, metadata, workspaceId })
         return NextResponse.json({ ok: true, action: 'register', framework })
       }
 
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
         if (!agentId) {
           return NextResponse.json({ error: 'payload.agentId required' }, { status: 400 })
         }
-        await adapter.heartbeat({ agentId, status: status || 'online', metrics })
+        await adapter.heartbeat({ agentId, status: status || 'online', metrics, workspaceId })
         return NextResponse.json({ ok: true, action: 'heartbeat', framework })
       }
 
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
         if (!taskId || !agentId) {
           return NextResponse.json({ error: 'payload.taskId and payload.agentId required' }, { status: 400 })
         }
-        await adapter.reportTask({ taskId, agentId, progress: progress ?? 0, status: taskStatus || 'in_progress', output })
+        await adapter.reportTask({ taskId, agentId, progress: progress ?? 0, status: taskStatus || 'in_progress', output, workspaceId })
         return NextResponse.json({ ok: true, action: 'report', framework })
       }
 
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
         if (!agentId) {
           return NextResponse.json({ error: 'payload.agentId required' }, { status: 400 })
         }
-        const assignments = await adapter.getAssignments(agentId)
+        const assignments = await adapter.getAssignments(agentId, workspaceId)
         return NextResponse.json({ assignments, framework })
       }
 
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
         if (!agentId) {
           return NextResponse.json({ error: 'payload.agentId required' }, { status: 400 })
         }
-        await adapter.disconnect(agentId)
+        await adapter.disconnect(agentId, workspaceId)
         return NextResponse.json({ ok: true, action: 'disconnect', framework })
       }
 
