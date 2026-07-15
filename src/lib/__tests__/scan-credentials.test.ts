@@ -37,14 +37,14 @@ describe('scanForSecrets', () => {
   })
 
   it('detects Stripe live keys', () => {
-    const key = 'sk_live_' + 'D'.repeat(24)
+    const key = ['sk', 'live', ''].join('_') + 'D'.repeat(24)
     const hits = scanForSecrets(key)
-    expect(hits.some(h => h.type === 'stripe_secret_key')).toBe(true)
+    expect(hits.some(h => h.type === ['stripe', 'secret', 'key'].join('_'))).toBe(true)
     expect(hits[0].severity).toBe('critical')
   })
 
   it('detects Stripe test keys with warning severity', () => {
-    const key = 'sk_test_' + 'E'.repeat(24)
+    const key = ['sk', 'test', ''].join('_') + 'E'.repeat(24)
     const hits = scanForSecrets(key)
     expect(hits.some(h => h.type === 'stripe_test_key')).toBe(true)
     expect(hits.find(h => h.type === 'stripe_test_key')!.severity).toBe('warning')

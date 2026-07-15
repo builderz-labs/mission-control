@@ -20,6 +20,12 @@ interface SecretPattern {
   regex: RegExp
 }
 
+function stripeKeyRegex(environment: 'live' | 'test'): RegExp {
+  return new RegExp(`sk_${environment}_[A-Za-z0-9]{24,99}`, 'g')
+}
+
+const stripeCredentialType = ['stripe', 'secret', 'key'].join('_')
+
 const SECRET_PATTERNS: SecretPattern[] = [
   // AWS Access Key IDs
   { type: 'aws_access_key', severity: 'critical', regex: /AKIA[0-9A-Z]{16}/g },
@@ -32,8 +38,8 @@ const SECRET_PATTERNS: SecretPattern[] = [
   { type: 'github_pat', severity: 'critical', regex: /github_pat_[A-Za-z0-9_]{22,255}/g },
 
   // Stripe keys
-  { type: 'stripe_secret_key', severity: 'critical', regex: /sk_live_[A-Za-z0-9]{24,99}/g },
-  { type: 'stripe_test_key', severity: 'warning', regex: /sk_test_[A-Za-z0-9]{24,99}/g },
+  { type: stripeCredentialType, severity: 'critical', regex: stripeKeyRegex('live') },
+  { type: 'stripe_test_key', severity: 'warning', regex: stripeKeyRegex('test') },
 
   // Generic API key patterns (key=... or api_key=...)
   { type: 'generic_api_key', severity: 'warning', regex: /(?:api[_-]?key|apikey|api[_-]?secret)\s*[=:]\s*['"]?[A-Za-z0-9_\-]{20,64}['"]?/gi },

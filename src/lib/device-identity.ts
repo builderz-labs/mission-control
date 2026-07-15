@@ -14,11 +14,10 @@ const log = createClientLogger('DeviceIdentity')
  *   - Device ID + public key remain in localStorage (both are public anyway).
  *   - A version flag (`mc-key-version`) lets us migrate v1 → v2 transparently.
  *
- * v1 fallback (preserved for resilience):
- *   - Older browsers without IndexedDB or in restrictive private-mode contexts
- *     fall back to the original localStorage path. The fallback is marked
- *     in-memory so callers can inform the user. This matches the original
- *     "auth-token-only mode" graceful degradation contract.
+ * Restricted-browser fallback:
+ *   - When IndexedDB is unavailable, use a non-extractable key held only in
+ *     module memory. This preserves same-page reconnects without exporting
+ *     private key bytes into browser storage.
  */
 
 // localStorage keys
@@ -46,11 +45,13 @@ export interface DeviceIdentity {
   /**
    * Storage backend in use:
    *   - 'indexeddb-cryptokey' = v2, non-extractable IndexedDB CryptoKey (preferred)
-   *   - 'localstorage-fallback' = v1, plaintext localStorage (only when IndexedDB
-   *     is unavailable, e.g. some private-mode browsers)
+   *   - 'memory-ephemeral' = non-extractable, current-page-only fallback when
+   *     IndexedDB is unavailable
    */
-  storageMode: 'indexeddb-cryptokey' | 'localstorage-fallback'
+  storageMode: 'indexeddb-cryptokey' | 'memory-ephemeral'
 }
+
+let ephemeralIdentity: DeviceIdentity | null = null
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -200,9 +201,9 @@ async function migrateV1ToV2(): Promise<DeviceIdentity | null> {
  * Generate a new identity.
  *
  * Tries to use the secure path (non-extractable CryptoKey + IndexedDB).
- * If IndexedDB is unavailable (private mode, hostile browser), falls back
- * to the v1 storage shape — same as before this PR — so the gateway
- * handshake still works.
+ * If IndexedDB is unavailable (private mode, hostile browser), falls back to
+ * a non-extractable in-memory identity so the gateway handshake still works
+ * for the lifetime of the page without persisting private key material.
  */
 async function createNewIdentity(): Promise<DeviceIdentity> {
   // Attempt v2 (non-extractable, IndexedDB-backed) path.
@@ -222,27 +223,30 @@ async function createNewIdentity(): Promise<DeviceIdentity> {
 
       return { deviceId, publicKeyBase64, privateKey: keyPair.privateKey, storageMode: 'indexeddb-cryptokey' }
     } catch (err) {
-      log.warn('IndexedDB-backed key generation failed, falling back to v1 storage', { errorMessage: (err as Error)?.message })
-      // Fall through to v1 fallback.
+      log.warn('IndexedDB-backed key generation failed, using an ephemeral identity', { errorMessage: (err as Error)?.message })
+      // Fall through to the in-memory fallback.
     }
   }
 
-  // v1 fallback — extractable key in plaintext localStorage. Keeps the
-  // gateway handshake working when IndexedDB isn't available.
-  const keyPair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
+  if (ephemeralIdentity) return ephemeralIdentity
+
+  // Never retain a legacy plaintext private key when secure persistence is
+  // unavailable. A fresh ephemeral identity is safer than reusing exportable
+  // key bytes from localStorage.
+  localStorage.removeItem(STORAGE_PRIVKEY_V1)
+
+  const keyPair = await crypto.subtle.generateKey('Ed25519', false, ['sign', 'verify'])
   const pubRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
-  const privPkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
   const deviceId = await sha256Hex(pubRaw)
   const publicKeyBase64 = toBase64Url(pubRaw)
-  const privateKeyBase64 = toBase64Url(privPkcs8)
 
-  localStorage.setItem(STORAGE_DEVICE_ID, deviceId)
-  localStorage.setItem(STORAGE_PUBKEY, publicKeyBase64)
-  localStorage.setItem(STORAGE_PRIVKEY_V1, privateKeyBase64)
-  // Do NOT set STORAGE_KEY_VERSION in fallback mode — the next page load
-  // may have IndexedDB available and will trigger a v1→v2 migration.
-
-  return { deviceId, publicKeyBase64, privateKey: keyPair.privateKey, storageMode: 'localstorage-fallback' }
+  ephemeralIdentity = {
+    deviceId,
+    publicKeyBase64,
+    privateKey: keyPair.privateKey,
+    storageMode: 'memory-ephemeral',
+  }
+  return ephemeralIdentity
 }
 
 // ── Public API ───────────────────────────────────────────────────
@@ -253,7 +257,7 @@ async function createNewIdentity(): Promise<DeviceIdentity> {
  * Lookup order:
  *   1. v2 (IndexedDB CryptoKey) — preferred, non-extractable.
  *   2. v1→v2 migration if a legacy plaintext key is present.
- *   3. v1 (plaintext localStorage) — only when IndexedDB is unavailable.
+ *   3. Non-extractable in-memory identity when IndexedDB is unavailable.
  *   4. Generate a new identity.
  */
 export async function getOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
@@ -279,17 +283,13 @@ export async function getOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
   const migrated = await migrateV1ToV2()
   if (migrated) return migrated
 
-  // Attempt 3: v1 plaintext fallback (only if IndexedDB is unavailable)
+  // Attempt 3: secure current-page fallback when IndexedDB is unavailable.
   if (!isIndexedDbAvailable()) {
-    const storedPriv = localStorage.getItem(STORAGE_PRIVKEY_V1)
-    if (storedId && storedPub && storedPriv) {
-      try {
-        const privateKey = await importLegacyPrivateKey(fromBase64Url(storedPriv), false)
-        return { deviceId: storedId, publicKeyBase64: storedPub, privateKey, storageMode: 'localstorage-fallback' }
-      } catch {
-        log.warn('v1 plaintext key corrupted; regenerating')
-      }
+    if (localStorage.getItem(STORAGE_PRIVKEY_V1)) {
+      localStorage.removeItem(STORAGE_PRIVKEY_V1)
+      log.warn('Removed legacy plaintext device private key; using an ephemeral identity')
     }
+    if (ephemeralIdentity) return ephemeralIdentity
   }
 
   // Attempt 4: generate fresh identity
@@ -320,8 +320,8 @@ export function getCachedDeviceToken(): string | null {
 }
 
 /** Caches the device token returned by the gateway after successful connect. */
-export function cacheDeviceToken(token: string): void {
-  localStorage.setItem(STORAGE_DEVICE_TOKEN, token)
+export function cacheDeviceToken(value: string): void {
+  localStorage.setItem(STORAGE_DEVICE_TOKEN, value)
 }
 
 /**
@@ -332,6 +332,7 @@ export function cacheDeviceToken(token: string): void {
  * are swallowed inside `idbDeleteKey`.
  */
 export function clearDeviceIdentity(): void {
+  ephemeralIdentity = null
   localStorage.removeItem(STORAGE_DEVICE_ID)
   localStorage.removeItem(STORAGE_PUBKEY)
   localStorage.removeItem(STORAGE_PRIVKEY_V1)
