@@ -233,4 +233,13 @@ describe('direct session API coverage', () => {
       expect(source.match(/["']runtime_configuration["']/g), file).toHaveLength(operations)
     }
   })
+
+  it('fails closed for deployment-global background dispatch and scheduling', () => {
+    const dispatch = readFileSync(join(process.cwd(), 'src/lib/task-dispatch.ts'), 'utf8')
+    const scheduler = readFileSync(join(process.cwd(), 'src/app/api/scheduler/route.ts'), 'utf8')
+
+    expect(dispatch.match(/JOIN workspaces w ON w\.id = t\.workspace_id/g)).toHaveLength(2)
+    expect(dispatch.match(/AND w\.isolation = 'shared'/g)).toHaveLength(2)
+    expect(scheduler.match(/'host_administration'/g)).toHaveLength(2)
+  })
 })

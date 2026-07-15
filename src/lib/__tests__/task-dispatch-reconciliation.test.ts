@@ -7,6 +7,7 @@ const mockDbState = vi.hoisted(() => ({
     assigned_to: string | null
     metadata: string | null
     workspace_id: number
+    workspace_isolation?: 'shared' | 'strict'
     ticket_prefix?: string | null
     project_ticket_no?: number | null
   }>,
@@ -44,12 +45,16 @@ vi.mock('../db', () => ({
     prepare: (sql: string) => {
       if (sql.includes('SELECT') && sql.includes('assigned_to') && sql.includes('metadata') && sql.includes('project_ticket_no')) {
         return {
-          all: () => mockDbState.tasks,
+          all: () => sql.includes("w.isolation = 'shared'")
+            ? mockDbState.tasks.filter((task) => task.workspace_isolation !== 'strict')
+            : mockDbState.tasks,
         }
       }
       if (sql.includes('FROM tasks t') && sql.includes('JOIN agents')) {
         return {
-          all: () => mockDbState.tasks,
+          all: () => sql.includes("w.isolation = 'shared'")
+            ? mockDbState.tasks.filter((task) => task.workspace_isolation !== 'strict')
+            : mockDbState.tasks,
         }
       }
       if (sql.includes('SELECT metadata FROM tasks WHERE id = ?')) {
@@ -231,6 +236,25 @@ describe('deferred task completion reconciliation', () => {
     expect(waitForRun).not.toHaveBeenCalled()
     expect(result.promoted).toBe(0)
     expect(mockDbState.updates).toHaveLength(0)
+  })
+
+  it('does not reconcile strict workspace runs or inspect global sessions', async () => {
+    mockDbState.tasks = [{
+      id: 16,
+      title: 'Strict deferred task',
+      assigned_to: 'agent-one',
+      metadata: JSON.stringify({ async_state: 'pending', dispatch_run_id: 'global-run' }),
+      workspace_id: 2,
+      workspace_isolation: 'strict',
+    }]
+    const waitForRun = vi.fn(async () => ({ complete: true, text: null }))
+
+    const result = await reconcileDeferredTaskCompletions({ workspaceId: 2, waitForRun })
+
+    expect(result).toMatchObject({ checked: 0, promoted: 0 })
+    expect(waitForRun).not.toHaveBeenCalled()
+    expect(mockDbState.getAllGatewaySessions).not.toHaveBeenCalled()
+    expect(mockDbState.readSessionJsonl).not.toHaveBeenCalled()
   })
 
   it('leaves tasks in progress when the wait result is not terminal', async () => {
@@ -449,6 +473,34 @@ describe('existing-session deferred dispatch', () => {
       }),
       1,
     )
+  })
+
+  it('does not dispatch strict workspace tasks to named or new global sessions', async () => {
+    mockDbState.tasks = [{
+      id: 23,
+      title: 'Strict session task',
+      description: 'Must remain isolated.',
+      status: 'assigned',
+      priority: 'high',
+      assigned_to: 'agent-one',
+      workspace_id: 2,
+      workspace_isolation: 'strict',
+      agent_name: 'agent-one',
+      agent_id: 7,
+      agent_config: null,
+      ticket_prefix: null,
+      project_ticket_no: null,
+      project_id: null,
+      metadata: JSON.stringify({ target_session: 'global-session' }),
+    } as any]
+
+    const result = await dispatchAssignedTasks()
+
+    expect(result).toEqual({ ok: true, message: 'No assigned tasks to dispatch' })
+    expect(mockDbState.callOpenClawGateway).not.toHaveBeenCalled()
+    expect(mockDbState.runOpenClaw).not.toHaveBeenCalled()
+    expect(mockDbState.statusUpdates).toHaveLength(0)
+    expect(mockDbState.metadataUpdates).toHaveLength(0)
   })
 
   it('does not send heuristic model overrides when the agent has a configured default model', async () => {

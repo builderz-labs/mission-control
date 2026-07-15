@@ -515,8 +515,10 @@ export async function reconcileDeferredTaskCompletions(options: {
     SELECT t.id, t.title, t.assigned_to, t.metadata, t.workspace_id,
            p.ticket_prefix, t.project_ticket_no
     FROM tasks t
+    JOIN workspaces w ON w.id = t.workspace_id
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
     WHERE t.workspace_id = ?
+      AND w.isolation = 'shared'
       AND t.status = 'in_progress'
       AND t.metadata IS NOT NULL
       AND t.metadata LIKE '%"async_state"%'
@@ -1482,8 +1484,10 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
            p.ticket_prefix, t.project_ticket_no
     FROM tasks t
     JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
+    JOIN workspaces w ON w.id = t.workspace_id
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
     WHERE t.status = 'assigned'
+      AND w.isolation = 'shared'
       AND t.assigned_to IS NOT NULL
     ORDER BY
       CASE t.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC,
