@@ -44,6 +44,7 @@ Profiles:
 - `login-flow.spec.ts` — Login, session, redirect lifecycle
 - `rate-limiting.spec.ts` — Login brute-force protection
 - `timing-safe-auth.spec.ts` — Constant-time API key comparison
+- `workspace-isolation.spec.ts` — Real HTTP denial of cross-workspace list, search, read, update, and delete attempts
 
 ### CRUD Lifecycle
 - `tasks-crud.spec.ts` — Tasks POST/GET/PUT/DELETE with filters, Aegis gate
