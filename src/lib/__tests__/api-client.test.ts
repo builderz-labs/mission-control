@@ -79,6 +79,18 @@ describe('apiFetch — global 401 / 403 / 5xx / network handling', () => {
     expect(window.location.href).toBe('http://127.0.0.1:3000/cost-tracker')
   })
 
+  it('preserves the upstream recovery message and payload on 404', async () => {
+    const payload = { error: 'Release tag v9.9.9 not found in remote' }
+    global.fetch = vi.fn().mockResolvedValue(mockResponse(404, payload))
+
+    await expect(apiFetch('/api/releases/update')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      status: 404,
+      message: payload.error,
+      payload,
+    })
+  })
+
   it('throws SERVER_ERROR on 500 with upstream message', async () => {
     global.fetch = vi.fn().mockResolvedValue(mockResponse(500, { error: 'database is locked' }))
     await expect(apiFetch('/api/tokens')).rejects.toMatchObject({

@@ -111,7 +111,13 @@ export async function apiFetch<T = unknown>(
   }
 
   if (response.status === 404) {
-    throw new ApiError('NOT_FOUND', 404, `Not found: ${path}`)
+    const payload = await safeParseJson(response)
+    const msg =
+      (typeof payload === 'object' && payload !== null && 'error' in payload &&
+        typeof (payload as { error: unknown }).error === 'string'
+        ? (payload as { error: string }).error
+        : null) || `Not found: ${path}`
+    throw new ApiError('NOT_FOUND', 404, msg, payload)
   }
 
   if (response.status >= 500) {
@@ -142,4 +148,3 @@ async function safeParseJson(res: Response): Promise<unknown> {
     return null
   }
 }
-
