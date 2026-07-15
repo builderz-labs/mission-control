@@ -271,8 +271,15 @@ export function SkillsPanel() {
     setSaving(true)
     setDrawerError(null)
     try {
-      const params = new URLSearchParams({ source: selectedSkill.source, name: selectedSkill.name })
-      const res = await fetch(`/api/skills?${params.toString()}`, { method: 'DELETE' })
+      const res = await fetch('/api/skills', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: selectedSkill.source,
+          name: selectedSkill.name,
+          confirmation: 'delete_skill',
+        }),
+      })
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error || 'Failed to delete skill')
       setSelectedSkill(null)

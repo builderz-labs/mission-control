@@ -281,6 +281,14 @@ export const openClawMaintenanceLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** Local skill writes and recursive deletion: 20 attempts per minute per operator. */
+export const skillMutationLimiter = createKeyedRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 20,
+  message: 'Too many skill changes. Try again in a minute.',
+  critical: true,
+})
+
 /** Self-registration: 5/min per IP (prevent spam registrations) */
 export const selfRegisterLimiter = createRateLimiter({
   windowMs: 60_000,

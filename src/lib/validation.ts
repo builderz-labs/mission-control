@@ -315,6 +315,23 @@ export const openClawDoctorFixSchema = z.object({
   confirmation: z.literal('fix_openclaw'),
 }).strict()
 
+const skillIdentifierSchema = z.string().trim().min(1).max(128).regex(
+  /^[a-zA-Z0-9._-]+$/,
+  'Only letters, numbers, dots, underscores, and hyphens are allowed',
+)
+
+export const skillMutationSchema = z.object({
+  source: skillIdentifierSchema,
+  name: skillIdentifierSchema,
+  content: z.string().max(256 * 1024, 'Skill content must not exceed 256 KiB'),
+}).strict()
+
+export const skillDeleteSchema = z.object({
+  source: skillIdentifierSchema,
+  name: skillIdentifierSchema,
+  confirmation: z.literal('delete_skill'),
+}).strict()
+
 export const accessRequestActionSchema = z.object({
   request_id: z.number(),
   action: z.enum(['approve', 'reject']),

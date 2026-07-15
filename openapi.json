@@ -6524,17 +6524,40 @@
         "tags": [
           "Skills"
         ],
-        "summary": "Delete /api/skills",
+        "summary": "Delete a local skill",
         "operationId": "deleteApiSkills",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source", "name", "confirmation"],
+                "properties": {
+                  "source": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9._-]+$" },
+                  "name": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9._-]+$" },
+                  "confirmation": { "type": "string", "enum": ["delete_skill"] }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       },
@@ -6560,17 +6583,43 @@
         "tags": [
           "Skills"
         ],
-        "summary": "Post /api/skills",
+        "summary": "Create or replace a local skill",
         "operationId": "postApiSkills",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source", "name", "content"],
+                "properties": {
+                  "source": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9._-]+$" },
+                  "name": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9._-]+$" },
+                  "content": { "type": "string", "maxLength": 262144 }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "description": "Skill content failed security checks"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       },
@@ -6578,17 +6627,43 @@
         "tags": [
           "Skills"
         ],
-        "summary": "Put /api/skills",
+        "summary": "Update a local skill",
         "operationId": "putApiSkills",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source", "name", "content"],
+                "properties": {
+                  "source": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9._-]+$" },
+                  "name": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9._-]+$" },
+                  "content": { "type": "string", "maxLength": 262144 }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "description": "Skill content failed security checks"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
