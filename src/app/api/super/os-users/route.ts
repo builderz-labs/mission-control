@@ -44,12 +44,12 @@ const SERVICE_ACCOUNTS = new Set([
 function checkToolExists(homeDir: string, tool: string): boolean {
   // Check common install locations relative to user home
   const candidates = [
-    path.join(homeDir, '.local', 'bin', tool),
-    path.join(homeDir, '.npm-global', 'bin', tool),
-    path.join(homeDir, `.${tool}`),             // e.g. ~/.claude, ~/.openclaw config dir = installed
+    path.join(/*turbopackIgnore: true*/ homeDir, '.local', 'bin', tool),
+    path.join(/*turbopackIgnore: true*/ homeDir, '.npm-global', 'bin', tool),
+    path.join(/*turbopackIgnore: true*/ homeDir, `.${tool}`), // e.g. ~/.claude, ~/.openclaw config dir = installed
   ]
   for (const p of candidates) {
-    try { if (fs.existsSync(p)) return true } catch {}
+    try { if (fs.existsSync(/*turbopackIgnore: true*/ p)) return true } catch {}
   }
   // Also check system-wide
   try {
@@ -68,14 +68,14 @@ function installToolForUser(
   try {
     if (tool === 'openclaw') {
       // openclaw is managed by MC — create dir structure + install latest from npm
-      const openclawDir = path.join(homeDir, '.openclaw')
-      const workspaceDir = path.join(homeDir, 'workspace')
+      const openclawDir = path.join(/*turbopackIgnore: true*/ homeDir, '.openclaw')
+      const workspaceDir = path.join(/*turbopackIgnore: true*/ homeDir, 'workspace')
       for (const dir of [openclawDir, workspaceDir]) {
         try {
           execFileSync('/usr/bin/sudo', ['-n', 'install', '-d', '-o', username, dir], { timeout: 5000, stdio: 'pipe' })
         } catch {
           // Fallback: mkdir directly (works if running as that user or root)
-          fs.mkdirSync(dir, { recursive: true })
+          fs.mkdirSync(/*turbopackIgnore: true*/ dir, { recursive: true })
         }
       }
       // Install latest openclaw from GitHub (always latest) with npm fallback
@@ -104,11 +104,11 @@ function installToolForUser(
         })
       } catch (npmErr: any) {
         // Fallback: create config dir so checkToolExists detects it
-        const claudeDir = path.join(homeDir, '.claude')
+        const claudeDir = path.join(/*turbopackIgnore: true*/ homeDir, '.claude')
         try {
           execFileSync('/usr/bin/sudo', ['-n', 'install', '-d', '-o', username, claudeDir], { timeout: 5000, stdio: 'pipe' })
         } catch {
-          fs.mkdirSync(claudeDir, { recursive: true })
+          fs.mkdirSync(/*turbopackIgnore: true*/ claudeDir, { recursive: true })
         }
         const msg = npmErr?.stderr?.toString?.()?.slice(0, 200) || npmErr?.message || 'npm install failed'
         return { success: false, error: msg }
@@ -126,11 +126,11 @@ function installToolForUser(
         })
       } catch (npmErr: any) {
         // Fallback: create config dir so checkToolExists detects it
-        const codexDir = path.join(homeDir, '.codex')
+        const codexDir = path.join(/*turbopackIgnore: true*/ homeDir, '.codex')
         try {
           execFileSync('/usr/bin/sudo', ['-n', 'install', '-d', '-o', username, codexDir], { timeout: 5000, stdio: 'pipe' })
         } catch {
-          fs.mkdirSync(codexDir, { recursive: true })
+          fs.mkdirSync(/*turbopackIgnore: true*/ codexDir, { recursive: true })
         }
         const msg = npmErr?.stderr?.toString?.()?.slice(0, 200) || npmErr?.message || 'npm install failed'
         return { success: false, error: msg }
@@ -373,8 +373,8 @@ export async function POST(request: NextRequest) {
 
     // Determine home directory for the new user
     const homeDir = platform === 'darwin' ? `/Users/${username}` : `/home/${username}`
-    const openclawHome = path.posix.join(homeDir, '.openclaw')
-    const workspaceRoot = path.posix.join(homeDir, 'workspace')
+    const openclawHome = path.posix.join(/*turbopackIgnore: true*/ homeDir, '.openclaw')
+    const workspaceRoot = path.posix.join(/*turbopackIgnore: true*/ homeDir, 'workspace')
 
     // Register as tenant in DB
     const tenantRes = db.prepare(`

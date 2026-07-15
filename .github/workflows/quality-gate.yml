@@ -54,6 +54,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Verify standalone artifact boundaries
+        run: pnpm artifact:check
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
 
