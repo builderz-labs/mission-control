@@ -7,6 +7,7 @@ import { readdirSync, statSync, unlinkSync } from 'fs'
 import { heavyLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { runOpenClaw } from '@/lib/command'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 const MAX_BACKUPS = 10
@@ -17,6 +18,8 @@ const MAX_BACKUPS = 10
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   ensureDirExists(BACKUP_DIR)
 
@@ -45,6 +48,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const rateCheck = heavyLimiter(request)
   if (rateCheck) return rateCheck
@@ -135,6 +140,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   let body: any
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }

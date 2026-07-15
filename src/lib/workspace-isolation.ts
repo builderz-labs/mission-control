@@ -9,6 +9,7 @@ export type UnscopedWorkspaceResource =
   | 'agent_filesystem'
   | 'local_sessions'
   | 'gateway_sessions'
+  | 'host_administration'
   | 'runtime_configuration'
   | 'runtime_tasks'
   | 'session_transcripts'
