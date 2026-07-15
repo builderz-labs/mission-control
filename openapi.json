@@ -11676,9 +11676,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["targetVersion"],
+                "additionalProperties": false,
+                "required": ["targetVersion", "confirmation"],
                 "properties": {
-                  "targetVersion": { "type": "string" }
+                  "targetVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+                  "confirmation": { "type": "string", "enum": ["update_mission_control"] }
                 }
               }
             }
@@ -11705,7 +11707,10 @@
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
-          "409": { "description": "Working tree has uncommitted changes" }
+          "404": { "description": "Release tag not found" },
+          "409": { "description": "Working tree is dirty or release provenance is invalid" },
+          "429": { "description": "Too many update attempts" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     }

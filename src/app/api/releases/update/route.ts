@@ -3,12 +3,16 @@ import { execFileSync } from 'child_process'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { requireRole } from '@/lib/auth'
-import { getDatabase } from '@/lib/db'
+import { logAuditEvent } from '@/lib/db'
+import { releaseUpdateLimiter } from '@/lib/rate-limit'
 import { APP_VERSION } from '@/lib/version'
 import { normalizeReleaseTag } from '@/lib/release-update-security'
+import { releaseUpdateSchema, validateBody } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 const UPDATE_TIMEOUT = 5 * 60 * 1000 // 5 minutes
 const MAX_BUFFER = 10 * 1024 * 1024 // 10 MB
+const log = logger.child({ module: 'release-update' })
 
 const EXEC_OPTS = {
   timeout: UPDATE_TIMEOUT,
@@ -31,15 +35,20 @@ export async function POST(request: Request) {
   }
 
   const user = auth.user!
+  const limitKey = `${user.tenant_id ?? 1}:${user.workspace_id ?? 1}:${user.id}`
+  const limited = releaseUpdateLimiter(limitKey)
+  if (limited) return limited
+
+  const validated = await validateBody(request, releaseUpdateSchema)
+  if ('error' in validated) return validated.error
+
   const cwd = process.cwd()
-  const steps: { step: string; output: string }[] = []
+  const steps: string[] = []
   let originalRef: string | null = null
   let checkoutPerformed = false
 
   try {
-    // Parse target version from request body
-    const body = await request.json().catch(() => ({}))
-    const tag = normalizeReleaseTag(body.targetVersion)
+    const tag = normalizeReleaseTag(validated.data.targetVersion)
     if (!tag) {
       return NextResponse.json(
         { error: 'targetVersion must be an exact semantic version such as 2.1.0 or v2.1.0' },
@@ -54,7 +63,6 @@ export async function POST(request: Request) {
         {
           error: 'Working tree has uncommitted changes. Please commit or stash them before updating.',
           dirty: true,
-          files: status.split('\n').slice(0, 20),
         },
         { status: 409 }
       )
@@ -67,8 +75,8 @@ export async function POST(request: Request) {
 
     // 2. Fetch the trusted main history and the exact release tag. Fetching an
     // exact ref prevents a stale or unrelated local tag from being accepted.
-    const fetchMainOut = git(['fetch', 'origin', 'refs/heads/main:refs/remotes/origin/main'], cwd)
-    steps.push({ step: 'git fetch origin main', output: fetchMainOut || 'OK' })
+    git(['fetch', 'origin', 'refs/heads/main:refs/remotes/origin/main'], cwd)
+    steps.push('git fetch origin main')
 
     // 3. Verify the tag exists
     try {
@@ -95,17 +103,17 @@ export async function POST(request: Request) {
     }
 
     // 4. Checkout the release tag
-    const checkoutOut = git(['checkout', tag], cwd)
+    git(['checkout', tag], cwd)
     checkoutPerformed = true
-    steps.push({ step: `git checkout ${tag}`, output: checkoutOut })
+    steps.push(`git checkout ${tag}`)
 
     // 5. Install dependencies
-    const installOut = pnpm(['install', '--frozen-lockfile'], cwd)
-    steps.push({ step: 'pnpm install', output: installOut })
+    pnpm(['install', '--frozen-lockfile'], cwd)
+    steps.push('pnpm install')
 
     // 6. Build
-    const buildOut = pnpm(['build'], cwd)
-    steps.push({ step: 'pnpm build', output: buildOut })
+    pnpm(['build'], cwd)
+    steps.push('pnpm build')
 
     // 7. Read new version from package.json
     const newPkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf-8'))
@@ -113,18 +121,17 @@ export async function POST(request: Request) {
 
     // 8. Log to audit_log
     try {
-      const db = getDatabase()
-      db.prepare(
-        'INSERT INTO audit_log (action, actor, detail) VALUES (?, ?, ?)'
-      ).run(
-        'system.update',
-        user.username,
-        JSON.stringify({
+      logAuditEvent({
+        action: 'system.update',
+        actor: user.username,
+        actor_id: user.id,
+        target_type: 'release',
+        detail: {
           previousVersion: APP_VERSION,
           newVersion,
           tag,
-        })
-      )
+        },
+      })
     } catch {
       // Non-critical -- don't fail the update if audit logging fails
     }
@@ -137,14 +144,8 @@ export async function POST(request: Request) {
       steps,
       restartRequired: true,
     })
-  } catch (err: any) {
-    const message =
-      err?.stderr?.toString?.()?.trim() ||
-      err?.stdout?.toString?.()?.trim() ||
-      err?.message ||
-      'Unknown error during update'
-
-    let rollback: { attempted: boolean; restored: boolean; detail?: string } = {
+  } catch {
+    let rollback: { attempted: boolean; restored: boolean } = {
       attempted: false,
       restored: false,
     }
@@ -153,15 +154,14 @@ export async function POST(request: Request) {
       try {
         git(['checkout', originalRef], cwd)
         rollback.restored = true
-      } catch (rollbackErr: any) {
-        rollback.detail = rollbackErr?.stderr?.toString?.()?.trim() || rollbackErr?.message || 'Rollback failed'
-      }
+      } catch { /* response reports restoration state without exposing command output */ }
     }
+
+    log.error({ actor: user.username, rollback }, 'Release update failed')
 
     return NextResponse.json(
       {
         error: 'Update failed',
-        detail: message,
         steps,
         rollback,
       },

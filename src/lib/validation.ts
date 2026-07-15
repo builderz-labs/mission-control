@@ -302,6 +302,11 @@ export const installTmuxSchema = z.object({
   confirmation: z.literal('install_tmux'),
 }).strict()
 
+export const releaseUpdateSchema = z.object({
+  targetVersion: z.string().trim().min(1).max(128),
+  confirmation: z.literal('update_mission_control'),
+}).strict()
+
 export const accessRequestActionSchema = z.object({
   request_id: z.number(),
   action: z.enum(['approve', 'reject']),

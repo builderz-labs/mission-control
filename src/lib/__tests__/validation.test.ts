@@ -14,6 +14,7 @@ import {
   updateProjectSchema,
   createOsUserSchema,
   installTmuxSchema,
+  releaseUpdateSchema,
 } from '@/lib/validation'
 
 describe('createTaskSchema', () => {
@@ -301,6 +302,26 @@ describe('installTmuxSchema', () => {
     { confirmation: 'install_tmux', package: 'curl' },
   ])('rejects unsafe tmux installation input %#', (input) => {
     expect(installTmuxSchema.safeParse(input).success).toBe(false)
+  })
+})
+
+describe('releaseUpdateSchema', () => {
+  it('accepts a bounded target with the explicit update confirmation', () => {
+    expect(releaseUpdateSchema.safeParse({
+      targetVersion: ' v2.1.0 ',
+      confirmation: 'update_mission_control',
+    }).success).toBe(true)
+  })
+
+  it.each([
+    {},
+    { targetVersion: 'v2.1.0' },
+    { targetVersion: 'v2.1.0', confirmation: true },
+    { targetVersion: 'v2.1.0', confirmation: 'yes' },
+    { targetVersion: 'v2.1.0', confirmation: 'update_mission_control', force: true },
+    { targetVersion: 'v' + '1'.repeat(128), confirmation: 'update_mission_control' },
+  ])('rejects unsafe release update input %#', (input) => {
+    expect(releaseUpdateSchema.safeParse(input).success).toBe(false)
   })
 })
 

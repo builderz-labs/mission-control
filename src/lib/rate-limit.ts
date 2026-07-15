@@ -265,6 +265,14 @@ export const hostPackageInstallLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** Application self-update: 3 attempts per 10 minutes per admin. */
+export const releaseUpdateLimiter = createKeyedRateLimiter({
+  windowMs: 10 * 60_000,
+  maxRequests: 3,
+  message: 'Too many release update attempts. Try again later.',
+  critical: true,
+})
+
 /** Self-registration: 5/min per IP (prevent spam registrations) */
 export const selfRegisterLimiter = createRateLimiter({
   windowMs: 60_000,

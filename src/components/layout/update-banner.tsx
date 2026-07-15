@@ -25,7 +25,10 @@ export function UpdateBanner() {
     try {
       const res = await apiFetch<Response>('/api/releases/update', {
         method: 'POST',
-        body: JSON.stringify({ targetVersion: updateAvailable!.latestVersion }),
+        body: JSON.stringify({
+          targetVersion: updateAvailable!.latestVersion,
+          confirmation: 'update_mission_control',
+        }),
         raw: true,
       })
       const data = await res.json()
