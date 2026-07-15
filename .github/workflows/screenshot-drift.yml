@@ -67,9 +67,13 @@ jobs:
         # Fork PRs get a read-only token — label/comment calls would 403.
         if: steps.ui_changed.outputs.count > 0 && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
+        env:
+          CHANGED_UI_PATHS: ${{ steps.ui_changed.outputs.paths }}
         with:
           script: |
-            const paths = `${{ steps.ui_changed.outputs.paths }}`;
+            // Treat filenames as data. Direct expression interpolation here would
+            // allow a crafted filename to break out of this JavaScript program.
+            const paths = process.env.CHANGED_UI_PATHS || '';
             const body = [
               '## 📸 Screenshot Drift Check',
               '',

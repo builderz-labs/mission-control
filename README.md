@@ -316,7 +316,7 @@ mission-control/
 | Layer | Technology |
 |-------|------------|
 | Framework | Next.js 16 (App Router) |
-| UI | React 19, Tailwind CSS 3.4 |
+| UI | React 19, Tailwind CSS 4 |
 | Language | TypeScript 5.7 |
 | Database | SQLite via better-sqlite3 (WAL mode) |
 | State | Zustand 5 |

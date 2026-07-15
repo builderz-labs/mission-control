@@ -1,0 +1,16 @@
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@swc/core'
+  - better-sqlite3
+  - esbuild
+  - node-pty
+  - sharp
+  - unrs-resolver
+
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude: []
+
+overrides:
+  postcss@8: '>=8.5.10'
+  ts-deepmerge: '>=8.0.0'
+  eslint-plugin-react-hooks: ~7.0.1
