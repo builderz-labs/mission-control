@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const all = vi.fn()
-const prepare = vi.fn(() => ({ all }))
+const prepare = vi.fn((_sql: string) => ({ all }))
 
 vi.mock('@/lib/db', () => ({
   getDatabase: () => ({ prepare }),
