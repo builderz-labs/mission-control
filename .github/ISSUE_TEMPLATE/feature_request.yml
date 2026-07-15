@@ -1,0 +1,72 @@
+name: Feature request
+description: Propose a concrete, scoped improvement to Mission Control
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Mission Control. Describe the user problem and desired outcome; implementation details are optional.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem or limitation should Mission Control solve?
+      placeholder: Explain who is affected, what they are trying to do, and what blocks them today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe observable behavior that would make this request complete.
+      placeholder: Mission Control should...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      description: Select the closest product area.
+      options:
+        - Agents and runtimes
+        - Tasks and workflows
+        - Skills Hub
+        - Security and approvals
+        - Integrations and gateways
+        - Workspaces and administration
+        - User interface and accessibility
+        - Installation, deployment, or documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround or alternatives
+      description: How are you handling this today, and what tradeoffs does that create?
+      placeholder: Describe any workaround or alternative you considered.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add versions, screenshots, logs, related issues, designs, or repositories. Remove secrets and personal data.
+      placeholder: Mission Control version, runtime, environment, links, or other relevant evidence.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing open and closed issues for the same request.
+          required: true
+        - label: I removed API keys, credentials, private prompts, personal data, and other secrets.
+          required: true
