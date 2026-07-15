@@ -340,7 +340,7 @@ export async function POST(request: NextRequest) {
         WHERE id = ? AND workspace_id = ?
       `).get(parsedTask.project_id, workspaceId) as any
       if (project?.github_sync_enabled && project?.github_repo) {
-        pushTaskToGitHub(parsedTask as any, project).catch(err =>
+        pushTaskToGitHub(parsedTask, project).catch(err =>
           logger.error({ err, taskId }, 'Outbound GitHub sync failed for new task')
         )
       }

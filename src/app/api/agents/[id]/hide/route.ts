@@ -27,7 +27,8 @@ export async function POST(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
-    db.prepare('UPDATE agents SET hidden = 1, updated_at = unixepoch() WHERE id = ?').run(agent.id)
+    db.prepare('UPDATE agents SET hidden = 1, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
+      .run(agent.id, workspaceId)
 
     return NextResponse.json({ success: true, agent_id: agent.id, hidden: true })
   } catch (error) {
@@ -60,7 +61,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
     }
 
-    db.prepare('UPDATE agents SET hidden = 0, updated_at = unixepoch() WHERE id = ?').run(agent.id)
+    db.prepare('UPDATE agents SET hidden = 0, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
+      .run(agent.id, workspaceId)
 
     return NextResponse.json({ success: true, agent_id: agent.id, hidden: false })
   } catch (error) {

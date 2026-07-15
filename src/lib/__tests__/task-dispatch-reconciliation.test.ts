@@ -57,7 +57,7 @@ vi.mock('../db', () => ({
             : mockDbState.tasks,
         }
       }
-      if (sql.includes('SELECT metadata FROM tasks WHERE id = ?')) {
+      if (sql.includes('SELECT metadata FROM tasks WHERE id = ? AND workspace_id = ?')) {
         return {
           get: (taskId: number) => {
             const task = mockDbState.tasks.find((item) => item.id === taskId)
@@ -75,8 +75,8 @@ vi.mock('../db', () => ({
       // Matches both the plain status update and the atomic claim variant
       // (UPDATE ... WHERE id = ? AND status = 'assigned') introduced in #698.
       if (
-        sql === 'UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?' ||
-        sql === "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = 'assigned'"
+        sql === 'UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?' ||
+        sql === "UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = 'assigned' AND workspace_id = ?"
       ) {
         return {
           run: (status: string, _updatedAt: number, taskId: number) => {
@@ -85,7 +85,7 @@ vi.mock('../db', () => ({
           },
         }
       }
-      if (sql === 'UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?') {
+      if (sql === 'UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ? AND workspace_id = ?') {
         return {
           run: (metadata: string, _updatedAt: number, taskId: number) => {
             mockDbState.metadataUpdates.push({ metadata, taskId })

@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockGet = vi.fn()
+const mockGet = vi.fn((..._args: unknown[]) => undefined as any)
 const mockAll = vi.fn(() => [])
 const mockRun = vi.fn(() => ({ lastInsertRowid: 1, changes: 1 }))
-const mockPrepare = vi.fn(() => ({ get: mockGet, all: mockAll, run: mockRun }))
+const mockPrepare = vi.fn((_sql: string) => ({ get: mockGet, all: mockAll, run: mockRun }))
 
 vi.mock('@/lib/db', () => ({
   getDatabase: () => ({ prepare: mockPrepare }),
 }))
 
-import { convergenceScore, checkDrift, evalTaskCompletion, evalCorrectnessScore } from '@/lib/agent-evals'
+import { convergenceScore, checkDrift, evalTaskCompletion, evalCorrectnessScore, runDriftCheck } from '@/lib/agent-evals'
 
 describe('convergenceScore', () => {
   it('returns score 1.0 when no unique tools', () => {
@@ -84,6 +84,30 @@ describe('checkDrift', () => {
     // delta = |0.95 - 0.8| / 0.8 = 0.1875
     expect(result.drifted).toBe(true)
     expect(result.threshold).toBe(0.10)
+  })
+})
+
+describe('workspace-scoped drift metrics', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGet.mockReturnValue(undefined)
+  })
+
+  it('binds workspace ownership to every token-usage window', () => {
+    runDriftCheck('shared-name', 42)
+
+    const tokenQueries = mockPrepare.mock.calls
+      .filter(([sql]) => String(sql).includes('FROM token_usage'))
+    expect(tokenQueries).toHaveLength(2)
+    for (const [sql] of tokenQueries) {
+      expect(sql).toContain('workspace_id = ?')
+    }
+
+    const tokenGets = mockGet.mock.calls.slice(0, 2) as unknown[][]
+    expect(tokenGets[0][0]).toBe('shared-name')
+    expect(tokenGets[0][1]).toBe(42)
+    expect(tokenGets[1][0]).toBe('shared-name')
+    expect(tokenGets[1][1]).toBe(42)
   })
 })
 

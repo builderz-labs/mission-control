@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
     ).all(workspaceId) as Pipeline[]
 
     // Enrich steps with template names
-    const templates = db.prepare('SELECT id, name FROM workflow_templates').all() as Array<{ id: number; name: string }>
+    const templates = db.prepare('SELECT id, name FROM workflow_templates WHERE workspace_id = ?')
+      .all(workspaceId) as Array<{ id: number; name: string }>
     const nameMap = new Map(templates.map(t => [t.id, t.name]))
 
     // Get run counts per pipeline
@@ -88,8 +89,8 @@ export async function POST(request: NextRequest) {
     // Validate template IDs exist
     const templateIds = steps.map((s: PipelineStep) => s.template_id)
     const existing = db.prepare(
-      `SELECT id FROM workflow_templates WHERE id IN (${templateIds.map(() => '?').join(',')})`
-    ).all(...templateIds) as Array<{ id: number }>
+      `SELECT id FROM workflow_templates WHERE id IN (${templateIds.map(() => '?').join(',')}) AND workspace_id = ?`
+    ).all(...templateIds, workspaceId) as Array<{ id: number }>
     if (existing.length !== new Set(templateIds).size) {
       return NextResponse.json({ error: 'One or more template IDs not found' }, { status: 400 })
     }

@@ -58,8 +58,8 @@ export function analyzeTokenEfficiency(
       COALESCE(SUM(output_tokens), 0) as output_tokens,
       COALESCE(SUM(cost_usd), 0) as total_cost
     FROM token_usage
-    WHERE agent_name = ? AND created_at > ?
-  `).get(agentName, since) as any
+    WHERE agent_name = ? AND workspace_id = ? AND created_at > ?
+  `).get(agentName, workspaceId, since) as any
 
   const sessions = row?.sessions ?? 0
   const inputTokens = row?.input_tokens ?? 0
@@ -240,17 +240,17 @@ export function generateRecommendations(
   const agentCost = db.prepare(`
     SELECT COALESCE(SUM(cost_usd), 0) as cost, COUNT(DISTINCT task_id) as tasks
     FROM token_usage
-    WHERE agent_name = ? AND task_id IS NOT NULL
-  `).get(agentName) as any
+    WHERE agent_name = ? AND task_id IS NOT NULL AND workspace_id = ?
+  `).get(agentName, workspaceId) as any
 
   const fleetAvg = db.prepare(`
     SELECT AVG(cost_per_task) as avg_cost FROM (
       SELECT SUM(COALESCE(cost_usd, 0)) * 1.0 / NULLIF(COUNT(DISTINCT task_id), 0) as cost_per_task
       FROM token_usage
-      WHERE agent_name IS NOT NULL AND task_id IS NOT NULL
+      WHERE agent_name IS NOT NULL AND task_id IS NOT NULL AND workspace_id = ?
       GROUP BY agent_name
     )
-  `).get() as any
+  `).get(workspaceId) as any
 
   if (agentCost?.tasks > 0 && fleetAvg?.avg_cost > 0) {
     const agentCostPerTask = agentCost.cost / agentCost.tasks

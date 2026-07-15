@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       getVersionInfo(),
       getSecurityInfo(),
       getDatabaseInfo(),
-      getAgentInfo(),
+      getAgentInfo(auth.user.workspace_id ?? 1),
       getSessionInfo(),
       getGatewayInfo(),
     ])
@@ -161,12 +161,12 @@ function getDatabaseInfo() {
   }
 }
 
-function getAgentInfo() {
+function getAgentInfo(workspaceId: number) {
   try {
     const db = getDatabase()
     const rows = db.prepare(
-      'SELECT status, COUNT(*) as count FROM agents GROUP BY status'
-    ).all() as Array<{ status: string; count: number }>
+      'SELECT status, COUNT(*) as count FROM agents WHERE workspace_id = ? GROUP BY status'
+    ).all(workspaceId) as Array<{ status: string; count: number }>
 
     const byStatus: Record<string, number> = {}
     let total = 0

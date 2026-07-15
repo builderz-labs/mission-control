@@ -165,8 +165,8 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
         }
         const updatedMetadata = { ...metadata, recurrence: updatedRecurrence }
         db.prepare(`
-          UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ?
-        `).run(JSON.stringify(updatedMetadata), nowSec, template.id)
+          UPDATE tasks SET metadata = ?, updated_at = ? WHERE id = ? AND workspace_id = ?
+        `).run(JSON.stringify(updatedMetadata), nowSec, template.id, template.workspace_id)
 
         db_helpers.logActivity(
           'task_created',

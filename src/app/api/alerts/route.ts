@@ -21,6 +21,7 @@ interface AlertRule {
   created_by: string
   created_at: number
   updated_at: number
+  workspace_id: number
 }
 
 /**
@@ -215,7 +216,8 @@ function evaluateRules(db: ReturnType<typeof getDatabase>, workspaceId: number) 
 
     if (triggered) {
       // Update trigger tracking
-      db.prepare('UPDATE alert_rules SET last_triggered_at = ?, trigger_count = trigger_count + 1 WHERE id = ?').run(now, rule.id)
+      db.prepare('UPDATE alert_rules SET last_triggered_at = ?, trigger_count = trigger_count + 1 WHERE id = ? AND workspace_id = ?')
+        .run(now, rule.id, workspaceId)
 
       // Create notification
       try {
