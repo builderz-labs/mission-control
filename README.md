@@ -78,11 +78,11 @@ loops. It gives operators one place to see and govern the work around those loop
 | Governance | Roles, API keys, security events, trust signals, approvals, audits, and evals |
 | Interfaces | Web UI, CLI, MCP server, OpenAPI-described REST API, WebSocket, and SSE |
 
-![Mission Control system blueprint](docs/mission-control-blueprint.png)
-
-The main runtime is self-hosted and single-tenant. SQLite stores local control-plane state.
-A gateway is optional for task, project, agent, scheduler, webhook, alert, and cost work;
-live session messaging needs a connected runtime gateway.
+The runtime is self-hosted and workspace-aware. SQLite stores local control-plane state.
+Shared workspaces can use deployment-level runtime integrations. Strict workspaces block
+those integrations until the underlying resources carry workspace ownership. A gateway is
+optional for task, project, agent, scheduler, webhook, alert, and cost work; live session
+messaging needs a connected runtime gateway.
 
 ## Operator field notes
 
@@ -162,8 +162,8 @@ claude mcp add mission-control -- \
 ```
 
 Use the [CLI and MCP reference](docs/cli-agent-control.md) for the current command and tool
-surface. The REST contract lives in [`openapi.json`](openapi.json) and is rendered at
-`/api-docs` by a running instance.
+surface. The REST contract lives in [`openapi.json`](openapi.json). A running instance serves
+the interactive reference at `/docs` and the OpenAPI JSON at `/api/docs`.
 
 ## Product surfaces
 
