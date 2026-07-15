@@ -252,8 +252,8 @@ describe('direct session API coverage', () => {
     const dispatch = readFileSync(join(process.cwd(), 'src/lib/task-dispatch.ts'), 'utf8')
     const scheduler = readFileSync(join(process.cwd(), 'src/app/api/scheduler/route.ts'), 'utf8')
 
-    expect(dispatch.match(/JOIN workspaces w ON w\.id = t\.workspace_id/g)).toHaveLength(2)
-    expect(dispatch.match(/AND w\.isolation = 'shared'/g)).toHaveLength(2)
+    expect(dispatch.match(/JOIN workspaces w ON w\.id = t\.workspace_id/g)).toHaveLength(3)
+    expect(dispatch.match(/AND w\.isolation = 'shared'/g)).toHaveLength(3)
     expect(scheduler.match(/'host_administration'/g)).toHaveLength(2)
   })
 
@@ -280,5 +280,16 @@ describe('direct session API coverage', () => {
     expect(localSync.match(/workspace_id/g)?.length).toBeGreaterThanOrEqual(4)
     expect(scheduler).toContain('resolveSharedRuntimeWorkspaceId(requestedWorkspaceId)')
     expect(scheduler).toContain("if (r.error) return { ok: false, message: r.error }")
+  })
+
+  it('keeps scheduler routing, review, and heartbeat mutations workspace-scoped', () => {
+    const dispatch = readFileSync(join(process.cwd(), 'src/lib/task-dispatch.ts'), 'utf8')
+    const scheduler = readFileSync(join(process.cwd(), 'src/lib/scheduler.ts'), 'utf8')
+
+    expect(dispatch).toContain("WHERE workspace_id = ?\n        AND hidden = 0")
+    expect(dispatch).toContain("WHERE t.status = 'review'\n      AND w.isolation = 'shared'")
+    expect(scheduler).toContain('SELECT id, name, status, last_seen, workspace_id FROM agents')
+    expect(scheduler).toContain("VALUES ('agent_status_change', 'agent', ?, 'heartbeat', ?, ?)")
+    expect(scheduler).toContain("VALUES ('system', 'heartbeat', ?, ?, 'agent', ?, ?)")
   })
 })

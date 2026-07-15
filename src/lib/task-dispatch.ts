@@ -1221,9 +1221,11 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
     SELECT t.id, t.title, t.description, t.status, t.priority, t.resolution, t.assigned_to, t.workspace_id,
            t.project_id, p.ticket_prefix, t.project_ticket_no, a.config as agent_config
     FROM tasks t
+    JOIN workspaces w ON w.id = t.workspace_id
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
     LEFT JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
     WHERE t.status = 'review'
+      AND w.isolation = 'shared'
     ORDER BY t.updated_at ASC
     LIMIT 3
   `).all() as ReviewableTask[]
@@ -1236,8 +1238,8 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 
   for (const task of tasks) {
     // Move to quality_review to prevent re-processing
-    db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
-      .run('quality_review', Math.floor(Date.now() / 1000), task.id)
+    db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+      .run('quality_review', Math.floor(Date.now() / 1000), task.id, task.workspace_id)
 
     eventBus.broadcast('task.status_changed', {
       id: task.id,
@@ -1295,8 +1297,8 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       `).run(task.id, verdict.status, verdict.notes, task.workspace_id)
 
       if (verdict.status === 'approved') {
-        db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
-          .run('done', Math.floor(Date.now() / 1000), task.id)
+        db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+          .run('done', Math.floor(Date.now() / 1000), task.id, task.workspace_id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
@@ -1307,14 +1309,14 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       } else {
         // Rejected: check dispatch_attempts to decide next status
         const now = Math.floor(Date.now() / 1000)
-        const currentAttempts = (db.prepare('SELECT dispatch_attempts FROM tasks WHERE id = ?').get(task.id) as { dispatch_attempts: number } | undefined)?.dispatch_attempts ?? 0
+        const currentAttempts = (db.prepare('SELECT dispatch_attempts FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, task.workspace_id) as { dispatch_attempts: number } | undefined)?.dispatch_attempts ?? 0
         const newAttempts = currentAttempts + 1
         const maxAegisRetries = 3
 
         if (newAttempts >= maxAegisRetries) {
           // Too many rejections — move to failed
-          db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-            .run('failed', `Aegis rejected ${newAttempts} times. Last: ${verdict.notes}`, newAttempts, now, task.id)
+          db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+            .run('failed', `Aegis rejected ${newAttempts} times. Last: ${verdict.notes}`, newAttempts, now, task.id, task.workspace_id)
 
           eventBus.broadcast('task.status_changed', {
             id: task.id,
@@ -1326,8 +1328,8 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
           syncAndEscalateIfFailed(task, 'failed', `Aegis rejected ${newAttempts} times`, newAttempts)
         } else {
           // Requeue to assigned for re-dispatch with feedback
-          db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ?')
-            .run('assigned', `Aegis rejected: ${verdict.notes}`, newAttempts, now, task.id)
+          db.prepare('UPDATE tasks SET status = ?, error_message = ?, dispatch_attempts = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+            .run('assigned', `Aegis rejected: ${verdict.notes}`, newAttempts, now, task.id, task.workspace_id)
 
           eventBus.broadcast('task.status_changed', {
             id: task.id,
@@ -1363,8 +1365,8 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       logger.error({ taskId: task.id, err }, 'Aegis review failed')
 
       // Revert to review so it can be retried
-      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
-        .run('review', Math.floor(Date.now() / 1000), task.id)
+      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+        .run('review', Math.floor(Date.now() / 1000), task.id, task.workspace_id)
 
       eventBus.broadcast('task.status_changed', {
         id: task.id,
@@ -1901,22 +1903,20 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
     return { ok: true, message: 'No inbox tasks to route' }
   }
 
-  // Get all non-hidden, non-offline agents
-  const agents = db.prepare(`
-    SELECT id, name, role, status, config
-    FROM agents
-    WHERE hidden = 0 AND status NOT IN ('offline', 'error')
-    LIMIT 50
-  `).all() as Array<{ id: number; name: string; role: string; status: string; config: string | null }>
-
-  if (agents.length === 0) {
-    return { ok: true, message: `${inboxTasks.length} inbox task(s) but no available agents` }
-  }
-
   let routed = 0
   const now = Math.floor(Date.now() / 1000)
 
   for (const task of inboxTasks) {
+    const agents = db.prepare(`
+      SELECT id, name, role, status, config
+      FROM agents
+      WHERE workspace_id = ?
+        AND hidden = 0
+        AND status NOT IN ('offline', 'error')
+      LIMIT 50
+    `).all(task.workspace_id) as Array<{ id: number; name: string; role: string; status: string; config: string | null }>
+    if (agents.length === 0) continue
+
     const taskText = `${task.title} ${task.description || ''}`
     let parsedTags: string[] = []
     if (task.tags) {
@@ -1948,8 +1948,8 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
         return c < 3
       })
       if (!alt) continue // all agents at capacity
-      db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, updated_at = ? WHERE id = ?')
-        .run('assigned', alt.agent.name, now, task.id)
+      db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+        .run('assigned', alt.agent.name, now, task.id, task.workspace_id)
 
       db_helpers.logActivity('task_auto_routed', 'task', task.id, 'scheduler',
         `Auto-assigned "${task.title}" to ${alt.agent.name} (${alt.agent.role}, score: ${alt.score})`,
@@ -1962,8 +1962,8 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
       continue
     }
 
-    db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, updated_at = ? WHERE id = ?')
-      .run('assigned', best.name, now, task.id)
+    db.prepare('UPDATE tasks SET status = ?, assigned_to = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+      .run('assigned', best.name, now, task.id, task.workspace_id)
 
     db_helpers.logActivity('task_auto_routed', 'task', task.id, 'scheduler',
       `Auto-assigned "${task.title}" to ${best.name} (${best.role}, score: ${scored[0].score})`,

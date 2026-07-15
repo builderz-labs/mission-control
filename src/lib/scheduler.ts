@@ -182,37 +182,38 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
 
     // Find agents that are not offline but haven't been seen recently
     const staleAgents = db.prepare(`
-      SELECT id, name, status, last_seen FROM agents
+      SELECT id, name, status, last_seen, workspace_id FROM agents
       WHERE status != 'offline' AND (last_seen IS NULL OR last_seen < ?)
-    `).all(threshold) as Array<{ id: number; name: string; status: string; last_seen: number | null }>
+    `).all(threshold) as Array<{ id: number; name: string; status: string; last_seen: number | null; workspace_id: number }>
 
     if (staleAgents.length === 0) {
       return { ok: true, message: 'All agents healthy' }
     }
 
     // Mark stale agents as offline
-    const markOffline = db.prepare('UPDATE agents SET status = ?, updated_at = ? WHERE id = ?')
+    const markOffline = db.prepare('UPDATE agents SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
     const logActivity = db.prepare(`
-      INSERT INTO activities (type, entity_type, entity_id, actor, description)
-      VALUES ('agent_status_change', 'agent', ?, 'heartbeat', ?)
+      INSERT INTO activities (type, entity_type, entity_id, actor, description, workspace_id)
+      VALUES ('agent_status_change', 'agent', ?, 'heartbeat', ?, ?)
     `)
 
     const names: string[] = []
     db.transaction(() => {
       for (const agent of staleAgents) {
-        markOffline.run('offline', now, agent.id)
-        logActivity.run(agent.id, `Agent "${agent.name}" marked offline (no heartbeat for ${timeoutMinutes}m)`)
+        markOffline.run('offline', now, agent.id, agent.workspace_id)
+        logActivity.run(agent.id, `Agent "${agent.name}" marked offline (no heartbeat for ${timeoutMinutes}m)`, agent.workspace_id)
         names.push(agent.name)
 
         // Create notification for each stale agent
         try {
           db.prepare(`
-            INSERT INTO notifications (recipient, type, title, message, source_type, source_id)
-            VALUES ('system', 'heartbeat', ?, ?, 'agent', ?)
+            INSERT INTO notifications (recipient, type, title, message, source_type, source_id, workspace_id)
+            VALUES ('system', 'heartbeat', ?, ?, 'agent', ?, ?)
           `).run(
             `Agent offline: ${agent.name}`,
             `Agent "${agent.name}" was marked offline after ${timeoutMinutes} minutes without heartbeat`,
-            agent.id
+            agent.id,
+            agent.workspace_id,
           )
         } catch { /* notification creation failed */ }
       }
@@ -221,7 +222,7 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
     logAuditEvent({
       action: 'heartbeat_check',
       actor: 'scheduler',
-      detail: { marked_offline: names },
+      detail: { marked_offline_count: names.length },
     })
 
     return { ok: true, message: `Marked ${staleAgents.length} agent(s) offline: ${names.join(', ')}` }
