@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Check for UI changes
         id: ui_changed
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const { data: files } = await github.rest.pulls.listFiles({
@@ -42,7 +42,7 @@ jobs:
       - name: Add label if UI changed
         # Fork PRs get a read-only token — label/comment calls would 403.
         if: steps.ui_changed.outputs.count > 0 && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             // Ensure the label exists
@@ -66,7 +66,7 @@ jobs:
       - name: Post checklist comment
         # Fork PRs get a read-only token — label/comment calls would 403.
         if: steps.ui_changed.outputs.count > 0 && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           CHANGED_UI_PATHS: ${{ steps.ui_changed.outputs.paths }}
         with:
