@@ -2,7 +2,7 @@
 
 const fs = require('fs')
 const net = require('net')
-const { spawn } = require('child_process')
+const { execFileSync, spawn } = require('child_process')
 const path = require('path')
 
 const SOCKET_PATH = process.env.MC_PROVISIONER_SOCKET || '/run/mc-provisioner.sock'
@@ -281,8 +281,12 @@ const server = net.createServer((socket) => {
 server.listen(SOCKET_PATH, () => {
   fs.chmodSync(SOCKET_PATH, 0o660)
   try {
-    const group = require('child_process').execSync(`getent group ${SOCKET_GROUP} | cut -d: -f3`).toString('utf8').trim()
-    const gid = Number(group)
+    const group = execFileSync('/usr/bin/getent', ['group', SOCKET_GROUP], {
+      encoding: 'utf8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+    const gid = Number(group.split(':')[2])
     if (Number.isInteger(gid)) {
       fs.chownSync(SOCKET_PATH, 0, gid)
     }

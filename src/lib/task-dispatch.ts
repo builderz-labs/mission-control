@@ -10,6 +10,7 @@ import { getAllGatewaySessions } from './sessions'
 import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from './transcript-parser'
 import { syncTaskOutbound } from './github-sync-engine'
 import { classifyModelProvider, getDispatchModelId, getModelByAlias } from './models'
+import type Database from 'better-sqlite3'
 
 const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
 
@@ -45,6 +46,42 @@ interface DispatchableTask {
   tags?: string[]
   /** Raw tasks.metadata JSON — carries optional per-task sandbox overrides. */
   metadata?: string | null
+}
+
+interface DispatchTokenUsage {
+  model: string
+  sessionId: string
+  inputTokens: number
+  outputTokens: number
+  workspaceId: number
+}
+
+/** Keep dispatch accounting aligned with the token_usage migration schema. */
+export function insertDispatchTokenUsage(
+  db: Pick<Database.Database, 'prepare'>,
+  usage: DispatchTokenUsage,
+  createdAt = Math.floor(Date.now() / 1000),
+): void {
+  db.prepare(`
+    INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, cost_usd, created_at, workspace_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    usage.model,
+    usage.sessionId,
+    usage.inputTokens,
+    usage.outputTokens,
+    0,
+    createdAt,
+    usage.workspaceId,
+  )
+}
+
+function recordDispatchTokenUsage(usage: DispatchTokenUsage): void {
+  try {
+    insertDispatchTokenUsage(getDatabase(), usage)
+  } catch (err) {
+    logger.warn({ err, model: usage.model, workspaceId: usage.workspaceId }, 'Dispatch token usage insert failed')
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -744,23 +781,13 @@ async function callClaudeDirectly(
 
   // Record token usage
   if (data.usage) {
-    try {
-      const db = getDatabase()
-      const now = Math.floor(Date.now() / 1000)
-      db.prepare(`
-        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        model,
-        `task-${task.id}`,
-        data.usage.input_tokens || 0,
-        data.usage.output_tokens || 0,
-        (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
-        0, // cost calculated separately
-        now,
-        task.workspace_id,
-      )
-    } catch { /* non-fatal */ }
+    recordDispatchTokenUsage({
+      model,
+      sessionId: `task-${task.id}`,
+      inputTokens: data.usage.input_tokens || 0,
+      outputTokens: data.usage.output_tokens || 0,
+      workspaceId: task.workspace_id,
+    })
   }
 
   return { text, sessionId: null }
@@ -943,23 +970,13 @@ async function callClaudeViaCli(
 
         // Record token usage if reported.
         if (parsed?.usage && (parsed.usage.input_tokens || parsed.usage.output_tokens)) {
-          try {
-            const db = getDatabase()
-            const now = Math.floor(Date.now() / 1000)
-            db.prepare(`
-              INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-              model,
-              sessionId || `task-${task.id}`,
-              parsed.usage.input_tokens || 0,
-              parsed.usage.output_tokens || 0,
-              (parsed.usage.input_tokens || 0) + (parsed.usage.output_tokens || 0),
-              0,
-              now,
-              task.workspace_id,
-            )
-          } catch { /* non-fatal */ }
+          recordDispatchTokenUsage({
+            model,
+            sessionId: sessionId || `task-${task.id}`,
+            inputTokens: parsed.usage.input_tokens || 0,
+            outputTokens: parsed.usage.output_tokens || 0,
+            workspaceId: task.workspace_id,
+          })
         }
 
         resolve({ text, sessionId })
@@ -1011,23 +1028,13 @@ async function callOpenAICompatible(
   const text = data.choices?.[0]?.message?.content?.trim() || null
 
   if (data.usage) {
-    try {
-      const db = getDatabase()
-      const now = Math.floor(Date.now() / 1000)
-      db.prepare(`
-        INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, total_tokens, cost, created_at, workspace_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        model,
-        `task-${task.id}`,
-        data.usage.prompt_tokens || 0,
-        data.usage.completion_tokens || 0,
-        (data.usage.prompt_tokens || 0) + (data.usage.completion_tokens || 0),
-        0,
-        now,
-        task.workspace_id,
-      )
-    } catch { /* non-fatal */ }
+    recordDispatchTokenUsage({
+      model,
+      sessionId: `task-${task.id}`,
+      inputTokens: data.usage.prompt_tokens || 0,
+      outputTokens: data.usage.completion_tokens || 0,
+      workspaceId: task.workspace_id,
+    })
   }
 
   return { text, sessionId: null }

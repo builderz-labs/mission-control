@@ -66,7 +66,7 @@ const doctorCache: DoctorCacheModule = (() => {
 })()
 
 /** Internal helper: invalidates the GET cache. Called by POST after --fix. */
-export function invalidateDoctorCache(): void {
+function invalidateDoctorCache(): void {
   doctorCache.cached = null
 }
 

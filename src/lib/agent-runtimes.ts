@@ -8,6 +8,14 @@ import { scanForInjection } from './injection-guard'
 import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } from './hermes-sessions'
 import { isOpenCodeInstalled, getOpenCodeVersion, scanOpenCodeSessions } from './opencode-sessions'
 import { logger } from './logger'
+import {
+  isValidInstallerSha256,
+  resolvePinnedUserToolSpec,
+  runtimeInstallsEnabled,
+  verifyInstallerSha256,
+} from './runtime-install-security'
+
+export { runtimeInstallsEnabled } from './runtime-install-security'
 
 // ---------------------------------------------------------------------------
 // Security review for downloaded installer scripts
@@ -27,9 +35,15 @@ interface ScriptReviewResult {
  */
 async function downloadAndReviewScript(
   url: string,
+  expectedSha256: string,
   job: InstallJob,
   env: NodeJS.ProcessEnv,
 ): Promise<{ scriptPath: string; tempDir: string } | null> {
+  if (!isValidInstallerSha256(expectedSha256)) {
+    job.output += '> SECURITY: Installer blocked because no valid SHA-256 digest is configured.\n'
+    return null
+  }
+
   // 1. Download to unpredictable temp dir (prevents symlink race)
   const tempDir = mkdtempSync(join(tmpdir(), 'mc-install-'))
   const scriptPath = join(tempDir, 'install.sh')
@@ -55,9 +69,11 @@ async function downloadAndReviewScript(
   }
 
   // 2. Read and scan with injection guard (regex baseline)
+  let installerBytes: Buffer
   let content: string
   try {
-    content = readFileSync(scriptPath, 'utf-8')
+    installerBytes = readFileSync(scriptPath)
+    content = installerBytes.toString('utf8')
   } catch {
     job.output += '> Failed to read downloaded script\n'
     rmSync(tempDir, { recursive: true, force: true })
@@ -69,6 +85,14 @@ async function downloadAndReviewScript(
     rmSync(tempDir, { recursive: true, force: true })
     return null
   }
+
+  const digest = verifyInstallerSha256(installerBytes, expectedSha256)
+  if (!digest.valid) {
+    job.output += `> SECURITY: Installer SHA-256 mismatch (received ${digest.actualSha256}).\n`
+    rmSync(tempDir, { recursive: true, force: true })
+    return null
+  }
+  job.output += `> Verified installer SHA-256: ${digest.actualSha256}\n`
 
   const regexReport = scanForInjection(content, { context: 'shell' })
   if (!regexReport.safe) {
@@ -149,14 +173,20 @@ ${truncated}
     const data = await res.json() as { content: Array<{ type: string; text?: string }> }
     const text = data.content?.find(b => b.type === 'text')?.text?.trim() || ''
 
-    if (text.startsWith('UNSAFE:')) {
-      return { safe: false, detail: text }
-    }
-    return { safe: true, detail: text }
+    const verdict = parseScriptReviewVerdict(text)
+    if (!verdict) logger.warn('AI script review returned an inconclusive verdict — skipping')
+    return verdict
   } catch (err: any) {
     logger.warn({ err: err.message }, 'AI script review error — skipping')
     return null
   }
+}
+
+export function parseScriptReviewVerdict(text: string): ScriptReviewResult | null {
+  const verdict = text.trim()
+  if (verdict.startsWith('UNSAFE:')) return { safe: false, detail: verdict }
+  if (verdict.startsWith('SAFE:')) return { safe: true, detail: verdict }
+  return null
 }
 
 export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
@@ -597,7 +627,12 @@ async function installOpenClawLocal(job: InstallJob): Promise<void> {
   }
   try {
     // Download, review, then execute from secure temp dir
-    const reviewed = await downloadAndReviewScript('https://get.openclaw.dev', job, env)
+    const reviewed = await downloadAndReviewScript(
+      'https://get.openclaw.dev',
+      process.env.MC_OPENCLAW_INSTALLER_SHA256 || '',
+      job,
+      env,
+    )
     if (!reviewed) {
       job.status = 'failed'
       job.error = 'Installer download or security review failed'
@@ -605,12 +640,15 @@ async function installOpenClawLocal(job: InstallJob): Promise<void> {
       return
     }
 
-    const result = await runCommand('bash', [reviewed.scriptPath, '--non-interactive'], {
-      timeoutMs: 300_000, env,
-      onData: (chunk) => { job.output += chunk },
-    })
-
-    rmSync(reviewed.tempDir, { recursive: true, force: true })
+    let result
+    try {
+      result = await runCommand('bash', [reviewed.scriptPath, '--non-interactive'], {
+        timeoutMs: 300_000, env,
+        onData: (chunk) => { job.output += chunk },
+      })
+    } finally {
+      rmSync(reviewed.tempDir, { recursive: true, force: true })
+    }
 
     // Verify the binary actually exists after install
     const { installed: verified } = detectBinary([config.openclawBin || 'openclaw'])
@@ -657,7 +695,12 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
     const hermesUrl = 'https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh'
 
     // Download, review, then execute from secure temp dir
-    const reviewed = await downloadAndReviewScript(hermesUrl, job, env)
+    const reviewed = await downloadAndReviewScript(
+      hermesUrl,
+      process.env.MC_HERMES_INSTALLER_SHA256 || '',
+      job,
+      env,
+    )
     if (!reviewed) {
       job.status = 'failed'
       job.error = 'Installer download or security review failed'
@@ -668,12 +711,15 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
     // Patch /dev/tty check for non-TTY environments before running
     await runCommand('sed', ['-i.bak', 's/\\[ -e \\/dev\\/tty \\]/false/g', reviewed.scriptPath], { timeoutMs: 5_000 }).catch(() => {})
 
-    const result = await runCommand('bash', [reviewed.scriptPath, '--skip-setup'], {
-      timeoutMs: 600_000, env,
-      onData: (chunk) => { job.output += chunk },
-    })
-
-    rmSync(reviewed.tempDir, { recursive: true, force: true })
+    let result
+    try {
+      result = await runCommand('bash', [reviewed.scriptPath, '--skip-setup'], {
+        timeoutMs: 600_000, env,
+        onData: (chunk) => { job.output += chunk },
+      })
+    } finally {
+      rmSync(reviewed.tempDir, { recursive: true, force: true })
+    }
 
     // Verify install actually worked — check for the binary
     clearHermesDetectionCache()
@@ -704,7 +750,12 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
 
 async function installClaudeLocal(job: InstallJob): Promise<void> {
   job.output += '> Installing Claude Code...\n'
-  if (await runInstallCmd('npm', ['install', '-g', '@anthropic-ai/claude-code'], job)) {
+  const resolved = resolvePinnedUserToolSpec('claude')
+  if ('error' in resolved) {
+    job.status = 'failed'
+    job.error = resolved.error
+    job.output += `> SECURITY: ${resolved.error}\n`
+  } else if (await runInstallCmd('npm', ['install', '-g', resolved.spec], job)) {
     job.status = 'success'
     job.output += '\n> Claude Code installed successfully.\n'
     job.output += '> Run "claude login" to authenticate.\n'
@@ -717,7 +768,12 @@ async function installClaudeLocal(job: InstallJob): Promise<void> {
 
 async function installCodexLocal(job: InstallJob): Promise<void> {
   job.output += '> Installing Codex CLI...\n'
-  if (await runInstallCmd('npm', ['install', '-g', '@openai/codex'], job)) {
+  const resolved = resolvePinnedUserToolSpec('codex')
+  if ('error' in resolved) {
+    job.status = 'failed'
+    job.error = resolved.error
+    job.output += `> SECURITY: ${resolved.error}\n`
+  } else if (await runInstallCmd('npm', ['install', '-g', resolved.spec], job)) {
     job.status = 'success'
     job.output += '\n> Codex CLI installed successfully.\n'
     job.output += '> Run "codex auth" to authenticate.\n'

@@ -10,7 +10,9 @@
     "mc:mcp": "node scripts/mc-mcp-server.cjs",
     "mc:tui": "node scripts/mc-tui.cjs",
     "dev": "pnpm run verify:node && next dev --hostname 127.0.0.1 --port ${PORT:-3000}",
-    "build": "pnpm run verify:node && next build",
+    "build": "pnpm run verify:node && next build --webpack && pnpm artifact:prepare",
+    "artifact:prepare": "node scripts/prepare-standalone-artifact.mjs",
+    "artifact:check": "node scripts/check-standalone-artifact.mjs",
     "start": "pnpm run verify:node && next start --hostname 0.0.0.0 --port ${PORT:-3000}",
     "start:standalone": "pnpm run verify:node && bash scripts/start-standalone.sh",
     "deploy:standalone": "pnpm run verify:node && bash scripts/deploy-standalone.sh",
@@ -91,23 +93,5 @@
     "type": "git",
     "url": "https://github.com/builderz-labs/mission-control.git"
   },
-  "packageManager": "pnpm@10.29.3",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@parcel/watcher",
-      "@swc/core",
-      "better-sqlite3",
-      "esbuild",
-      "node-pty",
-      "sharp",
-      "unrs-resolver"
-    ],
-    "minimumReleaseAge": 10080,
-    "minimumReleaseAgeExclude": [],
-    "overrides": {
-      "postcss@8": ">=8.5.10",
-      "ts-deepmerge": ">=8.0.0",
-      "eslint-plugin-react-hooks": "~7.0.1"
-    }
-  }
+  "packageManager": "pnpm@10.29.3"
 }

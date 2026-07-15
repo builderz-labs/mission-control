@@ -6,6 +6,8 @@ import path from 'path'
 import { requireRole, getUserFromRequest } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import { resolvePinnedUserToolSpec, runtimeInstallsEnabled } from '@/lib/runtime-install-security'
+import type { UserRuntimeTool } from '@/lib/runtime-install-security'
 
 export interface OsUser {
   username: string
@@ -44,12 +46,12 @@ const SERVICE_ACCOUNTS = new Set([
 function checkToolExists(homeDir: string, tool: string): boolean {
   // Check common install locations relative to user home
   const candidates = [
-    path.join(homeDir, '.local', 'bin', tool),
-    path.join(homeDir, '.npm-global', 'bin', tool),
-    path.join(homeDir, `.${tool}`),             // e.g. ~/.claude, ~/.openclaw config dir = installed
+    path.join(/*turbopackIgnore: true*/ homeDir, '.local', 'bin', tool),
+    path.join(/*turbopackIgnore: true*/ homeDir, '.npm-global', 'bin', tool),
+    path.join(/*turbopackIgnore: true*/ homeDir, `.${tool}`), // e.g. ~/.claude, ~/.openclaw config dir = installed
   ]
   for (const p of candidates) {
-    try { if (fs.existsSync(p)) return true } catch {}
+    try { if (fs.existsSync(/*turbopackIgnore: true*/ p)) return true } catch {}
   }
   // Also check system-wide
   try {
@@ -63,24 +65,25 @@ function checkToolExists(homeDir: string, tool: string): boolean {
 function installToolForUser(
   homeDir: string,
   username: string,
-  tool: 'openclaw' | 'claude' | 'codex'
+  tool: UserRuntimeTool,
+  packageSpec: string,
 ): { success: boolean; error?: string } {
   try {
     if (tool === 'openclaw') {
-      // openclaw is managed by MC — create dir structure + install latest from npm
-      const openclawDir = path.join(homeDir, '.openclaw')
-      const workspaceDir = path.join(homeDir, 'workspace')
+      // OpenClaw is managed by MC — create its directory structure and install
+      // the operator-reviewed immutable Git commit.
+      const openclawDir = path.join(/*turbopackIgnore: true*/ homeDir, '.openclaw')
+      const workspaceDir = path.join(/*turbopackIgnore: true*/ homeDir, 'workspace')
       for (const dir of [openclawDir, workspaceDir]) {
         try {
           execFileSync('/usr/bin/sudo', ['-n', 'install', '-d', '-o', username, dir], { timeout: 5000, stdio: 'pipe' })
         } catch {
           // Fallback: mkdir directly (works if running as that user or root)
-          fs.mkdirSync(dir, { recursive: true })
+          fs.mkdirSync(/*turbopackIgnore: true*/ dir, { recursive: true })
         }
       }
-      // Install latest openclaw from GitHub (always latest) with npm fallback
       try {
-        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', 'openclaw/openclaw'], {
+        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', packageSpec], {
           timeout: 120000,
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
@@ -97,18 +100,18 @@ function installToolForUser(
     if (tool === 'claude') {
       // Install claude code CLI globally for the user
       try {
-        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', '@anthropic-ai/claude-code@latest'], {
+        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', packageSpec], {
           timeout: 120000,
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
         })
       } catch (npmErr: any) {
         // Fallback: create config dir so checkToolExists detects it
-        const claudeDir = path.join(homeDir, '.claude')
+        const claudeDir = path.join(/*turbopackIgnore: true*/ homeDir, '.claude')
         try {
           execFileSync('/usr/bin/sudo', ['-n', 'install', '-d', '-o', username, claudeDir], { timeout: 5000, stdio: 'pipe' })
         } catch {
-          fs.mkdirSync(claudeDir, { recursive: true })
+          fs.mkdirSync(/*turbopackIgnore: true*/ claudeDir, { recursive: true })
         }
         const msg = npmErr?.stderr?.toString?.()?.slice(0, 200) || npmErr?.message || 'npm install failed'
         return { success: false, error: msg }
@@ -119,18 +122,18 @@ function installToolForUser(
     if (tool === 'codex') {
       // Install codex CLI globally for the user
       try {
-        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', '@openai/codex@latest'], {
+        execFileSync('/usr/bin/sudo', ['-n', '-u', username, 'npm', 'install', '-g', packageSpec], {
           timeout: 120000,
           stdio: 'pipe',
           env: { ...process.env, HOME: homeDir },
         })
       } catch (npmErr: any) {
         // Fallback: create config dir so checkToolExists detects it
-        const codexDir = path.join(homeDir, '.codex')
+        const codexDir = path.join(/*turbopackIgnore: true*/ homeDir, '.codex')
         try {
           execFileSync('/usr/bin/sudo', ['-n', 'install', '-d', '-o', username, codexDir], { timeout: 5000, stdio: 'pipe' })
         } catch {
-          fs.mkdirSync(codexDir, { recursive: true })
+          fs.mkdirSync(/*turbopackIgnore: true*/ codexDir, { recursive: true })
         }
         const msg = npmErr?.stderr?.toString?.()?.slice(0, 200) || npmErr?.message || 'npm install failed'
         return { success: false, error: msg }
@@ -270,6 +273,27 @@ export async function POST(request: NextRequest) {
   const installOpenclaw = !!body.install_openclaw
   const installClaude = !!body.install_claude
   const installCodex = !!body.install_codex
+  const toolsToInstall: UserRuntimeTool[] = []
+  if (installOpenclaw) toolsToInstall.push('openclaw')
+  // When OpenClaw is selected, Claude and Codex are bundled.
+  if (installClaude && !installOpenclaw) toolsToInstall.push('claude')
+  if (installCodex && !installOpenclaw) toolsToInstall.push('codex')
+
+  const pinnedToolSpecs = new Map<UserRuntimeTool, string>()
+  if (toolsToInstall.length > 0) {
+    if (!runtimeInstallsEnabled()) {
+      return NextResponse.json({
+        error: 'Runtime installs are disabled. Set MC_ENABLE_RUNTIME_INSTALLS=1 after reviewing the supply-chain requirements.',
+      }, { status: 403 })
+    }
+    for (const tool of toolsToInstall) {
+      const resolved = resolvePinnedUserToolSpec(tool)
+      if ('error' in resolved) {
+        return NextResponse.json({ error: resolved.error, tool }, { status: 400 })
+      }
+      pinnedToolSpecs.set(tool, resolved.spec)
+    }
+  }
 
   // Validate username (safe for OS user creation — alphanumeric + dash/underscore)
   if (!/^[a-z][a-z0-9_-]{1,30}[a-z0-9]$/.test(username)) {
@@ -373,8 +397,8 @@ export async function POST(request: NextRequest) {
 
     // Determine home directory for the new user
     const homeDir = platform === 'darwin' ? `/Users/${username}` : `/home/${username}`
-    const openclawHome = path.posix.join(homeDir, '.openclaw')
-    const workspaceRoot = path.posix.join(homeDir, 'workspace')
+    const openclawHome = path.posix.join(/*turbopackIgnore: true*/ homeDir, '.openclaw')
+    const workspaceRoot = path.posix.join(/*turbopackIgnore: true*/ homeDir, 'workspace')
 
     // Register as tenant in DB
     const tenantRes = db.prepare(`
@@ -396,14 +420,8 @@ export async function POST(request: NextRequest) {
 
     // Install requested tools (non-fatal)
     const installResults: Record<string, { success: boolean; error?: string }> = {}
-    const toolsToInstall: Array<'openclaw' | 'claude' | 'codex'> = []
-    if (installOpenclaw) toolsToInstall.push('openclaw')
-    // When openclaw is selected, claude+codex are bundled — skip separate installs
-    if (installClaude && !installOpenclaw) toolsToInstall.push('claude')
-    if (installCodex && !installOpenclaw) toolsToInstall.push('codex')
-
     for (const tool of toolsToInstall) {
-      installResults[tool] = installToolForUser(homeDir, username, tool)
+      installResults[tool] = installToolForUser(homeDir, username, tool, pinnedToolSpecs.get(tool)!)
     }
 
     const installSummary = Object.entries(installResults)

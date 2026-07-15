@@ -32,6 +32,7 @@ interface Props {
 export function AgentRuntimesSection({ showFeedback }: Props) {
   const [runtimes, setRuntimes] = useState<RuntimeStatus[]>([])
   const [isDocker, setIsDocker] = useState(false)
+  const [runtimeInstallsEnabled, setRuntimeInstallsEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [activeJobs, setActiveJobs] = useState<Record<string, InstallJob>>({})
   const [expandedOutput, setExpandedOutput] = useState<string | null>(null)
@@ -44,6 +45,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
       const data = await res.json()
       setRuntimes(data.runtimes || [])
       setIsDocker(data.isDocker || false)
+      setRuntimeInstallsEnabled(data.runtimeInstallsEnabled === true)
     } catch {
       // ignore
     } finally {
@@ -154,6 +156,12 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
         Install and manage agent runtimes for running AI agents.
       </p>
 
+      {!runtimeInstallsEnabled && (
+        <div className="mb-3 p-2 rounded border border-amber-500/20 bg-amber-500/5 text-xs text-muted-foreground">
+          Local installs are disabled by default. Review the runtime supply-chain settings before enabling them.
+        </div>
+      )}
+
       {isDocker && (
         <div className="mb-3 p-2 rounded border border-void-cyan/20 bg-void-cyan/5 text-xs text-muted-foreground">
           Running in Docker — install directly or use sidecar services for production.
@@ -241,7 +249,16 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                         <Button variant="ghost" size="sm" onClick={() => handleDetect(rt.id)} className="text-2xs h-6 px-2">Refresh</Button>
                         {!rt.installed && !justInstalled && (
                           <>
-                            <Button variant="ghost" size="sm" onClick={() => handleInstall(rt.id)} className="text-2xs h-6 px-2">Install</Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={!runtimeInstallsEnabled}
+                              title={runtimeInstallsEnabled ? undefined : 'Enable reviewed runtime installs in the server environment first'}
+                              onClick={() => handleInstall(rt.id)}
+                              className="text-2xs h-6 px-2"
+                            >
+                              Install
+                            </Button>
                             {isDocker && (
                               <Button variant="ghost" size="sm" onClick={() => handleCopyCompose(rt.id)} className="text-2xs h-6 px-2">Sidecar YAML</Button>
                             )}
@@ -270,7 +287,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                     {installFailed && (
                       <div className="mt-2 space-y-1">
                         <p className="text-2xs text-red-400">Install failed: {job?.error || 'Unknown error'}</p>
-                        <Button variant="ghost" size="sm" onClick={() => handleInstall(rt.id)} className="text-2xs h-6 px-2">Retry</Button>
+                        <Button variant="ghost" size="sm" disabled={!runtimeInstallsEnabled} onClick={() => handleInstall(rt.id)} className="text-2xs h-6 px-2">Retry</Button>
                       </div>
                     )}
 

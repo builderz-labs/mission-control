@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import { createHmac } from 'crypto'
-import { verifyWebhookSignature, nextRetryDelay } from '../webhooks'
+import { isBlockedWebhookUrl, verifyWebhookSignature, nextRetryDelay } from '../webhooks'
+
+describe('isBlockedWebhookUrl', () => {
+  it.each([
+    'http://127.0.0.1/hook',
+    'http://10.0.0.1/hook',
+    'http://100.64.0.1/hook',
+    'http://169.254.169.254/latest/meta-data',
+    'http://192.168.1.2/hook',
+    'http://[::1]/hook',
+    'http://[fd00::1]/hook',
+    'http://service.local/hook',
+    'file:///etc/passwd',
+  ])('blocks internal destination %s', (url) => {
+    expect(isBlockedWebhookUrl(url)).toBe(true)
+  })
+
+  it('allows public HTTP and HTTPS destinations', () => {
+    expect(isBlockedWebhookUrl('https://hooks.example.com/events')).toBe(false)
+    expect(isBlockedWebhookUrl('http://203.0.113.10/events')).toBe(false)
+  })
+})
 
 describe('verifyWebhookSignature', () => {
   const secret = 'test-secret-key-1234'

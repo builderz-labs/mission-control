@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { eventBus, type ServerEvent } from './event-bus'
 import { logger } from './logger'
 
@@ -32,6 +34,47 @@ interface DeliveryResult {
 const BACKOFF_SECONDS = [30, 300, 1800, 7200, 28800]
 
 const MAX_RETRIES = parseInt(process.env.MC_WEBHOOK_MAX_RETRIES || '5', 10) || 5
+
+const WEBHOOK_BLOCKED_HOSTNAMES = new Set([
+  'localhost', '0.0.0.0', 'metadata.google.internal', 'metadata.internal', 'instance-data',
+])
+
+function isPrivateAddress(address: string): boolean {
+  const normalized = address.toLowerCase().split('%')[0]
+  if (normalized === '::1' || normalized === '::') return true
+  if (normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb')) return true
+  if (normalized.startsWith('::ffff:')) return isPrivateAddress(normalized.slice(7))
+  if (isIP(normalized) !== 4) return false
+
+  const [a, b] = normalized.split('.').map(Number)
+  return a === 0 || a === 10 || a === 127 || a >= 224
+    || (a === 100 && b >= 64 && b <= 127)
+    || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168)
+    || (a === 198 && (b === 18 || b === 19))
+}
+
+export function isBlockedWebhookUrl(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return true
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '')
+    if (!hostname || WEBHOOK_BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.local')) return true
+    return isIP(hostname) !== 0 && isPrivateAddress(hostname)
+  } catch {
+    return true
+  }
+}
+
+async function assertSafeWebhookDestination(urlStr: string): Promise<void> {
+  if (isBlockedWebhookUrl(urlStr)) throw new Error('Webhook URL resolves to a blocked destination')
+  const hostname = new URL(urlStr).hostname.replace(/^\[|\]$/g, '')
+  const addresses = await lookup(hostname, { all: true, verbatim: true })
+  if (addresses.length === 0 || addresses.some(({ address }) => isPrivateAddress(address))) {
+    throw new Error('Webhook URL resolves to a private or internal address')
+  }
+}
 
 // Map event bus events to webhook event types
 const EVENT_MAP: Record<string, string> = {
@@ -203,6 +246,7 @@ async function deliverWebhook(
   let error: string | null = null
 
   try {
+    await assertSafeWebhookDestination(webhook.url)
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000)
 
@@ -211,6 +255,7 @@ async function deliverWebhook(
       headers,
       body,
       signal: controller.signal,
+      redirect: 'error',
     })
 
     clearTimeout(timeout)
