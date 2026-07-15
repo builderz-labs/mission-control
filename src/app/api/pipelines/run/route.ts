@@ -3,6 +3,7 @@ import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 interface PipelineStep {
   template_id: number
@@ -100,6 +101,11 @@ export async function POST(request: NextRequest) {
     const workspaceId = auth.user.workspace_id ?? 1
     const body = await request.json()
     const { action, pipeline_id, run_id } = body
+
+    if (action === 'start' || action === 'advance') {
+      const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_tasks', new URL(request.url).pathname)
+      if (isolationDeny) return isolationDeny
+    }
 
     if (action === 'start') {
       return startPipeline(db, pipeline_id, auth.user?.username || 'system', workspaceId)

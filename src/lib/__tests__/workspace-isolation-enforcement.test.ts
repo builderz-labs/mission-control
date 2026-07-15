@@ -242,4 +242,16 @@ describe('direct session API coverage', () => {
     expect(dispatch.match(/AND w\.isolation = 'shared'/g)).toHaveLength(2)
     expect(scheduler.match(/'host_administration'/g)).toHaveLength(2)
   })
+
+  it('guards deployment-global spawn, pipeline execution, and agent sync', () => {
+    const spawn = readFileSync(join(process.cwd(), 'src/app/api/spawn/route.ts'), 'utf8')
+    const pipelines = readFileSync(join(process.cwd(), 'src/app/api/pipelines/run/route.ts'), 'utf8')
+    const agentSync = readFileSync(join(process.cwd(), 'src/app/api/agents/sync/route.ts'), 'utf8')
+
+    expect(spawn).toContain("'runtime_tasks'")
+    expect(spawn).toContain("'host_administration'")
+    expect(pipelines).toContain("action === 'start' || action === 'advance'")
+    expect(pipelines).toContain("'runtime_tasks'")
+    expect(agentSync.match(/'runtime_configuration'/g)).toHaveLength(2)
+  })
 })
