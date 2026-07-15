@@ -204,7 +204,6 @@ export function generateDecodingVariants(
     seen.add(candidate)
     try {
       const decoded = atob(candidate)
-      // eslint-disable-next-line no-control-regex
       if (decoded.length >= 4 && !/[\x00-\x08\x0B-\x1F\x7F]/.test(decoded)) {
         variants.push({ label: `base64-decoded:${candidate.slice(0, 12)}…`, text: cap(decoded) })
       }
