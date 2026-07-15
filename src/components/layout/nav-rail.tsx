@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { APP_VERSION } from '@/lib/version'
 import { getPluginNavItems } from '@/lib/plugins'
+import { apiFetch } from '@/lib/api-client'
 
 interface NavItem {
   id: string
@@ -1186,9 +1187,9 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                             setCreating(true)
                             setCreateError(null)
                             try {
-                              const res = await fetch('/api/super/os-users', {
+                              const res = await apiFetch<Response>('/api/super/os-users', {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                raw: true,
                                 body: JSON.stringify({
                                   username,
                                   display_name,
@@ -1204,8 +1205,8 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                               setCreateForm({ username: '', display_name: '', gateway_port: '', install_openclaw: true, install_claude: false, install_codex: false })
                               setCreateMode(false)
                               await Promise.all([fetchTenants(), fetchOsUsers()])
-                            } catch (e: any) {
-                              setCreateError(e?.message || 'Failed to create')
+                            } catch (error: unknown) {
+                              setCreateError(error instanceof Error ? error.message : 'Failed to create')
                             } finally {
                               setCreating(false)
                             }

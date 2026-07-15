@@ -12,6 +12,7 @@ import {
   createWorkflowSchema,
   createMessageSchema,
   updateProjectSchema,
+  createOsUserSchema,
 } from '@/lib/validation'
 
 describe('createTaskSchema', () => {
@@ -244,6 +245,46 @@ describe('createUserSchema', () => {
   it('rejects missing password', () => {
     const result = createUserSchema.safeParse({ username: 'x' })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('createOsUserSchema', () => {
+  it('accepts a bounded local provisioning request', () => {
+    const result = createOsUserSchema.safeParse({
+      username: 'builder-01',
+      display_name: 'Builder 01',
+      password: 'secure-passphrase',
+      install_codex: true,
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('normalizes safe usernames and display names', () => {
+    const result = createOsUserSchema.safeParse({
+      username: '  Builder-01  ',
+      display_name: '  Builder 01  ',
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.username).toBe('builder-01')
+      expect(result.data.display_name).toBe('Builder 01')
+    }
+  })
+
+  it.each([
+    {},
+    { username: 'ab', display_name: 'Too short username' },
+    { username: 'root;shutdown', display_name: 'Unsafe' },
+    { username: 'valid-user', display_name: '' },
+    { username: 'valid-user', display_name: 'x'.repeat(101) },
+    { username: 'valid-user', display_name: 'Valid', password: 'short' },
+    { username: 'valid-user', display_name: 'Valid', gateway_mode: true },
+    { username: 'valid-user', display_name: 'Valid', gateway_mode: true, gateway_port: 22 },
+    { username: 'valid-user', display_name: 'Valid', unexpected: true },
+  ])('rejects unsafe OS user provisioning input %#', (input) => {
+    expect(createOsUserSchema.safeParse(input).success).toBe(false)
   })
 })
 

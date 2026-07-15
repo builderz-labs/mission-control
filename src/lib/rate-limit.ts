@@ -249,6 +249,14 @@ export const securityFixLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** OS account creation and runtime installation: 5 attempts per 10 minutes per admin. */
+export const osUserProvisionLimiter = createKeyedRateLimiter({
+  windowMs: 10 * 60_000,
+  maxRequests: 5,
+  message: 'Too many OS user provisioning attempts. Try again later.',
+  critical: true,
+})
+
 /** Self-registration: 5/min per IP (prevent spam registrations) */
 export const selfRegisterLimiter = createRateLimiter({
   windowMs: 60_000,

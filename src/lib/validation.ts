@@ -276,6 +276,28 @@ export const createUserSchema = z.object({
   email: z.string().optional(),
 })
 
+export const createOsUserSchema = z.object({
+  username: z.string().trim().toLowerCase()
+    .regex(/^[a-z][a-z0-9_-]{1,30}[a-z0-9]$/, 'Invalid OS username'),
+  display_name: z.string().trim().min(1, 'Display name is required').max(100),
+  password: z.string().min(12, 'Password must be at least 12 characters').max(128).optional(),
+  gateway_mode: z.boolean().optional(),
+  gateway_port: z.number().int().min(1024).max(65535).optional(),
+  owner_gateway: z.string().trim().min(1).max(120).optional(),
+  dry_run: z.boolean().optional(),
+  install_openclaw: z.boolean().optional(),
+  install_claude: z.boolean().optional(),
+  install_codex: z.boolean().optional(),
+}).strict().superRefine((body, ctx) => {
+  if (body.gateway_mode && body.gateway_port === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['gateway_port'],
+      message: 'gateway_port is required in gateway mode',
+    })
+  }
+})
+
 export const accessRequestActionSchema = z.object({
   request_id: z.number(),
   action: z.enum(['approve', 'reject']),

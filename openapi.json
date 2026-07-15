@@ -11566,11 +11566,15 @@
               "schema": {
                 "type": "object",
                 "required": ["username", "display_name"],
+                "additionalProperties": false,
                 "properties": {
-                  "username": { "type": "string" },
-                  "display_name": { "type": "string" },
-                  "password": { "type": "string" },
+                  "username": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{1,30}[a-z0-9]$" },
+                  "display_name": { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "password": { "type": "string", "minLength": 12, "maxLength": 128 },
                   "gateway_mode": { "type": "boolean" },
+                  "gateway_port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+                  "owner_gateway": { "type": "string", "minLength": 1, "maxLength": 120 },
+                  "dry_run": { "type": "boolean" },
                   "install_openclaw": { "type": "boolean" },
                   "install_claude": { "type": "boolean" },
                   "install_codex": { "type": "boolean" }
@@ -11587,7 +11591,8 @@
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
-          "409": { "description": "User already exists" }
+          "409": { "description": "User already exists" },
+          "429": { "description": "Provisioning rate limit exceeded" }
         }
       }
     },
