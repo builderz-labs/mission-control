@@ -4,6 +4,15 @@ const withNextIntl = require('next-intl/plugin')('./src/i18n/request.ts')
 const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: __dirname,
+  outputFileTracingIncludes: {
+    // These files are read from process.cwd() at runtime and therefore cannot
+    // be discovered reliably by static output tracing.
+    '/*': [
+      './openapi.json',
+      './ops/templates/openclaw-gateway@.service',
+      './src/lib/schema.sql',
+    ],
+  },
   outputFileTracingExcludes: {
     // `.git` must be excluded so the Next.js file tracer does not copy the
     // entire repo .git directory into `.next/standalone/`. When it does,
@@ -12,7 +21,24 @@ const nextConfig = {
     // process.cwd() under `pnpm start:standalone`) reports every file the
     // standalone build doesn't bundle (e.g. `src/lib/__tests__/`) as
     // deleted — blocking the dirty-tree check and breaking self-update.
-    '/*': ['./.data/**/*', './.git/**/*'],
+    '/*': [
+      './.data/**/*',
+      './.devgod/**/*',
+      './.git/**/*',
+      './.github/**/*',
+      './docs/**/*',
+      './examples/**/*',
+      './tests/**/*',
+      './wiki/**/*',
+      './src/**/*.test.*',
+      './src/**/__tests__/**/*',
+      './.env*',
+      './playwright*.ts',
+      './vitest.config.ts',
+      './eslint.config.mjs',
+      './tsconfig*.json',
+      './tsconfig.tsbuildinfo',
+    ],
   },
   turbopack: {
     root: __dirname,
