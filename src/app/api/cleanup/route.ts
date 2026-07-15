@@ -4,6 +4,7 @@ import { getDatabase, logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
 import { heavyLimiter } from '@/lib/rate-limit'
 import { countStaleGatewaySessions, pruneGatewaySessionsOlderThan } from '@/lib/sessions'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 interface CleanupResult {
   table: string
@@ -18,6 +19,8 @@ interface CleanupResult {
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const db = getDatabase()
   const workspaceId = auth.user.workspace_id ?? 1
@@ -84,6 +87,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const rateCheck = heavyLimiter(request)
   if (rateCheck) return rateCheck

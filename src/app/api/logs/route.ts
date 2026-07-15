@@ -3,6 +3,7 @@ import { readFile, readdir, stat } from 'fs/promises'
 import { join } from 'path'
 import { config } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
@@ -179,6 +180,8 @@ async function readLogFile(filePath: string, source: string, maxLines: number): 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const rateCheck = readLimiter(request)
   if (rateCheck) return rateCheck
@@ -257,6 +260,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck

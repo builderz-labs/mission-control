@@ -4,6 +4,7 @@ import { existsSync, statSync } from 'node:fs'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { getDatabase } from '@/lib/db'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { runOpenClaw } from '@/lib/command'
 import { logger } from '@/lib/logger'
 import { APP_VERSION } from '@/lib/version'
@@ -19,6 +20,8 @@ const INSECURE_PASSWORDS = new Set([
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   try {
     const [version, security, database, agents, sessions, gateway] = await Promise.all([

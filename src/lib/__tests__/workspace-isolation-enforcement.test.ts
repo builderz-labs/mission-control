@@ -182,4 +182,19 @@ describe('direct session API coverage', () => {
     expect(cronRoute.match(/'runtime_configuration'/g)).toHaveLength(2)
     expect(integrationsRoute.match(/'runtime_configuration'/g)).toHaveLength(4)
   })
+
+  it('guards deployment-global host administration operations', () => {
+    const expectedOperations = new Map([
+      ['src/app/api/backup/route.ts', 3],
+      ['src/app/api/cleanup/route.ts', 2],
+      ['src/app/api/diagnostics/route.ts', 1],
+      ['src/app/api/logs/route.ts', 2],
+      ['src/app/api/system-monitor/route.ts', 1],
+    ])
+
+    for (const [file, operations] of expectedOperations) {
+      const source = readFileSync(join(process.cwd(), file), 'utf8')
+      expect(source.match(/'host_administration'/g), file).toHaveLength(operations)
+    }
+  })
 })

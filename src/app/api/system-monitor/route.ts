@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import os from 'node:os'
 import { runCommand } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   try {
     const [cpu, memory, disk, gpu, network, processes] = await Promise.all([
