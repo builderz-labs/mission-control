@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api-client'
 
 interface Project {
   id: number
@@ -25,6 +26,21 @@ interface Agent {
   name: string
   role: string
   status: string
+}
+
+interface ProjectsResponse {
+  projects: Project[]
+}
+
+interface AgentsResponse {
+  agents: Agent[]
+}
+
+async function mutate<T>(path: string, options: RequestInit): Promise<T> {
+  const response = await apiFetch<Response>(path, { ...options, raw: true })
+  const data = await response.json().catch(() => null) as { error?: string } | null
+  if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`)
+  return data as T
 }
 
 const COLOR_PALETTE = [
@@ -51,6 +67,7 @@ export function ProjectManagerModal({
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', ticket_prefix: '', description: '' })
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [savingId, setSavingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState<{
     description: string
     github_repo: string
@@ -64,18 +81,12 @@ export function ProjectManagerModal({
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [projectsRes, agentsRes] = await Promise.all([
-        fetch('/api/projects?includeArchived=1'),
-        fetch('/api/agents')
+      const [projectsData, agentsData] = await Promise.all([
+        apiFetch<ProjectsResponse>('/api/projects?includeArchived=1'),
+        apiFetch<AgentsResponse>('/api/agents')
       ])
-      const projectsData = await projectsRes.json()
-      if (!projectsRes.ok) throw new Error(projectsData.error || 'Failed to load projects')
       setProjects(projectsData.projects || [])
-
-      if (agentsRes.ok) {
-        const agentsData = await agentsRes.json()
-        setAgents(agentsData.agents || [])
-      }
+      setAgents(agentsData.agents || [])
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load projects')
@@ -92,17 +103,14 @@ export function ProjectManagerModal({
     e.preventDefault()
     if (!form.name.trim()) return
     try {
-      const response = await fetch('/api/projects', {
+      await mutate('/api/projects', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name,
           ticket_prefix: form.ticket_prefix,
           description: form.description
         })
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to create project')
       setForm({ name: '', ticket_prefix: '', description: '' })
       await load()
       await onChanged?.()
@@ -113,13 +121,10 @@ export function ProjectManagerModal({
 
   const archiveProject = async (project: Project) => {
     try {
-      const response = await fetch(`/api/projects/${project.id}`, {
+      await mutate(`/api/projects/${project.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: project.status === 'active' ? 'archived' : 'active' })
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to update project')
       await load()
       await onChanged?.()
     } catch (err) {
@@ -130,9 +135,7 @@ export function ProjectManagerModal({
   const deleteProject = async (project: Project) => {
     if (!confirm(`Delete project "${project.name}"? Existing tasks will be moved to General.`)) return
     try {
-      const response = await fetch(`/api/projects/${project.id}?mode=delete`, { method: 'DELETE' })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to delete project')
+      await mutate(`/api/projects/${project.id}?mode=delete`, { method: 'DELETE' })
       await load()
       await onChanged?.()
     } catch (err) {
@@ -159,46 +162,28 @@ export function ProjectManagerModal({
 
   const saveEdit = async (project: Project) => {
     try {
+      setSavingId(project.id)
       const body: Record<string, unknown> = {
         description: editForm.description,
         github_repo: editForm.github_repo || null,
         color: editForm.color || null,
         deadline: editForm.deadline ? Math.floor(new Date(editForm.deadline).getTime() / 1000) : null,
-        github_sync_enabled: editForm.github_sync_enabled ? 1 : 0,
+        github_sync_enabled: editForm.github_sync_enabled,
         github_default_branch: editForm.github_default_branch || 'main',
+        assigned_agents: editForm.assigned_agents,
       }
-      const response = await fetch(`/api/projects/${project.id}`, {
+      await mutate(`/api/projects/${project.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to update project')
-
-      // Sync agent assignments
-      const currentAgents = project.assigned_agents || []
-      const newAgents = editForm.assigned_agents
-      const toAdd = newAgents.filter(a => !currentAgents.includes(a))
-      const toRemove = currentAgents.filter(a => !newAgents.includes(a))
-
-      for (const agentName of toAdd) {
-        await fetch(`/api/projects/${project.id}/agents`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agent_name: agentName })
-        })
-      }
-      for (const agentName of toRemove) {
-        await fetch(`/api/projects/${project.id}/agents?agent_name=${encodeURIComponent(agentName)}`, {
-          method: 'DELETE'
-        })
-      }
 
       setEditingId(null)
       await load()
       await onChanged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update project')
+    } finally {
+      setSavingId(null)
     }
   }
 
@@ -222,7 +207,7 @@ export function ProjectManagerModal({
             <Button variant="ghost" size="icon-sm" onClick={onClose} className="text-xl">&times;</Button>
           </div>
 
-          {error && <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">{error}</div>}
+          {error && <div role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">{error}</div>}
 
           <form onSubmit={createProject} className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -419,8 +404,10 @@ export function ProjectManagerModal({
                       )}
 
                       <div className="flex gap-2 pt-1">
-                        <Button size="sm" onClick={() => saveEdit(project)}>Save</Button>
-                        <Button size="sm" variant="secondary" onClick={() => setEditingId(null)}>Cancel</Button>
+                        <Button size="sm" disabled={savingId === project.id} onClick={() => saveEdit(project)}>
+                          {savingId === project.id ? 'Saving...' : 'Save'}
+                        </Button>
+                        <Button size="sm" variant="secondary" disabled={savingId === project.id} onClick={() => setEditingId(null)}>Cancel</Button>
                       </div>
                     </div>
                   )}

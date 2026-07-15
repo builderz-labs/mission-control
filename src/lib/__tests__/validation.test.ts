@@ -11,6 +11,7 @@ import {
   createPipelineSchema,
   createWorkflowSchema,
   createMessageSchema,
+  updateProjectSchema,
 } from '@/lib/validation'
 
 describe('createTaskSchema', () => {
@@ -331,5 +332,30 @@ describe('createMessageSchema', () => {
   it('rejects missing message', () => {
     const result = createMessageSchema.safeParse({ to: 'bob' })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('updateProjectSchema', () => {
+  it('accepts an atomic field and assignment update', () => {
+    const result = updateProjectSchema.safeParse({
+      description: 'Updated project',
+      github_sync_enabled: true,
+      assigned_agents: ['builder', 'reviewer'],
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it.each([
+    {},
+    { unexpected: true },
+    { status: 'deleted' },
+    { deadline: -1 },
+    { ticket_prefix: 'MC', ticketPrefix: 'OTHER' },
+    { assigned_agents: ['builder', 'builder'] },
+    { assigned_agents: [''] },
+    { assigned_agents: Array.from({ length: 101 }, (_, index) => `agent-${index}`) },
+  ])('rejects unsafe project update input %#', (input) => {
+    expect(updateProjectSchema.safeParse(input).success).toBe(false)
   })
 })

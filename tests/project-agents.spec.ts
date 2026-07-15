@@ -211,6 +211,89 @@ test.describe('Project Agent Assignments', () => {
     expect(getBody.project.assigned_agents).toContain(agentName)
   })
 
+  test('PATCH updates project fields and assignment membership atomically', async ({ request }) => {
+    const { id: projectId } = await createTestProject(request)
+    projectCleanup.push(projectId)
+    const { id: existingAgentId, name: existingAgentName } = await createTestAgent(request)
+    const { id: addedAgentId, name: addedAgentName } = await createTestAgent(request)
+    agentCleanup.push(existingAgentId, addedAgentId)
+
+    await request.post(`/api/projects/${projectId}/agents`, {
+      headers: API_KEY_HEADER,
+      data: { agent_name: existingAgentName, role: 'reviewer' },
+    })
+
+    const updateRes = await request.patch(`/api/projects/${projectId}`, {
+      headers: API_KEY_HEADER,
+      data: {
+        description: 'Atomic update',
+        assigned_agents: [existingAgentName, addedAgentName],
+      },
+    })
+    expect(updateRes.status()).toBe(200)
+    const updateBody = await updateRes.json()
+    expect(updateBody.project.description).toBe('Atomic update')
+    expect(updateBody.project.assigned_agents).toEqual(expect.arrayContaining([existingAgentName, addedAgentName]))
+
+    const assignmentsRes = await request.get(`/api/projects/${projectId}/agents`, { headers: API_KEY_HEADER })
+    const assignmentsBody = await assignmentsRes.json()
+    expect(assignmentsBody.assignments).toHaveLength(2)
+    expect(assignmentsBody.assignments.find((item: any) => item.agent_name === existingAgentName)?.role).toBe('reviewer')
+    expect(assignmentsBody.assignments.find((item: any) => item.agent_name === addedAgentName)?.role).toBe('member')
+  })
+
+  test('PATCH rolls back project fields when assignment validation fails', async ({ request }) => {
+    const { id: projectId } = await createTestProject(request)
+    projectCleanup.push(projectId)
+    const { id: agentId, name: agentName } = await createTestAgent(request)
+    agentCleanup.push(agentId)
+
+    await request.patch(`/api/projects/${projectId}`, {
+      headers: API_KEY_HEADER,
+      data: { description: 'Before update' },
+    })
+    await request.post(`/api/projects/${projectId}/agents`, {
+      headers: API_KEY_HEADER,
+      data: { agent_name: agentName },
+    })
+
+    const updateRes = await request.patch(`/api/projects/${projectId}`, {
+      headers: API_KEY_HEADER,
+      data: {
+        description: 'Must not persist',
+        assigned_agents: [agentName, 'missing-agent'],
+      },
+    })
+    expect(updateRes.status()).toBe(400)
+
+    const projectRes = await request.get(`/api/projects/${projectId}`, { headers: API_KEY_HEADER })
+    const projectBody = await projectRes.json()
+    expect(projectBody.project.description).toBe('Before update')
+    expect(projectBody.project.assigned_agents).toEqual([agentName])
+  })
+
+  test('PATCH edits the default project without parsing the body twice', async ({ request }) => {
+    const projectsRes = await request.get('/api/projects?includeArchived=1', { headers: API_KEY_HEADER })
+    const projectsBody = await projectsRes.json()
+    const general = projectsBody.projects.find((project: any) => project.slug === 'general')
+    expect(general).toBeDefined()
+
+    try {
+      const updateRes = await request.patch(`/api/projects/${general.id}`, {
+        headers: API_KEY_HEADER,
+        data: { description: 'Default project edit regression check' },
+      })
+      expect(updateRes.status()).toBe(200)
+      const updateBody = await updateRes.json()
+      expect(updateBody.project.description).toBe('Default project edit regression check')
+    } finally {
+      await request.patch(`/api/projects/${general.id}`, {
+        headers: API_KEY_HEADER,
+        data: { description: general.description ?? null },
+      })
+    }
+  })
+
   // ── Full lifecycle ───────────────────────────
 
   test('full lifecycle: assign multiple → list → unassign one → verify', async ({ request }) => {

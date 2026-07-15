@@ -144,6 +144,37 @@ export const updateWorkspaceSchema = z.object({
   isolation: workspaceFields.isolation.optional(),
 })
 
+const projectAssignmentNamesSchema = z.array(
+  z.string().trim().min(1, 'Agent name cannot be empty').max(100)
+).max(100, 'A project can have at most 100 assigned agents').superRefine((names, ctx) => {
+  if (new Set(names).size !== names.length) {
+    ctx.addIssue({ code: 'custom', message: 'Agent assignments must be unique' })
+  }
+})
+
+const booleanFlagSchema = z.union([z.boolean(), z.literal(0), z.literal(1)])
+
+export const updateProjectSchema = z.object({
+  name: z.string().trim().min(1, 'Project name cannot be empty').max(200).optional(),
+  description: z.string().max(5000).nullable().optional(),
+  ticket_prefix: z.string().max(64).optional(),
+  ticketPrefix: z.string().max(64).optional(),
+  status: z.enum(['active', 'archived']).optional(),
+  github_repo: z.string().trim().max(200).nullable().optional(),
+  deadline: z.number().int().min(0).max(4102444800).nullable().optional(),
+  color: z.string().trim().max(32).nullable().optional(),
+  github_sync_enabled: booleanFlagSchema.optional(),
+  github_default_branch: z.string().trim().min(1).max(255).optional(),
+  github_labels_initialized: booleanFlagSchema.optional(),
+  assigned_agents: projectAssignmentNamesSchema.optional(),
+}).strict().superRefine((body, ctx) => {
+  if (body.ticket_prefix !== undefined && body.ticketPrefix !== undefined) {
+    ctx.addIssue({ code: 'custom', message: 'Use only one ticket prefix field' })
+  }
+}).refine((body) => Object.keys(body).length > 0, {
+  message: 'At least one field is required',
+})
+
 export const bulkUpdateTaskStatusSchema = z.object({
   tasks: z.array(z.object({
     id: z.number().int().positive(),

@@ -3,6 +3,7 @@ import { getDatabase } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { updateProjectSchema, validateBody } from '@/lib/validation'
 import {
   ensureTenantWorkspaceAccess,
   ForbiddenError
@@ -109,30 +110,33 @@ export async function PATCH(
     `).get(projectId, workspaceId, tenantId)
     if (!projectScope) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
-    const current = db.prepare(`SELECT * FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as any
+    const current = db.prepare(`SELECT id, workspace_id, slug FROM projects WHERE id = ? AND workspace_id = ?`).get(projectId, workspaceId) as {
+      id: number
+      workspace_id: number
+      slug: string
+    } | undefined
     if (!current) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
-    if (current.slug === 'general' && current.workspace_id === workspaceId && current.id === projectId) {
-      const body = await request.json()
-      if (body?.status === 'archived') {
-        return NextResponse.json({ error: 'Default project cannot be archived' }, { status: 400 })
-      }
+
+    const validated = await validateBody(request, updateProjectSchema)
+    if ('error' in validated) return validated.error
+    const body = validated.data
+
+    if (current.slug === 'general' && body.status === 'archived') {
+      return NextResponse.json({ error: 'Default project cannot be archived' }, { status: 400 })
     }
 
-    const body = await request.json()
     const updates: string[] = []
     const paramsList: Array<string | number | null> = []
 
-    if (typeof body?.name === 'string') {
-      const name = body.name.trim()
-      if (!name) return NextResponse.json({ error: 'Project name cannot be empty' }, { status: 400 })
+    if (body.name !== undefined) {
       updates.push('name = ?')
-      paramsList.push(name)
+      paramsList.push(body.name)
     }
-    if (typeof body?.description === 'string') {
+    if (body.description !== undefined) {
       updates.push('description = ?')
-      paramsList.push(body.description.trim() || null)
+      paramsList.push(body.description?.trim() || null)
     }
-    if (typeof body?.ticket_prefix === 'string' || typeof body?.ticketPrefix === 'string') {
+    if (body.ticket_prefix !== undefined || body.ticketPrefix !== undefined) {
       const raw = String(body.ticket_prefix ?? body.ticketPrefix)
       const prefix = normalizePrefix(raw)
       if (!prefix) return NextResponse.json({ error: 'Invalid ticket prefix' }, { status: 400 })
@@ -144,51 +148,89 @@ export async function PATCH(
       updates.push('ticket_prefix = ?')
       paramsList.push(prefix)
     }
-    if (typeof body?.status === 'string') {
-      const status = body.status === 'archived' ? 'archived' : 'active'
+    if (body.status !== undefined) {
       updates.push('status = ?')
-      paramsList.push(status)
+      paramsList.push(body.status)
     }
-    if (body?.github_repo !== undefined) {
+    if (body.github_repo !== undefined) {
       updates.push('github_repo = ?')
-      paramsList.push(typeof body.github_repo === 'string' ? body.github_repo.trim() || null : null)
+      paramsList.push(body.github_repo || null)
     }
-    if (body?.deadline !== undefined) {
+    if (body.deadline !== undefined) {
       updates.push('deadline = ?')
-      paramsList.push(typeof body.deadline === 'number' ? body.deadline : null)
+      paramsList.push(body.deadline)
     }
-    if (body?.color !== undefined) {
+    if (body.color !== undefined) {
       updates.push('color = ?')
-      paramsList.push(typeof body.color === 'string' ? body.color.trim() || null : null)
+      paramsList.push(body.color || null)
     }
-    if (body?.github_sync_enabled !== undefined) {
+    if (body.github_sync_enabled !== undefined) {
       updates.push('github_sync_enabled = ?')
       paramsList.push(body.github_sync_enabled ? 1 : 0)
     }
-    if (body?.github_default_branch !== undefined) {
+    if (body.github_default_branch !== undefined) {
       updates.push('github_default_branch = ?')
-      paramsList.push(typeof body.github_default_branch === 'string' ? body.github_default_branch.trim() || 'main' : 'main')
+      paramsList.push(body.github_default_branch)
     }
-    if (body?.github_labels_initialized !== undefined) {
+    if (body.github_labels_initialized !== undefined) {
       updates.push('github_labels_initialized = ?')
       paramsList.push(body.github_labels_initialized ? 1 : 0)
     }
 
-    if (updates.length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    const assignedAgents = body.assigned_agents
+    if (assignedAgents?.length) {
+      const placeholders = assignedAgents.map(() => '?').join(', ')
+      const knownAgents = db.prepare(`
+        SELECT name FROM agents
+        WHERE workspace_id = ? AND name IN (${placeholders})
+      `).all(workspaceId, ...assignedAgents) as Array<{ name: string }>
+      const knownNames = new Set(knownAgents.map((agent) => agent.name))
+      const unknownAgents = assignedAgents.filter((name) => !knownNames.has(name))
+      if (unknownAgents.length) {
+        return NextResponse.json({ error: 'Unknown project agents', details: unknownAgents }, { status: 400 })
+      }
+    }
 
     updates.push('updated_at = unixepoch()')
-    db.prepare(`
-      UPDATE projects
-      SET ${updates.join(', ')}
-      WHERE id = ? AND workspace_id = ?
-    `).run(...paramsList, projectId, workspaceId)
+    const updateProject = db.prepare(`
+        UPDATE projects
+        SET ${updates.join(', ')}
+        WHERE id = ? AND workspace_id = ?
+      `)
+    const insertAssignment = db.prepare(`
+      INSERT OR IGNORE INTO project_agent_assignments (project_id, agent_name, role)
+      VALUES (?, ?, 'member')
+    `)
+    const updateTransaction = db.transaction(() => {
+      updateProject.run(...paramsList, projectId, workspaceId)
 
-    const project = db.prepare(`
+      if (assignedAgents !== undefined) {
+        if (assignedAgents.length === 0) {
+          db.prepare('DELETE FROM project_agent_assignments WHERE project_id = ?').run(projectId)
+        } else {
+          const placeholders = assignedAgents.map(() => '?').join(', ')
+          db.prepare(`
+            DELETE FROM project_agent_assignments
+            WHERE project_id = ? AND agent_name NOT IN (${placeholders})
+          `).run(projectId, ...assignedAgents)
+          for (const agentName of assignedAgents) insertAssignment.run(projectId, agentName)
+        }
+      }
+    })
+    updateTransaction()
+
+    const projectRow = db.prepare(`
       SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status,
-             github_repo, deadline, color, github_sync_enabled, github_labels_initialized, github_default_branch, created_at, updated_at
+             github_repo, deadline, color, github_sync_enabled, github_labels_initialized, github_default_branch, created_at, updated_at,
+             (SELECT GROUP_CONCAT(paa.agent_name) FROM project_agent_assignments paa WHERE paa.project_id = projects.id) as assigned_agents_csv
       FROM projects
       WHERE id = ? AND workspace_id = ?
-    `).get(projectId, workspaceId)
+    `).get(projectId, workspaceId) as Record<string, unknown>
+    const project = {
+      ...projectRow,
+      assigned_agents: projectRow.assigned_agents_csv ? String(projectRow.assigned_agents_csv).split(',') : [],
+      assigned_agents_csv: undefined,
+    }
 
     return NextResponse.json({ project })
   } catch (error) {
