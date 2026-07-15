@@ -253,6 +253,11 @@ export const gatewayConfigUpdateSchema = z.object({
   hash: z.string().optional(),
 })
 
+export const gatewayControlSchema = z.object({
+  gateway: z.enum(['hermes', 'openclaw']),
+  action: z.enum(['start', 'stop', 'restart', 'diagnose']),
+})
+
 export const qualityReviewSchema = z.object({
   taskId: z.number(),
   reviewer: z.string().default('aegis'),

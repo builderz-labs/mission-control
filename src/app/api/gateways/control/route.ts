@@ -7,6 +7,22 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync } from 'no
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
+import { logAuditEvent } from '@/lib/db'
+import { gatewayControlLimiter } from '@/lib/rate-limit'
+import { redactSecrets } from '@/lib/secret-scanner'
+import { gatewayControlSchema, validateBody } from '@/lib/validation'
+import { runCommand } from '@/lib/command'
+
+const MAX_COMMAND_OUTPUT_LENGTH = 16_000
+
+function formatCommandOutput(stdout: string, stderr: string): string {
+  const redacted = redactSecrets(`${stdout || ''}\n${stderr || ''}`.trim()).replace(
+    /((?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|secret|authorization)\s*[=:]\s*)[^\r\n]+/gi,
+    '$1***REDACTED***',
+  )
+  if (redacted.length <= MAX_COMMAND_OUTPUT_LENGTH) return redacted
+  return `${redacted.slice(0, MAX_COMMAND_OUTPUT_LENGTH)}\n…[truncated]`
+}
 
 /** True when MC is running inside a Docker container without systemd. */
 function isDockerEnvironment(): boolean {
@@ -90,7 +106,6 @@ function stopHermesGatewayDetached(homeDir: string): { stopped: boolean; error?:
 }
 
 type GatewayType = 'hermes' | 'openclaw'
-type GatewayAction = 'status' | 'start' | 'stop' | 'restart' | 'diagnose'
 
 interface GatewayStatus {
   type: GatewayType
@@ -170,23 +185,22 @@ export async function POST(request: NextRequest) {
   const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
   if (isolationDeny) return isolationDeny
 
+  const limitKey = `${auth.user.tenant_id ?? 1}:${auth.user.workspace_id ?? 1}:${auth.user.id}`
+  const limited = gatewayControlLimiter(limitKey)
+  if (limited) return limited
+
+  const validated = await validateBody(request, gatewayControlSchema)
+  if ('error' in validated) return validated.error
+  const { gateway, action } = validated.data
+
   try {
-    const body = await request.json()
-    const { gateway, action } = body as { gateway: GatewayType; action: GatewayAction }
-
-    if (!gateway || !action) {
-      return NextResponse.json({ error: 'gateway and action are required' }, { status: 400 })
-    }
-
-    if (!['hermes', 'openclaw'].includes(gateway)) {
-      return NextResponse.json({ error: 'Invalid gateway type' }, { status: 400 })
-    }
-
-    if (!['start', 'stop', 'restart', 'diagnose'].includes(action)) {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
-    }
-
-    const { runCommand } = require('@/lib/command')
+    logAuditEvent({
+      action: 'gateway.control',
+      actor: auth.user.username,
+      actor_id: auth.user.id,
+      target_type: 'runtime',
+      detail: { gateway, action },
+    })
 
     if (gateway === 'hermes') {
       const bin = join(config.homeDir, '.local', 'bin', 'hermes')
@@ -197,7 +211,7 @@ export async function POST(request: NextRequest) {
         const result = await runCommand(hermesBin, ['doctor'], { timeoutMs: 30_000 })
         return NextResponse.json({
           success: result.code === 0,
-          output: ((result.stdout || '') + '\n' + (result.stderr || '')).trim(),
+          output: formatCommandOutput(result.stdout, result.stderr),
         })
       }
 
@@ -264,7 +278,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: result.code === 0,
-        output: ((result.stdout || '') + '\n' + (result.stderr || '')).trim(),
+        output: formatCommandOutput(result.stdout, result.stderr),
         status: getHermesGatewayStatus(),
       })
     }
@@ -276,7 +290,7 @@ export async function POST(request: NextRequest) {
         const result = await runCommand(openclawBin, ['doctor'], { timeoutMs: 30_000 })
         return NextResponse.json({
           success: result.code === 0,
-          output: ((result.stdout || '') + '\n' + (result.stderr || '')).trim(),
+          output: formatCommandOutput(result.stdout, result.stderr),
         })
       }
 
@@ -289,7 +303,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: result.code === 0,
-        output: ((result.stdout || '') + '\n' + (result.stderr || '')).trim(),
+        output: formatCommandOutput(result.stdout, result.stderr),
         status: getOpenClawGatewayStatus(),
       })
     }

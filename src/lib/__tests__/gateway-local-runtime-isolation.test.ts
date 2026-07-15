@@ -31,7 +31,7 @@ describe('gateway and local host runtime isolation', () => {
 
   it('guards gateway status, control, and discovery before host access', () => {
     expectGuardBefore('src/app/api/gateways/control/route.ts', 'GET', 'const gateways:')
-    expectGuardBefore('src/app/api/gateways/control/route.ts', 'POST', 'request.json()')
+    expectGuardBefore('src/app/api/gateways/control/route.ts', 'POST', 'gatewayControlLimiter(limitKey)')
     expectGuardBefore('src/app/api/gateways/discover/route.ts', 'GET', 'execFileSync(')
   })
 

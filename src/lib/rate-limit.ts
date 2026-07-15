@@ -281,6 +281,14 @@ export const openClawMaintenanceLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** Gateway process start, stop, restart, and diagnostics: 10 attempts per minute per admin. */
+export const gatewayControlLimiter = createKeyedRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 10,
+  message: 'Too many gateway control attempts. Try again in a minute.',
+  critical: true,
+})
+
 /** Local skill writes and recursive deletion: 20 attempts per minute per operator. */
 export const skillMutationLimiter = createKeyedRateLimiter({
   windowMs: 60_000,
