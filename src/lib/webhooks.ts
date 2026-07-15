@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
-import { eventBus, type ServerEvent } from './event-bus'
+import { eventBelongsToWorkspace, eventBus, type ServerEvent } from './event-bus'
 import { logger } from './logger'
 
 interface Webhook {
@@ -147,7 +147,11 @@ export function initWebhookListener() {
 
     // Also fire agent.error for error status specifically
     const isAgentError = event.type === 'agent.status_changed' && event.data?.status === 'error'
-    const workspaceId = typeof event.data?.workspace_id === 'number' ? event.data.workspace_id : 1
+    const workspaceId = event.data?.workspace_id
+    if (typeof workspaceId !== 'number' || !eventBelongsToWorkspace(event, workspaceId)) {
+      logger.warn({ eventType: event.type }, 'Skipping webhook delivery for event without workspace ownership')
+      return
+    }
 
     fireWebhooksAsync(webhookEventType, event.data, workspaceId).catch((err) => {
       logger.error({ err }, 'Webhook dispatch error')

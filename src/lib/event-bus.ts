@@ -11,6 +11,11 @@ export interface ServerEvent {
   timestamp: number
 }
 
+export function eventBelongsToWorkspace(event: ServerEvent, workspaceId: number): boolean {
+  return typeof event.data?.workspace_id === 'number'
+    && event.data.workspace_id === workspaceId
+}
+
 // Event types emitted by the bus
 export type EventType =
   | 'task.created'
