@@ -91,4 +91,24 @@ describe('heartbeat route security', () => {
     })
     expect(prepareMock).not.toHaveBeenCalled()
   })
+
+  it('GET denies numeric access when custom agent identity lacks authoritative agent_id', async () => {
+    const prepareMock = vi.fn()
+    getDatabaseMock.mockReturnValue({ prepare: prepareMock })
+    requireRoleMock.mockReturnValue({
+      user: { username: 'custom-agent', role: 'viewer', agent_name: 'agent-a', workspace_id: 7 },
+    })
+
+    const { GET } = await import('@/app/api/agents/[id]/heartbeat/route')
+    const response = await GET(
+      new NextRequest('http://localhost/api/agents/42/heartbeat'),
+      { params: Promise.resolve({ id: '42' }) },
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Access denied: agent key may only access its own agent.',
+    })
+    expect(prepareMock).not.toHaveBeenCalled()
+  })
 })

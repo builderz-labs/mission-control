@@ -65,7 +65,7 @@ export function enforceWorkspaceBoundary(user: User, resourceWorkspaceId: number
  *
  * Accepts the URL path segment which may be a name ("repo-steward") or a
  * numeric DB id ("42"). Compares by agent_id when numeric, by agent_name
- * when a name string. Falls through (allows) when type cannot be determined.
+ * when a name string. Ambiguous numeric ownership fails closed.
  *
  * Human users (no agent_name) and admin-scoped keys are not restricted.
  *
@@ -77,8 +77,9 @@ export function requireAgentSelfAccess(user: User, targetAgentIdOrName: string):
 
   const targetNumeric = Number(targetAgentIdOrName)
   if (Number.isFinite(targetNumeric) && targetNumeric > 0) {
-    // Numeric ID path: compare by agent_id when available
-    if (user.agent_id != null && user.agent_id !== targetNumeric) {
+    // Numeric ID path requires authoritative numeric ownership. Custom auth
+    // resolvers that provide only agent_name can use the name-based route.
+    if (user.agent_id == null || user.agent_id !== targetNumeric) {
       return NextResponse.json(
         { error: 'Access denied: agent key may only access its own agent.' },
         { status: 403 },
