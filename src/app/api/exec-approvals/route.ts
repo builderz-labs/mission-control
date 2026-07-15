@@ -16,7 +16,7 @@ const allowlistUpdateSchema = z.object({
     z.string().min(1).max(256),
     z.array(allowlistPatternSchema).max(500),
   ).refine((agents) => Object.keys(agents).length <= 500),
-  hash: z.union([z.literal(''), z.string().regex(/^[a-f0-9]{64}$/i)]).optional(),
+  hash: z.string().max(256).optional(),
 }).strict()
 
 const approvalResponseSchema = z.object({
@@ -119,7 +119,11 @@ export async function PUT(request: NextRequest) {
 
   const parsed = allowlistUpdateSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid execution allowlist request' }, { status: 400 })
+    const agentsInvalid = parsed.error.issues.some((issue) => issue.path[0] === 'agents')
+    const error = agentsInvalid
+      ? 'Invalid execution allowlist request: agents is required or malformed'
+      : 'Invalid execution allowlist request'
+    return NextResponse.json({ error }, { status: 400 })
   }
   const body = parsed.data
 

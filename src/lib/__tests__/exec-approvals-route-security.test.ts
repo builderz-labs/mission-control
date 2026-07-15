@@ -87,7 +87,9 @@ describe('exec approvals route security', () => {
     }))
 
     expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({ error: 'Invalid execution allowlist request' })
+    await expect(response.json()).resolves.toEqual({
+      error: 'Invalid execution allowlist request: agents is required or malformed',
+    })
   })
 
   it('forwards a bounded normalized approval response to the configured gateway', async () => {
