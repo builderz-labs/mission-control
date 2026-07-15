@@ -4,6 +4,7 @@ import { constants } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { requireRole } from '@/lib/auth'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 async function findFirstReadable(paths: string[]): Promise<string | null> {
   for (const p of paths) {
@@ -20,6 +21,8 @@ async function findFirstReadable(paths: string[]): Promise<string | null> {
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const cwd = process.cwd()
   const home = homedir()

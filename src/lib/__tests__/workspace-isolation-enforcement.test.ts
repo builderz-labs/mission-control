@@ -197,4 +197,26 @@ describe('direct session API coverage', () => {
       expect(source.match(/'host_administration'/g), file).toHaveLength(operations)
     }
   })
+
+  it('guards deployment-global gateway and local host operations', () => {
+    const runtimeFiles = new Map([
+      ['src/app/api/gateway-config/route.ts', 2],
+      ['src/app/api/gateways/control/route.ts', 2],
+      ['src/app/api/gateways/discover/route.ts', 1],
+    ])
+    const hostFiles = new Map([
+      ['src/app/api/local/terminal/route.ts', 1],
+      ['src/app/api/local/flight-deck/route.ts', 2],
+      ['src/app/api/local/agents-doc/route.ts', 1],
+    ])
+
+    for (const [file, operations] of runtimeFiles) {
+      const source = readFileSync(join(process.cwd(), file), 'utf8')
+      expect(source.match(/'runtime_configuration'/g), file).toHaveLength(operations)
+    }
+    for (const [file, operations] of hostFiles) {
+      const source = readFileSync(join(process.cwd(), file), 'utf8')
+      expect(source.match(/'host_administration'/g), file).toHaveLength(operations)
+    }
+  })
 })

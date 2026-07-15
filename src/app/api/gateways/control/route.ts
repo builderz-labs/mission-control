@@ -6,6 +6,7 @@ import { isHermesGatewayRunning } from '@/lib/hermes-sessions'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, openSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 /** True when MC is running inside a Docker container without systemd. */
 function isDockerEnvironment(): boolean {
@@ -149,6 +150,8 @@ function getOpenClawGatewayStatus(): GatewayStatus {
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const gateways: GatewayStatus[] = []
   gateways.push(getHermesGatewayStatus())
@@ -164,6 +167,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   try {
     const body = await request.json()

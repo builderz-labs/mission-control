@@ -3,6 +3,7 @@ import { existsSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { requireRole } from '@/lib/auth'
 import { runCommand } from '@/lib/command'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 function isAllowedDirectory(input: string): boolean {
   const cwd = resolve(input)
@@ -26,6 +27,8 @@ function isAllowedDirectory(input: string): boolean {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const body = await request.json().catch(() => ({}))
   const cwd = typeof body?.cwd === 'string' ? body.cwd.trim() : ''

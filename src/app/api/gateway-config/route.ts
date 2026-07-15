@@ -7,6 +7,7 @@ import { validateBody, gatewayConfigUpdateSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 import { parseJsonRelaxed } from '@/lib/json-relaxed'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 function getConfigPath(): string | null {
   return config.openclawConfigPath || null
@@ -34,6 +35,8 @@ function computeHash(raw: string): string {
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const action = request.nextUrl.searchParams.get('action')
 
@@ -105,6 +108,8 @@ async function getSchema(): Promise<NextResponse> {
 export async function PUT(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const rateCheck = mutationLimiter(request)
   if (rateCheck) return rateCheck

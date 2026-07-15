@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { existsSync, statSync } from 'node:fs'
 import { requireRole } from '@/lib/auth'
 import { runCommand } from '@/lib/command'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 const DEFAULT_DOWNLOAD_URL = 'https://flightdeck.example.com/download'
 const DEFAULT_INSTALL_PATHS = [
@@ -50,6 +51,8 @@ function resolveFlightDeckInstallPath(): string | null {
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const installPath = resolveFlightDeckInstallPath()
   const installed = installPath ? isInstalled(installPath) : false
@@ -69,6 +72,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'operator')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const installPath = resolveFlightDeckInstallPath()
   const installed = installPath ? isInstalled(installPath) : false

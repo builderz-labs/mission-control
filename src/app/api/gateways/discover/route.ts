@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { requireRole } from '@/lib/auth'
+import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 interface DiscoveredGateway {
   user: string
@@ -18,6 +19,8 @@ interface DiscoveredGateway {
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
+  if (isolationDeny) return isolationDeny
 
   const discovered: DiscoveredGateway[] = []
 
