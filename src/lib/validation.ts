@@ -298,6 +298,10 @@ export const createOsUserSchema = z.object({
   }
 })
 
+export const installTmuxSchema = z.object({
+  confirmation: z.literal('install_tmux'),
+}).strict()
+
 export const accessRequestActionSchema = z.object({
   request_id: z.number(),
   action: z.enum(['approve', 'reject']),

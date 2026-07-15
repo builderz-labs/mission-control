@@ -5443,12 +5443,28 @@
       },
       "post": {
         "tags": ["API"],
-        "summary": "Install tmux (opt-in, admin only)",
+        "summary": "Install tmux (explicitly confirmed, admin only)",
         "operationId": "post_api_pty_setup",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["confirmation"],
+                "properties": {
+                  "confirmation": { "type": "string", "enum": ["install_tmux"] }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": { "description": "OK" },
           "400": { "description": "Bad request" },
           "401": { "description": "Unauthorized" },
+          "429": { "description": "Too many installation attempts" },
           "500": { "description": "Internal server error" }
         }
       }

@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { execFileSync } from 'child_process'
+import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from 'child_process'
 import { requireRole } from '@/lib/auth'
+import { logAuditEvent } from '@/lib/db'
+import { hostPackageInstallLimiter } from '@/lib/rate-limit'
 import { isTmuxAvailable } from '@/lib/pty-manager'
 import { logger } from '@/lib/logger'
+import { installTmuxSchema, validateBody } from '@/lib/validation'
 
 const log = logger.child({ module: 'pty-setup' })
+const EXEC_OPTIONS: ExecFileSyncOptionsWithStringEncoding = {
+  encoding: 'utf-8' as const,
+  stdio: ['ignore', 'pipe', 'pipe'],
+  timeout: 120_000,
+  maxBuffer: 1024 * 1024,
+}
 
 /**
  * GET /api/pty/setup — Check terminal prerequisites
@@ -55,6 +64,13 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const limitKey = `${auth.user.tenant_id ?? 1}:${auth.user.workspace_id ?? 1}:${auth.user.id}`
+  const limited = hostPackageInstallLimiter(limitKey)
+  if (limited) return limited
+
+  const validated = await validateBody(request, installTmuxSchema)
+  if ('error' in validated) return validated.error
+
   if (isTmuxAvailable()) {
     return NextResponse.json({ success: true, message: 'tmux is already installed' })
   }
@@ -65,7 +81,7 @@ export async function POST(request: NextRequest) {
   if (platform === 'darwin') {
     // Check if brew is available
     try {
-      execFileSync('brew', ['--version'], { stdio: 'pipe' })
+      execFileSync('brew', ['--version'], EXEC_OPTIONS)
     } catch {
       return NextResponse.json({
         success: false,
@@ -76,11 +92,11 @@ export async function POST(request: NextRequest) {
   } else if (platform === 'linux') {
     // Try apt first, then yum
     try {
-      execFileSync('apt-get', ['--version'], { stdio: 'pipe' })
+      execFileSync('apt-get', ['--version'], EXEC_OPTIONS)
       installCmd = ['sudo', 'apt-get', 'install', '-y', 'tmux']
     } catch {
       try {
-        execFileSync('yum', ['--version'], { stdio: 'pipe' })
+        execFileSync('yum', ['--version'], EXEC_OPTIONS)
         installCmd = ['sudo', 'yum', 'install', '-y', 'tmux']
       } catch {
         return NextResponse.json({
@@ -97,12 +113,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    log.info({ cmd: installCmd }, 'Installing tmux')
-    execFileSync(installCmd[0], installCmd.slice(1), {
-      stdio: 'pipe',
-      encoding: 'utf-8',
-      timeout: 120_000,
-    })
+    log.info({ packageManager: installCmd[0], actor: auth.user.username }, 'Installing tmux')
+    execFileSync(installCmd[0], installCmd.slice(1), EXEC_OPTIONS)
 
     // Verify installation
     if (!isTmuxAvailable()) {
@@ -114,9 +126,21 @@ export async function POST(request: NextRequest) {
 
     let version: string | null = null
     try {
-      version = execFileSync('tmux', ['-V'], { encoding: 'utf-8', stdio: 'pipe' }).trim()
+      version = execFileSync('tmux', ['-V'], EXEC_OPTIONS).trim()
     } catch {
       // ignore
+    }
+
+    try {
+      logAuditEvent({
+        action: 'system.package_install',
+        actor: auth.user.username,
+        actor_id: auth.user.id,
+        target_type: 'host_package',
+        detail: { package: 'tmux', package_manager: installCmd[0], platform },
+      })
+    } catch {
+      // Installation succeeded; audit persistence must not corrupt the response.
     }
 
     return NextResponse.json({
@@ -124,12 +148,11 @@ export async function POST(request: NextRequest) {
       message: `tmux installed successfully${version ? ` (${version})` : ''}`,
       version,
     })
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error'
-    log.error({ err: error }, 'Failed to install tmux')
+  } catch {
+    log.error({ actor: auth.user.username }, 'Failed to install tmux')
     return NextResponse.json({
       success: false,
-      error: `Failed to install tmux: ${msg}`,
+      error: 'Failed to install tmux. Check the server logs and package manager state.',
     }, { status: 500 })
   }
 }

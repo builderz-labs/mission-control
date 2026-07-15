@@ -257,6 +257,14 @@ export const osUserProvisionLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** Host package installation: 3 attempts per 10 minutes per admin. */
+export const hostPackageInstallLimiter = createKeyedRateLimiter({
+  windowMs: 10 * 60_000,
+  maxRequests: 3,
+  message: 'Too many host package installation attempts. Try again later.',
+  critical: true,
+})
+
 /** Self-registration: 5/min per IP (prevent spam registrations) */
 export const selfRegisterLimiter = createRateLimiter({
   windowMs: 60_000,

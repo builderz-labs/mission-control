@@ -13,6 +13,7 @@ import {
   createMessageSchema,
   updateProjectSchema,
   createOsUserSchema,
+  installTmuxSchema,
 } from '@/lib/validation'
 
 describe('createTaskSchema', () => {
@@ -285,6 +286,21 @@ describe('createOsUserSchema', () => {
     { username: 'valid-user', display_name: 'Valid', unexpected: true },
   ])('rejects unsafe OS user provisioning input %#', (input) => {
     expect(createOsUserSchema.safeParse(input).success).toBe(false)
+  })
+})
+
+describe('installTmuxSchema', () => {
+  it('accepts only the explicit installation confirmation', () => {
+    expect(installTmuxSchema.safeParse({ confirmation: 'install_tmux' }).success).toBe(true)
+  })
+
+  it.each([
+    {},
+    { confirmation: true },
+    { confirmation: 'yes' },
+    { confirmation: 'install_tmux', package: 'curl' },
+  ])('rejects unsafe tmux installation input %#', (input) => {
+    expect(installTmuxSchema.safeParse(input).success).toBe(false)
   })
 })
 
