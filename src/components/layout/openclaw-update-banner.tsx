@@ -35,13 +35,14 @@ export function OpenClawUpdateBanner() {
     try {
       const res = await apiFetch<Response>('/api/openclaw/update', {
         method: 'POST',
+        body: JSON.stringify({ confirmation: 'update_openclaw' }),
         raw: true,
       })
       const data = await res.json()
 
       if (!res.ok) {
         setState('error')
-        setErrorMsg(data.detail || data.error || t('updateFailed'))
+        setErrorMsg(data.error || t('updateFailed'))
         return
       }
 
@@ -52,10 +53,7 @@ export function OpenClawUpdateBanner() {
     } catch (error) {
       setState('error')
       if (error instanceof ApiError && error.code !== 'NETWORK_ERROR') {
-        const payload = error.payload
-        const detail = payload && typeof payload === 'object' && 'detail' in payload
-          && typeof payload.detail === 'string' ? payload.detail : null
-        setErrorMsg(detail || error.message || t('updateFailed'))
+        setErrorMsg(error.message || t('updateFailed'))
       } else {
         setErrorMsg(t('networkError'))
       }

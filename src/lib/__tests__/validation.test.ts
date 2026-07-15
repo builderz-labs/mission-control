@@ -15,6 +15,8 @@ import {
   createOsUserSchema,
   installTmuxSchema,
   releaseUpdateSchema,
+  openClawUpdateSchema,
+  openClawDoctorFixSchema,
 } from '@/lib/validation'
 
 describe('createTaskSchema', () => {
@@ -322,6 +324,22 @@ describe('releaseUpdateSchema', () => {
     { targetVersion: 'v' + '1'.repeat(128), confirmation: 'update_mission_control' },
   ])('rejects unsafe release update input %#', (input) => {
     expect(releaseUpdateSchema.safeParse(input).success).toBe(false)
+  })
+})
+
+describe('OpenClaw maintenance schemas', () => {
+  it('accepts only the matching explicit action confirmations', () => {
+    expect(openClawUpdateSchema.safeParse({ confirmation: 'update_openclaw' }).success).toBe(true)
+    expect(openClawDoctorFixSchema.safeParse({ confirmation: 'fix_openclaw' }).success).toBe(true)
+  })
+
+  it.each([
+    {},
+    { confirmation: 'yes' },
+    { confirmation: 'fix_openclaw', force: true },
+  ])('rejects unsafe OpenClaw maintenance input %#', (input) => {
+    expect(openClawUpdateSchema.safeParse(input).success).toBe(false)
+    expect(openClawDoctorFixSchema.safeParse(input).success).toBe(false)
   })
 })
 
