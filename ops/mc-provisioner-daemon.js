@@ -4,6 +4,14 @@ const fs = require('fs')
 const net = require('net')
 const { execFileSync, spawn } = require('child_process')
 const path = require('path')
+const {
+  IDLE_SOCKET_TIMEOUT_MS,
+  MAX_CONNECTIONS,
+  MAX_OUTPUT_BYTES,
+  MAX_REQUEST_BYTES,
+  appendBounded,
+  normalizeTimeoutMs,
+} = require('./provisioner-limits.cjs')
 
 const SOCKET_PATH = process.env.MC_PROVISIONER_SOCKET || '/run/mc-provisioner.sock'
 const TOKEN = String(process.env.MC_PROVISIONER_TOKEN || '')
@@ -164,22 +172,34 @@ function run(command, args, timeoutMs) {
     let stdout = ''
     let stderr = ''
     let timedOut = false
+    let outputLimitExceeded = false
 
     const timer = setTimeout(() => {
       timedOut = true
       child.kill('SIGKILL')
-    }, Math.max(1000, Number(timeoutMs || 10000)))
+    }, normalizeTimeoutMs(timeoutMs))
 
-    child.stdout.on('data', (d) => { stdout += d.toString('utf8') })
-    child.stderr.on('data', (d) => { stderr += d.toString('utf8') })
+    function captureOutput(target, chunk) {
+      const result = appendBounded(target, chunk, MAX_OUTPUT_BYTES)
+      if (result.exceeded && !outputLimitExceeded) {
+        outputLimitExceeded = true
+        child.kill('SIGKILL')
+      }
+      return result.value
+    }
+
+    child.stdout.on('data', (chunk) => { stdout = captureOutput(stdout, chunk) })
+    child.stderr.on('data', (chunk) => { stderr = captureOutput(stderr, chunk) })
 
     child.on('close', (code) => {
       clearTimeout(timer)
       resolve({
-        ok: !timedOut && code === 0,
-        code: timedOut ? 124 : code,
+        ok: !timedOut && !outputLimitExceeded && code === 0,
+        code: timedOut ? 124 : outputLimitExceeded ? 125 : code,
         stdout,
-        stderr: timedOut ? `${stderr}\nTimed out` : stderr,
+        stderr: timedOut
+          ? `${stderr}\nTimed out`
+          : outputLimitExceeded ? `${stderr}\nOutput limit exceeded` : stderr,
       })
     })
 
@@ -238,14 +258,26 @@ if (fs.existsSync(SOCKET_PATH)) {
 
 const server = net.createServer((socket) => {
   let buf = ''
+  let handled = false
+
+  socket.setTimeout(IDLE_SOCKET_TIMEOUT_MS, () => socket.destroy())
 
   socket.on('data', async (chunk) => {
+    if (handled) return
+    if (Buffer.byteLength(buf, 'utf8') + chunk.length > MAX_REQUEST_BYTES) {
+      handled = true
+      writeResp(socket, { ok: false, error: 'Request too large' })
+      return
+    }
+
     buf += chunk.toString('utf8')
     const idx = buf.indexOf('\n')
     if (idx === -1) return
 
+    handled = true
+    socket.pause()
+    socket.setTimeout(0)
     const line = buf.slice(0, idx)
-    buf = buf.slice(idx + 1)
 
     let req
     try {
@@ -263,7 +295,7 @@ const server = net.createServer((socket) => {
     const requestedCommand = String(req.command || '')
     const args = Array.isArray(req.args) ? req.args.map((a) => String(a)) : []
     const dryRun = !!req.dryRun
-    const timeoutMs = Number(req.timeoutMs || 10000)
+    const timeoutMs = normalizeTimeoutMs(req.timeoutMs)
 
     const command = resolveAllowedCommand(requestedCommand)
     if (!command) {
@@ -291,6 +323,8 @@ const server = net.createServer((socket) => {
     writeResp(socket, { ok: true, code: result.code, stdout: result.stdout, stderr: result.stderr, skipped: false })
   })
 })
+
+server.maxConnections = MAX_CONNECTIONS
 
 server.listen(SOCKET_PATH, () => {
   fs.chmodSync(SOCKET_PATH, 0o660)
