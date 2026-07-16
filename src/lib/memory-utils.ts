@@ -49,6 +49,22 @@ export interface SchemaValidationResult {
   schema: SchemaBlock | null
 }
 
+function extractFrontmatter(content: string): string | null {
+  if (!content.startsWith('---\n')) return null
+  const end = content.indexOf('\n---', 4)
+  return end === -1 ? null : content.slice(4, end)
+}
+
+function parseInlineList(value: string): string[] | undefined {
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) return undefined
+  return trimmed
+    .slice(1, -1)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 /**
  * Extract a _schema YAML block from markdown frontmatter.
  * Expects format:
@@ -62,27 +78,33 @@ export interface SchemaValidationResult {
  * ```
  */
 export function extractSchema(content: string): SchemaBlock | null {
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-  if (!fmMatch) return null
+  const frontmatter = extractFrontmatter(content)
+  if (frontmatter === null) return null
 
-  const fm = fmMatch[1]
-  const schemaMatch = fm.match(/_schema:\s*\n((?:\s{2,}.+\n?)*)/)
-  if (!schemaMatch) return null
+  const lines = frontmatter.split('\n')
+  const schemaStart = lines.findIndex((line) => line.trim() === '_schema:')
+  if (schemaStart === -1) return null
 
-  const block = schemaMatch[1]
   const schema: SchemaBlock = { type: 'unknown' }
+  for (let index = schemaStart + 1; index < lines.length; index += 1) {
+    const line = lines[index]
+    if (!line.startsWith('  ') && line.trim()) break
 
-  const typeMatch = block.match(/type:\s*(.+)/)
-  if (typeMatch) schema.type = typeMatch[1].trim()
+    const field = line.trim()
+    const separator = field.indexOf(':')
+    if (separator === -1) continue
+    const key = field.slice(0, separator).trim()
+    const value = field.slice(separator + 1).trim()
 
-  const requiredMatch = block.match(/required:\s*\[([^\]]*)\]/)
-  if (requiredMatch) {
-    schema.required = requiredMatch[1].split(',').map((s) => s.trim()).filter(Boolean)
-  }
-
-  const optionalMatch = block.match(/optional:\s*\[([^\]]*)\]/)
-  if (optionalMatch) {
-    schema.optional = optionalMatch[1].split(',').map((s) => s.trim()).filter(Boolean)
+    if (key === 'type' && value) {
+      schema.type = value
+    } else if (key === 'required') {
+      const required = parseInlineList(value)
+      if (required) schema.required = required
+    } else if (key === 'optional') {
+      const optional = parseInlineList(value)
+      if (optional) schema.optional = optional
+    }
   }
 
   return schema
@@ -96,12 +118,11 @@ export function validateSchema(content: string): SchemaValidationResult {
   if (!schema) return { valid: true, errors: [], schema: null }
 
   const errors: string[] = []
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-  if (!fmMatch) {
+  const fm = extractFrontmatter(content)
+  if (fm === null) {
     return { valid: false, errors: ['No frontmatter found but _schema declared'], schema }
   }
 
-  const fm = fmMatch[1]
   const fields = new Set<string>()
   for (const line of fm.split('\n')) {
     const fieldMatch = line.match(/^(\w[\w-]*):\s*/)
