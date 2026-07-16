@@ -54,3 +54,20 @@ describe('Dockerfile runtime stage', () => {
     expect(content).toContain('schema.sql')
   })
 })
+
+describe('Docker build context', () => {
+  const content = readFileSync(resolve(ROOT, '.dockerignore'), 'utf-8')
+
+  it('includes scripts required by the package build command', () => {
+    expect(content).toContain('!scripts/check-node-version.mjs')
+    expect(content).toContain('!scripts/prepare-standalone-artifact.mjs')
+  })
+
+  it('includes only the operations template required by the runtime artifact', () => {
+    expect(content).not.toMatch(/^ops$/m)
+    expect(content).toContain('ops/*')
+    expect(content).toContain('!ops/templates/')
+    expect(content).toContain('ops/templates/*')
+    expect(content).toContain('!ops/templates/openclaw-gateway@.service')
+  })
+})
