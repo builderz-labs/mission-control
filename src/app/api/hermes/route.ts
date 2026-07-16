@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
@@ -8,6 +8,10 @@ import { getHermesTasks } from '@/lib/hermes-tasks'
 import { getHermesMemory } from '@/lib/hermes-memory'
 import { logger } from '@/lib/logger'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
+import { logAuditEvent } from '@/lib/db'
+import { extractClientIp, hermesMutationLimiter } from '@/lib/rate-limit'
+import { validateBody } from '@/lib/validation'
+import { formatHermesCommandOutput, hermesMutationSchema, parseHermesSetupCommand } from '@/lib/hermes-route-security'
 
 // In Docker, HOME=/nonexistent — check dataDir first, then homeDir
 import { resolve } from 'node:path'
@@ -46,7 +50,6 @@ export async function GET(request: NextRequest) {
       activeSessions,
       cronJobCount,
       memoryEntries,
-      hookDir: HOOK_DIR,
     })
   } catch (err) {
     logger.error({ err }, 'Hermes status check failed')
@@ -54,15 +57,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function stripAnsiAndControl(input: string): string {
-  return input
-    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
-    .replace(/\u009b[0-9;?]*[ -/]*[@-~]/g, '')
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
-}
-
 function extractDeviceAuth(output: string): { cleanOutput: string; deviceUrl: string | null; userCode: string | null } {
-  const cleanOutput = stripAnsiAndControl(output).replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  const cleanOutput = formatHermesCommandOutput(output).replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
   const deviceUrl = cleanOutput.match(/https?:\/\/[^\s)]+/i)?.[0] || null
   const userCode =
     cleanOutput.match(/(?:code|user code|device code)\s*[:=]\s*([A-Z0-9-]{4,})/i)?.[1]
@@ -81,8 +77,23 @@ export async function POST(request: NextRequest) {
   )
   if (isolationDeny) return isolationDeny
 
+  const limitKey = `${auth.user.tenant_id ?? 1}:${auth.user.workspace_id ?? 1}:${auth.user.id}`
+  const rateCheck = hermesMutationLimiter(limitKey)
+  if (rateCheck) return rateCheck
+
+  const result = await validateBody(request, hermesMutationSchema)
+  if ('error' in result) return result.error
+  const body = result.data
+  const ipAddress = extractClientIp(request)
+  const audit = (action: string, detail?: Record<string, unknown>) => logAuditEvent({
+    action: `hermes.${action}`,
+    actor: auth.user.username,
+    actor_id: auth.user.id,
+    detail,
+    ip_address: ipAddress,
+  })
+
   try {
-    const body = await request.json()
     const { action } = body
 
     if (action === 'install-hook') {
@@ -98,8 +109,9 @@ export async function POST(request: NextRequest) {
       // Write handler.py
       writeFileSync(join(HOOK_DIR, 'handler.py'), HANDLER_PY, 'utf8')
 
+      audit('hook_installed')
       logger.info('Installed Mission Control hook for Hermes Agent')
-      return NextResponse.json({ success: true, message: 'Hook installed', hookDir: HOOK_DIR })
+      return NextResponse.json({ success: true, message: 'Hook installed' })
     }
 
     if (action === 'uninstall-hook') {
@@ -107,22 +119,16 @@ export async function POST(request: NextRequest) {
         rmSync(HOOK_DIR, { recursive: true, force: true })
       }
 
+      audit('hook_uninstalled')
       logger.info('Uninstalled Mission Control hook for Hermes Agent')
       return NextResponse.json({ success: true, message: 'Hook uninstalled' })
     }
 
     if (action === 'set-env') {
       const { key, value } = body
-      if (!key || typeof key !== 'string' || !value || typeof value !== 'string') {
-        return NextResponse.json({ error: 'key and value are required' }, { status: 400 })
-      }
-      // Only allow known env var keys
-      const ALLOWED_KEYS = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY', 'NOUS_API_KEY', 'GOOGLE_API_KEY', 'XAI_API_KEY']
-      if (!ALLOWED_KEYS.includes(key)) {
-        return NextResponse.json({ error: `Key must be one of: ${ALLOWED_KEYS.join(', ')}` }, { status: 400 })
-      }
 
       const envPath = join(HERMES_HOME, '.env')
+      mkdirSync(HERMES_HOME, { recursive: true, mode: 0o700 })
       let envContent = ''
       try { envContent = require('node:fs').readFileSync(envPath, 'utf8') } catch { /* new file */ }
 
@@ -134,7 +140,9 @@ export async function POST(request: NextRequest) {
         envContent = envContent.trimEnd() + `\n${key}=${value}\n`
       }
 
-      writeFileSync(envPath, envContent, 'utf8')
+      writeFileSync(envPath, envContent, { encoding: 'utf8', mode: 0o600 })
+      chmodSync(envPath, 0o600)
+      audit('environment_updated', { key })
       logger.info({ key }, 'Hermes env var set via setup wizard')
       return NextResponse.json({ success: true })
     }
@@ -146,7 +154,10 @@ export async function POST(request: NextRequest) {
       }
 
       const soulPath = join(HERMES_HOME, 'SOUL.md')
-      writeFileSync(soulPath, content, 'utf8')
+      mkdirSync(HERMES_HOME, { recursive: true, mode: 0o700 })
+      writeFileSync(soulPath, content, { encoding: 'utf8', mode: 0o600 })
+      chmodSync(soulPath, 0o600)
+      audit('identity_updated', { bytes: Buffer.byteLength(content, 'utf8') })
       logger.info('Hermes SOUL.md updated via setup wizard')
       return NextResponse.json({ success: true })
     }
@@ -243,6 +254,7 @@ export async function POST(request: NextRequest) {
 
         const parsed = extractDeviceAuth(oauthResult.output)
         const success = oauthResult.code === 0
+        audit('oauth_model_completed', { provider: providerForOAuth, success })
 
         return NextResponse.json({
           success,
@@ -255,7 +267,7 @@ export async function POST(request: NextRequest) {
         const parsed = extractDeviceAuth((err?.stdout || '') + '\n' + (err?.stderr || ''))
         return NextResponse.json({
           success: false,
-          error: err?.message || 'OAuth command failed',
+          error: 'OAuth command failed',
           output: parsed.cleanOutput,
           deviceUrl: parsed.deviceUrl,
           userCode: parsed.userCode,
@@ -265,21 +277,13 @@ export async function POST(request: NextRequest) {
 
     if (action === 'run-command') {
       const { command } = body
-      if (!command || typeof command !== 'string') {
-        return NextResponse.json({ error: 'command is required' }, { status: 400 })
+      const args = parseHermesSetupCommand(command)
+      if (!args) {
+        return NextResponse.json({ error: 'Command is not allowed during runtime setup' }, { status: 400 })
       }
 
-      // Only allow hermes commands for security
-      const trimmed = command.trim()
-      if (!trimmed.startsWith('hermes')) {
-        return NextResponse.json({ error: 'Only hermes commands are allowed' }, { status: 400 })
-      }
-
-      // Parse command into binary + args
-      const parts = trimmed.split(/\s+/)
       const hermesBin = join(HERMES_HOME, 'hermes-agent', 'venv', 'bin', 'hermes')
-      const bin = existsSync(hermesBin) ? hermesBin : parts[0]
-      const args = parts.slice(1)
+      const bin = existsSync(hermesBin) ? hermesBin : 'hermes'
 
       // Add --non-interactive flags for commands that might prompt
       const env = {
@@ -296,16 +300,17 @@ export async function POST(request: NextRequest) {
           timeoutMs: 30_000,
           env,
         })
+        audit('setup_command_completed', { command: args.join(' '), success: result.code === 0 })
         return NextResponse.json({
           success: result.code === 0,
-          output: (result.stdout + '\n' + result.stderr).trim(),
+          output: formatHermesCommandOutput(result.stdout, result.stderr),
           code: result.code,
         })
       } catch (err: any) {
         return NextResponse.json({
           success: false,
-          error: err?.message || 'Command failed',
-          output: (err?.stdout || '') + '\n' + (err?.stderr || ''),
+          error: 'Command failed',
+          output: formatHermesCommandOutput(err?.stdout, err?.stderr),
         })
       }
     }
@@ -313,7 +318,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err: any) {
     logger.error({ err }, 'Hermes hook management failed')
-    return NextResponse.json({ error: err.message || 'Hook operation failed' }, { status: 500 })
+    return NextResponse.json({ error: 'Hook operation failed' }, { status: 500 })
   }
 }
 

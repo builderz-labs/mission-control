@@ -297,6 +297,14 @@ export const gatewayConfigMutationLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** Runtime hook, credential, identity, OAuth, and setup commands: 20 attempts per minute per admin. */
+export const hermesMutationLimiter = createKeyedRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 20,
+  message: 'Too many runtime setup changes. Try again in a minute.',
+  critical: true,
+})
+
 /** User lifecycle, access approval, and API-key rotation: 20 attempts per minute per admin and domain. */
 export const identitySecurityMutationLimiter = createKeyedRateLimiter({
   windowMs: 60_000,
