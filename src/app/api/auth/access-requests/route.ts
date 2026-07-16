@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  const rateCheck = identitySecurityMutationLimiter(`${admin.tenant_id ?? 1}:${admin.workspace_id ?? 1}:${admin.id}`)
+  const rateCheck = identitySecurityMutationLimiter(`${admin.tenant_id ?? 1}:${admin.workspace_id ?? 1}:${admin.id}:access-requests`)
   if (rateCheck) return rateCheck
 
   const result = await validateBody(request, accessRequestActionSchema)

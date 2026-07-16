@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  const rateCheck = identitySecurityMutationLimiter(`${currentUser.tenant_id ?? 1}:${currentUser.workspace_id ?? 1}:${currentUser.id}`)
+  const rateCheck = identitySecurityMutationLimiter(`${currentUser.tenant_id ?? 1}:${currentUser.workspace_id ?? 1}:${currentUser.id}:users`)
   if (rateCheck) return rateCheck
 
   try {
@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  const rateCheck = identitySecurityMutationLimiter(`${currentUser.tenant_id ?? 1}:${currentUser.workspace_id ?? 1}:${currentUser.id}`)
+  const rateCheck = identitySecurityMutationLimiter(`${currentUser.tenant_id ?? 1}:${currentUser.workspace_id ?? 1}:${currentUser.id}:users`)
   if (rateCheck) return rateCheck
 
   try {
@@ -151,7 +151,7 @@ export async function DELETE(request: NextRequest) {
   if (!currentUser || currentUser.role !== 'admin') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
-  const rateCheck = identitySecurityMutationLimiter(`${currentUser.tenant_id ?? 1}:${currentUser.workspace_id ?? 1}:${currentUser.id}`)
+  const rateCheck = identitySecurityMutationLimiter(`${currentUser.tenant_id ?? 1}:${currentUser.workspace_id ?? 1}:${currentUser.id}:users`)
   if (rateCheck) return rateCheck
 
   let body: any

@@ -26,4 +26,12 @@ describe('privileged identity mutation rate limits', () => {
     expect(definition).toContain('critical: true')
     expect(definition).toContain('maxRequests: 10')
   })
+
+  it.each([
+    ['src/app/api/auth/users/route.ts', ':users`'],
+    ['src/app/api/auth/access-requests/route.ts', ':access-requests`'],
+    ['src/app/api/tokens/rotate/route.ts', ':api-key`'],
+  ])('isolates the quota domain in %s', (path, domain) => {
+    expect(readRoute(path)).toContain(domain)
+  })
 })
