@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: docker-publish-${{ github.ref }}
-  cancel-in-progress: false
+  group: docker-publish-${{ github.event_name == 'workflow_run' && format('branch-{0}', github.event.workflow_run.head_branch) || format('{0}-{1}', github.ref_type, github.ref_name) }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
