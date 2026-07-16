@@ -36,7 +36,7 @@ vi.mock('@/lib/security-events', () => ({
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
-  mutationLimiter: vi.fn(() => null),
+  identitySecurityMutationLimiter: vi.fn(() => null),
 }))
 
 function sha256Hex(value: string): string {
