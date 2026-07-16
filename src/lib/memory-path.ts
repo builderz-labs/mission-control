@@ -12,14 +12,36 @@ import { resolveWithin } from '@/lib/paths'
 export const MEMORY_PATH = config.memoryDir
 export const MEMORY_ALLOWED_PREFIXES = (config.memoryAllowedPrefixes || []).map((p) => p.replace(/\\/g, '/'))
 
-export function normalizeRelativePath(value: string): string {
-  return String(value || '').replace(/\\/g, '/').replace(/^\/+/, '')
+export function canonicalizeMemoryRelativePath(value: unknown): string {
+  const input = typeof value === 'string' ? value : ''
+  if (!input || input.length > 1024 || input.includes('\0')) {
+    throw new Error('Invalid memory path')
+  }
+
+  const normalized = input.replace(/\\/g, '/')
+  if (normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized)) {
+    throw new Error('Memory path must be relative')
+  }
+
+  const segments = normalized.split('/')
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
+    throw new Error('Memory path must be canonical')
+  }
+  return segments.join('/')
 }
 
 export function isPathAllowed(relativePath: string): boolean {
+  let normalized: string
+  try {
+    normalized = canonicalizeMemoryRelativePath(relativePath)
+  } catch {
+    return false
+  }
   if (!MEMORY_ALLOWED_PREFIXES.length) return true
-  const normalized = normalizeRelativePath(relativePath)
-  return MEMORY_ALLOWED_PREFIXES.some((prefix) => normalized === prefix.slice(0, -1) || normalized.startsWith(prefix))
+  return MEMORY_ALLOWED_PREFIXES.some((prefix) => {
+    const root = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix
+    return normalized === root || normalized.startsWith(`${root}/`)
+  })
 }
 
 function isWithinBase(base: string, candidate: string): boolean {
@@ -28,8 +50,9 @@ function isWithinBase(base: string, candidate: string): boolean {
 }
 
 export async function resolveSafeMemoryPath(baseDir: string, relativePath: string): Promise<string> {
+  const canonicalPath = canonicalizeMemoryRelativePath(relativePath)
   const baseReal = await realpath(baseDir)
-  const fullPath = resolveWithin(baseDir, relativePath)
+  const fullPath = resolveWithin(baseDir, canonicalPath)
 
   // For non-existent targets, validate containment using the nearest existing ancestor.
   // This allows nested creates (mkdir -p) while still blocking symlink escapes.

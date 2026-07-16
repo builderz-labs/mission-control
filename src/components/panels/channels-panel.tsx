@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { useMissionControl } from '@/store'
 
 // ---------------------------------------------------------------------------
@@ -651,20 +652,15 @@ export function ChannelsPanel() {
 
   const fetchChannels = useCallback(async () => {
     try {
-      const res = await fetch('/api/channels')
-      if (res.status === 401 || res.status === 403) {
-        setError('Authentication required')
-        return
-      }
-      if (!res.ok) {
-        setError('Failed to load channels')
-        return
-      }
-      const data: ChannelsSnapshot = await res.json()
+      const data = await apiFetch<ChannelsSnapshot>('/api/channels')
       setSnapshot(data)
       setError(null)
-    } catch {
-      setError('Failed to load channels')
+    } catch (err) {
+      setError(
+        err instanceof ApiError && (err.status === 401 || err.status === 403)
+          ? 'Authentication required'
+          : 'Failed to load channels',
+      )
     } finally {
       setLoading(false)
     }
@@ -679,7 +675,7 @@ export function ChannelsPanel() {
   const handleProbe = async (channelId: string) => {
     setProbing(channelId)
     try {
-      await fetch(`/api/channels?action=probe&channel=${encodeURIComponent(channelId)}`)
+      await apiFetch(`/api/channels?action=probe&channel=${encodeURIComponent(channelId)}`)
       await fetchChannels()
     } catch {
       // next poll will refresh
@@ -691,16 +687,18 @@ export function ChannelsPanel() {
   const handleAction = async (action: string, params: Record<string, unknown>): Promise<unknown> => {
     setActionBusy(true)
     try {
-      const res = await fetch('/api/channels', {
+      const data = await apiFetch<ActionResult>('/api/channels', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, ...params }),
       })
-      const data = await res.json()
       // Refresh channel data after action
       await fetchChannels()
       return data
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.payload !== undefined) {
+        await fetchChannels()
+        return err.payload
+      }
       return null
     } finally {
       setActionBusy(false)

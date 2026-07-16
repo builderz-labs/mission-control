@@ -82,6 +82,13 @@ describe('Adapter Registry', () => {
   it('throws for unknown framework', () => {
     expect(() => getAdapter('nonexistent')).toThrow('Unknown framework adapter')
   })
+
+  it.each(['toString', 'constructor', '__proto__', 'hasOwnProperty'])(
+    'rejects inherited Object property name %s',
+    (framework) => {
+      expect(() => getAdapter(framework)).toThrow(`Unknown framework adapter: ${framework}`)
+    },
+  )
 })
 
 // Run the full compliance suite for EVERY adapter

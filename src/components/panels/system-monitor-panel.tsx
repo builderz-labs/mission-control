@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { apiFetch } from '@/lib/api-client'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts'
 
 interface CpuData {
@@ -106,9 +107,9 @@ export function SystemMonitorPanel() {
     abortRef.current = controller
 
     try {
-      const res = await fetch('/api/system-monitor', { signal: controller.signal })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data: Snapshot = await res.json()
+      const data = await apiFetch<Snapshot>('/api/system-monitor', {
+        signal: controller.signal,
+      })
       setLatest(data)
       setError(null)
 
@@ -153,8 +154,10 @@ export function SystemMonitorPanel() {
         const next = [...prevHistory, point]
         return next.length > MAX_POINTS ? next.slice(-MAX_POINTS) : next
       })
-    } catch (err: any) {
-      if (err.name !== 'AbortError') setError(err.message)
+    } catch (err: unknown) {
+      if (!controller.signal.aborted) {
+        setError(err instanceof Error ? err.message : 'Failed to load system metrics')
+      }
     }
   }, [])
 

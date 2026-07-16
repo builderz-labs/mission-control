@@ -140,6 +140,9 @@ export async function PUT(
     
     // If template_name is provided, load from template
     if (template_name) {
+      if (typeof template_name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(template_name)) {
+        return NextResponse.json({ error: 'Invalid template name' }, { status: 400 })
+      }
       if (isStrictWorkspace) {
         return NextResponse.json({ error: 'Global SOUL templates are unavailable in strict workspaces' }, { status: 403 })
       }

@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { useMissionControl } from '@/store'
 
 interface UserRecord {
@@ -34,6 +35,23 @@ interface AccessRequest {
   reviewed_at?: number | null
   review_note?: string | null
   approved_user_id?: number | null
+}
+
+interface UserMutationResult {
+  error?: string
+}
+
+function userAdminError(error: unknown): string | null {
+  if (
+    error instanceof ApiError &&
+    error.payload !== null &&
+    typeof error.payload === 'object' &&
+    'error' in error.payload &&
+    typeof (error.payload as { error?: unknown }).error === 'string'
+  ) {
+    return (error.payload as { error: string }).error
+  }
+  return null
 }
 
 const roleColors: Record<string, string> = {
@@ -70,24 +88,22 @@ export function UserManagementPanel() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [uRes, rRes] = await Promise.all([
-        fetch('/api/auth/users', { cache: 'no-store' }),
-        fetch('/api/auth/access-requests?status=all', { cache: 'no-store' }),
+      const [uJson, rJson] = await Promise.all([
+        apiFetch<{ users?: UserRecord[] }>('/api/auth/users', { cache: 'no-store' }),
+        apiFetch<{ requests?: AccessRequest[] }>('/api/auth/access-requests?status=all', {
+          cache: 'no-store',
+        }),
       ])
-
-      if (uRes.status === 403 || rRes.status === 403) {
-        setError(t('adminAccessRequired'))
-        return
-      }
-
-      const uJson = await uRes.json().catch(() => ({}))
-      const rJson = await rRes.json().catch(() => ({}))
 
       setUsers(Array.isArray(uJson?.users) ? uJson.users : [])
       setRequests(Array.isArray(rJson?.requests) ? rJson.requests : [])
       setError(null)
-    } catch {
-      setError(t('failedToLoadUsers'))
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 403
+          ? t('adminAccessRequired')
+          : t('failedToLoadUsers'),
+      )
     } finally {
       setLoading(false)
     }
@@ -106,22 +122,23 @@ export function UserManagementPanel() {
     if (!createForm.username || !createForm.password) return
     setCreating(true)
     try {
-      const res = await fetch('/api/auth/users', {
+      await apiFetch<UserMutationResult>('/api/auth/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(createForm),
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        showFeedback(true, t('createdUser', { username: createForm.username }))
-        setShowCreate(false)
-        setCreateForm({ username: '', password: '', display_name: '', role: 'operator' })
-        fetchAll()
-      } else {
-        showFeedback(false, data.error || t('failedToCreate'))
-      }
-    } catch {
-      showFeedback(false, t('networkError'))
+      showFeedback(true, t('createdUser', { username: createForm.username }))
+      setShowCreate(false)
+      setCreateForm({ username: '', password: '', display_name: '', role: 'operator' })
+      fetchAll()
+    } catch (err) {
+      showFeedback(
+        false,
+        userAdminError(err) ||
+          (err instanceof ApiError &&
+          (err.code === 'NETWORK_ERROR' || err.code === 'PARSE_ERROR')
+            ? t('networkError')
+            : t('failedToCreate')),
+      )
     } finally {
       setCreating(false)
     }
@@ -136,26 +153,32 @@ export function UserManagementPanel() {
     if (!editingId) return
     setSaving(true)
     try {
-      const body: any = { id: editingId }
+      const body: {
+        id: number
+        display_name?: string
+        role?: 'admin' | 'operator' | 'viewer'
+        password?: string
+      } = { id: editingId }
       if (editForm.display_name) body.display_name = editForm.display_name
       if (editForm.role) body.role = editForm.role
       if (editForm.password) body.password = editForm.password
 
-      const res = await fetch('/api/auth/users', {
+      await apiFetch<UserMutationResult>('/api/auth/users', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        showFeedback(true, t('userUpdated'))
-        setEditingId(null)
-        fetchAll()
-      } else {
-        showFeedback(false, data.error || t('failedToUpdate'))
-      }
-    } catch {
-      showFeedback(false, t('networkError'))
+      showFeedback(true, t('userUpdated'))
+      setEditingId(null)
+      fetchAll()
+    } catch (err) {
+      showFeedback(
+        false,
+        userAdminError(err) ||
+          (err instanceof ApiError &&
+          (err.code === 'NETWORK_ERROR' || err.code === 'PARSE_ERROR')
+            ? t('networkError')
+            : t('failedToUpdate')),
+      )
     } finally {
       setSaving(false)
     }
@@ -164,29 +187,29 @@ export function UserManagementPanel() {
   const handleDelete = async (u: UserRecord) => {
     if (u.id === currentUser?.id) return
     try {
-      const res = await fetch('/api/auth/users', {
+      await apiFetch<UserMutationResult>('/api/auth/users', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: u.id }),
       })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        showFeedback(true, t('deletedUser', { username: u.username }))
-        fetchAll()
-      } else {
-        showFeedback(false, data.error || t('failedToDelete'))
-      }
-    } catch {
-      showFeedback(false, t('networkError'))
+      showFeedback(true, t('deletedUser', { username: u.username }))
+      fetchAll()
+    } catch (err) {
+      showFeedback(
+        false,
+        userAdminError(err) ||
+          (err instanceof ApiError &&
+          (err.code === 'NETWORK_ERROR' || err.code === 'PARSE_ERROR')
+            ? t('networkError')
+            : t('failedToDelete')),
+      )
     }
   }
 
   const submitReview = async (requestId: number, action: 'approve' | 'reject') => {
     setProcessingRequestId(requestId)
     try {
-      const res = await fetch('/api/auth/access-requests', {
+      await apiFetch<UserMutationResult>('/api/auth/access-requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           request_id: requestId,
           action,
@@ -194,15 +217,17 @@ export function UserManagementPanel() {
           note: reviewForm.note || undefined,
         }),
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || t('failedToAction', { action }))
       const req = requests.find(r => r.id === requestId)
       showFeedback(true, t('requestActioned', { action, email: req?.email || t('user') }))
       setReviewingRequestId(null)
       setReviewForm({ role: 'viewer', note: '' })
       await fetchAll()
-    } catch (e: any) {
-      showFeedback(false, e?.message || t('failedToAction', { action }))
+    } catch (err) {
+      showFeedback(
+        false,
+        userAdminError(err) ||
+          (err instanceof Error ? err.message : t('failedToAction', { action })),
+      )
     } finally {
       setProcessingRequestId(null)
     }

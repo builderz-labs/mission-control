@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { PipelineTab } from './pipeline-tab'
 
 interface Agent {
@@ -41,6 +42,23 @@ const emptyForm: TemplateFormData = {
   timeout_seconds: 300, agent_role: '', tags: []
 }
 
+function orchestrationError(error: unknown, fallback: string): string {
+  if (
+    error instanceof ApiError &&
+    error.payload !== null &&
+    typeof error.payload === 'object' &&
+    'error' in error.payload &&
+    typeof (error.payload as { error?: unknown }).error === 'string'
+  ) {
+    return (error.payload as { error: string }).error
+  }
+  return fallback
+}
+
+function isOrchestrationNetworkFailure(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'NETWORK_ERROR'
+}
+
 export function OrchestrationBar() {
   const t = useTranslations('orchestration')
   const [agents, setAgents] = useState<Agent[]>([])
@@ -64,8 +82,9 @@ export function OrchestrationBar() {
 
   const fetchData = useCallback(async () => {
     const [agentRes, templateRes] = await Promise.all([
-      fetch('/api/agents').then(r => r.json()).catch(() => ({ agents: [] })),
-      fetch('/api/workflows').then(r => r.json()).catch(() => ({ templates: [] })),
+      apiFetch<{ agents?: Agent[] }>('/api/agents').catch(() => ({ agents: [] })),
+      apiFetch<{ templates?: WorkflowTemplate[] }>('/api/workflows')
+        .catch(() => ({ templates: [] })),
     ])
     setAgents(agentRes.agents || [])
     setTemplates(templateRes.templates || [])
@@ -88,20 +107,20 @@ export function OrchestrationBar() {
     setCommandResult(null)
 
     try {
-      const res = await fetch('/api/agents/message', {
+      await apiFetch<Record<string, unknown>>('/api/agents/message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: selectedAgent, content: message, from: 'operator' })
       })
-      const data = await res.json()
-      if (res.ok) {
-        setCommandResult({ ok: true, text: `Message sent to ${selectedAgent}` })
-        setMessage('')
-      } else {
-        setCommandResult({ ok: false, text: data.error || 'Failed to send' })
-      }
-    } catch {
-      setCommandResult({ ok: false, text: 'Network error' })
+      setCommandResult({ ok: true, text: `Message sent to ${selectedAgent}` })
+      setMessage('')
+    } catch (err) {
+      setCommandResult({
+        ok: false,
+        text: orchestrationError(
+          err,
+          isOrchestrationNetworkFailure(err) ? 'Network error' : 'Failed to send',
+        ),
+      })
     } finally {
       setSending(false)
     }
@@ -111,9 +130,8 @@ export function OrchestrationBar() {
   const executeTemplate = async (template: WorkflowTemplate) => {
     setSpawning(template.id)
     try {
-      const res = await fetch('/api/spawn', {
+      await apiFetch<Record<string, unknown>>('/api/spawn', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           task: template.task_prompt,
           model: template.model,
@@ -122,20 +140,25 @@ export function OrchestrationBar() {
         })
       })
 
-      if (res.ok) {
-        await fetch('/api/workflows', {
+      try {
+        await apiFetch<Response>('/api/workflows', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: template.id })
+          body: JSON.stringify({ id: template.id }),
+          raw: true,
         })
-        setCommandResult({ ok: true, text: `Spawned "${template.name}"` })
-        fetchData()
-      } else {
-        const data = await res.json()
-        setCommandResult({ ok: false, text: data.error || 'Spawn failed' })
+      } catch {
+        // Usage accounting is best-effort after the primary spawn succeeds.
       }
-    } catch {
-      setCommandResult({ ok: false, text: 'Network error' })
+      setCommandResult({ ok: true, text: `Spawned "${template.name}"` })
+      fetchData()
+    } catch (err) {
+      setCommandResult({
+        ok: false,
+        text: orchestrationError(
+          err,
+          isOrchestrationNetworkFailure(err) ? 'Network error' : 'Spawn failed',
+        ),
+      })
     } finally {
       setSpawning(null)
     }
@@ -146,15 +169,13 @@ export function OrchestrationBar() {
     if (!templateForm.name || !templateForm.task_prompt) return
     try {
       const isEdit = formMode === 'edit' && editingId !== null
-      const res = await fetch('/api/workflows', {
+      await apiFetch<Response>('/api/workflows', {
         method: isEdit ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isEdit ? { id: editingId, ...templateForm } : templateForm)
+        body: JSON.stringify(isEdit ? { id: editingId, ...templateForm } : templateForm),
+        raw: true,
       })
-      if (res.ok) {
-        closeForm()
-        fetchData()
-      }
+      closeForm()
+      fetchData()
     } catch {
       // ignore
     }
@@ -202,7 +223,11 @@ export function OrchestrationBar() {
 
   // Delete template
   const deleteTemplate = async (id: number) => {
-    await fetch(`/api/workflows?id=${id}`, { method: 'DELETE' })
+    try {
+      await apiFetch<Response>(`/api/workflows?id=${id}`, { method: 'DELETE', raw: true })
+    } catch (err) {
+      if (isOrchestrationNetworkFailure(err)) return
+    }
     if (expandedId === id) setExpandedId(null)
     fetchData()
   }

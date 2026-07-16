@@ -7,7 +7,7 @@ import { requireRole } from '@/lib/auth'
 import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateSchema, extractWikiLinks } from '@/lib/memory-utils'
-import { MEMORY_PATH, MEMORY_ALLOWED_PREFIXES, isPathAllowed, resolveSafeMemoryPath } from '@/lib/memory-path'
+import { MEMORY_PATH, MEMORY_ALLOWED_PREFIXES, canonicalizeMemoryRelativePath, isPathAllowed, resolveSafeMemoryPath } from '@/lib/memory-path'
 import { searchMemory, indexFile, removeFromIndex } from '@/lib/memory-search'
 import { resolveWorkspaceMemoryAccess } from '@/lib/workspace-isolation'
 
@@ -109,12 +109,13 @@ export async function GET(request: NextRequest) {
         if (!isPathAllowed(path)) {
           return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
         }
-        const fullPath = await resolveSafeMemoryPath(memoryPath, path)
+        const canonicalPath = canonicalizeMemoryRelativePath(path)
+        const fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
         const stats = await stat(fullPath).catch(() => null)
         if (!stats?.isDirectory()) {
           return NextResponse.json({ error: 'Directory not found' }, { status: 404 })
         }
-        const tree = await buildFileTree(fullPath, path, maxDepth)
+        const tree = await buildFileTree(fullPath, canonicalPath, maxDepth)
         return NextResponse.json({ tree })
       }
       if (MEMORY_ALLOWED_PREFIXES.length) {
@@ -151,14 +152,15 @@ export async function GET(request: NextRequest) {
       if (!memoryPath || !existsSync(memoryPath)) {
         return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
       }
-      const fullPath = await resolveSafeMemoryPath(memoryPath, path)
+      const canonicalPath = canonicalizeMemoryRelativePath(path)
+      const fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
       
       try {
         const content = await readFile(fullPath, 'utf-8')
         const stats = await stat(fullPath)
 
         // Extract wiki-links and schema validation for .md files
-        const isMarkdown = path.endsWith('.md')
+        const isMarkdown = canonicalPath.endsWith('.md')
         const wikiLinks = isMarkdown ? extractWikiLinks(content) : []
         const schemaResult = isMarkdown ? validateSchema(content) : null
 
@@ -166,7 +168,7 @@ export async function GET(request: NextRequest) {
           content,
           size: stats.size,
           modified: stats.mtime.getTime(),
-          path,
+          path: canonicalPath,
           wikiLinks,
           schema: schemaResult,
         })
@@ -220,8 +222,9 @@ export async function POST(request: NextRequest) {
     if (!memoryPath) {
       return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
     }
+    const canonicalPath = canonicalizeMemoryRelativePath(path)
     await mkdir(memoryPath, { recursive: true })
-    const fullPath = await resolveSafeMemoryPath(memoryPath, path)
+    const fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
 
     if (action === 'save') {
       // Save file content
@@ -230,14 +233,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Validate schema if present (warn but don't block save)
-      const schemaResult = path.endsWith('.md') ? validateSchema(content) : null
+      const schemaResult = canonicalPath.endsWith('.md') ? validateSchema(content) : null
       const schemaWarnings = schemaResult?.errors ?? []
 
       await writeFile(fullPath, content, 'utf-8')
       // Incrementally update FTS index
-      try { indexFile(getDatabase(), memoryPath, path, memoryAccess!.scope) } catch { /* best-effort */ }
+      try { indexFile(getDatabase(), memoryPath, canonicalPath, memoryAccess!.scope) } catch { /* best-effort */ }
       try {
-        db_helpers.logActivity('memory_file_saved', 'memory', 0, auth.user.username || 'unknown', `Updated ${path}`, { path, size: content.length })
+        db_helpers.logActivity('memory_file_saved', 'memory', 0, auth.user.username || 'unknown', `Updated ${canonicalPath}`, { path: canonicalPath, size: content.length })
       } catch { /* best-effort */ }
       return NextResponse.json({
         success: true,
@@ -257,18 +260,18 @@ export async function POST(request: NextRequest) {
         // Directory might already exist
       }
 
-      // Check if file already exists
       try {
-        await stat(fullPath)
-        return NextResponse.json({ error: 'File already exists' }, { status: 409 })
+        await writeFile(fullPath, content || '', { encoding: 'utf-8', flag: 'wx', mode: 0o600 })
       } catch (error) {
-        // File doesn't exist, which is what we want
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+          return NextResponse.json({ error: 'File already exists' }, { status: 409 })
+        }
+        throw error
       }
 
-      await writeFile(fullPath, content || '', 'utf-8')
-      try { indexFile(getDatabase(), memoryPath, path, memoryAccess!.scope) } catch { /* best-effort */ }
+      try { indexFile(getDatabase(), memoryPath, canonicalPath, memoryAccess!.scope) } catch { /* best-effort */ }
       try {
-        db_helpers.logActivity('memory_file_created', 'memory', 0, auth.user.username || 'unknown', `Created ${path}`, { path })
+        db_helpers.logActivity('memory_file_created', 'memory', 0, auth.user.username || 'unknown', `Created ${canonicalPath}`, { path: canonicalPath })
       } catch { /* best-effort */ }
       return NextResponse.json({ success: true, message: 'File created successfully' })
     }
@@ -304,7 +307,8 @@ export async function DELETE(request: NextRequest) {
     if (!memoryPath || !existsSync(memoryPath)) {
       return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
     }
-    const fullPath = await resolveSafeMemoryPath(memoryPath, path)
+    const canonicalPath = canonicalizeMemoryRelativePath(path)
+    const fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
 
     if (action === 'delete') {
       // Check if file exists
@@ -315,9 +319,9 @@ export async function DELETE(request: NextRequest) {
       }
 
       await unlink(fullPath)
-      try { removeFromIndex(getDatabase(), path, memoryAccess!.scope) } catch { /* best-effort */ }
+      try { removeFromIndex(getDatabase(), canonicalPath, memoryAccess!.scope) } catch { /* best-effort */ }
       try {
-        db_helpers.logActivity('memory_file_deleted', 'memory', 0, auth.user.username || 'unknown', `Deleted ${path}`, { path })
+        db_helpers.logActivity('memory_file_deleted', 'memory', 0, auth.user.username || 'unknown', `Deleted ${canonicalPath}`, { path: canonicalPath })
       } catch { /* best-effort */ }
       return NextResponse.json({ success: true, message: 'File deleted successfully' })
     }

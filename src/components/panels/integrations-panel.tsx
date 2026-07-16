@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface EnvVarInfo {
   redacted: string
@@ -24,6 +25,31 @@ interface Integration {
 interface Category {
   id: string
   label: string
+}
+
+interface IntegrationsResponse {
+  integrations?: Integration[]
+  categories?: Category[]
+  opAvailable?: boolean
+  envPath?: string | null
+}
+
+interface IntegrationMutationResult {
+  ok?: boolean
+  count?: number
+  detail?: string
+  error?: string
+}
+
+function integrationErrorData(error: unknown): IntegrationMutationResult | null {
+  if (
+    error instanceof ApiError &&
+    error.payload !== null &&
+    typeof error.payload === 'object'
+  ) {
+    return error.payload as IntegrationMutationResult
+  }
+  return null
 }
 
 export function IntegrationsPanel() {
@@ -53,16 +79,7 @@ export function IntegrationsPanel() {
 
   const fetchIntegrations = useCallback(async () => {
     try {
-      const res = await fetch('/api/integrations')
-      if (res.status === 401 || res.status === 403) {
-        setError('Admin access required')
-        return
-      }
-      if (!res.ok) {
-        setError('Failed to load integrations')
-        return
-      }
-      const data = await res.json()
+      const data = await apiFetch<IntegrationsResponse>('/api/integrations')
       setIntegrations(data.integrations || [])
       setCategories(data.categories || [])
       setOpAvailable(data.opAvailable ?? false)
@@ -74,8 +91,12 @@ export function IntegrationsPanel() {
           return ids.includes(prev) ? prev : ids[0]
         })
       }
-    } catch {
-      setError('Failed to load integrations')
+    } catch (err) {
+      setError(
+        err instanceof ApiError && (err.status === 401 || err.status === 403)
+          ? 'Admin access required'
+          : 'Failed to load integrations',
+      )
     } finally {
       setLoading(false)
     }
@@ -110,22 +131,24 @@ export function IntegrationsPanel() {
     if (!hasChanges) return
     setSaving(true)
     try {
-      const res = await fetch('/api/integrations', {
+      const data = await apiFetch<IntegrationMutationResult>('/api/integrations', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vars: edits }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        showFeedback(true, `Saved ${data.count} variable${data.count === 1 ? '' : 's'}`)
-        setEdits({})
-        setRevealed(new Set())
-        fetchIntegrations()
-      } else {
-        showFeedback(false, data.error || 'Failed to save')
-      }
-    } catch {
-      showFeedback(false, 'Network error')
+      showFeedback(true, `Saved ${data.count} variable${data.count === 1 ? '' : 's'}`)
+      setEdits({})
+      setRevealed(new Set())
+      fetchIntegrations()
+    } catch (err) {
+      const data = integrationErrorData(err)
+      showFeedback(
+        false,
+        data?.error ||
+          (err instanceof ApiError &&
+          (err.code === 'NETWORK_ERROR' || err.code === 'PARSE_ERROR')
+            ? 'Network error'
+            : 'Failed to save'),
+      )
     } finally {
       setSaving(false)
     }
@@ -138,37 +161,48 @@ export function IntegrationsPanel() {
 
   const handleRemove = async (envKeys: string[]) => {
     try {
-      const res = await fetch(`/api/integrations?keys=${encodeURIComponent(envKeys.join(','))}`, {
-        method: 'DELETE',
-      })
-      const data = await res.json()
-      if (res.ok) {
-        showFeedback(true, `Removed ${data.count} variable${data.count === 1 ? '' : 's'}`)
-        fetchIntegrations()
-      } else {
-        showFeedback(false, data.error || 'Failed to remove')
-      }
-    } catch {
-      showFeedback(false, 'Network error')
+      const data = await apiFetch<IntegrationMutationResult>(
+        `/api/integrations?keys=${encodeURIComponent(envKeys.join(','))}`,
+        { method: 'DELETE' },
+      )
+      showFeedback(true, `Removed ${data.count} variable${data.count === 1 ? '' : 's'}`)
+      fetchIntegrations()
+    } catch (err) {
+      const data = integrationErrorData(err)
+      showFeedback(
+        false,
+        data?.error ||
+          (err instanceof ApiError &&
+          (err.code === 'NETWORK_ERROR' || err.code === 'PARSE_ERROR')
+            ? 'Network error'
+            : 'Failed to remove'),
+      )
     }
   }
 
   const handleTest = async (integrationId: string) => {
     setTesting(integrationId)
     try {
-      const res = await fetch('/api/integrations', {
+      const data = await apiFetch<IntegrationMutationResult>('/api/integrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'test', integrationId }),
       })
-      const data = await res.json()
       if (data.ok) {
         showFeedback(true, data.detail || 'Connection successful')
       } else {
         showFeedback(false, data.detail || data.error || 'Test failed')
       }
-    } catch {
-      showFeedback(false, 'Network error')
+    } catch (err) {
+      const data = integrationErrorData(err)
+      showFeedback(
+        false,
+        data?.detail ||
+          data?.error ||
+          (err instanceof ApiError &&
+          (err.code === 'NETWORK_ERROR' || err.code === 'PARSE_ERROR')
+            ? 'Network error'
+            : 'Test failed'),
+      )
     } finally {
       setTesting(null)
     }
@@ -177,20 +211,26 @@ export function IntegrationsPanel() {
   const handlePull = async (integrationId: string) => {
     setPulling(integrationId)
     try {
-      const res = await fetch('/api/integrations', {
+      const data = await apiFetch<IntegrationMutationResult>('/api/integrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'pull', integrationId }),
       })
-      const data = await res.json()
       if (data.ok) {
         showFeedback(true, data.detail || 'Pulled from 1Password')
         fetchIntegrations()
       } else {
         showFeedback(false, data.error || 'Pull failed')
       }
-    } catch {
-      showFeedback(false, 'Network error')
+    } catch (err) {
+      const data = integrationErrorData(err)
+      showFeedback(
+        false,
+        data?.error ||
+          (err instanceof ApiError &&
+          (err.code === 'NETWORK_ERROR' || err.code === 'PARSE_ERROR')
+            ? 'Network error'
+            : 'Pull failed'),
+      )
     } finally {
       setPulling(null)
     }
@@ -199,20 +239,26 @@ export function IntegrationsPanel() {
   const handlePullAll = async () => {
     setPullingAll(true)
     try {
-      const res = await fetch('/api/integrations', {
+      const data = await apiFetch<IntegrationMutationResult>('/api/integrations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'pull-all', category: activeCategory }),
       })
-      const data = await res.json()
       if (data.ok) {
         showFeedback(true, data.detail || 'Pulled from 1Password')
         fetchIntegrations()
       } else {
         showFeedback(false, data.error || 'Pull failed')
       }
-    } catch {
-      showFeedback(false, 'Network error')
+    } catch (err) {
+      const data = integrationErrorData(err)
+      showFeedback(
+        false,
+        data?.error ||
+          (err instanceof ApiError &&
+          (err.code === 'NETWORK_ERROR' || err.code === 'PARSE_ERROR')
+            ? 'Network error'
+            : 'Pull failed'),
+      )
     } finally {
       setPullingAll(false)
     }

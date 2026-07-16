@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface PresenceEntry {
   id: string
@@ -83,16 +84,28 @@ async function deviceAction(
   params: Record<string, unknown>,
 ): Promise<{ ok: boolean; error?: string; data?: Record<string, unknown> }> {
   try {
-    const res = await fetch('/api/nodes', {
+    const data = await apiFetch<Record<string, unknown>>('/api/nodes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, ...params }),
     })
-    const data = await res.json()
-    if (!res.ok) return { ok: false, error: data.error || `Request failed (${res.status})` }
     return { ok: true, data }
-  } catch {
-    return { ok: false, error: 'Network error' }
+  } catch (err) {
+    const payload = err instanceof ApiError ? err.payload : null
+    const upstream =
+      payload && typeof payload === 'object' && 'error' in payload &&
+      typeof (payload as { error?: unknown }).error === 'string'
+        ? (payload as { error: string }).error
+        : null
+    return {
+      ok: false,
+      error:
+        upstream ||
+        (err instanceof ApiError &&
+        err.code !== 'NETWORK_ERROR' &&
+        err.code !== 'PARSE_ERROR'
+          ? `Request failed (${err.status})`
+          : 'Network error'),
+    }
   }
 }
 
@@ -108,9 +121,11 @@ export function NodesPanel() {
 
   const fetchNodes = useCallback(async () => {
     try {
-      const res = await fetch('/api/nodes')
-      if (!res.ok) { setError('Failed to fetch nodes'); return }
-      const data = await res.json()
+      const data = await apiFetch<{
+        nodes?: PresenceEntry[]
+        entries?: PresenceEntry[]
+        connected?: boolean
+      }>('/api/nodes')
       setNodes(data.nodes || data.entries || [])
       setConnected(data.connected !== false)
       setError(null)
@@ -123,9 +138,11 @@ export function NodesPanel() {
 
   const fetchDevices = useCallback(async () => {
     try {
-      const res = await fetch('/api/nodes?action=devices')
-      if (!res.ok) return
-      const data = await res.json()
+      const data = await apiFetch<{
+        paired?: PairedDevice[]
+        devices?: PairedDevice[]
+        pending?: PendingDevice[]
+      }>('/api/nodes?action=devices')
       setDevices(data.paired || data.devices || [])
       setPendingDevices(data.pending || [])
     } catch {

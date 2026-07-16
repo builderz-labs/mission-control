@@ -8,13 +8,8 @@ interface MarkdownRendererProps {
   preview?: boolean
 }
 
-function stripHtml(content: string): string {
-  return content.replace(/<[^>]*>/g, '')
-}
-
 function getPreviewContent(content: string): string {
-  const cleaned = stripHtml(content)
-  const firstParagraph = cleaned.trim().split(/\n\s*\n/)[0] || ''
+  const firstParagraph = content.trim().split(/\n\s*\n/)[0] || ''
   if (firstParagraph.length <= 240) return firstParagraph
   return `${firstParagraph.slice(0, 240)}...`
 }
@@ -22,13 +17,13 @@ function getPreviewContent(content: string): string {
 export function MarkdownRenderer({ content, preview = false }: MarkdownRendererProps) {
   if (!content?.trim()) return null
 
-  const cleaned = stripHtml(content)
-  const markdownContent = preview ? getPreviewContent(content) : cleaned
+  const markdownContent = preview ? getPreviewContent(content) : content
 
   return (
     <div className={`prose prose-invert max-w-none ${preview ? 'text-xs' : 'text-sm'}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        skipHtml
         components={{
           h1: ({ children }) => <h1 className={`${preview ? 'text-sm' : 'text-xl'} font-semibold mb-2`}>{children}</h1>,
           h2: ({ children }) => <h2 className={`${preview ? 'text-xs' : 'text-lg'} font-semibold mb-2`}>{children}</h2>,
@@ -67,4 +62,3 @@ export function MarkdownRenderer({ content, preview = false }: MarkdownRendererP
     </div>
   )
 }
-

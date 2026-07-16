@@ -6,12 +6,16 @@ import { logger } from '@/lib/logger'
 import { ensureTenantWorkspaceAccess, ForbiddenError } from '@/lib/workspaces'
 
 function slugify(input: string): string {
-  return input
+  const normalized = input
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64)
+
+  let start = 0
+  let end = normalized.length
+  while (start < end && normalized[start] === '-') start += 1
+  while (end > start && normalized[end - 1] === '-') end -= 1
+  return normalized.slice(start, end).slice(0, 64)
 }
 
 function normalizePrefix(input: string): string {

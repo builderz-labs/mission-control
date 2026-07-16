@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createUser, getUserFromRequest , requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { validateBody, accessRequestActionSchema } from '@/lib/validation'
-import { mutationLimiter } from '@/lib/rate-limit'
+import { identitySecurityMutationLimiter } from '@/lib/rate-limit'
 
 function makeUsernameFromEmail(email: string): string {
   const base = email.split('@')[0].replace(/[^a-z0-9._-]/gi, '').toLowerCase() || 'user'
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  const rateCheck = mutationLimiter(request)
+  const rateCheck = identitySecurityMutationLimiter(`${admin.tenant_id ?? 1}:${admin.workspace_id ?? 1}:${admin.id}:access-requests`)
   if (rateCheck) return rateCheck
 
   const result = await validateBody(request, accessRequestActionSchema)

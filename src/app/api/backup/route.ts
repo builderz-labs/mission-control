@@ -4,10 +4,11 @@ import { getDatabase, logAuditEvent } from '@/lib/db'
 import { config, ensureDirExists } from '@/lib/config'
 import { join, dirname } from 'path'
 import { readdirSync, statSync, unlinkSync } from 'fs'
-import { heavyLimiter } from '@/lib/rate-limit'
+import { backupMutationLimiter, extractClientIp } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { runOpenClaw } from '@/lib/command'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
+import { backupDeleteSchema, validateBody } from '@/lib/validation'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 const MAX_BACKUPS = 10
@@ -36,9 +37,9 @@ export async function GET(request: NextRequest) {
       })
       .sort((a, b) => b.created_at - a.created_at)
 
-    return NextResponse.json({ backups: files, dir: BACKUP_DIR })
+    return NextResponse.json({ backups: files })
   } catch {
-    return NextResponse.json({ backups: [], dir: BACKUP_DIR })
+    return NextResponse.json({ backups: [] })
   }
 }
 
@@ -51,15 +52,19 @@ export async function POST(request: NextRequest) {
   const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
   if (isolationDeny) return isolationDeny
 
-  const rateCheck = heavyLimiter(request)
+  const limitKey = `${auth.user.tenant_id ?? 1}:${auth.user.workspace_id ?? 1}:${auth.user.id}:backup`
+  const rateCheck = backupMutationLimiter(limitKey)
   if (rateCheck) return rateCheck
 
   const target = request.nextUrl.searchParams.get('target')
+  if (target !== null && target !== 'gateway') {
+    return NextResponse.json({ error: 'Invalid backup target' }, { status: 400 })
+  }
 
   // Gateway state backup via `openclaw backup create`
   if (target === 'gateway') {
     ensureDirExists(BACKUP_DIR)
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     try {
       let stdout: string
       let stderr: string
@@ -73,26 +78,23 @@ export async function POST(request: NextRequest) {
         stderr = error.stderr || ''
         const combined = `${stdout}\n${stderr}`
         if (!combined.includes('Created')) {
-          const message = stderr || error.message || 'Unknown error'
           logger.error({ err: error }, 'Gateway backup failed')
-          return NextResponse.json({ error: `Gateway backup failed: ${message}` }, { status: 500 })
+          return NextResponse.json({ error: 'Gateway backup failed' }, { status: 500 })
         }
       }
-
-      const output = (stdout || stderr).trim()
 
       logAuditEvent({
         action: 'openclaw.backup',
         actor: auth.user.username,
         actor_id: auth.user.id,
-        detail: { output },
+        detail: { target: 'gateway' },
         ip_address: ipAddress,
       })
 
-      return NextResponse.json({ success: true, output })
+      return NextResponse.json({ success: true, output: 'Gateway backup created' })
     } catch (error: any) {
       logger.error({ err: error }, 'Gateway backup failed')
-      return NextResponse.json({ error: `Gateway backup failed: ${error.message}` }, { status: 500 })
+      return NextResponse.json({ error: 'Gateway backup failed' }, { status: 500 })
     }
   }
 
@@ -108,12 +110,12 @@ export async function POST(request: NextRequest) {
 
     const stat = statSync(backupPath)
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     logAuditEvent({
       action: 'backup_create',
       actor: auth.user.username,
       actor_id: auth.user.id,
-      detail: { path: backupPath, size: stat.size },
+      detail: { name: `mc-backup-${timestamp}.db`, size: stat.size },
       ip_address: ipAddress,
     })
 
@@ -130,7 +132,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     logger.error({ err: error }, 'Backup failed')
-    return NextResponse.json({ error: `Backup failed: ${error.message}` }, { status: 500 })
+    return NextResponse.json({ error: 'Backup failed' }, { status: 500 })
   }
 }
 
@@ -143,19 +145,25 @@ export async function DELETE(request: NextRequest) {
   const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'host_administration', new URL(request.url).pathname)
   if (isolationDeny) return isolationDeny
 
-  let body: any
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
-  const name = body.name
+  const limitKey = `${auth.user.tenant_id ?? 1}:${auth.user.workspace_id ?? 1}:${auth.user.id}:backup`
+  const rateCheck = backupMutationLimiter(limitKey)
+  if (rateCheck) return rateCheck
 
-  if (!name || !name.endsWith('.db') || name.includes('/') || name.includes('..')) {
-    return NextResponse.json({ error: 'Invalid backup name' }, { status: 400 })
+  try {
+    await request.clone().json()
+  } catch {
+    return NextResponse.json({ error: 'Request body required' }, { status: 400 })
   }
+
+  const result = await validateBody(request, backupDeleteSchema)
+  if ('error' in result) return result.error
+  const { name } = result.data
 
   try {
     const fullPath = join(BACKUP_DIR, name)
     unlinkSync(fullPath)
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     logAuditEvent({
       action: 'backup_delete',
       actor: auth.user.username,

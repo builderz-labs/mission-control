@@ -4,6 +4,7 @@ import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
+import { transformGatewayChannels, type ChannelsSnapshot } from '@/lib/channel-snapshot'
 
 const gatewayInternalUrl = `http://${config.gatewayHost}:${config.gatewayPort}`
 
@@ -15,136 +16,6 @@ function gatewayHeaders(): Record<string, string> {
 }
 
 type GatewayData = unknown
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null
-}
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined
-}
-
-function readNumber(value: unknown): number | undefined {
-  return typeof value === 'number' ? value : undefined
-}
-
-interface ChannelStatus {
-  configured: boolean
-  linked?: boolean
-  running: boolean
-  connected?: boolean
-  lastConnectedAt?: number | null
-  lastMessageAt?: number | null
-  lastStartAt?: number | null
-  lastError?: string | null
-  authAgeMs?: number | null
-  mode?: string | null
-  baseUrl?: string | null
-  publicKey?: string | null
-  probe?: GatewayData
-  profile?: GatewayData
-}
-
-interface ChannelAccount {
-  accountId: string
-  name?: string | null
-  configured?: boolean | null
-  linked?: boolean | null
-  running?: boolean | null
-  connected?: boolean | null
-  lastConnectedAt?: number | null
-  lastInboundAt?: number | null
-  lastOutboundAt?: number | null
-  lastError?: string | null
-  lastStartAt?: number | null
-  mode?: string | null
-  probe?: GatewayData
-  publicKey?: string | null
-  profile?: GatewayData
-}
-
-interface ChannelsSnapshot {
-  channels: Record<string, ChannelStatus>
-  channelAccounts: Record<string, ChannelAccount[]>
-  channelOrder: string[]
-  channelLabels: Record<string, string>
-  connected: boolean
-  updatedAt?: number
-}
-
-function transformGatewayChannels(data: GatewayData): ChannelsSnapshot {
-  const parsed = asRecord(data)
-  const rawChannels = asRecord(parsed?.channels) ?? {}
-  const rawAccounts = asRecord(parsed?.channelAccounts) ?? {}
-  const channelLabels = asRecord(parsed?.channelLabels)
-  const order = Array.isArray(parsed?.channelOrder)
-    ? parsed.channelOrder.filter((value): value is string => typeof value === 'string')
-    : Object.keys(rawChannels)
-
-  const channels: Record<string, ChannelStatus> = {}
-  const channelAccounts: Record<string, ChannelAccount[]> = {}
-  const labels: Record<string, string> = Object.fromEntries(
-    Object.entries(channelLabels ?? {}).flatMap(([key, value]) => typeof value === 'string' ? [[key, value]] : [])
-  )
-
-  for (const key of order) {
-    const ch = asRecord(rawChannels[key])
-    if (!ch) continue
-
-    channels[key] = {
-      configured: !!readBoolean(ch.configured),
-      linked: readBoolean(ch.linked),
-      running: !!readBoolean(ch.running),
-      connected: readBoolean(ch.connected),
-      lastConnectedAt: readNumber(ch.lastConnectedAt) ?? null,
-      lastMessageAt: readNumber(ch.lastMessageAt) ?? null,
-      lastStartAt: readNumber(ch.lastStartAt) ?? null,
-      lastError: readString(ch.lastError) ?? null,
-      authAgeMs: readNumber(ch.authAgeMs) ?? null,
-      mode: readString(ch.mode) ?? null,
-      baseUrl: readString(ch.baseUrl) ?? null,
-      publicKey: readString(ch.publicKey) ?? null,
-      probe: ch.probe ?? null,
-      profile: ch.profile ?? null,
-    }
-
-    const accounts = rawAccounts[key] || []
-    const accountEntries = (Array.isArray(accounts) ? accounts : Object.values(accounts)) as GatewayData[]
-    channelAccounts[key] = accountEntries.map((acct) => {
-      const parsedAccount = asRecord(acct) ?? {}
-      return {
-        accountId: readString(parsedAccount.accountId) ?? 'default',
-        name: readString(parsedAccount.name) ?? null,
-        configured: readBoolean(parsedAccount.configured) ?? null,
-        linked: readBoolean(parsedAccount.linked) ?? null,
-        running: readBoolean(parsedAccount.running) ?? null,
-        connected: readBoolean(parsedAccount.connected) ?? null,
-        lastConnectedAt: readNumber(parsedAccount.lastConnectedAt) ?? null,
-        lastInboundAt: readNumber(parsedAccount.lastInboundAt) ?? null,
-        lastOutboundAt: readNumber(parsedAccount.lastOutboundAt) ?? null,
-        lastError: readString(parsedAccount.lastError) ?? null,
-        lastStartAt: readNumber(parsedAccount.lastStartAt) ?? null,
-        mode: readString(parsedAccount.mode) ?? null,
-        probe: parsedAccount.probe ?? null,
-        publicKey: readString(parsedAccount.publicKey) ?? null,
-        profile: parsedAccount.profile ?? null,
-      }
-    })
-  }
-
-  return {
-    channels,
-    channelAccounts,
-    channelOrder: order,
-    channelLabels: labels,
-    connected: true,
-    updatedAt: readNumber(parsed?.ts),
-  }
-}
 
 async function loadChannelsViaRpc(probe = false): Promise<ChannelsSnapshot> {
   const payload = await callOpenClawGateway<GatewayData>(

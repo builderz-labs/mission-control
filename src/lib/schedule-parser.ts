@@ -36,7 +36,7 @@ function parseDayName(input: string): number | null {
 
 function parseTimeExpr(input: string): { hour: number; minute: number } | null {
   // "9am", "9:30am", "9:30 pm", "14:00", "9", "21"
-  const match = input.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i)
+  const match = input.match(/^(\d{1,2})(?::(\d{2}))? ?(am|pm)?$/i)
   if (!match) return null
   let hour = parseInt(match[1], 10)
   const minute = match[2] ? parseInt(match[2], 10) : 0
@@ -52,7 +52,9 @@ function parseTimeExpr(input: string): { hour: number; minute: number } | null {
 const CRON_REGEX = /^(\*|[\d,\-\/]+)\s+(\*|[\d,\-\/]+)\s+(\*|[\d,\-\/]+)\s+(\*|[\d,\-\/]+)\s+(\*|[\d,\-\/]+)$/
 
 export function parseNaturalSchedule(input: string): ParsedSchedule | null {
-  const text = input.trim()
+  const trimmed = input.trim()
+  if (trimmed.length > 256) return null
+  const text = trimmed.replace(/\s+/g, ' ')
   if (!text) return null
 
   // Raw cron passthrough
@@ -78,7 +80,7 @@ export function parseNaturalSchedule(input: string): ParsedSchedule | null {
   }
 
   // "every N minutes"
-  const everyMinutes = lower.match(/^every\s+(\d+)\s+minutes?$/)
+  const everyMinutes = lower.match(/^every (\d+) minutes?$/)
   if (everyMinutes) {
     const n = parseInt(everyMinutes[1], 10)
     if (n > 0 && n <= 59) {
@@ -87,7 +89,7 @@ export function parseNaturalSchedule(input: string): ParsedSchedule | null {
   }
 
   // "every N hours"
-  const everyHours = lower.match(/^every\s+(\d+)\s+hours?$/)
+  const everyHours = lower.match(/^every (\d+) hours?$/)
   if (everyHours) {
     const n = parseInt(everyHours[1], 10)
     if (n > 0 && n <= 23) {
@@ -96,7 +98,7 @@ export function parseNaturalSchedule(input: string): ParsedSchedule | null {
   }
 
   // "every morning at TIME" / "every evening at TIME" / "every day at TIME" / "daily at TIME"
-  const dailyAt = lower.match(/^(?:every\s+(?:morning|evening|day)|daily)\s+at\s+(.+)$/)
+  const dailyAt = lower.match(/^(?:every (?:morning|evening|day)|daily) at (.+)$/)
   if (dailyAt) {
     const time = parseTimeExpr(dailyAt[1])
     if (time) {
@@ -111,7 +113,7 @@ export function parseNaturalSchedule(input: string): ParsedSchedule | null {
   }
 
   // "at TIME every day"
-  const atTimeDaily = lower.match(/^at\s+(.+?)\s+every\s+day$/)
+  const atTimeDaily = lower.match(/^at (.+) every day$/)
   if (atTimeDaily) {
     const time = parseTimeExpr(atTimeDaily[1])
     if (time) {
@@ -126,7 +128,7 @@ export function parseNaturalSchedule(input: string): ParsedSchedule | null {
   }
 
   // "weekly on DAYNAME" / "every DAYNAME"
-  const weeklyOn = lower.match(/^(?:weekly\s+on|every)\s+(\w+)$/)
+  const weeklyOn = lower.match(/^(?:weekly on|every) (\w+)$/)
   if (weeklyOn) {
     const dayNum = parseDayName(weeklyOn[1])
     if (dayNum !== null) {
@@ -136,7 +138,7 @@ export function parseNaturalSchedule(input: string): ParsedSchedule | null {
   }
 
   // "every DAYNAME at TIME"
-  const everyDayAt = lower.match(/^every\s+(\w+)\s+at\s+(.+)$/)
+  const everyDayAt = lower.match(/^every (\w+) at (.+)$/)
   if (everyDayAt) {
     const dayNum = parseDayName(everyDayAt[1])
     if (dayNum !== null) {

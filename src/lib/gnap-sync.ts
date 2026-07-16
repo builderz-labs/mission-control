@@ -117,13 +117,17 @@ export function initGnapRepo(repoPath: string): void {
   fs.mkdirSync(path.join(repoPath, 'tasks'), { recursive: true })
 
   const versionFile = path.join(repoPath, 'version')
-  if (!fs.existsSync(versionFile)) {
-    fs.writeFileSync(versionFile, '1\n')
+  try {
+    fs.writeFileSync(versionFile, '1\n', { flag: 'wx', mode: 0o600 })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
   }
 
   const agentsFile = path.join(repoPath, 'agents.json')
-  if (!fs.existsSync(agentsFile)) {
-    fs.writeFileSync(agentsFile, JSON.stringify({ agents: [] }, null, 2) + '\n')
+  try {
+    fs.writeFileSync(agentsFile, JSON.stringify({ agents: [] }, null, 2) + '\n', { flag: 'wx', mode: 0o600 })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
   }
 
   // Init git if not already a repo

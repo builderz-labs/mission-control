@@ -30,6 +30,14 @@ describe('docker-compose.yml schema', () => {
 describe('Dockerfile runtime stage', () => {
   const content = readFileSync(resolve(ROOT, 'Dockerfile'), 'utf-8')
 
+  it('copies the pnpm workspace manifest before the frozen dependency install', () => {
+    const workspaceCopy = content.indexOf('COPY pnpm-workspace.yaml ./')
+    const frozenInstall = content.indexOf('pnpm install --frozen-lockfile')
+
+    expect(workspaceCopy).toBeGreaterThan(-1)
+    expect(frozenInstall).toBeGreaterThan(workspaceCopy)
+  })
+
   it('copies public directory to runtime stage', () => {
     expect(content).toContain('COPY --from=build /app/public ./public')
   })
@@ -44,5 +52,22 @@ describe('Dockerfile runtime stage', () => {
 
   it('copies schema.sql for migrations', () => {
     expect(content).toContain('schema.sql')
+  })
+})
+
+describe('Docker build context', () => {
+  const content = readFileSync(resolve(ROOT, '.dockerignore'), 'utf-8')
+
+  it('includes scripts required by the package build command', () => {
+    expect(content).toContain('!scripts/check-node-version.mjs')
+    expect(content).toContain('!scripts/prepare-standalone-artifact.mjs')
+  })
+
+  it('includes only the operations template required by the runtime artifact', () => {
+    expect(content).not.toMatch(/^ops$/m)
+    expect(content).toContain('ops/*')
+    expect(content).toContain('!ops/templates/')
+    expect(content).toContain('ops/templates/*')
+    expect(content).toContain('!ops/templates/openclaw-gateway@.service')
   })
 })

@@ -6,23 +6,23 @@ import { AutoGenAdapter } from './autogen'
 import { ClaudeSdkAdapter } from './claude-sdk'
 import type { FrameworkAdapter } from './adapter'
 
-const adapters: Record<string, () => FrameworkAdapter> = {
-  openclaw: () => new OpenClawAdapter(),
-  generic: () => new GenericAdapter(),
-  crewai: () => new CrewAIAdapter(),
-  langgraph: () => new LangGraphAdapter(),
-  autogen: () => new AutoGenAdapter(),
-  'claude-sdk': () => new ClaudeSdkAdapter(),
-}
+const adapters = new Map<string, () => FrameworkAdapter>([
+  ['openclaw', () => new OpenClawAdapter()],
+  ['generic', () => new GenericAdapter()],
+  ['crewai', () => new CrewAIAdapter()],
+  ['langgraph', () => new LangGraphAdapter()],
+  ['autogen', () => new AutoGenAdapter()],
+  ['claude-sdk', () => new ClaudeSdkAdapter()],
+])
 
 export function getAdapter(framework: string): FrameworkAdapter {
-  const factory = adapters[framework]
+  const factory = adapters.get(framework)
   if (!factory) throw new Error(`Unknown framework adapter: ${framework}`)
   return factory()
 }
 
 export function listAdapters(): string[] {
-  return Object.keys(adapters)
+  return Array.from(adapters.keys())
 }
 
 export type { FrameworkAdapter, AgentRegistration, HeartbeatPayload, TaskReport, Assignment } from './adapter'

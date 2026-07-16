@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { requireRole, hashApiKey } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
-import { mutationLimiter } from '@/lib/rate-limit'
+import { identitySecurityMutationLimiter } from '@/lib/rate-limit'
 
 interface ApiKeyHashRow {
   updated_by: string | null
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const rateCheck = mutationLimiter(request)
+  const rateCheck = identitySecurityMutationLimiter(`${auth.user.tenant_id ?? 1}:${auth.user.workspace_id ?? 1}:${auth.user.id}:api-key`)
   if (rateCheck) return rateCheck
 
   // Generate a new key: mc_ prefix + 48 random hex chars

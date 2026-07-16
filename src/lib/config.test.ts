@@ -87,9 +87,23 @@ describe('config data paths', () => {
       MISSION_CONTROL_TOKENS_PATH: undefined,
     })
 
-    expect(config.dataDir).toMatch(/^\/tmp\/build-scratch\/worker-\d+$/)
-    expect(config.dbPath).toMatch(/^\/tmp\/build-scratch\/worker-\d+\/mission-control\.db$/)
-    expect(config.tokensPath).toMatch(/^\/tmp\/build-scratch\/worker-\d+\/mission-control-tokens\.json$/)
+    expect(config.dataDir).toMatch(/^\/tmp\/build-scratch\/worker-[^/]+$/)
+    expect(config.dbPath).toMatch(/^\/tmp\/build-scratch\/worker-[^/]+\/mission-control\.db$/)
+    expect(config.tokensPath).toMatch(/^\/tmp\/build-scratch\/worker-[^/]+\/mission-control-tokens\.json$/)
+  })
+
+  it('allocates a distinct private scratch directory for each build worker', async () => {
+    const env = {
+      NEXT_PHASE: 'phase-production-build',
+      MISSION_CONTROL_BUILD_DATA_DIR: '/tmp/build-scratch',
+      MISSION_CONTROL_BUILD_DB_PATH: undefined,
+      MISSION_CONTROL_BUILD_TOKENS_PATH: undefined,
+    }
+
+    const first = await loadConfigWithEnv(env)
+    const second = await loadConfigWithEnv(env)
+
+    expect(first.dataDir).not.toBe(second.dataDir)
   })
 
   it('prefers build-specific db and token overrides during next build', async () => {
@@ -103,7 +117,7 @@ describe('config data paths', () => {
     })
 
     const expectedBuildRoot = path.join(os.tmpdir(), 'mission-control-build')
-    expect(config.dataDir).toMatch(new RegExp(`^${expectedBuildRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/worker-\\d+$`))
+    expect(config.dataDir).toMatch(new RegExp(`^${expectedBuildRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/worker-[^/]+$`))
     expect(config.dbPath).toBe('/tmp/build.db')
     expect(config.tokensPath).toBe('/tmp/build-tokens.json')
   })

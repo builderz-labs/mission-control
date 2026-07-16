@@ -108,4 +108,32 @@ describe('strict agent filesystem isolation', () => {
     expect(getAgentWorkspaceCandidatesMock).not.toHaveBeenCalled()
     expect(readAgentWorkspaceFileMock).not.toHaveBeenCalled()
   })
+
+  it('rejects unsafe SOUL template identifiers before filesystem access', async () => {
+    requireRoleMock.mockReturnValue(authUser())
+    getWorkspaceIsolationMock.mockReturnValue('shared')
+    const get = vi.fn(() => ({
+      id: 42,
+      name: 'agent-a',
+      role: 'operator',
+      soul_content: '',
+      updated_at: 123,
+      config: '{}',
+    }))
+    getDatabaseMock.mockReturnValue({ prepare: vi.fn(() => ({ get })) })
+    const { PUT } = await import('@/app/api/agents/[id]/soul/route')
+
+    const response = await PUT(
+      new NextRequest('http://localhost/api/agents/42/soul', {
+        method: 'PUT',
+        body: JSON.stringify({ template_name: '../outside' }),
+        headers: { 'content-type': 'application/json' },
+      }),
+      { params: Promise.resolve({ id: '42' }) },
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid template name' })
+    expect(getAgentWorkspaceCandidatesMock).not.toHaveBeenCalled()
+  })
 })

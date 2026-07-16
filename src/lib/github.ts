@@ -43,9 +43,10 @@ export async function githubFetch(
     throw new Error('GITHUB_TOKEN not configured')
   }
 
-  const url = path.startsWith('https://')
-    ? path
-    : `https://api.github.com${path.startsWith('/') ? '' : '/'}${path}`
+  if (!/^\/(?!\/)[^\u0000-\u001F\u007F\\]*$/.test(path)) {
+    throw new Error('GitHub API requests must use a safe relative path')
+  }
+  const url = `https://api.github.com${path}`
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,

@@ -9,7 +9,7 @@ import { config } from './config'
 import { getDatabase, db_helpers, logAuditEvent } from './db'
 import { eventBus } from './event-bus'
 import { join, isAbsolute, resolve } from 'path'
-import { existsSync, readFileSync, statSync } from 'fs'
+import { closeSync, fstatSync, openSync, readFileSync } from 'fs'
 import { resolveWithin } from './paths'
 import { logger } from './logger'
 import { parseJsonRelaxed } from './json-relaxed'
@@ -148,13 +148,16 @@ function readWorkspaceFile(workspace: string | undefined, filename: string): str
   try {
     const safeWorkspace = resolveAgentWorkspacePath(workspace)
     const safePath = resolveWithin(safeWorkspace, filename)
-    if (existsSync(safePath)) {
-      const size = statSync(safePath).size
+    const descriptor = openSync(safePath, 'r')
+    try {
+      const size = fstatSync(descriptor).size
       if (size > MAX_WORKSPACE_FILE_BYTES) {
         logger.warn({ workspace, filename, size }, `Workspace file exceeds ${MAX_WORKSPACE_FILE_BYTES} byte limit, skipping`)
         return null
       }
-      return readFileSync(safePath, 'utf-8')
+      return readFileSync(descriptor, 'utf-8')
+    } finally {
+      closeSync(descriptor)
     }
   } catch (err) {
     logger.warn({ err, workspace, filename }, 'Failed to read workspace file')

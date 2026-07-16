@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
+import { acquireFileLockSync, atomicReplaceFileSync } from '@/lib/atomic-file'
 
 interface OpenClawGatewayConfig {
   gateway?: {
@@ -29,11 +30,13 @@ function readOpenClawConfig(): OpenClawGatewayConfig | null {
 
 export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alreadySet: boolean } {
   const configPath = config.openclawConfigPath
-  if (!configPath || !fs.existsSync(configPath)) {
+  if (!configPath) {
     return { registered: false, alreadySet: false }
   }
 
+  let releaseLock: (() => void) | undefined
   try {
+    releaseLock = acquireFileLockSync(configPath)
     const raw = fs.readFileSync(configPath, 'utf8')
     const parsed = JSON.parse(raw) as Record<string, any>
 
@@ -55,7 +58,7 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
     origins.push(origin)
     parsed.gateway.controlUi.allowedOrigins = origins
 
-    fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2) + '\n')
+    atomicReplaceFileSync(configPath, JSON.stringify(parsed, null, 2) + '\n')
     logger.info({ origin }, 'Registered MC origin in gateway config')
     return { registered: true, alreadySet: false }
   } catch (err: any) {
@@ -72,6 +75,8 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
     }
     logger.error({ err }, 'Failed to register MC in gateway config')
     return { registered: false, alreadySet: false }
+  } finally {
+    releaseLock?.()
   }
 }
 

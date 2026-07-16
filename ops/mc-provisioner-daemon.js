@@ -4,6 +4,14 @@ const fs = require('fs')
 const net = require('net')
 const { execFileSync, spawn } = require('child_process')
 const path = require('path')
+const {
+  COMMAND_TIMEOUT_MS,
+  IDLE_SOCKET_TIMEOUT_MS,
+  MAX_CONNECTIONS,
+  MAX_OUTPUT_BYTES,
+  MAX_REQUEST_BYTES,
+  appendBounded,
+} = require('./provisioner-limits.cjs')
 
 const SOCKET_PATH = process.env.MC_PROVISIONER_SOCKET || '/run/mc-provisioner.sock'
 const TOKEN = String(process.env.MC_PROVISIONER_TOKEN || '')
@@ -38,9 +46,22 @@ function isSafeHomePath(path, user, suffix) {
   return path === pathJoinPosix(TENANT_HOME_ROOT, user, suffix)
 }
 
+function resolveAllowedCommand(command) {
+  switch (command) {
+    case '/usr/sbin/useradd': return '/usr/sbin/useradd'
+    case '/usr/bin/install': return '/usr/bin/install'
+    case '/usr/bin/cp': return '/usr/bin/cp'
+    case '/usr/bin/chown': return '/usr/bin/chown'
+    case '/usr/bin/rm': return '/usr/bin/rm'
+    case '/usr/sbin/userdel': return '/usr/sbin/userdel'
+    case '/usr/bin/systemctl': return '/usr/bin/systemctl'
+    default: return null
+  }
+}
+
 function validateCommand(command, args) {
-  const cmd = String(command || '').split('/').pop()
   if (!command || !Array.isArray(args)) return 'Invalid command payload'
+  const cmd = path.posix.basename(command)
 
   if (cmd === 'useradd') {
     if (args.length !== 4) return 'useradd argument mismatch'
@@ -129,11 +150,6 @@ function validateCommand(command, args) {
     return null
   }
 
-  if (cmd === 'true') {
-    if (args.length !== 0) return 'true takes no args'
-    return null
-  }
-
   if (cmd === 'systemctl') {
     if (args.length === 1 && args[0] === 'daemon-reload') return null
     if (args.length === 3 && args[0] === 'enable' && args[1] === '--now') {
@@ -150,28 +166,40 @@ function validateCommand(command, args) {
   return `Command not allowlisted: ${command}`
 }
 
-function run(command, args, timeoutMs) {
+function run(command, args) {
   return new Promise((resolve) => {
     const child = spawn(command, args, { shell: false })
     let stdout = ''
     let stderr = ''
     let timedOut = false
+    let outputLimitExceeded = false
 
     const timer = setTimeout(() => {
       timedOut = true
       child.kill('SIGKILL')
-    }, Math.max(1000, Number(timeoutMs || 10000)))
+    }, COMMAND_TIMEOUT_MS)
 
-    child.stdout.on('data', (d) => { stdout += d.toString('utf8') })
-    child.stderr.on('data', (d) => { stderr += d.toString('utf8') })
+    function captureOutput(target, chunk) {
+      const result = appendBounded(target, chunk, MAX_OUTPUT_BYTES)
+      if (result.exceeded && !outputLimitExceeded) {
+        outputLimitExceeded = true
+        child.kill('SIGKILL')
+      }
+      return result.value
+    }
+
+    child.stdout.on('data', (chunk) => { stdout = captureOutput(stdout, chunk) })
+    child.stderr.on('data', (chunk) => { stderr = captureOutput(stderr, chunk) })
 
     child.on('close', (code) => {
       clearTimeout(timer)
       resolve({
-        ok: !timedOut && code === 0,
-        code: timedOut ? 124 : code,
+        ok: !timedOut && !outputLimitExceeded && code === 0,
+        code: timedOut ? 124 : outputLimitExceeded ? 125 : code,
         stdout,
-        stderr: timedOut ? `${stderr}\nTimed out` : stderr,
+        stderr: timedOut
+          ? `${stderr}\nTimed out`
+          : outputLimitExceeded ? `${stderr}\nOutput limit exceeded` : stderr,
       })
     })
 
@@ -186,13 +214,13 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function runWithRetry(command, args, timeoutMs) {
+async function runWithRetry(command, args) {
   const cmd = String(command || '').split('/').pop()
   const maxAttempts = cmd === 'useradd' ? 6 : 1
   let last = null
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const result = await run(command, args, timeoutMs)
+    const result = await run(command, args)
     last = result
     if (result.ok) return result
 
@@ -230,14 +258,26 @@ if (fs.existsSync(SOCKET_PATH)) {
 
 const server = net.createServer((socket) => {
   let buf = ''
+  let handled = false
+
+  socket.setTimeout(IDLE_SOCKET_TIMEOUT_MS, () => socket.destroy())
 
   socket.on('data', async (chunk) => {
+    if (handled) return
+    if (Buffer.byteLength(buf, 'utf8') + chunk.length > MAX_REQUEST_BYTES) {
+      handled = true
+      writeResp(socket, { ok: false, error: 'Request too large' })
+      return
+    }
+
     buf += chunk.toString('utf8')
     const idx = buf.indexOf('\n')
     if (idx === -1) return
 
+    handled = true
+    socket.pause()
+    socket.setTimeout(0)
     const line = buf.slice(0, idx)
-    buf = buf.slice(idx + 1)
 
     let req
     try {
@@ -252,10 +292,14 @@ const server = net.createServer((socket) => {
       return
     }
 
-    const command = String(req.command || '')
+    const requestedCommand = String(req.command || '')
     const args = Array.isArray(req.args) ? req.args.map((a) => String(a)) : []
     const dryRun = !!req.dryRun
-    const timeoutMs = Number(req.timeoutMs || 10000)
+    const command = resolveAllowedCommand(requestedCommand)
+    if (!command) {
+      writeResp(socket, { ok: false, error: `Command not allowlisted: ${requestedCommand}` })
+      return
+    }
 
     const validationErr = validateCommand(command, args)
     if (validationErr) {
@@ -268,7 +312,7 @@ const server = net.createServer((socket) => {
       return
     }
 
-    const result = await runWithRetry(command, args, timeoutMs)
+    const result = await runWithRetry(command, args)
     if (!result.ok) {
       writeResp(socket, { ok: false, code: result.code, stdout: result.stdout, stderr: result.stderr, error: `Command failed: ${command}` })
       return
@@ -277,6 +321,8 @@ const server = net.createServer((socket) => {
     writeResp(socket, { ok: true, code: result.code, stdout: result.stdout, stderr: result.stderr, skipped: false })
   })
 })
+
+server.maxConnections = MAX_CONNECTIONS
 
 server.listen(SOCKET_PATH, () => {
   fs.chmodSync(SOCKET_PATH, 0o660)

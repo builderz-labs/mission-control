@@ -11,6 +11,15 @@ import { requireRole } from '@/lib/auth'
 import { verifyMcpCallReceipt, verifyMcpCallReceipts } from '@/lib/mcp-audit'
 import { getPublicKey } from '@/lib/receipt-signing'
 
+const DEFAULT_VERIFY_HOURS = 24
+const MAX_VERIFY_HOURS = 24 * 7
+
+function parsePositiveInteger(value: string): number | null {
+  if (!/^[1-9]\d*$/.test(value)) return null
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) ? parsed : null
+}
+
 export async function GET(request: Request) {
   const auth = requireRole(request, 'admin')
   if ('error' in auth) {
@@ -18,11 +27,17 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const recordId = searchParams.get('id')
+  const recordIdParam = searchParams.get('id')
+  const workspaceId = auth.user.workspace_id ?? 1
 
   // Single record verification
-  if (recordId) {
-    const result = verifyMcpCallReceipt(parseInt(recordId, 10))
+  if (recordIdParam !== null) {
+    const recordId = parsePositiveInteger(recordIdParam)
+    if (recordId === null) {
+      return NextResponse.json({ error: 'id must be a positive integer' }, { status: 400 })
+    }
+
+    const result = verifyMcpCallReceipt(recordId, workspaceId)
     return NextResponse.json({
       ...result,
       publicKey: getPublicKey(),
@@ -31,8 +46,13 @@ export async function GET(request: Request) {
   }
 
   // Batch verification (default: last 24 hours)
-  const hours = parseInt(searchParams.get('hours') ?? '24', 10)
-  const workspaceId = parseInt(searchParams.get('workspace_id') ?? '1', 10)
+  const hoursParam = searchParams.get('hours')
+  const hours = hoursParam === null ? DEFAULT_VERIFY_HOURS : parsePositiveInteger(hoursParam)
+  if (hours === null || hours > MAX_VERIFY_HOURS) {
+    return NextResponse.json({
+      error: `hours must be a positive integer no greater than ${MAX_VERIFY_HOURS}`,
+    }, { status: 400 })
+  }
 
   const result = verifyMcpCallReceipts(hours, workspaceId)
   return NextResponse.json({

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface WorkflowTemplate {
   id: number
@@ -50,6 +51,28 @@ interface PipelineRun {
   created_at: number
 }
 
+interface PipelineMutationResult {
+  error?: string
+  run?: { id?: number }
+}
+
+function pipelineError(error: unknown, fallback: string): string {
+  if (
+    error instanceof ApiError &&
+    error.payload !== null &&
+    typeof error.payload === 'object' &&
+    'error' in error.payload &&
+    typeof (error.payload as { error?: unknown }).error === 'string'
+  ) {
+    return (error.payload as { error: string }).error
+  }
+  return fallback
+}
+
+function isPipelineNetworkFailure(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'NETWORK_ERROR'
+}
+
 export function PipelineTab() {
   const t = useTranslations('pipeline')
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
@@ -70,9 +93,12 @@ export function PipelineTab() {
 
   const fetchData = useCallback(async () => {
     const [tRes, pRes, rRes] = await Promise.all([
-      fetch('/api/workflows').then(r => r.json()).catch(() => ({ templates: [] })),
-      fetch('/api/pipelines').then(r => r.json()).catch(() => ({ pipelines: [] })),
-      fetch('/api/pipelines/run?limit=10').then(r => r.json()).catch(() => ({ runs: [] })),
+      apiFetch<{ templates?: WorkflowTemplate[] }>('/api/workflows')
+        .catch(() => ({ templates: [] })),
+      apiFetch<{ pipelines?: Pipeline[] }>('/api/pipelines')
+        .catch(() => ({ pipelines: [] })),
+      apiFetch<{ runs?: PipelineRun[] }>('/api/pipelines/run?limit=10')
+        .catch(() => ({ runs: [] })),
     ])
     setTemplates(tRes.templates || [])
     setPipelines(pRes.pipelines || [])
@@ -125,21 +151,19 @@ export function PipelineTab() {
         description: formDesc || null,
         steps: formSteps.map(s => ({ template_id: s.template_id, on_failure: s.on_failure })),
       }
-      const res = await fetch('/api/pipelines', {
+      await apiFetch<Response>('/api/pipelines', {
         method: formMode === 'edit' ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        raw: true,
       })
-      if (res.ok) {
-        closeForm()
-        fetchData()
-        setResult({ ok: true, text: formMode === 'edit' ? 'Pipeline updated' : 'Pipeline created' })
-      } else {
-        const data = await res.json()
-        setResult({ ok: false, text: data.error || 'Failed' })
-      }
-    } catch {
-      setResult({ ok: false, text: 'Network error' })
+      closeForm()
+      fetchData()
+      setResult({ ok: true, text: formMode === 'edit' ? 'Pipeline updated' : 'Pipeline created' })
+    } catch (err) {
+      setResult({
+        ok: false,
+        text: pipelineError(err, isPipelineNetworkFailure(err) ? 'Network error' : 'Failed'),
+      })
     }
   }
 
@@ -152,7 +176,11 @@ export function PipelineTab() {
   }
 
   const deletePipeline = async (id: number) => {
-    await fetch(`/api/pipelines?id=${id}`, { method: 'DELETE' })
+    try {
+      await apiFetch<Response>(`/api/pipelines?id=${id}`, { method: 'DELETE', raw: true })
+    } catch (err) {
+      if (isPipelineNetworkFailure(err)) return
+    }
     if (expandedId === id) setExpandedId(null)
     fetchData()
   }
@@ -160,20 +188,20 @@ export function PipelineTab() {
   const runPipeline = async (id: number) => {
     setSpawning(id)
     try {
-      const res = await fetch('/api/pipelines/run', {
+      const data = await apiFetch<PipelineMutationResult>('/api/pipelines/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'start', pipeline_id: id }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        setResult({ ok: true, text: `Pipeline started (run #${data.run?.id})` })
-        fetchData()
-      } else {
-        setResult({ ok: false, text: data.error || 'Failed to start' })
-      }
-    } catch {
-      setResult({ ok: false, text: 'Network error' })
+      setResult({ ok: true, text: `Pipeline started (run #${data.run?.id})` })
+      fetchData()
+    } catch (err) {
+      setResult({
+        ok: false,
+        text: pipelineError(
+          err,
+          isPipelineNetworkFailure(err) ? 'Network error' : 'Failed to start',
+        ),
+      })
     } finally {
       setSpawning(null)
     }
@@ -181,24 +209,28 @@ export function PipelineTab() {
 
   const advanceRun = async (runId: number, success: boolean) => {
     try {
-      await fetch('/api/pipelines/run', {
+      await apiFetch<Response>('/api/pipelines/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'advance', run_id: runId, success }),
+        raw: true,
       })
-      fetchData()
-    } catch { /* ignore */ }
+    } catch (err) {
+      if (isPipelineNetworkFailure(err)) return
+    }
+    fetchData()
   }
 
   const cancelRun = async (runId: number) => {
     try {
-      await fetch('/api/pipelines/run', {
+      await apiFetch<Response>('/api/pipelines/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'cancel', run_id: runId }),
+        raw: true,
       })
-      fetchData()
-    } catch { /* ignore */ }
+    } catch (err) {
+      if (isPipelineNetworkFailure(err)) return
+    }
+    fetchData()
   }
 
   // Active runs (running pipelines shown at top)

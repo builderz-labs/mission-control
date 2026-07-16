@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,6 +31,7 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/lib/security-scan', () => ({
   FIX_SAFETY: {
+    gateway_bind: 'safe',
     rate_limiting: 'safe',
     world_writable: 'safe',
   },
@@ -161,5 +162,26 @@ describe('security-scan fix route env mutation', () => {
 
     expect(response.status).toBe(200)
     expect(statSync(filePath).mode & 0o777).toBe(0o664)
+  })
+
+  it('reports a busy OpenClaw config without overwriting it', async () => {
+    const configPath = path.join(tempDir, 'openclaw.json')
+    const original = '{"gateway":{"bind":"lan"}}\n'
+    writeFileSync(configPath, original, 'utf8')
+    mkdirSync(`${configPath}.mc-lock`, { mode: 0o700 })
+    writeFileSync(`${configPath}.mc-lock/owner`, `${process.pid}\n`, { flag: 'wx', mode: 0o600 })
+    const { config } = await import('@/lib/config')
+    config.openclawConfigPath = configPath
+
+    const { POST } = await import('@/app/api/security-scan/fix/route')
+    const response = await POST(request(JSON.stringify({ ids: ['gateway_bind'] })))
+
+    expect(response.status).toBe(200)
+    expect(readFileSync(configPath, 'utf8')).toBe(original)
+    await expect(response.json()).resolves.toMatchObject({
+      results: expect.arrayContaining([
+        expect.objectContaining({ id: 'config_write', fixed: false }),
+      ]),
+    })
   })
 })
