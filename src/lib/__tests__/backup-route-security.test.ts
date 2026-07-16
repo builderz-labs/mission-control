@@ -33,6 +33,7 @@ describe('backup administration security boundary', () => {
     expect(source).not.toContain('Backup failed: ${')
     expect(source).toContain("target !== null && target !== 'gateway'")
     expect(source).toContain('extractClientIp(request)')
+    expect(source).toContain("{ error: 'Request body required' }")
   })
 
   it('defines the backup limiter as critical', () => {

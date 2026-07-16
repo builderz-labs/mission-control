@@ -149,6 +149,12 @@ export async function DELETE(request: NextRequest) {
   const rateCheck = backupMutationLimiter(limitKey)
   if (rateCheck) return rateCheck
 
+  try {
+    await request.clone().json()
+  } catch {
+    return NextResponse.json({ error: 'Request body required' }, { status: 400 })
+  }
+
   const result = await validateBody(request, backupDeleteSchema)
   if ('error' in result) return result.error
   const { name } = result.data
