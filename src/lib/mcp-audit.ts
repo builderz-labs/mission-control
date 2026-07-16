@@ -152,15 +152,15 @@ export function getMcpCallStats(
  * recomputes the SHA-256 hash, and checks the Ed25519 signature.
  * Returns false if the record has been tampered with.
  */
-export function verifyMcpCallReceipt(recordId: number): {
+export function verifyMcpCallReceipt(recordId: number, workspaceId: number): {
   valid: boolean
   record: Record<string, unknown> | null
   error?: string
 } {
   const db = getDatabase()
   const row = db.prepare(
-    'SELECT * FROM mcp_call_log WHERE id = ?'
-  ).get(recordId) as any
+    'SELECT * FROM mcp_call_log WHERE id = ? AND workspace_id = ?'
+  ).get(recordId, workspaceId) as any
 
   if (!row) return { valid: false, record: null, error: 'Record not found' }
 
