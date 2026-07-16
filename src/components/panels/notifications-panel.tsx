@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { apiFetch } from '@/lib/api-client'
 
 interface Notification {
   id: number
@@ -34,9 +35,9 @@ export function NotificationsPanel() {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`/api/notifications?recipient=${encodeURIComponent(recipient)}`)
-      if (!response.ok) throw new Error('Failed to fetch notifications')
-      const data = await response.json()
+      const data = await apiFetch<{ notifications?: Notification[] }>(
+        `/api/notifications?recipient=${encodeURIComponent(recipient)}`,
+      )
       setNotifications(data.notifications || [])
     } catch (err) {
       setError('Failed to fetch notifications')
@@ -57,12 +58,10 @@ export function NotificationsPanel() {
   const markAllRead = async () => {
     if (!recipient) return
     try {
-      const res = await fetch('/api/notifications', {
+      await apiFetch<{ success: boolean; markedAsRead: number }>('/api/notifications', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipient, markAllRead: true })
       })
-      if (!res.ok) throw new Error('Failed to mark all as read')
       fetchNotifications()
     } catch {
       // Silent — notification state will resync on next poll
@@ -71,12 +70,10 @@ export function NotificationsPanel() {
 
   const markRead = async (id: number) => {
     try {
-      const res = await fetch('/api/notifications', {
+      await apiFetch<{ success: boolean; markedAsRead: number }>('/api/notifications', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: [id] })
       })
-      if (!res.ok) throw new Error('Failed to mark as read')
       fetchNotifications()
     } catch {
       // Silent — notification state will resync on next poll
