@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api-client'
 
 interface AgentsDocResponse {
   found: boolean
@@ -25,12 +26,14 @@ export function LocalAgentsDocPanel() {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch('/api/local/agents-doc', { cache: 'no-store' })
-        const body = await res.json()
-        if (!res.ok) throw new Error(body?.error || 'Failed to load AGENTS.md')
-        if (!cancelled) setData(body as AgentsDocResponse)
-      } catch (err: any) {
-        if (!cancelled) setError(err?.message || 'Failed to load AGENTS.md')
+        const body = await apiFetch<AgentsDocResponse>('/api/local/agents-doc', {
+          cache: 'no-store',
+        })
+        if (!cancelled) setData(body)
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load AGENTS.md')
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
