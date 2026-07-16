@@ -12,7 +12,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync, statSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
+import { closeSync, constants, fstatSync, mkdirSync, openSync, readFileSync, readdirSync, statSync, existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { getDatabase, logAuditEvent } from './db'
@@ -88,6 +88,21 @@ function sha256(content: string): string {
   return createHash('sha256').update(content, 'utf8').digest('hex')
 }
 
+function readRegularFile(path: string): string | null {
+  let descriptor: number
+  try {
+    descriptor = openSync(path, 'r')
+  } catch {
+    return null
+  }
+  try {
+    if (!fstatSync(descriptor).isFile()) return null
+    return readFileSync(descriptor, 'utf8')
+  } finally {
+    closeSync(descriptor)
+  }
+}
+
 function extractRole(content: string): string {
   const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
   // Look for "role:" or "theme:" in first 10 lines
@@ -140,7 +155,8 @@ function scanLocalAgents(): DiskAgent[] {
       // --- Flat .md agent files (Claude Code format) ---
       if (stat.isFile() && entry.endsWith('.md') && entry !== 'CLAUDE.md' && entry !== 'AGENTS.md') {
         try {
-          const content = readFileSync(fullPath, 'utf8')
+          const content = readRegularFile(fullPath)
+          if (content === null) continue
           const { frontmatter, body } = parseYamlFrontmatter(content)
           const agentName = frontmatter.name || entry.replace(/\.md$/, '')
           if (seen.has(agentName)) continue
@@ -314,10 +330,27 @@ export function writeLocalAgentSoul(agentDir: string, soulContent: string): void
   // Prefer soul.md, fall back to AGENT.md
   const soulPath = join(agentDir, 'soul.md')
   const agentMdPath = join(agentDir, 'AGENT.md')
-  const targetPath = existsSync(soulPath) ? soulPath : existsSync(agentMdPath) ? agentMdPath : soulPath
 
   mkdirSync(agentDir, { recursive: true })
-  writeFileSync(targetPath, soulContent, 'utf8')
+  const writeFlags = constants.O_WRONLY | constants.O_TRUNC | (constants.O_NOFOLLOW || 0)
+  const createFlags = writeFlags | constants.O_CREAT | constants.O_EXCL
+  let descriptor: number
+  try {
+    descriptor = openSync(soulPath, writeFlags)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    try {
+      descriptor = openSync(agentMdPath, writeFlags)
+    } catch (fallbackError) {
+      if ((fallbackError as NodeJS.ErrnoException).code !== 'ENOENT') throw fallbackError
+      descriptor = openSync(soulPath, createFlags, 0o600)
+    }
+  }
+  try {
+    writeFileSync(descriptor, soulContent, 'utf8')
+  } finally {
+    closeSync(descriptor)
+  }
 
   // Update the DB hash so the next sync doesn't re-overwrite
   try {

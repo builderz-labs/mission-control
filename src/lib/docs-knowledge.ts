@@ -1,4 +1,4 @@
-import { readdir, readFile, stat, lstat, realpath } from 'fs/promises'
+import { open, readdir, readFile, stat, lstat, realpath } from 'fs/promises'
 import { existsSync } from 'fs'
 import { dirname, join, sep } from 'path'
 import { resolveWithin } from '@/lib/paths'
@@ -193,10 +193,12 @@ export async function searchDocs(query: string, limit = 100): Promise<Array<{ pa
   const results: Array<{ path: string; name: string; matches: number }> = []
 
   const searchFile = async (fullPath: string, relativePath: string) => {
+    let handle
     try {
-      const info = await stat(fullPath)
+      handle = await open(fullPath, 'r')
+      const info = await handle.stat()
       if (info.size > 1_000_000) return
-      const content = (await readFile(fullPath, 'utf-8')).toLowerCase()
+      const content = (await handle.readFile('utf-8')).toLowerCase()
       let count = 0
       let idx = content.indexOf(q)
       while (idx !== -1) {
@@ -212,6 +214,8 @@ export async function searchDocs(query: string, limit = 100): Promise<Array<{ pa
       }
     } catch {
       // Ignore unreadable files
+    } finally {
+      await handle?.close()
     }
   }
 

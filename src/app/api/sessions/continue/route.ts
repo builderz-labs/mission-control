@@ -65,11 +65,6 @@ async function resolveClaudeSessionCwd(sessionId: string): Promise<string | null
   }
   for (const encoded of entries) {
     const candidate = path.join(projectsRoot, encoded, `${sessionId}.jsonl`)
-    try {
-      await fs.access(candidate)
-    } catch {
-      continue
-    }
     // Read up to ~64KB and walk lines until we find a `cwd` field.
     let head: string
     try {
@@ -82,7 +77,7 @@ async function resolveClaudeSessionCwd(sessionId: string): Promise<string | null
         await handle.close()
       }
     } catch {
-      return null
+      continue
     }
     for (const line of head.split('\n')) {
       const trimmed = line.trim()

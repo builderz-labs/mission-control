@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, writeFile, access } from 'fs/promises'
+import { readFile, writeFile } from 'fs/promises'
 import { dirname } from 'path'
 import { config, ensureDirExists } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
@@ -162,7 +162,6 @@ function dedupeTokenRecords(records: TokenUsageRecord[]): TokenUsageRecord[] {
 async function loadTokenDataFromFile(workspaceId: number, providerSubscriptions: Record<string, boolean>): Promise<TokenUsageRecord[]> {
   try {
     ensureDirExists(dirname(DATA_PATH))
-    await access(DATA_PATH)
     const data = await readFile(DATA_PATH, 'utf-8')
     const parsed = JSON.parse(data)
     if (!Array.isArray(parsed)) return []
