@@ -3,8 +3,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 type Tab = 'status' | 'health' | 'models' | 'apicall'
+
+function diagnosticPayload<T>(error: unknown, fallback: T): T {
+  if (error instanceof ApiError && error.payload !== undefined) {
+    return error.payload as T
+  }
+  return fallback
+}
 
 export function DebugPanel() {
   const t = useTranslations('debug')
@@ -52,10 +60,9 @@ function StatusTab() {
   const fetchStatus = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/debug?action=status')
-      setData(await res.json())
-    } catch {
-      setData({ error: 'Failed to fetch status' })
+      setData(await apiFetch<Record<string, unknown>>('/api/debug?action=status'))
+    } catch (err) {
+      setData(diagnosticPayload(err, { error: 'Failed to fetch status' }))
     } finally {
       setLoading(false)
     }
@@ -101,16 +108,15 @@ function HealthTab() {
   const t = useTranslations('debug')
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [heartbeat, setHeartbeat] = useState<{ ok: boolean; latencyMs: number; timestamp: number } | null>(null)
+  const [heartbeat, setHeartbeat] = useState<HeartbeatResult | null>(null)
   const [hbLoading, setHbLoading] = useState(false)
 
   const fetchHealth = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/debug?action=health')
-      setData(await res.json())
-    } catch {
-      setData({ healthy: false, error: 'Failed to fetch' })
+      setData(await apiFetch<Record<string, unknown>>('/api/debug?action=health'))
+    } catch (err) {
+      setData(diagnosticPayload(err, { healthy: false, error: 'Failed to fetch' }))
     } finally {
       setLoading(false)
     }
@@ -121,10 +127,11 @@ function HealthTab() {
   const pingHeartbeat = async () => {
     setHbLoading(true)
     try {
-      const res = await fetch('/api/debug?action=heartbeat')
-      setHeartbeat(await res.json())
-    } catch {
-      setHeartbeat({ ok: false, latencyMs: -1, timestamp: Date.now() })
+      setHeartbeat(await apiFetch<HeartbeatResult>('/api/debug?action=heartbeat'))
+    } catch (err) {
+      setHeartbeat(
+        diagnosticPayload(err, { ok: false, latencyMs: -1, timestamp: Date.now() }),
+      )
     } finally {
       setHbLoading(false)
     }
@@ -194,6 +201,12 @@ interface ModelEntry {
   [key: string]: any
 }
 
+interface HeartbeatResult {
+  ok: boolean
+  latencyMs: number
+  timestamp: number
+}
+
 function ModelsTab() {
   const t = useTranslations('debug')
   const [data, setData] = useState<any>(null)
@@ -202,10 +215,13 @@ function ModelsTab() {
   const fetchModels = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/debug?action=models')
-      setData(await res.json())
-    } catch {
-      setData({ models: [] })
+      setData(
+        await apiFetch<{ models?: ModelEntry[]; data?: ModelEntry[] }>(
+          '/api/debug?action=models',
+        ),
+      )
+    } catch (err) {
+      setData(diagnosticPayload(err, { models: [] }))
     } finally {
       setLoading(false)
     }
@@ -281,14 +297,14 @@ function ApiCallTab() {
         }
       }
 
-      const res = await fetch('/api/debug?action=call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method, path, body: parsedBody }),
-      })
-      setResponse(await res.json())
-    } catch {
-      setResponse({ error: 'Request failed' })
+      setResponse(
+        await apiFetch<Record<string, unknown>>('/api/debug?action=call', {
+          method: 'POST',
+          body: JSON.stringify({ method, path, body: parsedBody }),
+        }),
+      )
+    } catch (err) {
+      setResponse(diagnosticPayload(err, { error: 'Request failed' }))
     } finally {
       setLoading(false)
     }
