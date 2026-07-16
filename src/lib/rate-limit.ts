@@ -297,10 +297,10 @@ export const gatewayConfigMutationLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
-/** User lifecycle, access approval, and API-key rotation: 10 attempts per minute per admin. */
+/** User lifecycle, access approval, and API-key rotation: 20 attempts per minute per admin and domain. */
 export const identitySecurityMutationLimiter = createKeyedRateLimiter({
   windowMs: 60_000,
-  maxRequests: 10,
+  maxRequests: 20,
   message: 'Too many identity or credential changes. Try again in a minute.',
   critical: true,
 })

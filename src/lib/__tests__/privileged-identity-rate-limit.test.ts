@@ -24,7 +24,7 @@ describe('privileged identity mutation rate limits', () => {
 
     expect(definition).toContain('createKeyedRateLimiter')
     expect(definition).toContain('critical: true')
-    expect(definition).toContain('maxRequests: 10')
+    expect(definition).toContain('maxRequests: 20')
   })
 
   it.each([
