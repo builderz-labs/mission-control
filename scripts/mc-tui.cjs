@@ -15,6 +15,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const readline = require('node:readline');
+const { normalizeMissionControlBaseUrl } = require('./mc-base-url.cjs');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -756,7 +757,7 @@ Keys (Agent Detail):
   }
 
   const profile = loadProfile(String(flags.profile || 'default'));
-  baseUrl = flags.url ? String(flags.url) : profile.url;
+  baseUrl = normalizeMissionControlBaseUrl(flags.url ? String(flags.url) : profile.url);
   apiKey = flags['api-key'] ? String(flags['api-key']) : profile.apiKey;
   cookie = profile.cookie;
   refreshMs = Number(flags.refresh || 5000);

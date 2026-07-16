@@ -15,6 +15,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { normalizeMissionControlBaseUrl } = require('./mc-base-url.cjs');
 
 // ---------------------------------------------------------------------------
 // Config
@@ -29,7 +30,9 @@ function loadConfig() {
   } catch { /* no profile */ }
 
   return {
-    baseUrl: (process.env.MC_URL || profile.url || 'http://127.0.0.1:3000').replace(/\/+$/, ''),
+    baseUrl: normalizeMissionControlBaseUrl(
+      process.env.MC_URL || profile.url || 'http://127.0.0.1:3000'
+    ),
     apiKey: process.env.MC_API_KEY || profile.apiKey || '',
     cookie: process.env.MC_COOKIE || profile.cookie || '',
   };
