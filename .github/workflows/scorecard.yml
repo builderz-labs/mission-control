@@ -11,18 +11,20 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  actions: read
-  checks: read
   contents: read
-  issues: read
-  pull-requests: read
-  security-events: write
 
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: read
+      security-events: write
 
     steps:
       - name: Checkout
