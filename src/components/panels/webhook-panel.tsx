@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useMissionControl } from '@/store'
 
@@ -46,6 +47,37 @@ interface SchedulerTask {
   lastResult?: { ok: boolean; message: string; timestamp: number }
 }
 
+interface WebhookResult {
+  webhooks?: Webhook[]
+  secret?: string
+  success?: boolean
+  error?: string | null
+  duration_ms?: number
+  status_code?: number
+  [key: string]: unknown
+}
+
+interface SchedulerResult {
+  tasks?: SchedulerTask[]
+  ok?: boolean
+  error?: string
+  message?: string
+}
+
+function webhookErrorPayload<T>(error: unknown, fallback: T): T {
+  if (error instanceof ApiError && error.payload !== undefined) {
+    return error.payload as T
+  }
+  return fallback
+}
+
+function isWebhookTransportFailure(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.code === 'NETWORK_ERROR' || error.code === 'PARSE_ERROR')
+  )
+}
+
 const AVAILABLE_EVENTS = [
   { value: '*', label: 'All events', description: 'Receive all event types' },
   { value: 'agent.error', label: 'Agent error', description: 'Agent enters error state' },
@@ -79,17 +111,12 @@ export function WebhookPanel() {
   const fetchWebhooks = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/webhooks')
-      if (!res.ok) {
-        const data = await res.json()
-        setError(data.error || 'Failed to fetch webhooks')
-        return
-      }
-      const data = await res.json()
+      const data = await apiFetch<WebhookResult>('/api/webhooks')
       setWebhooks(data.webhooks || [])
       setError('')
-    } catch {
-      setError('Network error')
+    } catch (err) {
+      const data = webhookErrorPayload<WebhookResult>(err, {})
+      setError(data.error || (isWebhookTransportFailure(err) ? 'Network error' : 'Failed to fetch webhooks'))
     } finally {
       setLoading(false)
     }
@@ -98,11 +125,10 @@ export function WebhookPanel() {
   const fetchDeliveries = useCallback(async () => {
     if (!selectedWebhook) return
     try {
-      const res = await fetch(`/api/webhooks/deliveries?webhook_id=${selectedWebhook}&limit=20`)
-      if (res.ok) {
-        const data = await res.json()
-        setDeliveries(data.deliveries || [])
-      }
+      const data = await apiFetch<{ deliveries?: Delivery[] }>(
+        `/api/webhooks/deliveries?webhook_id=${selectedWebhook}&limit=20`,
+      )
+      setDeliveries(data.deliveries || [])
     } catch { /* silent */ }
   }, [selectedWebhook])
 
@@ -112,9 +138,7 @@ export function WebhookPanel() {
       return
     }
     try {
-      const res = await fetch('/api/scheduler')
-      if (!res.ok) return
-      const data = await res.json()
+      const data = await apiFetch<SchedulerResult>('/api/scheduler')
       const tasks = Array.isArray(data.tasks) ? data.tasks : []
       const webhookTasks = tasks.filter((task: SchedulerTask) =>
         typeof task.id === 'string' && task.id.includes('webhook')
@@ -133,30 +157,37 @@ export function WebhookPanel() {
 
   async function handleCreate(form: { name: string; url: string; events: string[] }) {
     try {
-      const res = await fetch('/api/webhooks', {
+      const data = await apiFetch<WebhookResult>('/api/webhooks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, generate_secret: true }),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error); return }
-      setNewSecret(data.secret)
+      setNewSecret(typeof data.secret === 'string' ? data.secret : null)
       setShowCreate(false)
       fetchWebhooks()
-    } catch { setError('Failed to create webhook') }
+    } catch (err) {
+      const data = webhookErrorPayload<WebhookResult>(err, {})
+      setError(data.error || 'Failed to create webhook')
+    }
   }
 
   async function handleToggle(id: number, enabled: boolean) {
-    await fetch('/api/webhooks', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, enabled }),
-    })
+    try {
+      await apiFetch('/api/webhooks', {
+        method: 'PUT',
+        body: JSON.stringify({ id, enabled }),
+      })
+    } catch (err) {
+      if (isWebhookTransportFailure(err)) return
+    }
     fetchWebhooks()
   }
 
   async function handleDelete(id: number) {
-    await fetch(`/api/webhooks?id=${id}`, { method: 'DELETE' })
+    try {
+      await apiFetch(`/api/webhooks?id=${id}`, { method: 'DELETE' })
+    } catch (err) {
+      if (isWebhookTransportFailure(err)) return
+    }
     if (selectedWebhook === id) setSelectedWebhook(null)
     fetchWebhooks()
   }
@@ -165,17 +196,19 @@ export function WebhookPanel() {
     setTestingId(id)
     setTestResult(null)
     try {
-      const res = await fetch('/api/webhooks/test', {
+      const data = await apiFetch<WebhookResult>('/api/webhooks/test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       })
-      const data = await res.json()
       setTestResult(data)
       fetchWebhooks()
       if (selectedWebhook === id) fetchDeliveries()
-    } catch {
-      setTestResult({ error: 'Network error' })
+    } catch (err) {
+      setTestResult(webhookErrorPayload(err, { error: 'Network error' }))
+      if (!isWebhookTransportFailure(err)) {
+        fetchWebhooks()
+        if (selectedWebhook === id) fetchDeliveries()
+      }
     } finally {
       setTestingId(null)
     }
@@ -184,12 +217,12 @@ export function WebhookPanel() {
   async function handleRunAutomation(taskId: string) {
     setRunningAutomationId(taskId)
     try {
-      const res = await fetch('/api/scheduler', {
+      const res = await apiFetch<Response>('/api/scheduler', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: taskId }),
+        raw: true,
       })
-      const data = await res.json()
+      const data = (await res.json()) as SchedulerResult
       setTestResult({
         success: !!data.ok && res.ok,
         error: data.error || (!data.ok ? data.message : null),
@@ -197,8 +230,16 @@ export function WebhookPanel() {
         status_code: res.status,
       })
       await fetchWebhookAutomations()
-    } catch {
-      setTestResult({ success: false, error: 'Failed to run local automation' })
+    } catch (err) {
+      const data = webhookErrorPayload<SchedulerResult>(err, {})
+      setTestResult({
+        success: false,
+        error: data.error || data.message || 'Failed to run local automation',
+        status_code: err instanceof ApiError ? err.status : undefined,
+      })
+      if (err instanceof ApiError && !isWebhookTransportFailure(err)) {
+        await fetchWebhookAutomations()
+      }
     } finally {
       setRunningAutomationId(null)
     }
