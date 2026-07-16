@@ -33,6 +33,15 @@ describe('parseNaturalSchedule', () => {
     expect(result!.cronExpr).toBe('0 9 * * *')
   })
 
+  it('normalizes repeated whitespace before parsing', () => {
+    expect(parseNaturalSchedule('daily\t\tat\t9:30am')!.cronExpr).toBe('30 9 * * *')
+    expect(parseNaturalSchedule('at   10am   every   day')!.cronExpr).toBe('0 10 * * *')
+  })
+
+  it('rejects oversized schedule expressions', () => {
+    expect(parseNaturalSchedule(`daily at ${'\t'.repeat(100_000)}`)).toBeNull()
+  })
+
   it('parses "every day"', () => {
     const result = parseNaturalSchedule('every day')
     expect(result!.cronExpr).toBe('0 9 * * *')
