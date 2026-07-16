@@ -6,11 +6,12 @@
  */
 
 import { createHash } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { resolveWithin } from './paths'
 import { logger } from './logger'
+import { atomicReplaceFileSync } from './atomic-file'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -192,6 +193,21 @@ const SKILLS_SH_API = 'https://skills.sh/api'
 const AWESOME_OPENCLAW_README = 'https://raw.githubusercontent.com/VoltAgent/awesome-openclaw-skills/main/README.md'
 const AWESOME_OPENCLAW_RAW_BASE = 'https://raw.githubusercontent.com/openclaw/skills/main/skills'
 const FETCH_TIMEOUT = 10_000
+export const MAX_REGISTRY_SKILL_BYTES = 256 * 1024
+
+export function validateDownloadedSkillContent(value: unknown): string {
+  if (typeof value !== 'string') {
+    throw new Error('Registry returned non-text content')
+  }
+  if (!value.trim()) {
+    throw new Error('Registry returned empty content')
+  }
+  const size = Buffer.byteLength(value, 'utf8')
+  if (size > MAX_REGISTRY_SKILL_BYTES) {
+    throw new Error(`Registry content exceeds ${MAX_REGISTRY_SKILL_BYTES} bytes`)
+  }
+  return value
+}
 
 // ---------------------------------------------------------------------------
 // Awesome OpenClaw — in-memory cached index from GitHub README
@@ -394,7 +410,7 @@ function getTargetDir(targetRoot: string): string {
   return dir
 }
 
-async function fetchClawdHubSkill(slug: string): Promise<{ content: string; hash?: string }> {
+async function fetchClawdHubSkill(slug: string): Promise<{ content: unknown; hash?: string }> {
   const url = `${CLAWHUB_API}/skills/${encodeURIComponent(slug)}/content`
   const res = await fetchWithTimeout(url)
   if (!res.ok) throw new Error(`ClawdHub fetch failed (${res.status})`)
@@ -420,27 +436,30 @@ export async function installFromRegistry(req: InstallRequest): Promise<InstallR
   const skillDir = resolveWithin(targetDir, name)
   const skillDocPath = resolveWithin(skillDir, 'SKILL.md')
 
-  let content: string
+  let downloadedContent: unknown
   let registryHash: string | undefined
 
   try {
     if (req.source === 'clawhub') {
       const result = await fetchClawdHubSkill(req.slug)
-      content = result.content
+      downloadedContent = result.content
       registryHash = result.hash
     } else if (req.source === 'awesome-openclaw') {
       const result = await fetchAwesomeOpenclawSkill(req.slug)
-      content = result.content
+      downloadedContent = result.content
     } else {
       const result = await fetchSkillsShSkill(req.slug)
-      content = result.content
+      downloadedContent = result.content
     }
   } catch (err: any) {
     return { ok: false, name, path: skillDir, message: `Fetch failed: ${err.message}` }
   }
 
-  if (!content.trim()) {
-    return { ok: false, name, path: skillDir, message: 'Registry returned empty content' }
+  let content: string
+  try {
+    content = validateDownloadedSkillContent(downloadedContent)
+  } catch (err: any) {
+    return { ok: false, name, path: skillDir, message: err.message }
   }
 
   // SHA-256 verification for ClawdHub
@@ -471,7 +490,7 @@ export async function installFromRegistry(req: InstallRequest): Promise<InstallR
   // Write to disk
   try {
     await mkdir(skillDir, { recursive: true })
-    await writeFile(skillDocPath, content, 'utf8')
+    atomicReplaceFileSync(skillDocPath, content)
   } catch (err: any) {
     return { ok: false, name, path: skillDir, message: `Write failed: ${err.message}` }
   }

@@ -1,5 +1,28 @@
 import { describe, it, expect } from 'vitest'
-import { checkSkillSecurity } from '@/lib/skill-registry'
+import {
+  checkSkillSecurity,
+  MAX_REGISTRY_SKILL_BYTES,
+  validateDownloadedSkillContent,
+} from '@/lib/skill-registry'
+
+describe('validateDownloadedSkillContent', () => {
+  it('accepts a bounded text skill document', () => {
+    const content = '# safe-skill\n\nA bounded skill document.\n'
+    expect(validateDownloadedSkillContent(content)).toBe(content)
+  })
+
+  it('rejects empty and non-text registry content', () => {
+    expect(() => validateDownloadedSkillContent(' \n')).toThrow('Registry returned empty content')
+    expect(() => validateDownloadedSkillContent({ content: '# skill' })).toThrow('Registry returned non-text content')
+  })
+
+  it('measures the UTF-8 byte length and rejects oversized content', () => {
+    const oversized = 'é'.repeat(Math.floor(MAX_REGISTRY_SKILL_BYTES / 2) + 1)
+    expect(() => validateDownloadedSkillContent(oversized)).toThrow(
+      `Registry content exceeds ${MAX_REGISTRY_SKILL_BYTES} bytes`,
+    )
+  })
+})
 
 describe('checkSkillSecurity', () => {
   // ── Clean content ───────────────────────────────
