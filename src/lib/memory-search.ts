@@ -16,6 +16,8 @@ import { join } from 'path'
 import { getDatabase } from '@/lib/db'
 import { scanMemoryFiles, type MemoryFileInfo } from '@/lib/memory-utils'
 import { logger } from '@/lib/logger'
+import { canonicalizeMemoryRelativePath } from '@/lib/memory-path'
+import { resolveWithin } from '@/lib/paths'
 
 // ─── Schema ──────────────────────────────────────────────────────
 
@@ -113,14 +115,15 @@ export async function rebuildIndex(baseDir: string, allowedPrefixes: string[], s
 export function indexFile(db: Database.Database, baseDir: string, relativePath: string, scope = 'shared'): void {
   ensureFtsTable(db)
   try {
-    const content = readFileSync(join(baseDir, relativePath), 'utf-8')
-    const name = relativePath.split('/').pop() || relativePath
+    const canonicalPath = canonicalizeMemoryRelativePath(relativePath)
+    const content = readFileSync(resolveWithin(baseDir, canonicalPath), 'utf-8')
+    const name = canonicalPath.split('/').pop() || canonicalPath
     const title = extractTitle(content, name)
     const body = stripFrontmatter(content)
 
     db.transaction(() => {
-      db.prepare('DELETE FROM memory_fts_v2 WHERE scope = ? AND path = ?').run(scope, relativePath)
-      db.prepare('INSERT INTO memory_fts_v2 (scope, path, title, content) VALUES (?, ?, ?, ?)').run(scope, relativePath, title, body)
+      db.prepare('DELETE FROM memory_fts_v2 WHERE scope = ? AND path = ?').run(scope, canonicalPath)
+      db.prepare('INSERT INTO memory_fts_v2 (scope, path, title, content) VALUES (?, ?, ?, ?)').run(scope, canonicalPath, title, body)
     })()
   } catch (err) {
     logger.warn({ err, path: relativePath }, 'Failed to index file for FTS')
