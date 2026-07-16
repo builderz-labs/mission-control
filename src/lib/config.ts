@@ -15,7 +15,10 @@ const buildScratchRoot =
   process.env.MISSION_CONTROL_BUILD_DATA_DIR ||
   path.join(os.tmpdir(), 'mission-control-build')
 const resolvedDataDir = isBuildPhase
-  ? path.join(buildScratchRoot, `worker-${process.pid}`)
+  ? (() => {
+      fs.mkdirSync(buildScratchRoot, { recursive: true, mode: 0o700 })
+      return fs.mkdtempSync(path.join(buildScratchRoot, 'worker-'))
+    })()
   : configuredDataDir
 const resolvedDbPath = isBuildPhase
   ? (process.env.MISSION_CONTROL_BUILD_DB_PATH ||
