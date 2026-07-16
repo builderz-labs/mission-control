@@ -8,6 +8,7 @@ import { gatewayConfigMutationLimiter } from '@/lib/rate-limit'
 import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 import { parseJsonRelaxed } from '@/lib/json-relaxed'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
+import { setNestedConfigValue } from '@/lib/config-path'
 
 function getConfigPath(): string | null {
   return config.openclawConfigPath || null
@@ -173,7 +174,7 @@ export async function PUT(request: NextRequest) {
     // Apply updates via dot-notation
     const appliedKeys: string[] = []
     for (const [dotPath, value] of Object.entries(body.updates)) {
-      setNestedValue(parsed, dotPath, value)
+      setNestedConfigValue(parsed, dotPath, value)
       appliedKeys.push(dotPath)
     }
 
@@ -272,17 +273,6 @@ async function updateSystem(request: NextRequest, auth: any): Promise<NextRespon
       { status: 502 },
     )
   }
-}
-
-/** Set a value in a nested object using dot-notation path */
-function setNestedValue(obj: any, path: string, value: any) {
-  const keys = path.split('.')
-  let current = obj
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (current[keys[i]] === undefined) current[keys[i]] = {}
-    current = current[keys[i]]
-  }
-  current[keys[keys.length - 1]] = value
 }
 
 /** Redact sensitive values for display */
