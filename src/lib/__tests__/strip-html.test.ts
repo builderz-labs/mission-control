@@ -1,53 +1,43 @@
-import { describe, it, expect } from 'vitest'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+import { MarkdownRenderer } from '@/components/markdown-renderer'
 
-// Reproduce the stripHtml logic from markdown-renderer to test it in isolation
-function stripHtml(content: string): string {
-  return content.replace(/<[^>]*>/g, '')
+function render(content: string, preview = false): string {
+  return renderToStaticMarkup(createElement(MarkdownRenderer, { content, preview }))
 }
 
-describe('stripHtml', () => {
-  it('removes simple HTML tags', () => {
-    expect(stripHtml('<p>Hello</p>')).toBe('Hello')
+describe('MarkdownRenderer HTML boundary', () => {
+  it('does not emit raw HTML elements, comments, or event handlers', () => {
+    const output = render(
+      'Before <script>alert(1)</script> <img src=x onerror="alert(2)"> <!-- hidden --> <div onclick="alert(3)">text</div> After',
+    )
+
+    expect(output).not.toMatch(/<script/i)
+    expect(output).not.toMatch(/<img/i)
+    expect(output).not.toContain('onerror')
+    expect(output).not.toContain('onclick')
+    expect(output).not.toContain('<!--')
   })
 
-  it('removes self-closing tags', () => {
-    expect(stripHtml('Before <br/> After')).toBe('Before  After')
+  it('does not emit unsafe link protocols', () => {
+    const output = render('[click](javascript:alert(1))')
+
+    expect(output).not.toContain('javascript:')
   })
 
-  it('removes img tags from GitHub pastes', () => {
-    const input = 'Description with <img src="https://example.com/screenshot.png" alt="screenshot"> embedded image'
-    expect(stripHtml(input)).toBe('Description with  embedded image')
+  it('preserves supported Markdown formatting', () => {
+    const output = render('## Heading\n\n**bold** and `code`')
+
+    expect(output).toContain('<h2')
+    expect(output).toContain('<strong')
+    expect(output).toContain('<code')
   })
 
-  it('removes nested HTML tags', () => {
-    expect(stripHtml('<div><strong>Bold</strong> text</div>')).toBe('Bold text')
-  })
+  it('keeps preview rendering bounded to the first 240 characters', () => {
+    const output = render(`${'a'.repeat(300)}\n\nsecond paragraph`, true)
 
-  it('preserves plain text without tags', () => {
-    expect(stripHtml('No tags here, just **markdown**')).toBe('No tags here, just **markdown**')
-  })
-
-  it('handles empty string', () => {
-    expect(stripHtml('')).toBe('')
-  })
-
-  it('removes multiple img tags', () => {
-    const input = '<img src="a.png"><img src="b.png">text<img src="c.png">'
-    expect(stripHtml(input)).toBe('text')
-  })
-
-  it('removes HTML comments', () => {
-    expect(stripHtml('Before <!-- comment --> After')).toBe('Before  After')
-  })
-
-  it('handles tags with attributes and whitespace', () => {
-    const input = '<a href="https://example.com" target="_blank" >Link text</a>'
-    expect(stripHtml(input)).toBe('Link text')
-  })
-
-  it('preserves angle brackets that are not HTML tags', () => {
-    // This is a limitation — mathematical expressions like "x < 5" would be affected
-    // But for our use case (stripping pasted HTML), this is acceptable
-    expect(stripHtml('5 > 3 is true')).toBe('5 > 3 is true')
+    expect(output).toContain(`${'a'.repeat(240)}...`)
+    expect(output).not.toContain('second paragraph')
   })
 })
