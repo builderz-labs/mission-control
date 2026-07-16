@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { RuntimeSetupModal } from '@/components/onboarding/runtime-setup-modal'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface RuntimeStatus {
   id: string
@@ -29,6 +30,21 @@ interface Props {
   showFeedback: (ok: boolean, text: string) => void
 }
 
+interface RuntimeResponse {
+  runtimes?: RuntimeStatus[]
+  isDocker?: boolean
+  runtimeInstallsEnabled?: boolean
+  job?: InstallJob
+  yaml?: string
+}
+
+function isRuntimeTransportFailure(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.code === 'NETWORK_ERROR' || error.code === 'PARSE_ERROR')
+  )
+}
+
 export function AgentRuntimesSection({ showFeedback }: Props) {
   const [runtimes, setRuntimes] = useState<RuntimeStatus[]>([])
   const [isDocker, setIsDocker] = useState(false)
@@ -40,9 +56,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
 
   const fetchRuntimes = useCallback(async () => {
     try {
-      const res = await fetch('/api/agent-runtimes')
-      if (!res.ok) return
-      const data = await res.json()
+      const data = await apiFetch<RuntimeResponse>('/api/agent-runtimes')
       setRuntimes(data.runtimes || [])
       setIsDocker(data.isDocker || false)
       setRuntimeInstallsEnabled(data.runtimeInstallsEnabled === true)
@@ -63,20 +77,18 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
     const interval = setInterval(async () => {
       for (const job of running) {
         try {
-          const res = await fetch('/api/agent-runtimes', {
+          const data = await apiFetch<RuntimeResponse>('/api/agent-runtimes', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'job-status', jobId: job.id }),
           })
-          if (!res.ok) continue
-          const data = await res.json()
           if (data.job) {
-            setActiveJobs(prev => ({ ...prev, [data.job.runtime]: data.job }))
-            if (data.job.status === 'success') {
-              showFeedback(true, `${data.job.runtime} installed successfully`)
+            const runtimeJob = data.job
+            setActiveJobs(prev => ({ ...prev, [runtimeJob.runtime]: runtimeJob }))
+            if (runtimeJob.status === 'success') {
+              showFeedback(true, `${runtimeJob.runtime} installed successfully`)
               fetchRuntimes()
-            } else if (data.job.status === 'failed') {
-              showFeedback(false, `${data.job.runtime} install failed`)
+            } else if (runtimeJob.status === 'failed') {
+              showFeedback(false, `${runtimeJob.runtime} install failed`)
               fetchRuntimes()
             }
           }
@@ -91,18 +103,13 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
 
   const handleInstall = async (runtimeId: string) => {
     try {
-      const res = await fetch('/api/agent-runtimes', {
+      const data = await apiFetch<RuntimeResponse>('/api/agent-runtimes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'install', runtime: runtimeId, mode: 'local' }),
       })
-      if (!res.ok) {
-        showFeedback(false, 'Failed to start install')
-        return
-      }
-      const data = await res.json()
       if (data.job) {
-        setActiveJobs(prev => ({ ...prev, [runtimeId]: data.job }))
+        const runtimeJob = data.job
+        setActiveJobs(prev => ({ ...prev, [runtimeId]: runtimeJob }))
       }
     } catch {
       showFeedback(false, 'Failed to start install')
@@ -111,31 +118,29 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
 
   const handleCopyCompose = async (runtimeId: string) => {
     try {
-      const res = await fetch('/api/agent-runtimes', {
+      const data = await apiFetch<RuntimeResponse>('/api/agent-runtimes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'docker-compose', runtime: runtimeId }),
       })
-      if (!res.ok) return
-      const data = await res.json()
+      if (typeof data.yaml !== 'string') return
       await navigator.clipboard.writeText(data.yaml)
       showFeedback(true, 'Docker compose snippet copied')
-    } catch {
+    } catch (err) {
+      if (!isRuntimeTransportFailure(err)) return
       showFeedback(false, 'Failed to copy')
     }
   }
 
   const handleDetect = async (runtimeId: string) => {
     try {
-      const res = await fetch('/api/agent-runtimes', {
+      await apiFetch<RuntimeResponse>('/api/agent-runtimes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'detect', runtime: runtimeId }),
       })
-      if (!res.ok) return
       await fetchRuntimes()
       showFeedback(true, 'Detection refreshed')
-    } catch {
+    } catch (err) {
+      if (!isRuntimeTransportFailure(err)) return
       showFeedback(false, 'Detection failed')
     }
   }
