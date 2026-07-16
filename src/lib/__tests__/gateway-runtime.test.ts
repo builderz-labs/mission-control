@@ -72,4 +72,16 @@ describe('registerMcAsDashboard', () => {
     expect(result).toEqual({ registered: false, alreadySet: true })
     expect(after).toBe(before)
   })
+
+  it('leaves no lock or temporary artifacts after registration', async () => {
+    writeFileSync(configPath, JSON.stringify({ gateway: {} }), 'utf8')
+    const { registerMcAsDashboard } = await import('@/lib/gateway-runtime')
+
+    expect(registerMcAsDashboard('https://mc.example.com')).toEqual({
+      registered: true,
+      alreadySet: false,
+    })
+    expect(readFileSync(configPath, 'utf8')).toContain('https://mc.example.com')
+    expect(() => readFileSync(`${configPath}.mc-lock`, 'utf8')).toThrow()
+  })
 })

@@ -9,6 +9,7 @@ import { getDatabase } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { FIX_SAFETY, runSecurityScan, type FixSafety } from '@/lib/security-scan'
 import { securityFixLimiter } from '@/lib/rate-limit'
+import { acquireFileLockSync, atomicReplaceFileSync } from '@/lib/atomic-file'
 import { z } from 'zod'
 
 export interface FixResult {
@@ -213,12 +214,20 @@ export async function POST(request: NextRequest) {
   const ocFixIds = ['config_permissions', 'gateway_auth', 'gateway_bind', 'elevated_disabled', 'dm_isolation', 'exec_restricted', 'control_ui_device_auth', 'control_ui_insecure_auth', 'fs_workspace_only', 'log_redaction']
   const configPath = config.openclawConfigPath
   if (ocFixIds.some(id => shouldFix(id)) && configPath && existsSync(configPath)) {
+    let releaseConfigLock: (() => void) | undefined
     let ocConfig: any
     try {
+      releaseConfigLock = acquireFileLockSync(configPath)
       ocConfig = JSON.parse(readFileSync(configPath, 'utf-8'))
-    } catch { ocConfig = null }
+    } catch (error: any) {
+      ocConfig = null
+      if (error?.code === 'EBUSY') {
+        results.push({ id: 'config_write', name: 'Write OpenClaw config', fixed: false, detail: error.message })
+      }
+    }
 
-    if (ocConfig) {
+    try {
+      if (ocConfig) {
       let configChanged = false
 
       // Fix config file permissions
@@ -329,11 +338,14 @@ export async function POST(request: NextRequest) {
 
       if (configChanged) {
         try {
-          writeFileSync(configPath, JSON.stringify(ocConfig, null, 2) + '\n', 'utf-8')
+          atomicReplaceFileSync(configPath, JSON.stringify(ocConfig, null, 2) + '\n')
         } catch (e: any) {
           results.push({ id: 'config_write', name: 'Write OpenClaw config', fixed: false, detail: e.message })
         }
       }
+    }
+    } finally {
+      releaseConfigLock?.()
     }
   }
 
