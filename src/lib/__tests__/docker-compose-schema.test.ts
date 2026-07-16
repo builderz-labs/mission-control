@@ -62,4 +62,12 @@ describe('Docker build context', () => {
     expect(content).toContain('!scripts/check-node-version.mjs')
     expect(content).toContain('!scripts/prepare-standalone-artifact.mjs')
   })
+
+  it('includes only the operations template required by the runtime artifact', () => {
+    expect(content).not.toMatch(/^ops$/m)
+    expect(content).toContain('ops/*')
+    expect(content).toContain('!ops/templates/')
+    expect(content).toContain('ops/templates/*')
+    expect(content).toContain('!ops/templates/openclaw-gateway@.service')
+  })
 })
