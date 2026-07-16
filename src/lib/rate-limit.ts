@@ -305,6 +305,14 @@ export const hermesMutationLimiter = createKeyedRateLimiter({
   critical: true,
 })
 
+/** Deployment backup creation and deletion: 10 attempts per minute per admin. */
+export const backupMutationLimiter = createKeyedRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 10,
+  message: 'Too many backup changes. Try again in a minute.',
+  critical: true,
+})
+
 /** User lifecycle, access approval, and API-key rotation: 20 attempts per minute per admin and domain. */
 export const identitySecurityMutationLimiter = createKeyedRateLimiter({
   windowMs: 60_000,

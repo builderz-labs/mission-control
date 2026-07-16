@@ -26,8 +26,8 @@ describe('deployment host administration isolation', () => {
   it('guards whole-deployment backup operations before side effects or parsing', () => {
     const file = 'src/app/api/backup/route.ts'
     expectGuardBefore(file, 'GET', 'ensureDirExists(BACKUP_DIR)')
-    expectGuardBefore(file, 'POST', 'heavyLimiter(request)')
-    expectGuardBefore(file, 'DELETE', 'request.json()')
+    expectGuardBefore(file, 'POST', 'backupMutationLimiter(limitKey)')
+    expectGuardBefore(file, 'DELETE', 'backupMutationLimiter(limitKey)')
   })
 
   it('guards global retention operations before database, limiting, or parsing', () => {

@@ -347,6 +347,13 @@ export const skillDeleteSchema = z.object({
   confirmation: z.literal('delete_skill'),
 }).strict()
 
+export const backupDeleteSchema = z.object({
+  name: z.string().trim().min(1).max(255).endsWith('.db').refine(
+    (name) => !name.includes('..') && !name.includes('/') && !name.includes('\\'),
+    'Invalid backup name',
+  ),
+}).strict()
+
 export const accessRequestActionSchema = z.object({
   request_id: z.number(),
   action: z.enum(['approve', 'reject']),
