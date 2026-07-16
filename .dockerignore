@@ -8,3 +8,4 @@ node_modules
 ops
 scripts/*
 !scripts/check-node-version.mjs
+!scripts/prepare-standalone-artifact.mjs
