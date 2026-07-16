@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useMissionControl, type LogEntry, type Session } from '@/store'
 
@@ -128,6 +129,28 @@ interface CommsData {
   source?: { mode: 'seeded' | 'live' | 'mixed' | 'empty'; seededCount: number; liveCount: number }
 }
 
+interface TranscriptAggregateData {
+  events: AggregateEvent[]
+  sessionCount: number
+}
+
+interface ActivitiesData {
+  activities: ActivityRecord[]
+}
+
+interface SendMessageData {
+  forward?: {
+    attempted?: boolean
+    delivered?: boolean
+    reason?: string
+  } | null
+}
+
+interface InjectionErrorPayload {
+  error?: string
+  injection?: Array<{ rule?: string; description?: string }>
+}
+
 function commsToFeed(messages: CommsMessage[]): FeedEvent[] {
   return messages.map(msg => {
     const isToolCall = msg.message_type === 'tool_call' || Boolean(msg.metadata?.toolName)
@@ -222,13 +245,11 @@ export function AgentCommsPanel() {
   // Fetch DB-backed comms messages
   const fetchComms = useCallback(async () => {
     try {
-      const res = await fetch('/api/agents/comms?limit=200')
-      if (!res.ok) throw new Error('Failed to fetch')
-      const json = await res.json()
+      const json = await apiFetch<CommsData>('/api/agents/comms?limit=200')
       setCommsData(json)
       setError(null)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch')
     } finally {
       setLoading(false)
     }
@@ -239,9 +260,7 @@ export function AgentCommsPanel() {
   // Fetch aggregated transcript events from all gateway sessions
   const fetchTranscripts = useCallback(async () => {
     try {
-      const res = await fetch('/api/sessions/transcript/aggregate?limit=200')
-      if (!res.ok) return
-      const json = await res.json()
+      const json = await apiFetch<TranscriptAggregateData>('/api/sessions/transcript/aggregate?limit=200')
       setTranscriptData(json.events || [])
       setTranscriptSessionCount(json.sessionCount || 0)
     } catch {
@@ -254,9 +273,7 @@ export function AgentCommsPanel() {
   // Fetch memory/agent activity events
   const fetchActivities = useCallback(async () => {
     try {
-      const res = await fetch('/api/activities?type=agent_memory_updated,agent_memory_cleared,memory_file_saved,memory_file_created,memory_file_deleted&limit=50')
-      if (!res.ok) return
-      const json = await res.json()
+      const json = await apiFetch<ActivitiesData>('/api/activities?type=agent_memory_updated,agent_memory_cleared,memory_file_saved,memory_file_created,memory_file_deleted&limit=50')
       setActivityEvents(json.activities || [])
     } catch {
       // Silent — activities are supplementary
@@ -309,9 +326,8 @@ export function AgentCommsPanel() {
     setSending(true)
     setSendError(null)
     try {
-      const res = await fetch('/api/chat/messages', {
+      const payload = await apiFetch<SendMessageData>('/api/chat/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from,
           to: toAgent,
@@ -323,17 +339,6 @@ export function AgentCommsPanel() {
           metadata: target ? undefined : { channel: 'coordinator-inbox' },
         }),
       })
-      const payload = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        if (res.status === 422 && payload?.injection) {
-          const rules = payload.injection.map((i: any) => i.description || i.rule).join('; ')
-          throw new Error(`Message blocked: content triggered safety filter (${rules})`)
-        }
-        if (res.status === 403) {
-          throw new Error('You need operator access to send messages')
-        }
-        throw new Error(payload?.error || 'Failed to send')
-      }
 
       if (payload?.forward?.attempted && !payload?.forward?.delivered) {
         const reason = payload?.forward?.reason || 'unknown'
@@ -343,7 +348,19 @@ export function AgentCommsPanel() {
       setDraft('')
       await fetchComms()
     } catch (err) {
-      setSendError((err as Error).message || 'Failed to send')
+      const payload =
+        err instanceof ApiError && typeof err.payload === 'object' && err.payload !== null
+          ? err.payload as InjectionErrorPayload
+          : null
+
+      if (err instanceof ApiError && err.status === 422 && payload?.injection?.length) {
+        const rules = payload.injection.map((item) => item.description || item.rule).join('; ')
+        setSendError(`Message blocked: content triggered safety filter (${rules})`)
+      } else if (err instanceof ApiError && err.status === 403) {
+        setSendError('You need operator access to send messages')
+      } else {
+        setSendError(err instanceof Error ? err.message : 'Failed to send')
+      }
     } finally {
       setSending(false)
     }
