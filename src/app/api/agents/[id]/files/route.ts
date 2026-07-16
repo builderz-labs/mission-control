@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, resolve } from 'node:path'
 import { resolveWithin } from '@/lib/paths'
 import { getAgentWorkspaceCandidates, readAgentWorkspaceFile } from '@/lib/agent-workspace'
 import { logger } from '@/lib/logger'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
+import { atomicReplaceFileSync } from '@/lib/atomic-file'
 
 const ALLOWED_FILES = new Set([
   'agent.md',
@@ -137,7 +138,7 @@ export async function PUT(
 
     const safePath = resolveWithin(safeWorkspace, file)
     mkdirSync(dirname(safePath), { recursive: true })
-    writeFileSync(safePath, content, 'utf-8')
+    atomicReplaceFileSync(safePath, content)
 
     if (file === 'soul.md') {
       db.prepare('UPDATE agents SET soul_content = ?, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')

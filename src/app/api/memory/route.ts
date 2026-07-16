@@ -10,6 +10,7 @@ import { validateSchema, extractWikiLinks } from '@/lib/memory-utils'
 import { MEMORY_PATH, MEMORY_ALLOWED_PREFIXES, canonicalizeMemoryRelativePath, isPathAllowed, resolveSafeMemoryPath } from '@/lib/memory-path'
 import { searchMemory, indexFile, removeFromIndex } from '@/lib/memory-search'
 import { resolveWorkspaceMemoryAccess } from '@/lib/workspace-isolation'
+import { atomicReplaceFileSync } from '@/lib/atomic-file'
 
 // Ensure memory directory exists on startup
 if (MEMORY_PATH && !existsSync(MEMORY_PATH)) {
@@ -236,7 +237,7 @@ export async function POST(request: NextRequest) {
       const schemaResult = canonicalPath.endsWith('.md') ? validateSchema(content) : null
       const schemaWarnings = schemaResult?.errors ?? []
 
-      await writeFile(fullPath, content, 'utf-8')
+      atomicReplaceFileSync(fullPath, content)
       // Incrementally update FTS index
       try { indexFile(getDatabase(), memoryPath, canonicalPath, memoryAccess!.scope) } catch { /* best-effort */ }
       try {

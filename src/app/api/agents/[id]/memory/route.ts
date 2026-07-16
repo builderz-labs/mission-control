@@ -3,9 +3,10 @@ import { getDatabase, db_helpers } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { requireAgentSelfAccess, requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
-import { statSync, mkdirSync, writeFileSync } from 'node:fs';
+import { statSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { resolveWithin } from '@/lib/paths';
+import { atomicReplaceFileSync } from '@/lib/atomic-file';
 import { getAgentWorkspaceCandidates, readAgentWorkspaceFile } from '@/lib/agent-workspace';
 import type Database from 'better-sqlite3';
 import { getWorkspaceIsolation } from '@/lib/workspace-isolation';
@@ -183,7 +184,7 @@ export async function PUT(
         if (safeWorkspace) {
           const safeWorkingPath = resolveWithin(safeWorkspace, 'WORKING.md');
           mkdirSync(dirname(safeWorkingPath), { recursive: true });
-          writeFileSync(safeWorkingPath, newContent, 'utf-8');
+          atomicReplaceFileSync(safeWorkingPath, newContent);
           savedToWorkspace = true;
         }
       }
@@ -271,7 +272,7 @@ export async function DELETE(
         if (safeWorkspace) {
           const safeWorkingPath = resolveWithin(safeWorkspace, 'WORKING.md');
           mkdirSync(dirname(safeWorkingPath), { recursive: true });
-          writeFileSync(safeWorkingPath, '', 'utf-8');
+          atomicReplaceFileSync(safeWorkingPath, '');
         }
       }
     } catch (err) {
