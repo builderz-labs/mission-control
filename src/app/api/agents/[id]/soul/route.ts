@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, db_helpers } from '@/lib/db';
-import { readFileSync, existsSync, readdirSync, writeFileSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, mkdirSync } from 'fs';
 import { join, dirname, isAbsolute, resolve } from 'path';
 import { config } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
+import { atomicReplaceFileSync } from '@/lib/atomic-file';
 import { getAgentWorkspaceCandidates, readAgentWorkspaceFile } from '@/lib/agent-workspace';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
@@ -185,7 +186,7 @@ export async function PUT(
         if (safeWorkspace) {
           const safeSoulPath = resolveWithin(safeWorkspace, 'soul.md')
           mkdirSync(dirname(safeSoulPath), { recursive: true })
-          writeFileSync(safeSoulPath, newSoulContent || '', 'utf-8')
+          atomicReplaceFileSync(safeSoulPath, newSoulContent || '')
           savedToWorkspace = true
         }
       } catch (err) {

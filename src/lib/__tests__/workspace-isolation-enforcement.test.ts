@@ -175,14 +175,21 @@ describe('direct session API coverage', () => {
 
   it('guards remaining runtime filesystem consumers', () => {
     const filesRoute = readFileSync(join(process.cwd(), 'src/app/api/agents/[id]/files/route.ts'), 'utf8')
+    const memoryRoute = readFileSync(join(process.cwd(), 'src/app/api/memory/route.ts'), 'utf8')
+    const agentMemoryRoute = readFileSync(join(process.cwd(), 'src/app/api/agents/[id]/memory/route.ts'), 'utf8')
     const soulRoute = readFileSync(join(process.cwd(), 'src/app/api/agents/[id]/soul/route.ts'), 'utf8')
     const tokensRoute = readFileSync(join(process.cwd(), 'src/app/api/tokens/route.ts'), 'utf8')
     const hermesRoute = readFileSync(join(process.cwd(), 'src/app/api/hermes/route.ts'), 'utf8')
     const claudeTasksRoute = readFileSync(join(process.cwd(), 'src/app/api/claude-tasks/route.ts'), 'utf8')
 
     expect(filesRoute).toContain("'agent_filesystem'")
+    expect(filesRoute).toContain('atomicReplaceFileSync(safePath, content)')
+    expect(memoryRoute).toContain('atomicReplaceFileSync(fullPath, content)')
+    expect(agentMemoryRoute).toContain('atomicReplaceFileSync(safeWorkingPath, newContent)')
+    expect(agentMemoryRoute).toContain("atomicReplaceFileSync(safeWorkingPath, '')")
     expect(soulRoute).toContain("const auth = requireRole(request, 'viewer')")
     expect(soulRoute).toContain('if (!isStrictWorkspace)')
+    expect(soulRoute).toContain("atomicReplaceFileSync(safeSoulPath, newSoulContent || '')")
     expect(tokensRoute).toContain("const tokenData = await loadTokenData(workspaceId, isolation === 'shared')")
     expect(tokensRoute).toContain('if (!isStrictWorkspace)')
     expect(hermesRoute.match(/'runtime_configuration'/g)).toHaveLength(2)
