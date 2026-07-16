@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl, Agent } from '@/store'
 import { buildOfficeLayout } from '@/lib/office-layout'
+import { apiFetch, ApiError } from '@/lib/api-client'
 
 type ViewMode = 'office' | 'org-chart'
 type OrgSegmentMode = 'category' | 'role' | 'status'
@@ -21,6 +22,24 @@ interface SessionAgentRow {
   active: boolean
   lastActivity?: number
   workingDir?: string | null
+}
+
+interface FlightDeckResponse {
+  installed: boolean
+  launched?: boolean
+  downloadUrl?: string
+  fallbackUrl?: string
+  error?: string
+}
+
+function getSafeHttpUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null
+  } catch {
+    return null
+  }
 }
 
 interface SeatPosition {
@@ -517,20 +536,20 @@ export function OfficePanel() {
     let nextSessionAgents: Agent[] = []
 
     try {
-      const [agentRes, sessionRes] = await Promise.all([
-        fetch('/api/agents'),
-        isLocalMode ? fetch('/api/sessions') : Promise.resolve(null),
+      const [agentData, sessionData] = await Promise.all([
+        apiFetch<{ agents?: Agent[] }>('/api/agents').catch(() => null),
+        isLocalMode
+          ? apiFetch<{ sessions?: SessionAgentRow[] }>('/api/sessions').catch(() => null)
+          : Promise.resolve(null),
       ])
 
-      if (agentRes.ok) {
-        const data = await agentRes.json()
-        nextLocalAgents = Array.isArray(data.agents) ? data.agents : []
+      if (agentData) {
+        nextLocalAgents = Array.isArray(agentData.agents) ? agentData.agents : []
         setLocalAgents(nextLocalAgents)
       }
 
-      if (isLocalMode && sessionRes?.ok) {
-        const sessionJson = await sessionRes.json().catch(() => ({}))
-        const rows = Array.isArray(sessionJson?.sessions) ? sessionJson.sessions as SessionAgentRow[] : []
+      if (isLocalMode && sessionData) {
+        const rows = Array.isArray(sessionData.sessions) ? sessionData.sessions : []
         const byAgent = new Map<string, Agent>()
         let idx = 0
 
@@ -1285,19 +1304,16 @@ export function OfficePanel() {
   const openFlightDeck = async (agent: Agent) => {
     setFlightDeckLaunching(true)
     try {
-      const res = await fetch('/api/local/flight-deck', {
+      const json = await apiFetch<FlightDeckResponse>('/api/local/flight-deck', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agent: agent.name,
           session: agent.session_key || '',
         }),
       })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok || json?.installed === false) {
-        if (typeof json?.downloadUrl === 'string' && json.downloadUrl) {
-          setFlightDeckDownloadUrl(json.downloadUrl)
-        }
+      if (json.installed === false) {
+        const downloadUrl = getSafeHttpUrl(json.downloadUrl)
+        if (downloadUrl) setFlightDeckDownloadUrl(downloadUrl)
         setShowFlightDeckModal(true)
         showLaunchToast({
           kind: 'info',
@@ -1308,8 +1324,9 @@ export function OfficePanel() {
       }
       if (!json?.launched) {
         // Fallback for environments where native launch fails.
-        if (typeof json?.fallbackUrl === 'string' && json.fallbackUrl) {
-          window.open(json.fallbackUrl, '_blank', 'noopener,noreferrer')
+        const fallbackUrl = getSafeHttpUrl(json?.fallbackUrl)
+        if (fallbackUrl) {
+          window.open(fallbackUrl, '_blank', 'noopener,noreferrer')
           showLaunchToast({
             kind: 'info',
             title: 'Opened browser fallback',
@@ -1329,12 +1346,39 @@ export function OfficePanel() {
         title: 'Opened in Flight Deck',
         detail: 'Launched native Flight Deck app for this session.',
       })
-    } catch {
-      setShowFlightDeckModal(true)
+    } catch (err) {
+      const payload =
+        err instanceof ApiError && err.payload && typeof err.payload === 'object'
+          ? err.payload as Partial<FlightDeckResponse>
+          : null
+
+      if (payload?.installed === false) {
+        const downloadUrl = getSafeHttpUrl(payload.downloadUrl)
+        if (downloadUrl) setFlightDeckDownloadUrl(downloadUrl)
+        setShowFlightDeckModal(true)
+        showLaunchToast({
+          kind: 'info',
+          title: 'Flight Deck not installed',
+          detail: 'Install Flight Deck to open this session.',
+        })
+        return
+      }
+
+      const fallbackUrl = getSafeHttpUrl(payload?.fallbackUrl)
+      if (fallbackUrl) {
+        window.open(fallbackUrl, '_blank', 'noopener,noreferrer')
+        showLaunchToast({
+          kind: 'info',
+          title: 'Opened browser fallback',
+          detail: 'Native launch failed, opened Flight Deck web fallback.',
+        })
+        return
+      }
+
       showLaunchToast({
         kind: 'error',
         title: 'Flight Deck request failed',
-        detail: 'Could not reach local launch endpoint.',
+        detail: payload?.error || 'Could not reach local launch endpoint.',
       })
     } finally {
       setFlightDeckLaunching(false)
