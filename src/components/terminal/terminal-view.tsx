@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { apiFetch } from '@/lib/api-client'
 
 interface TerminalViewProps {
   sessionId: string
@@ -12,6 +13,20 @@ interface TerminalViewProps {
 }
 
 type ConnectionState = 'connecting' | 'ready' | 'disconnected' | 'error' | 'unsupported'
+
+type PtyAttachResponse =
+  | {
+      supported: false
+      reason?: string
+      message?: string
+    }
+  | {
+      supported: true
+      wsPath: string
+      sessionId: string
+      kind: string
+      mode: 'readonly' | 'interactive'
+    }
 
 export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, onReady }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -29,18 +44,19 @@ export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, on
 
     // Step 1: Check PTY support via REST API
     try {
-      const res = await fetch('/api/pty/attach', {
+      const data = await apiFetch<PtyAttachResponse>('/api/pty/attach', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, kind: sessionKind, mode }),
       })
-      const data = await res.json()
 
       if (!data.supported) {
         setConnState('unsupported')
         setErrorMessage(data.message || 'Terminal not supported for this session')
         onError?.(data.message || 'Terminal not supported')
         return
+      }
+      if (!/^\/ws\/pty(?:\?|$)/.test(data.wsPath)) {
+        throw new Error('Terminal endpoint was invalid')
       }
 
       // Step 2: Load xterm.js dynamically (heavy dependency, client-only)
@@ -177,9 +193,7 @@ export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, on
       }
 
       ws.onclose = () => {
-        if (connState !== 'error') {
-          setConnState('disconnected')
-        }
+        setConnState(current => current === 'error' ? current : 'disconnected')
       }
 
       ws.onerror = () => {
@@ -225,7 +239,7 @@ export function TerminalView({ sessionId, sessionKind, mode, onExit, onError, on
       setErrorMessage(msg)
       onError?.(msg)
     }
-  }, [sessionId, sessionKind, mode, onExit, onError, onReady, connState])
+  }, [sessionId, sessionKind, mode, onExit, onError, onReady])
 
   useEffect(() => {
     const cleanup = connect()
