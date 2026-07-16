@@ -98,4 +98,26 @@ describe('strict token runtime isolation', () => {
     )
     expect(existsSync(state.tokenPath)).toBe(false)
   })
+
+  it.each([
+    { model: '', sessionId: 'agent-a:main', inputTokens: 10, outputTokens: 5 },
+    { model: 'test-model', sessionId: {}, inputTokens: 10, outputTokens: 5 },
+    { model: 'test-model', sessionId: 'agent-a:main', inputTokens: -1, outputTokens: 5 },
+    { model: 'test-model', sessionId: 'agent-a:main', inputTokens: Number.POSITIVE_INFINITY, outputTokens: 5 },
+    { model: 'test-model', sessionId: 'agent-a:main', inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 1 },
+    { model: 'x'.repeat(201), sessionId: 'agent-a:main', inputTokens: 10, outputTokens: 5 },
+  ])('rejects malformed token usage before persistence: %j', async (body) => {
+    const { POST } = await import('@/app/api/tokens/route')
+
+    const response = await POST(new NextRequest('http://localhost/api/tokens', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid token usage record' })
+    expect(prepareMock).not.toHaveBeenCalled()
+    expect(existsSync(state.tokenPath)).toBe(false)
+  })
 })

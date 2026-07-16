@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile, writeFile } from 'fs/promises'
+import { readFile } from 'fs/promises'
+import { randomUUID } from 'node:crypto'
 import { dirname } from 'path'
+import { z } from 'zod'
 import { config, ensureDirExists } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
 import { getAllGatewaySessions } from '@/lib/sessions'
@@ -10,8 +12,25 @@ import { calculateTokenCost } from '@/lib/token-pricing'
 import { getProviderSubscriptionFlags } from '@/lib/provider-subscriptions'
 import { buildTaskCostReport, type TaskCostMetadata } from '@/lib/task-costs'
 import { getWorkspaceIsolation } from '@/lib/workspace-isolation'
+import { atomicReplaceFileSync } from '@/lib/atomic-file'
 
 const DATA_PATH = config.tokensPath
+const MAX_TOKEN_COUNT = Number.MAX_SAFE_INTEGER
+const tokenUsagePostSchema = z.object({
+  model: z.string().trim().min(1).max(200),
+  sessionId: z.string().trim().min(1).max(512),
+  inputTokens: z.number().finite().int().nonnegative().max(MAX_TOKEN_COUNT),
+  outputTokens: z.number().finite().int().nonnegative().max(MAX_TOKEN_COUNT),
+  operation: z.string().trim().min(1).max(100).default('chat_completion'),
+  duration: z.number().finite().nonnegative().max(7 * 24 * 60 * 60 * 1000).optional(),
+  taskId: z.union([
+    z.number().finite(),
+    z.string().trim().max(32),
+  ]).nullish(),
+}).refine(
+  ({ inputTokens, outputTokens }) => inputTokens + outputTokens <= MAX_TOKEN_COUNT,
+  { message: 'Combined token count exceeds the supported range' },
+)
 
 interface TokenUsageRecord {
   id: string
@@ -229,7 +248,7 @@ function deriveFromSessions(workspaceId: number, providerSubscriptions: Record<s
 
 async function saveTokenData(data: TokenUsageRecord[]): Promise<void> {
   ensureDirExists(dirname(DATA_PATH))
-  await writeFile(DATA_PATH, JSON.stringify(data, null, 2))
+  atomicReplaceFileSync(DATA_PATH, JSON.stringify(data, null, 2))
 }
 
 function calculateStats(records: TokenUsageRecord[]): TokenStats {
@@ -578,11 +597,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Workspace isolation context is unavailable' }, { status: 403 })
     }
     const isStrictWorkspace = isolation === 'strict'
-    const { model, sessionId, inputTokens, outputTokens, operation = 'chat_completion', duration, taskId } = body
-
-    if (!model || !sessionId || typeof inputTokens !== 'number' || typeof outputTokens !== 'number') {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    const parsedBody = tokenUsagePostSchema.safeParse(body)
+    if (!parsedBody.success) {
+      return NextResponse.json({ error: 'Invalid token usage record' }, { status: 400 })
     }
+    const { model, sessionId, inputTokens, outputTokens, operation, duration, taskId } = parsedBody.data
 
     const totalTokens = inputTokens + outputTokens
     const providerSubscriptions = getProviderSubscriptionFlags()
@@ -602,7 +621,7 @@ export async function POST(request: NextRequest) {
     }
 
     const record: TokenUsageRecord = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: randomUUID(),
       model,
       sessionId,
       agentName: extractAgentName(sessionId),

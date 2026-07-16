@@ -13,6 +13,7 @@ describe('filesystem race hardening contracts', () => {
 
     expect(sessions).not.toContain('await fs.access(candidate)')
     expect(tokens).not.toContain('await access(DATA_PATH)')
+    expect(tokens).toContain('atomicReplaceFileSync(DATA_PATH, JSON.stringify(data, null, 2))')
   })
 
   it('binds workspace size validation and reads to one descriptor', () => {
