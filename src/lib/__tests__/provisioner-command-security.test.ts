@@ -5,22 +5,16 @@ import { describe, expect, it } from 'vitest'
 
 const require = createRequire(import.meta.url)
 const {
-  DEFAULT_COMMAND_TIMEOUT_MS,
-  MAX_COMMAND_TIMEOUT_MS,
+  COMMAND_TIMEOUT_MS,
   MAX_OUTPUT_BYTES,
-  MIN_COMMAND_TIMEOUT_MS,
   appendBounded,
-  normalizeTimeoutMs,
 } = require('../../../ops/provisioner-limits.cjs') as {
-  DEFAULT_COMMAND_TIMEOUT_MS: number
-  MAX_COMMAND_TIMEOUT_MS: number
+  COMMAND_TIMEOUT_MS: number
   MAX_OUTPUT_BYTES: number
-  MIN_COMMAND_TIMEOUT_MS: number
   appendBounded: (current: string, chunk: string | Buffer, maxBytes?: number) => {
     value: string
     exceeded: boolean
   }
-  normalizeTimeoutMs: (value: unknown) => number
 }
 
 describe('privileged provisioner command boundary', () => {
@@ -34,8 +28,8 @@ describe('privileged provisioner command boundary', () => {
     const source = readFileSync(resolve(process.cwd(), 'ops/mc-provisioner-daemon.js'), 'utf8')
     expect(source).toContain("case '/usr/sbin/useradd': return '/usr/sbin/useradd'")
     expect(source).toContain('const command = resolveAllowedCommand(requestedCommand)')
-    expect(source).toContain('runWithRetry(command, args, timeoutMs)')
-    expect(source).not.toContain('runWithRetry(requestedCommand, args, timeoutMs)')
+    expect(source).toContain('runWithRetry(command, args)')
+    expect(source).not.toContain('runWithRetry(requestedCommand, args)')
   })
 
   it('enforces socket, request, output, and connection limits', () => {
@@ -49,12 +43,11 @@ describe('privileged provisioner command boundary', () => {
 })
 
 describe('provisioner resource limits', () => {
-  it('clamps command timeouts to finite integer bounds', () => {
-    expect(normalizeTimeoutMs(Number.NaN)).toBe(DEFAULT_COMMAND_TIMEOUT_MS)
-    expect(normalizeTimeoutMs(Number.POSITIVE_INFINITY)).toBe(DEFAULT_COMMAND_TIMEOUT_MS)
-    expect(normalizeTimeoutMs(0)).toBe(MIN_COMMAND_TIMEOUT_MS)
-    expect(normalizeTimeoutMs(2500.9)).toBe(2500)
-    expect(normalizeTimeoutMs(MAX_COMMAND_TIMEOUT_MS + 1)).toBe(MAX_COMMAND_TIMEOUT_MS)
+  it('uses a fixed command deadline that clients cannot extend', () => {
+    const source = readFileSync(resolve(process.cwd(), 'ops/mc-provisioner-daemon.js'), 'utf8')
+    expect(COMMAND_TIMEOUT_MS).toBe(20000)
+    expect(source).toContain('}, COMMAND_TIMEOUT_MS)')
+    expect(source).not.toContain('req.timeoutMs')
   })
 
   it('bounds captured output by UTF-8 byte length', () => {

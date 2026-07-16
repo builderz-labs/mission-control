@@ -5,12 +5,12 @@ const net = require('net')
 const { execFileSync, spawn } = require('child_process')
 const path = require('path')
 const {
+  COMMAND_TIMEOUT_MS,
   IDLE_SOCKET_TIMEOUT_MS,
   MAX_CONNECTIONS,
   MAX_OUTPUT_BYTES,
   MAX_REQUEST_BYTES,
   appendBounded,
-  normalizeTimeoutMs,
 } = require('./provisioner-limits.cjs')
 
 const SOCKET_PATH = process.env.MC_PROVISIONER_SOCKET || '/run/mc-provisioner.sock'
@@ -166,7 +166,7 @@ function validateCommand(command, args) {
   return `Command not allowlisted: ${command}`
 }
 
-function run(command, args, timeoutMs) {
+function run(command, args) {
   return new Promise((resolve) => {
     const child = spawn(command, args, { shell: false })
     let stdout = ''
@@ -177,7 +177,7 @@ function run(command, args, timeoutMs) {
     const timer = setTimeout(() => {
       timedOut = true
       child.kill('SIGKILL')
-    }, normalizeTimeoutMs(timeoutMs))
+    }, COMMAND_TIMEOUT_MS)
 
     function captureOutput(target, chunk) {
       const result = appendBounded(target, chunk, MAX_OUTPUT_BYTES)
@@ -214,13 +214,13 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function runWithRetry(command, args, timeoutMs) {
+async function runWithRetry(command, args) {
   const cmd = String(command || '').split('/').pop()
   const maxAttempts = cmd === 'useradd' ? 6 : 1
   let last = null
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const result = await run(command, args, timeoutMs)
+    const result = await run(command, args)
     last = result
     if (result.ok) return result
 
@@ -295,8 +295,6 @@ const server = net.createServer((socket) => {
     const requestedCommand = String(req.command || '')
     const args = Array.isArray(req.args) ? req.args.map((a) => String(a)) : []
     const dryRun = !!req.dryRun
-    const timeoutMs = normalizeTimeoutMs(req.timeoutMs)
-
     const command = resolveAllowedCommand(requestedCommand)
     if (!command) {
       writeResp(socket, { ok: false, error: `Command not allowlisted: ${requestedCommand}` })
@@ -314,7 +312,7 @@ const server = net.createServer((socket) => {
       return
     }
 
-    const result = await runWithRetry(command, args, timeoutMs)
+    const result = await runWithRetry(command, args)
     if (!result.ok) {
       writeResp(socket, { ok: false, code: result.code, stdout: result.stdout, stderr: result.stderr, error: `Command failed: ${command}` })
       return
