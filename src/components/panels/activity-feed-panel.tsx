@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
+import { apiFetch } from '@/lib/api-client'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 
 interface Activity {
@@ -289,9 +290,7 @@ export function ActivityFeedPanel() {
   // ── Fetch sessions (for agent sidebar) ────────
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch('/api/sessions')
-      if (!res.ok) return
-      const data = await res.json()
+      const data = await apiFetch<{ sessions?: SessionInfo[] }>('/api/sessions')
       setSessions(data.sessions || [])
     } catch {
       /* silent */
