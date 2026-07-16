@@ -1,4 +1,5 @@
 import { APIRequestContext } from '@playwright/test'
+import { randomUUID } from 'node:crypto'
 
 export const API_KEY_HEADER: Record<string, string> = {
   'x-api-key': 'test-api-key-e2e-12345',
@@ -6,7 +7,7 @@ export const API_KEY_HEADER: Record<string, string> = {
 }
 
 function uid() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  return `${Date.now()}-${randomUUID().slice(0, 8)}`
 }
 
 // --- Task helpers ---
