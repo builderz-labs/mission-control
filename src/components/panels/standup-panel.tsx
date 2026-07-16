@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { createClientLogger } from '@/lib/client-logger'
+import { apiFetch } from '@/lib/api-client'
 
 const log = createClientLogger('StandupPanel')
 
@@ -91,10 +92,10 @@ interface StandupReport {
 }
 
 interface StandupHistory {
-  id: number
+  id: string
   date: string
   generatedAt: string
-  summary: any
+  summary: StandupReport['summary']
   agentCount: number
 }
 
@@ -113,15 +114,11 @@ export function StandupPanel() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/standup', {
+      const data = await apiFetch<{ standup: StandupReport }>('/api/standup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: date || selectedDate })
       })
 
-      if (!response.ok) throw new Error('Failed to generate standup')
-
-      const data = await response.json()
       setStandupReport(data.standup)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -133,10 +130,7 @@ export function StandupPanel() {
   // Fetch standup history
   const fetchHistory = async () => {
     try {
-      const response = await fetch('/api/standup/history')
-      if (!response.ok) throw new Error('Failed to fetch history')
-
-      const data = await response.json()
+      const data = await apiFetch<{ history?: StandupHistory[] }>('/api/standup')
       setStandupHistory(data.history || [])
     } catch (err) {
       log.error('Failed to fetch standup history:', err)
@@ -549,9 +543,9 @@ export function StandupPanel() {
                       <div className="text-right">
                         {history.summary && (
                           <div className="text-sm text-muted-foreground">
-                            <div>{t('historyCompleted', { count: history.summary.completed || 0 })}</div>
-                            <div>{t('historyInProgress', { count: history.summary.inProgress || 0 })}</div>
-                            <div>{t('historyBlocked', { count: history.summary.blocked || 0 })}</div>
+                            <div>{t('historyCompleted', { count: history.summary.totalCompleted || 0 })}</div>
+                            <div>{t('historyInProgress', { count: history.summary.totalInProgress || 0 })}</div>
+                            <div>{t('historyBlocked', { count: history.summary.totalBlocked || 0 })}</div>
                           </div>
                         )}
                       </div>
