@@ -731,6 +731,7 @@ export function useWebSocket() {
 
       ws.onclose = (event) => {
         log.info(`Disconnected from Gateway: ${event.code} ${event.reason}`)
+        const wasHandshakeComplete = handshakeCompleteRef.current
         setConnection({ isConnected: false })
         handshakeCompleteRef.current = false
         stopHeartbeat()
@@ -740,7 +741,11 @@ export function useWebSocket() {
 
         // If the initial handshake never completed and the URL is root-only,
         // try common reverse-proxy websocket paths before exponential backoff.
-        if (!handshakeCompleteRef.current) {
+        // Capture handshake state before clearing it; otherwise established
+        // tunnel connections that drop later are misclassified as initial
+        // handshake failures and reconnect to /gateway-ws or /gw instead of
+        // the last known-good URL.
+        if (!wasHandshakeComplete) {
           const fallback = buildGatewayPathFallbackUrls(normalizedUrl).find(
             (candidate) => !wsPathFallbackTriedRef.current.has(candidate),
           )
