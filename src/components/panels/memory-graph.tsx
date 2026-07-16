@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { GraphCanvas, GraphCanvasRef, type Theme, type GraphNode as ReagraphNode, type GraphEdge as ReagraphEdge, type InternalGraphNode } from 'reagraph'
 import { useMissionControl } from '@/store'
+import { apiFetch } from '@/lib/api-client'
 
 // --- Data interfaces (match API response) ---
 
@@ -125,12 +126,9 @@ export function MemoryGraph() {
     setIsLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/memory/graph?agent=all')
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || `HTTP ${res.status}`)
-      }
-      const data = await res.json()
+      const data = await apiFetch<{ agents?: AgentGraphData[] }>(
+        '/api/memory/graph?agent=all',
+      )
       setMemoryGraphAgents(data.agents || [])
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load')

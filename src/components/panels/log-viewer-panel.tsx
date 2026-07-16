@@ -4,9 +4,10 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
-import { useMissionControl } from '@/store'
+import { useMissionControl, type LogEntry } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
+import { apiFetch } from '@/lib/api-client'
 
 const log = createClientLogger('LogViewer')
 
@@ -76,8 +77,7 @@ export function LogViewerPanel() {
       })
 
       log.debug(`Fetching /api/logs?${params}`)
-      const response = await fetch(`/api/logs?${params}`)
-      const data = await response.json()
+      const data = await apiFetch<{ logs?: LogEntry[] }>(`/api/logs?${params}`)
 
       log.debug(`Received ${data.logs?.length || 0} logs from API`)
 
@@ -113,8 +113,7 @@ export function LogViewerPanel() {
 
   const loadSources = useCallback(async () => {
     try {
-      const response = await fetch('/api/logs?action=sources')
-      const data = await response.json()
+      const data = await apiFetch<{ sources?: string[] }>('/api/logs?action=sources')
       setAvailableSources(data.sources || [])
     } catch (error) {
       log.error('Failed to load log sources:', error)
@@ -124,8 +123,10 @@ export function LogViewerPanel() {
   // Try to fetch log file path from gateway status
   const loadLogFilePath = useCallback(async () => {
     try {
-      const response = await fetch('/api/status')
-      const data = await response.json()
+      const data = await apiFetch<{
+        config?: { logFile?: string }
+        logFile?: string
+      }>('/api/status')
       const path = data?.config?.logFile || data?.logFile || null
       setLogFilePath(path)
     } catch {
