@@ -43,15 +43,10 @@ export async function githubFetch(
     throw new Error('GITHUB_TOKEN not configured')
   }
 
-  const url = new URL(path, 'https://api.github.com/')
-  if (
-    url.protocol !== 'https:' ||
-    url.origin !== 'https://api.github.com' ||
-    url.username ||
-    url.password
-  ) {
-    throw new Error('GitHub API requests must target https://api.github.com')
+  if (!/^\/(?!\/)[^\u0000-\u001F\u007F\\]*$/.test(path)) {
+    throw new Error('GitHub API requests must use a safe relative path')
   }
+  const url = `https://api.github.com${path}`
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
@@ -68,7 +63,7 @@ export async function githubFetch(
   const timeout = setTimeout(() => controller.abort(), 15000)
 
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
       ...options,
       headers,
       signal: controller.signal,

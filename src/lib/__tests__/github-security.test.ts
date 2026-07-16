@@ -16,24 +16,23 @@ describe('githubFetch security boundary', () => {
     '//example.com/repos/owner/repo',
     'http://api.github.com/repos/owner/repo',
     'https://user:pass@api.github.com/repos/owner/repo',
+    '/\\example.com/repos/owner/repo',
+    '/repos/owner/repo\nHost: example.com',
   ])('rejects authenticated requests outside the GitHub API origin: %s', async (target) => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
 
     await expect(githubFetch(target)).rejects.toThrow(
-      'GitHub API requests must target https://api.github.com'
+      'GitHub API requests must use a safe relative path'
     )
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['/repos/owner/repo', 'https://api.github.com/repos/owner/repo'],
-    ['https://api.github.com/user', 'https://api.github.com/user'],
-  ])('allows GitHub API target %s', async (target, expectedUrl) => {
+  it('allows a relative GitHub API path', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
 
-    await expect(githubFetch(target)).resolves.toBeInstanceOf(Response)
+    await expect(githubFetch('/repos/owner/repo?state=open')).resolves.toBeInstanceOf(Response)
     expect(fetchMock).toHaveBeenCalledWith(
-      expectedUrl,
+      'https://api.github.com/repos/owner/repo?state=open',
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
       })
