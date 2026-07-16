@@ -8,11 +8,11 @@ describe('Docker publication workflow contracts', () => {
     'utf8',
   )
 
-  it('cancels superseded publications without sharing branch and tag groups', () => {
-    expect(source).toContain(
-      "group: docker-publish-${{ github.event_name == 'workflow_run' && format('branch-{0}', github.event.workflow_run.head_branch) || format('{0}-{1}', github.ref_type, github.ref_name) }}",
-    )
+  it('publishes only direct protected refs and isolates their concurrency', () => {
+    expect(source).toContain('group: docker-publish-${{ github.ref }}')
     expect(source).toContain('cancel-in-progress: true')
     expect(source).not.toContain('cancel-in-progress: false')
+    expect(source).not.toContain('workflow_run:')
+    expect(source).not.toContain('github.event.workflow_run')
   })
 })

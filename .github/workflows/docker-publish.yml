@@ -1,17 +1,15 @@
 name: Docker Publish
 
 on:
-  workflow_run:
-    workflows: ['Quality Gate']
-    branches: [main]
-    types: [completed]
   push:
+    branches:
+      - main
     tags:
       - 'v*.*.*'
   workflow_dispatch:
 
 concurrency:
-  group: docker-publish-${{ github.event_name == 'workflow_run' && format('branch-{0}', github.event.workflow_run.head_branch) || format('{0}-{1}', github.ref_type, github.ref_name) }}
+  group: docker-publish-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -25,22 +23,10 @@ env:
 
 jobs:
   publish:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository
-      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0

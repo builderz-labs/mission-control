@@ -38,9 +38,22 @@ function isSafeHomePath(path, user, suffix) {
   return path === pathJoinPosix(TENANT_HOME_ROOT, user, suffix)
 }
 
+function resolveAllowedCommand(command) {
+  switch (command) {
+    case '/usr/sbin/useradd': return '/usr/sbin/useradd'
+    case '/usr/bin/install': return '/usr/bin/install'
+    case '/usr/bin/cp': return '/usr/bin/cp'
+    case '/usr/bin/chown': return '/usr/bin/chown'
+    case '/usr/bin/rm': return '/usr/bin/rm'
+    case '/usr/sbin/userdel': return '/usr/sbin/userdel'
+    case '/usr/bin/systemctl': return '/usr/bin/systemctl'
+    default: return null
+  }
+}
+
 function validateCommand(command, args) {
-  const cmd = String(command || '').split('/').pop()
   if (!command || !Array.isArray(args)) return 'Invalid command payload'
+  const cmd = path.posix.basename(command)
 
   if (cmd === 'useradd') {
     if (args.length !== 4) return 'useradd argument mismatch'
@@ -126,11 +139,6 @@ function validateCommand(command, args) {
     if (args.length !== 2) return 'userdel argument mismatch'
     if (args[0] !== '-r') return 'userdel must use -r'
     if (!isSafeUser(args[1])) return 'Invalid username'
-    return null
-  }
-
-  if (cmd === 'true') {
-    if (args.length !== 0) return 'true takes no args'
     return null
   }
 
@@ -252,10 +260,16 @@ const server = net.createServer((socket) => {
       return
     }
 
-    const command = String(req.command || '')
+    const requestedCommand = String(req.command || '')
     const args = Array.isArray(req.args) ? req.args.map((a) => String(a)) : []
     const dryRun = !!req.dryRun
     const timeoutMs = Number(req.timeoutMs || 10000)
+
+    const command = resolveAllowedCommand(requestedCommand)
+    if (!command) {
+      writeResp(socket, { ok: false, error: `Command not allowlisted: ${requestedCommand}` })
+      return
+    }
 
     const validationErr = validateCommand(command, args)
     if (validationErr) {
