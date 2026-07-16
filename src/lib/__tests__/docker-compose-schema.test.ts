@@ -30,6 +30,14 @@ describe('docker-compose.yml schema', () => {
 describe('Dockerfile runtime stage', () => {
   const content = readFileSync(resolve(ROOT, 'Dockerfile'), 'utf-8')
 
+  it('copies the pnpm workspace manifest before the frozen dependency install', () => {
+    const workspaceCopy = content.indexOf('COPY pnpm-workspace.yaml ./')
+    const frozenInstall = content.indexOf('pnpm install --frozen-lockfile')
+
+    expect(workspaceCopy).toBeGreaterThan(-1)
+    expect(frozenInstall).toBeGreaterThan(workspaceCopy)
+  })
+
   it('copies public directory to runtime stage', () => {
     expect(content).toContain('COPY --from=build /app/public ./public')
   })
