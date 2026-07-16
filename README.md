@@ -209,6 +209,7 @@ agent, task, and system events for operator review.
 | [CLI integration](docs/cli-integration.md) | Claude Code, Codex, and gateway-free connections |
 | [Deployment](docs/deployment.md) | Local, Docker, standalone, reverse proxy, and VPS setup |
 | [Security hardening](docs/SECURITY-HARDENING.md) | Network, container, CSP, and secret controls |
+| [Support](SUPPORT.md) | Questions, bugs, feature proposals, and security-report routing |
 | [OpenClaw compatibility](docs/openclaw-config-compatibility.md) | Config and state-directory behavior |
 | [Release process](RELEASE.md) | Versioning, tags, images, and release checks |
 
