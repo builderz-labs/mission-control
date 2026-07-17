@@ -80,7 +80,13 @@ echo ""
 # 1. .env file permissions
 echo "--- File Permissions ---"
 if [[ -f "$ENV_FILE" ]]; then
-  perms=$(stat -f '%A' "$ENV_FILE" 2>/dev/null || stat -c '%a' "$ENV_FILE" 2>/dev/null)
+  if perms=$(stat -c '%a' -- "$ENV_FILE" 2>/dev/null); then
+    : # GNU stat
+  elif perms=$(stat -f '%Lp' "$ENV_FILE" 2>/dev/null); then
+    : # BSD stat
+  else
+    perms="unknown"
+  fi
   if [[ "$perms" == "600" ]]; then
     pass ".env permissions are 600 (owner read/write only)"
   else
