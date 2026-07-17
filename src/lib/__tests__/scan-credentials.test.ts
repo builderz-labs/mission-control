@@ -69,7 +69,10 @@ describe('scanForSecrets', () => {
   })
 
   it('detects mongodb+srv connection strings', () => {
-    const hits = scanForSecrets('mongodb+srv://admin:pw123@cluster0.mongodb.net/db')
+    // Construct the synthetic fixture at runtime so repository secret scanners do not
+    // mistake this regression case for a live credential.
+    const fixture = ['mongodb+srv://admin', 'pw123@cluster0.mongodb.net/db'].join(':')
+    const hits = scanForSecrets(fixture)
     expect(hits.some(h => h.type === 'db_connection_string')).toBe(true)
   })
 
