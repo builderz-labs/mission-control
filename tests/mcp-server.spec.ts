@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test'
 import { execFile, spawn } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { promisify } from 'node:util'
 import path from 'node:path'
 import { createTestAgent, deleteTestAgent, createTestTask, deleteTestTask } from './helpers'
 
 const MCP = path.resolve('scripts/mc-mcp-server.cjs')
+const PACKAGE_VERSION = JSON.parse(readFileSync(path.resolve('package.json'), 'utf8')).version
 const BASE_URL = process.env.E2E_BASE_URL || 'http://127.0.0.1:3005'
 const API_KEY = 'test-api-key-e2e-12345'
 
@@ -78,6 +80,7 @@ test.describe('MCP Server Integration', () => {
     ])
     expect(responses).toHaveLength(1)
     expect(responses[0].result.serverInfo.name).toBe('mission-control')
+    expect(responses[0].result.serverInfo.version).toBe(PACKAGE_VERSION)
     expect(responses[0].result.capabilities.tools).toBeDefined()
   })
 
