@@ -276,6 +276,7 @@ the project does not promise dates for unassigned work.
 - Bugs and feature proposals: [GitHub Issues](https://github.com/builderz-labs/mission-control/issues)
 - Vulnerabilities: [private reporting instructions](SECURITY.md)
 - Builderz Labs: [builderz.dev](https://builderz.dev)
+- Maintained by [Nyk](https://nyk.dev). [Sponsor ongoing development](https://github.com/sponsors/0xNyk) or follow [@nykdotdev](https://x.com/nykdotdev).
 
 <p align="center">
   <picture>
