@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Mission Control Security Audit
-# Run: bash scripts/security-audit.sh [--env-file .env]
+# Run: bash scripts/security-audit.sh [--env-file .env] [--strict]
 
 set -euo pipefail
 
@@ -8,18 +8,69 @@ SCORE=0
 MAX_SCORE=0
 ISSUES=()
 
-pass() { echo "  [PASS] $1"; ((SCORE++)); ((MAX_SCORE++)); }
-fail() { echo "  [FAIL] $1"; ISSUES+=("$1"); ((MAX_SCORE++)); }
-warn() { echo "  [WARN] $1"; ((MAX_SCORE++)); }
+pass() { echo "  [PASS] $1"; ((++SCORE)); ((++MAX_SCORE)); }
+fail() { echo "  [FAIL] $1"; ISSUES+=("$1"); ((++MAX_SCORE)); }
+warn() { echo "  [WARN] $1"; ((++MAX_SCORE)); }
 info() { echo "  [INFO] $1"; }
 
-# Load .env if exists
-ENV_FILE="${1:-.env}"
+# Parse only the settings this audit reads. Never source an env file or import
+# arbitrary names: values such as PATH, BASH_ENV, or command hooks must not be
+# able to change how the audit itself executes.
+ENV_FILE=".env"
+STRICT=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      [[ $# -ge 2 ]] || { echo "Missing value for --env-file" >&2; exit 2; }
+      ENV_FILE="$2"
+      shift 2
+      ;;
+    --strict)
+      STRICT=1
+      shift
+      ;;
+    --help|-h)
+      echo "Usage: bash scripts/security-audit.sh [--env-file FILE] [--strict]"
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+trim_env_value() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  if [[ ${#value} -ge 2 ]]; then
+    if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]] ||
+       [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+  fi
+  printf '%s' "$value"
+}
+
 if [[ -f "$ENV_FILE" ]]; then
-  while IFS='=' read -r key value; do
-    [[ "$key" =~ ^#.*$ ]] && continue
-    [[ -z "$key" ]] && continue
-    declare "$key=$value" 2>/dev/null || true
+  while IFS='=' read -r raw_key raw_value || [[ -n "$raw_key$raw_value" ]]; do
+    raw_key="${raw_key%$'\r'}"
+    raw_value="${raw_value%$'\r'}"
+    key="${raw_key#"${raw_key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    value="$(trim_env_value "$raw_value")"
+    case "$key" in
+      AUTH_PASS) AUTH_PASS="$value" ;;
+      API_KEY) API_KEY="$value" ;;
+      MC_ALLOWED_HOSTS) MC_ALLOWED_HOSTS="$value" ;;
+      MC_ALLOW_ANY_HOST) MC_ALLOW_ANY_HOST="$value" ;;
+      MC_COOKIE_SECURE) MC_COOKIE_SECURE="$value" ;;
+      MC_COOKIE_SAMESITE) MC_COOKIE_SAMESITE="$value" ;;
+      MC_ENABLE_HSTS) MC_ENABLE_HSTS="$value" ;;
+      MC_DISABLE_RATE_LIMIT) MC_DISABLE_RATE_LIMIT="$value" ;;
+    esac
   done < "$ENV_FILE"
 fi
 
@@ -165,4 +216,8 @@ elif [[ $SCORE -ge $((MAX_SCORE * 7 / 10)) ]]; then
   echo "Good security posture with minor improvements needed."
 else
   echo "Security improvements recommended before production use."
+fi
+
+if [[ "$STRICT" == "1" && ${#ISSUES[@]} -gt 0 ]]; then
+  exit 1
 fi
