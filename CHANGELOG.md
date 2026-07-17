@@ -6,6 +6,10 @@ All notable changes to Mission Control are documented in this file.
 
 ## [Unreleased]
 
+### Security
+- Removed operational screenshots from the public tree, replaced README imagery with
+  sanitized conceptual assets, and documented a synthetic-data-only screenshot process.
+
 ---
 
 ## [2.2.0] - 2026-07-17

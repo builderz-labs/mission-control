@@ -11,7 +11,7 @@ from one local dashboard backed by SQLite.
 [![Release](https://img.shields.io/github/v/release/builderz-labs/mission-control)](https://github.com/builderz-labs/mission-control/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![Mission Control dashboard](docs/mission-control-overview.png)
+![Mission Control architecture blueprint](docs/mission-control-blueprint.png)
 
 </div>
 
@@ -172,14 +172,10 @@ the interactive reference at `/docs` and the OpenAPI JSON at `/api/docs`.
 The task board tracks work through inbox, assignment, execution, review, quality review,
 and completion. Aegis review requires an approval record before a task reaches done.
 
-![Mission Control task board](docs/mission-control-tasks.png)
-
 ### Agents and runtimes
 
 Agent views combine registration state, heartbeats, sessions, configuration, local runtime
 discovery, and workspace files.
-
-![Mission Control agents panel](docs/mission-control-agents.png)
 
 ### Memory and skills
 
@@ -187,16 +183,10 @@ The memory browser and relationship graph inspect filesystem-backed memory and l
 session knowledge. The Skills Hub discovers local skill roots and scans registry content
 before installation.
 
-![Mission Control memory graph](docs/mission-control-memory-graph.png)
-
 ### Schedules and activity
 
 Recurring task templates create dated work on a cron schedule. The activity stream combines
 agent, task, and system events for operator review.
-
-![Mission Control recurring tasks](docs/mission-control-cron.png)
-
-![Mission Control activity stream](docs/mission-control-activity.png)
 
 ## Documentation
 

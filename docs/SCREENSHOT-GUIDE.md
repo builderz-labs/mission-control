@@ -1,14 +1,12 @@
 # Screenshot Guide
 
-This document explains how to capture and update the README screenshots so they stay in sync with the UI.
+This document explains how to capture and review public screenshots without publishing
+operator data. Treat every screenshot as a public release artifact.
 
 ## Screenshots in the README
 
-| File | Section | Description |
-|------|---------|-------------|
-| `docs/mission-control-overview.png` | Dashboard Overview | Main dashboard view |
-| `docs/mission-control-agents.png` | Agents Panel | Active agents list |
-| `docs/mission-control-memory-graph.png` | Memory Graph | Agent memory graph |
+The README uses conceptual artwork by default. Product screenshots may be added only when
+they come from a disposable demo instance and pass the privacy review below.
 
 ## When to Refresh
 
@@ -23,12 +21,12 @@ Screenshots should be updated when:
 
 ### Prerequisites
 
-- Mission Control running locally (`pnpm dev` or Docker)
+- Mission Control running against a new disposable database (`pnpm dev` or Docker)
 - Browser with at least 1440×900 viewport recommended
 
 ### Steps
 
-1. **Start the app** (with some sample data for a realistic view):
+1. **Start a disposable demo instance.** Never capture an operator or production database.
 
    ```bash
    pnpm dev
@@ -36,19 +34,15 @@ Screenshots should be updated when:
    docker compose up
    ```
 
-2. **Seed sample data** (optional but recommended for non-empty screenshots):
+2. **Seed synthetic data only.** Use fictional names and values that cannot be mistaken for
+   production claims.
 
-   ```bash
-   pnpm seed   # if a seed script exists, otherwise populate via UI
-   ```
+   Populate the demo through the UI or a reviewed fixture script. Do not copy an existing
+   database into the demo environment.
 
-3. **Navigate to each page** and take a screenshot:
-
-   | Screenshot | URL | Notes |
-   |-----------|-----|-------|
-   | `mission-control-overview.png` | `/` | Main dashboard, full page |
-   | `mission-control-agents.png` | `/agents` | Agents panel open |
-   | `mission-control-memory-graph.png` | `/memory` | Memory graph with nodes |
+3. **Before capture, remove private state.** The frame must contain no real names, handles,
+   email addresses, IDs, tokens, hostnames, paths, workspace names, sessions, logs, costs,
+   alerts, timestamps, avatars, notifications, or browser profile chrome.
 
 4. **Crop and optimise** to reduce file size:
 
@@ -62,10 +56,11 @@ Screenshots should be updated when:
    pngquant --quality=80-95 --output output.png input.png
    ```
 
-5. **Replace the files** under `docs/` and commit:
+5. **Review the final pixels at full resolution.** A second reviewer should inspect every
+   visible label and value. Strip image metadata, then add the approved file under `docs/`.
 
    ```bash
-   cp ~/Downloads/dashboard.png docs/mission-control-overview.png
+   cp ~/Downloads/sanitized-demo.png docs/mission-control-demo.png
    git add docs/
    git commit -m "docs: refresh README screenshots"
    ```
@@ -83,6 +78,8 @@ This does **not** auto-capture screenshots — it just flags the PR so a human c
 ## Tips
 
 - Use a consistent browser zoom level (100%) and window size
-- Hide bookmarks bar and dev tools before capturing
+- Use a clean browser profile and hide bookmarks, extensions, account controls, and dev tools
 - Light mode and dark mode screenshots can coexist — add a `*-dark.png` variant if useful
 - Prefer PNG for UI screenshots (lossless); JPEG for photos/illustrations
+- Do not blur or crop private data as the primary safeguard; regenerate the screenshot from
+  synthetic state instead
