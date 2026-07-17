@@ -61,6 +61,7 @@ describe('Docker build context', () => {
   it('includes scripts required by the package build command', () => {
     expect(content).toContain('!scripts/check-node-version.mjs')
     expect(content).toContain('!scripts/prepare-standalone-artifact.mjs')
+    expect(content).toContain('!scripts/load-env.sh')
   })
 
   it('includes only the operations template required by the runtime artifact', () => {

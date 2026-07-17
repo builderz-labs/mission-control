@@ -12,3 +12,4 @@ ops/templates/*
 scripts/*
 !scripts/check-node-version.mjs
 !scripts/prepare-standalone-artifact.mjs
+!scripts/load-env.sh
