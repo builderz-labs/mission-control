@@ -45,6 +45,9 @@ jobs:
       - name: API contract parity
         run: pnpm api:parity
 
+      - name: Security audit command tests
+        run: pnpm test:security-audit
+
       - name: Lint
         run: pnpm lint
 
