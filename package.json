@@ -20,6 +20,7 @@
     "typecheck": "pnpm run verify:node && tsc --noEmit",
     "test": "pnpm run verify:node && vitest run",
     "test:security-audit": "bash scripts/security-audit.test.sh",
+    "test:security-shell": "bash scripts/security-audit.test.sh && bash scripts/load-env.test.sh",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "pnpm run verify:node && playwright test",

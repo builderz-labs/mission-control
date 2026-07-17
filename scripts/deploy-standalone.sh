@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+. "$PROJECT_ROOT/scripts/load-env.sh"
 
 BRANCH="${BRANCH:-$(git -C "$PROJECT_ROOT" branch --show-current)}"
 PORT="${PORT:-3000}"
@@ -128,16 +129,12 @@ stop_existing_server() {
 }
 
 load_env() {
-  set -a
   if [[ -f .env ]]; then
-    # shellcheck disable=SC1091
-    source .env
+    load_env_file .env
   fi
   if [[ -f .env.local ]]; then
-    # shellcheck disable=SC1091
-    source .env.local
+    load_env_file .env.local
   fi
-  set +a
 }
 
 migrate_runtime_data_dir() {

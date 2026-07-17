@@ -46,7 +46,7 @@ jobs:
         run: pnpm api:parity
 
       - name: Security audit command tests
-        run: pnpm test:security-audit
+        run: pnpm test:security-shell
 
       - name: Lint
         run: pnpm lint

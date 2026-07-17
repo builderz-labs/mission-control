@@ -1,12 +1,12 @@
 #!/bin/sh
 set -e
 
-# --- Source .env if present ---
+. /app/scripts/load-env.sh
+
+# --- Load .env as literal configuration if present ---
 if [ -f /app/.env ]; then
   printf '[entrypoint] Loading .env\n'
-  set -a
-  . /app/.env
-  set +a
+  load_env_file /app/.env
 fi
 
 # --- Helper: generate a random hex secret ---
@@ -28,9 +28,7 @@ fi
 # Load previously generated secrets if they exist
 if [ -f "$SECRETS_FILE" ]; then
   printf '[entrypoint] Loading persisted secrets from .data\n'
-  set -a
-  . "$SECRETS_FILE"
-  set +a
+  load_env_file "$SECRETS_FILE"
 fi
 
 # --- AUTH_SECRET ---

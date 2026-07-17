@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+. "$PROJECT_ROOT/scripts/load-env.sh"
 STANDALONE_DIR="$PROJECT_ROOT/.next/standalone"
 STANDALONE_NEXT_DIR="$STANDALONE_DIR/.next"
 STANDALONE_STATIC_DIR="$STANDALONE_NEXT_DIR/static"
@@ -31,13 +32,11 @@ fi
 
 cd "$STANDALONE_DIR"
 
-# Source .env if it exists (consistent with Docker entrypoint behavior)
+# Load .env as literal configuration if it exists (consistent with Docker).
 # NEXT_PUBLIC_* vars are already baked into the bundle at build time,
 # but server-side vars (AUTH_*, OPENCLAW_*, etc.) need this to take effect.
 if [[ -f "$PROJECT_ROOT/.env" ]]; then
-  set -a
-  . "$PROJECT_ROOT/.env"
-  set +a
+  load_env_file "$PROJECT_ROOT/.env"
 fi
 
 export MISSION_CONTROL_DATA_DIR="${MISSION_CONTROL_DATA_DIR:-$PROJECT_ROOT/.data}"
