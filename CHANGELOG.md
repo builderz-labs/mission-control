@@ -7,8 +7,8 @@ All notable changes to Mission Control are documented in this file.
 ## [Unreleased]
 
 ### Security
-- Removed operational screenshots from the public tree, replaced README imagery with
-  sanitized conceptual assets, and documented a synthetic-data-only screenshot process.
+- Removed operational screenshots from the public tree, retained only privacy-reviewed
+  documentation artwork, and documented a synthetic-data-only screenshot process.
 
 ---
 

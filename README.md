@@ -11,8 +11,6 @@ from one local dashboard backed by SQLite.
 [![Release](https://img.shields.io/github/v/release/builderz-labs/mission-control)](https://github.com/builderz-labs/mission-control/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![Mission Control architecture blueprint](docs/mission-control-blueprint.png)
-
 </div>
 
 > [!WARNING]
