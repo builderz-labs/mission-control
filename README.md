@@ -11,6 +11,8 @@ from one local dashboard backed by SQLite.
 [![Release](https://img.shields.io/github/v/release/builderz-labs/mission-control)](https://github.com/builderz-labs/mission-control/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+<img src="docs/mission-control-overview.png" alt="Mission Control overview dashboard with active sessions, live activity, fleet status per runtime, and the task pipeline" width="900">
+
 </div>
 
 > [!WARNING]
@@ -67,6 +69,8 @@ gateway connectivity, and standalone builds.
 The control plane sits above agent runtimes. It does not replace their reasoning or tool
 loops. It gives operators one place to see and govern the work around those loops.
 
+![One control loop, four surfaces: Web UI, CLI, MCP, and REST enter through an auth gate into auth, dispatch, events, policy, and receipts, backed by SQLite and agent runtimes with operator review](docs/mission-control-blueprint.webp)
+
 | Area | Shipped surface |
 |---|---|
 | Tasks | Inbox, assignment, execution, review, Aegis quality gate, and completion receipts |
@@ -88,7 +92,7 @@ Dashboards compress a sequence into current state. When a run needs review, reco
 identity, task, tool call, approval, result, and verification evidence before changing it.
 Keep unresolved items distinct from accepted risk.
 
-![Mission Control operator field notes](docs/operator-field-notes.png)
+![Mission Control operator field notes](docs/operator-field-notes.webp)
 
 Logs show what ran. A completion receipt or inspected artifact shows what finished.
 
@@ -170,10 +174,14 @@ the interactive reference at `/docs` and the OpenAPI JSON at `/api/docs`.
 The task board tracks work through inbox, assignment, execution, review, quality review,
 and completion. Aegis review requires an approval record before a task reaches done.
 
+![Mission Control task board with assigned, in-progress, and review columns of agent tasks](docs/mission-control-tasks.png)
+
 ### Agents and runtimes
 
 Agent views combine registration state, heartbeats, sessions, configuration, local runtime
 discovery, and workspace files.
+
+![Mission Control agents panel showing a five-agent squad with roles, heartbeats, and workspace conventions](docs/mission-control-agents.png)
 
 ### Memory and skills
 
@@ -181,10 +189,16 @@ The memory browser and relationship graph inspect filesystem-backed memory and l
 session knowledge. The Skills Hub discovers local skill roots and scans registry content
 before installation.
 
+![Mission Control memory browser rendering a markdown agent note with wiki-style links between memory files](docs/mission-control-memory.png)
+
 ### Schedules and activity
 
 Recurring task templates create dated work on a cron schedule. The activity stream combines
 agent, task, and system events for operator review.
+
+![Mission Control cron management calendar with scheduled jobs across the week](docs/mission-control-cron.png)
+
+![Mission Control activity stream with per-agent status and heartbeat events](docs/mission-control-activity.png)
 
 ## Documentation
 

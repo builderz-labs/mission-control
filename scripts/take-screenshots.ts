@@ -1,10 +1,10 @@
 import { chromium } from '@playwright/test';
 import path from 'path';
 
-const BASE_URL = 'http://localhost:3100';
-const USERNAME = 'admin';
-const PASSWORD = 'mc-screenshots-2026';
-const OUTPUT_DIR = path.join(__dirname, '..', 'docs');
+const BASE_URL = process.env.MC_SCREENSHOT_URL || 'http://localhost:3100';
+const USERNAME = process.env.MC_SCREENSHOT_USER || 'admin';
+const PASSWORD = process.env.MC_SCREENSHOT_PASS || 'mc-screenshots-2026';
+const OUTPUT_DIR = process.env.MC_SCREENSHOT_OUT || path.join(__dirname, '..', 'docs');
 
 const PANELS: [string, string][] = [
   ['Overview', 'mission-control-overview'],
