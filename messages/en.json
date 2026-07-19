@@ -860,6 +860,7 @@
     "today": "Today",
     "next": "Next",
     "calMode_agenda": "Agenda",
+    "calMode_day": "Day",
     "calMode_week": "Week",
     "calMode_month": "Month",
     "searchPlaceholder": "Search jobs...",

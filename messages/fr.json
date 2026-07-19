@@ -856,6 +856,7 @@
     "today": "Aujourd'hui",
     "next": "Suivant",
     "calMode_agenda": "Agenda",
+    "calMode_day": "Jour",
     "calMode_week": "Semaine",
     "calMode_month": "Mois",
     "searchPlaceholder": "Rechercher des tâches...",

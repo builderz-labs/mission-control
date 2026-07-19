@@ -856,6 +856,7 @@
     "today": "Hoje",
     "next": "Próximo",
     "calMode_agenda": "Agenda",
+    "calMode_day": "Dia",
     "calMode_week": "Semana",
     "calMode_month": "Mês",
     "searchPlaceholder": "Pesquisar jobs...",
