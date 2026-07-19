@@ -69,8 +69,6 @@ gateway connectivity, and standalone builds.
 The control plane sits above agent runtimes. It does not replace their reasoning or tool
 loops. It gives operators one place to see and govern the work around those loops.
 
-![One control loop, four surfaces: Web UI, CLI, MCP, and REST enter through an auth gate into auth, dispatch, events, policy, and receipts, backed by SQLite and agent runtimes with operator review](docs/mission-control-blueprint.webp)
-
 | Area | Shipped surface |
 |---|---|
 | Tasks | Inbox, assignment, execution, review, Aegis quality gate, and completion receipts |
