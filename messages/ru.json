@@ -856,6 +856,7 @@
     "today": "Сегодня",
     "next": "Вперёд",
     "calMode_agenda": "Повестка",
+    "calMode_day": "День",
     "calMode_week": "Неделя",
     "calMode_month": "Месяц",
     "searchPlaceholder": "Поиск заданий...",
