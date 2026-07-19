@@ -518,12 +518,39 @@ const DETECTORS: Record<RuntimeId, () => RuntimeStatus> = {
   opencode: detectOpenCode,
 }
 
+/**
+ * MC_DISABLE_RUNTIME_SCAN=1 skips executing local binaries for version and
+ * auth probes. Use it for demo instances, screenshots, and CI, or wherever
+ * the dashboard should not read tool versions off the host machine.
+ */
+function runtimeScanDisabled(): boolean {
+  const raw = (process.env.MC_DISABLE_RUNTIME_SCAN || '').trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
+function undetectedStub(id: RuntimeId): RuntimeStatus {
+  const meta = RUNTIME_META[id]
+  return {
+    id,
+    name: meta?.name || id,
+    description: meta?.description || '',
+    installed: false,
+    version: null,
+    running: false,
+    authRequired: meta?.authRequired ?? false,
+    authHint: meta?.authHint || '',
+    authenticated: false,
+  }
+}
+
 export function detectRuntime(id: RuntimeId): RuntimeStatus {
+  if (runtimeScanDisabled()) return undetectedStub(id)
   const detector = DETECTORS[id]
   return detector ? detector() : { id, name: id, description: '', installed: false, version: null, running: false, authRequired: false, authHint: '', authenticated: false }
 }
 
 export function detectAllRuntimes(): RuntimeStatus[] {
+  if (runtimeScanDisabled()) return (Object.keys(DETECTORS) as RuntimeId[]).map(undetectedStub)
   return Object.values(DETECTORS).map(fn => fn())
 }
 
