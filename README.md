@@ -7,6 +7,9 @@ Self-hosted control plane for operating AI agents.
 Dispatch tasks, inspect runs, review failures, track spend, and coordinate agent runtimes
 from one local dashboard backed by SQLite.
 
+An open-source project by [Builderz Labs](https://builderz.dev), created and maintained by [nyk](https://nyk.dev).
+It works with OpenClaw, Claude Code, Codex, and other runtimes - it is not part of any one of them.
+
 [![Quality Gate](https://github.com/builderz-labs/mission-control/actions/workflows/quality-gate.yml/badge.svg)](https://github.com/builderz-labs/mission-control/actions/workflows/quality-gate.yml)
 [![Release](https://img.shields.io/github/v/release/builderz-labs/mission-control)](https://github.com/builderz-labs/mission-control/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
