@@ -15,7 +15,9 @@ vi.mock('@/lib/config', () => ({
 }))
 
 vi.mock('better-sqlite3', () => ({
-  default: vi.fn((dbPath?: string) => ({
+  // vitest 4: mocks invoked with `new` need a constructible (non-arrow) implementation
+  default: vi.fn(function (dbPath?: string) {
+    return {
     prepare: (query: string) => ({
       get: (...args: any[]) => {
         const name = dbPath ? String(dbPath).split('/').pop() || '' : ''
@@ -42,7 +44,8 @@ vi.mock('better-sqlite3', () => ({
       },
     }),
     close: vi.fn(),
-  })),
+    }
+  }),
 }))
 
 describe('scanOpenCodeSessions', () => {

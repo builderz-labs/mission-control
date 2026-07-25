@@ -21,7 +21,9 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 vi.mock('better-sqlite3', () => ({
-  default: vi.fn((dbPath?: string) => ({
+  // vitest 4: mocks invoked with `new` need a constructible (non-arrow) implementation
+  default: vi.fn(function (dbPath?: string) {
+    return {
     prepare: (query: string) => ({
       get: (...args: any[]) => {
         if (query.includes('sqlite_master') && args[0] === 'message') return { name: 'message' }
@@ -36,7 +38,8 @@ vi.mock('better-sqlite3', () => ({
       },
     }),
     close: vi.fn(),
-  })),
+    }
+  }),
 }))
 
 describe('OpenCode transcript helper', () => {
