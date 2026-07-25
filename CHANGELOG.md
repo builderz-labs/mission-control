@@ -6,9 +6,46 @@ All notable changes to Mission Control are documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [2.3.0] - 2026-07-25
+
+This release patches 13 known dependency vulnerabilities (8 high severity), refreshes the test toolchain to current majors, and closes a locale-integrity gap. Self-hosted operators should upgrade promptly for the dependency fixes.
+
 ### Security
+- Patched 13 OSV advisories across the dependency tree (#904):
+  - `next` 16.2.10 → 16.2.11 — 9 advisories including SSRF in Server Actions
+    (GHSA-89xv-2m56-2m9x, GHSA-p9j2-gv94-2wf4), middleware/proxy bypass
+    (GHSA-6gpp-xcg3-4w24), response cache confusion, and denial of service.
+  - `sharp` 0.34.5 → 0.35.3 via bounded workspace override (GHSA-f88m-g3jw-g9cj,
+    inherited libvips CVEs) — next still pins the vulnerable range.
+  - `brace-expansion` DoS on all three resolved major lines
+    (GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg), each dependent kept on its
+    expected API line via per-major bounded overrides.
+  - Transitive `postcss` forced to ≥8.5.18 (GHSA-r28c-9q8g-f849).
+  Release-age exclusions for the fresh fixes are documented in
+  `pnpm-workspace.yaml` and age out naturally.
 - Removed operational screenshots from the public tree, retained only privacy-reviewed
-  documentation artwork, and documented a synthetic-data-only screenshot process.
+  documentation artwork, and documented a synthetic-data-only screenshot process (#892).
+
+### Added
+- `MC_DISABLE_RUNTIME_SCAN` environment flag to skip local CLI probing during
+  runtime detection — for hosts where probing is slow, noisy, or undesirable (#895).
+
+### Fixed
+- Locale integrity: restored 4 `taskBoard` keys missing from all 9 non-English
+  locales and added a parity guard test, so locale drift now fails the quality
+  gate instead of shipping (#907); added the missing `calMode_day` translation (#894).
+- README imagery restored with sanitized demo screenshots; removed the
+  single-tenant blueprint embed (#893, #896).
+
+### Changed
+- Test toolchain migrated to vite 8 / vitest 4 / @vitejs/plugin-react 6 (#908).
+  Test infrastructure only — production builds remain webpack. Includes the
+  vitest 4 mock-constructor migration for the affected test files.
+- Routine grouped dependency updates (#897, #899, #905, #906).
+- Documented project attribution (Builderz Labs / nyk) and runtime independence;
+  added maintainer sponsorship links.
 
 ---
 
