@@ -8,9 +8,17 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 minimumReleaseAge: 10080
-minimumReleaseAgeExclude: []
+# Security hotfixes younger than the 7-day gate; remove entries once they age out.
+minimumReleaseAgeExclude:
+  - next@16.2.11 # 9 advisories incl. SSRF + middleware bypass (published 2026-07-21)
+  - '@next/*' # env/swc/eslint siblings; versions are exact-pinned by next itself
+  - brace-expansion@5.0.8 # GHSA-mh99-v99m-4gvg DoS (published 2026-07-23)
 
 overrides:
-  postcss@8: '>=8.5.10'
+  postcss@8: '>=8.5.18 <9'
+  sharp: '>=0.35.0 <0.36.0'
+  brace-expansion@1: '>=1.1.16 <2'
+  brace-expansion@2: '>=2.1.2 <3'
+  brace-expansion@5: '>=5.0.8 <6'
   ts-deepmerge: '>=8.0.0'
   eslint-plugin-react-hooks: ~7.0.1
