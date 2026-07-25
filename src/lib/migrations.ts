@@ -1535,6 +1535,21 @@ const migrations: Migration[] = [
         CREATE INDEX idx_agents_source ON agents(source);
       `)
     }
+  },
+  {
+    // #602: per-agent Claude Code base sessions. The base id is a server-generated
+    // UUID owned by exactly one agent; created_at doubles as the created-on-disk
+    // marker (NULL = base session not yet materialized by a first dispatch).
+    id: '055_agent_claude_base_session',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(agents)`).all() as Array<{ name: string }>
+      if (!cols.some(c => c.name === 'claude_base_session_id')) {
+        db.exec(`ALTER TABLE agents ADD COLUMN claude_base_session_id TEXT DEFAULT NULL`)
+      }
+      if (!cols.some(c => c.name === 'claude_base_session_created_at')) {
+        db.exec(`ALTER TABLE agents ADD COLUMN claude_base_session_created_at TEXT DEFAULT NULL`)
+      }
+    }
   }
 ]
 

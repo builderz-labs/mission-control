@@ -346,6 +346,7 @@ function AgentDetailModal({
     role: agent.role,
     session_key: agent.session_key || '',
     soul_content: agent.soul_content || '',
+    runtime_type: agent.runtime_type || '',
   })
 
   const handleSave = async () => {
@@ -425,6 +426,26 @@ function AgentDetailModal({
                 />
               ) : (
                 <p className="text-white font-mono">{agent.session_key || t('notSet')}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">{t('runtimeType')}</label>
+              {editing ? (
+                <select
+                  value={formData.runtime_type}
+                  onChange={(e) => setFormData(prev => ({ ...prev, runtime_type: e.target.value }))}
+                  className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">{t('runtimeTypeAuto')}</option>
+                  <option value="hermes">Hermes Agent</option>
+                  <option value="openclaw">OpenClaw</option>
+                  <option value="claude">Claude Code</option>
+                  <option value="codex">Codex CLI</option>
+                  <option value="custom">{t('runtimeTypeCustom')}</option>
+                </select>
+              ) : (
+                <p className="text-white font-mono">{agent.runtime_type || t('notSet')}</p>
               )}
             </div>
 
