@@ -259,6 +259,107 @@ export function getRuntimeMeta(id: RuntimeId): RuntimeMeta | undefined {
   return RUNTIME_META[id]
 }
 
+/**
+ * Declared capability depth per runtime adapter (#900, manifests slice).
+ *
+ * These are properties of the adapter integration code in this repository —
+ * declared per adapter version, never probed from the host. Detection
+ * (installed/running/authenticated) answers "is it here"; a manifest answers
+ * "what can Mission Control honestly do through it". Every `true` must cite a
+ * shipping code path; when in doubt, declare `false` — the whole point of the
+ * matrix is that missing depth is visible instead of implied.
+ */
+export interface RuntimeCapabilities {
+  /** MC can dispatch tasks through this adapter. */
+  dispatch: boolean
+  /** Dispatch can resume/fork a persistent per-agent session. */
+  session_resume: boolean
+  /** PTY attachment to live runtime sessions. */
+  pty: boolean
+  /** Per-dispatch working-directory control. */
+  workspace_cwd: boolean
+  /** Per-dispatch tool allowlist enforcement. */
+  tool_policy: boolean
+  /** Per-dispatch execution budget caps. */
+  budget_cap: boolean
+  /** Machine-readable dispatch output (not prose scraping). */
+  structured_output: boolean
+  /** Adapter reports the runtime's canonical skills inventory. */
+  skills_inventory: boolean
+  receipts: {
+    diff: boolean
+    tests: boolean
+    artifact: boolean
+    browser: boolean
+    /** Token/cost telemetry captured from dispatched runs. */
+    telemetry: boolean
+  }
+}
+
+const NO_RECEIPTS = { diff: false, tests: false, artifact: false, browser: false, telemetry: false }
+
+export const RUNTIME_CAPABILITIES: Record<RuntimeId, RuntimeCapabilities> = {
+  openclaw: {
+    dispatch: true, // gateway `agent` invoke + chat.send (task-dispatch.ts)
+    session_resume: true, // tasks.metadata.target_session routes to a live gateway session
+    pty: true, // PTY setup route attaches to gateway sessions
+    workspace_cwd: false,
+    tool_policy: false,
+    budget_cap: false,
+    structured_output: false,
+    skills_inventory: false, // MC scans file roots itself; the gateway does not report canonical inventory
+    receipts: { ...NO_RECEIPTS, telemetry: true }, // gateway session token stats
+  },
+  hermes: {
+    dispatch: false, // no dispatcher branch; runtime_type: 'hermes' provisions profiles only
+    session_resume: false,
+    pty: false,
+    workspace_cwd: false,
+    tool_policy: false,
+    budget_cap: false,
+    structured_output: false,
+    skills_inventory: false, // pending upstream hermes-agent#71274 (`skills list --json`)
+    receipts: { ...NO_RECEIPTS },
+  },
+  claude: {
+    dispatch: true, // callClaudeViaCli
+    session_resume: true, // #602: per-agent base session, resume/fork per task
+    pty: false,
+    workspace_cwd: true, // #720 sandbox cwd
+    tool_policy: true, // #720 --allowedTools
+    budget_cap: true, // #720 --max-budget-usd
+    structured_output: true, // --output-format json
+    skills_inventory: false,
+    receipts: { ...NO_RECEIPTS, telemetry: true }, // usage tokens recorded per dispatch
+  },
+  codex: {
+    dispatch: true, // callCodexViaCli
+    session_resume: false,
+    pty: false,
+    workspace_cwd: false,
+    tool_policy: false,
+    budget_cap: false,
+    structured_output: false,
+    skills_inventory: false,
+    receipts: { ...NO_RECEIPTS },
+  },
+  opencode: {
+    dispatch: false, // read-only session scanner; no dispatch path
+    session_resume: false,
+    pty: false,
+    workspace_cwd: false,
+    tool_policy: false,
+    budget_cap: false,
+    structured_output: false,
+    skills_inventory: false,
+    receipts: { ...NO_RECEIPTS },
+  },
+}
+
+export function getRuntimeCapabilities(id: RuntimeId): RuntimeCapabilities {
+  return RUNTIME_CAPABILITIES[id]
+}
+
 // ---------------------------------------------------------------------------
 // In-memory job store — ephemeral, not persisted across restarts
 // ---------------------------------------------------------------------------

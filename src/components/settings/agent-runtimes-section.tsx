@@ -6,6 +6,18 @@ import { Loader } from '@/components/ui/loader'
 import { RuntimeSetupModal } from '@/components/onboarding/runtime-setup-modal'
 import { apiFetch, ApiError } from '@/lib/api-client'
 
+interface RuntimeCapabilities {
+  dispatch: boolean
+  session_resume: boolean
+  pty: boolean
+  workspace_cwd: boolean
+  tool_policy: boolean
+  budget_cap: boolean
+  structured_output: boolean
+  skills_inventory: boolean
+  receipts: { diff: boolean; tests: boolean; artifact: boolean; browser: boolean; telemetry: boolean }
+}
+
 interface RuntimeStatus {
   id: string
   name: string
@@ -16,7 +28,21 @@ interface RuntimeStatus {
   authRequired: boolean
   authHint: string
   authenticated: boolean
+  /** Declared per adapter version (#900) — depth of the MC integration, not host state. */
+  capabilities?: RuntimeCapabilities
 }
+
+/** Technical identifiers, deliberately untranslated (matches runtime names). */
+const CAPABILITY_LABELS: Array<{ key: keyof Omit<RuntimeCapabilities, 'receipts'>; label: string }> = [
+  { key: 'dispatch', label: 'dispatch' },
+  { key: 'session_resume', label: 'sessions' },
+  { key: 'pty', label: 'pty' },
+  { key: 'workspace_cwd', label: 'cwd' },
+  { key: 'tool_policy', label: 'tools' },
+  { key: 'budget_cap', label: 'budget' },
+  { key: 'structured_output', label: 'structured' },
+  { key: 'skills_inventory', label: 'skills' },
+]
 
 interface InstallJob {
   id: string
@@ -273,6 +299,35 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                     </div>
 
                     <p className="text-xs text-muted-foreground/70">{rt.description}</p>
+
+                    {rt.capabilities && (
+                      /* Capability matrix (#900): depth of the MC integration is
+                         shown honestly — a dim chip means this adapter cannot
+                         supply that control or receipt, not that it is off. */
+                      <div className="flex flex-wrap items-center gap-1 mt-1.5" title="Integration capability depth — declared per adapter version, independent of install state">
+                        {CAPABILITY_LABELS.map(({ key, label }) => (
+                          <span
+                            key={key}
+                            className={`text-[10px] px-1.5 py-px rounded border font-mono ${
+                              rt.capabilities![key]
+                                ? 'bg-primary/10 text-primary/90 border-primary/25'
+                                : 'bg-muted/10 text-muted-foreground/40 border-border/15'
+                            }`}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                        <span
+                          className={`text-[10px] px-1.5 py-px rounded border font-mono ${
+                            rt.capabilities.receipts.telemetry
+                              ? 'bg-primary/10 text-primary/90 border-primary/25'
+                              : 'bg-muted/10 text-muted-foreground/40 border-border/15'
+                          }`}
+                        >
+                          telemetry
+                        </span>
+                      </div>
+                    )}
 
                     {rt.installed && rt.authRequired && (
                       <p className={`text-2xs mt-1 ${rt.authenticated ? 'text-emerald-400/70' : 'text-amber-400'}`}>

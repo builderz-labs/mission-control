@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
-import { detectAllRuntimes, detectRuntime, startInstall, getInstallJob, getActiveJobs, generateDockerSidecar } from '@/lib/agent-runtimes'
+import { detectAllRuntimes, detectRuntime, getRuntimeCapabilities, startInstall, getInstallJob, getActiveJobs, generateDockerSidecar } from '@/lib/agent-runtimes'
 import type { RuntimeId, DeploymentMode } from '@/lib/agent-runtimes'
 import { runtimeInstallsEnabled } from '@/lib/runtime-install-security'
 import { clearHermesDetectionCache } from '@/lib/hermes-sessions'
@@ -17,7 +17,13 @@ export async function GET(request: NextRequest) {
 
   // Clear caches so freshly-installed runtimes are detected immediately
   clearHermesDetectionCache()
-  const runtimes = detectAllRuntimes()
+  // Capability manifests are declared per adapter version (#900) — composed
+  // here so detection (host state) and capability depth (adapter code) stay
+  // separate truths.
+  const runtimes = detectAllRuntimes().map((runtime) => ({
+    ...runtime,
+    capabilities: getRuntimeCapabilities(runtime.id),
+  }))
   const activeJobs = getActiveJobs()
   const isDocker = existsSync('/.dockerenv')
 
