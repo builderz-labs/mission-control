@@ -31,12 +31,12 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@9e7c070092090e89e8b3d62f977d4456e0732cd7 # v4
+        uses: github/codeql-action/init@cf463419fdde78c727231e445622a9ac37966f84 # v4
         with:
           languages: javascript-typescript
           queries: security-extended
 
       - name: Analyze
-        uses: github/codeql-action/analyze@9e7c070092090e89e8b3d62f977d4456e0732cd7 # v4
+        uses: github/codeql-action/analyze@cf463419fdde78c727231e445622a9ac37966f84 # v4
         with:
           category: /language:javascript-typescript
