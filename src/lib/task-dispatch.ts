@@ -14,7 +14,7 @@ import { config } from './config'
 import { getAllGatewaySessions } from './sessions'
 import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from './transcript-parser'
 import { syncTaskOutbound } from './github-sync-engine'
-import { classifyModelProvider, getDispatchModelId, getModelByAlias } from './models'
+import { classifyModelProvider, getDispatchModelId, getModelByAlias, getModelByName } from './models'
 import type Database from 'better-sqlite3'
 
 const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
@@ -685,6 +685,8 @@ function classifyDirectModel(task: DispatchableTask): string {
     try {
       const cfg = JSON.parse(task.agent_config)
       if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) {
+        const catalogModel = getModelByName(cfg.dispatchModel) ?? getModelByAlias(cfg.dispatchModel)
+        if (catalogModel) return getDispatchModelId(catalogModel)
         // Strip gateway prefixes like "9router/cc/" to get bare model ID
         return cfg.dispatchModel.replace(/^.*\//, '')
       }
@@ -806,7 +808,8 @@ async function callClaudeDirectly(
 }
 
 // ---------------------------------------------------------------------------
-// Direct OpenAI / OpenAI-compatible local dispatch — also gateway-free.
+// Direct OpenAI / Atlas Cloud / OpenAI-compatible local dispatch — also
+// gateway-free.
 //
 // The "local" provider path is intentionally generic: it speaks the OpenAI
 // `/v1/chat/completions` REST shape, which is what LMStudio, Ollama, vLLM and
@@ -816,14 +819,21 @@ async function callClaudeDirectly(
 //
 // Model routing is done by prefix on the agent's `dispatchModel`:
 //   "openai/gpt-4o-mini", "gpt-4.1-mini", "o1-*", "o3-*"  → OpenAI cloud
+//   "atlascloud/<model>", "atlas-deepseek"                  → Atlas Cloud
 //   "local/<model>", "ollama/<model>", "lmstudio/<model>" → LOCAL_LLM_ENDPOINT
 //   anything else (incl. "claude-*")                      → Anthropic
 // ---------------------------------------------------------------------------
 
-type DirectProvider = 'anthropic' | 'openai' | 'local'
+export type DirectProvider = 'anthropic' | 'openai' | 'atlascloud' | 'local'
+
+const ATLASCLOUD_API_BASE = 'https://api.atlascloud.ai/v1'
 
 function getOpenAIApiKey(): string | null {
   return (process.env.OPENAI_API_KEY || '').trim() || null
+}
+
+function getAtlasCloudApiKey(): string | null {
+  return (process.env.ATLASCLOUD_API_KEY || '').trim() || null
 }
 
 /**
@@ -841,7 +851,7 @@ function getLocalApiKey(): string | null {
   return (process.env.LOCAL_LLM_API_KEY || '').trim() || null
 }
 
-function pickProvider(model: string): DirectProvider {
+export function resolveDirectProvider(model: string): DirectProvider {
   // Consult MODEL_CATALOG first (single source of truth). Only providers
   // with a direct dispatch path map to a DirectProvider; catalog providers
   // without one (google, groq, moonshot, venice, minimax) fall through to
@@ -849,18 +859,20 @@ function pickProvider(model: string): DirectProvider {
   const catalogProvider = classifyModelProvider(model)
   if (catalogProvider === 'anthropic') return 'anthropic'
   if (catalogProvider === 'openai') return 'openai'
+  if (catalogProvider === 'atlascloud') return 'atlascloud'
   if (catalogProvider === 'ollama') return 'local'
 
   // Prefix-match fallback for models not in the catalog — behavior for
   // unknown IDs is unchanged (default remains 'anthropic').
   const m = model.toLowerCase()
   if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
+  if (m.startsWith('atlascloud/')) return 'atlascloud'
   if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
   return 'anthropic'
 }
 
 function stripProviderPrefix(model: string): string {
-  return model.replace(/^(openai|local|ollama|lmstudio|litellm|anthropic)\//, '')
+  return model.replace(/^(openai|atlascloud|local|ollama|lmstudio|litellm|anthropic)\//, '')
 }
 
 /**
@@ -912,8 +924,10 @@ function isCodexCliAvailable(): boolean {
 function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
   if (provider === 'anthropic') return !!getAnthropicApiKey() || isClaudeCliAvailable()
   if (provider === 'openai') return !!getOpenAIApiKey() || isCodexCliAvailable()
+  if (provider === 'atlascloud') return !!getAtlasCloudApiKey()
   if (provider === 'local') return !!getLocalEndpoint()
-  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint() || isClaudeCliAvailable() || isCodexCliAvailable()
+  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getAtlasCloudApiKey()
+    || !!getLocalEndpoint() || isClaudeCliAvailable() || isCodexCliAvailable()
 }
 
 /**
@@ -1148,6 +1162,12 @@ async function callOpenAIDirectly(task: DispatchableTask, prompt: string, model:
   return callOpenAICompatible(task, prompt, 'https://api.openai.com/v1', apiKey, stripProviderPrefix(model), 'openai')
 }
 
+async function callAtlasCloudDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
+  const apiKey = getAtlasCloudApiKey()
+  if (!apiKey) throw new Error('ATLASCLOUD_API_KEY not set — cannot dispatch to Atlas Cloud without gateway')
+  return callOpenAICompatible(task, prompt, ATLASCLOUD_API_BASE, apiKey, stripProviderPrefix(model), 'atlascloud')
+}
+
 /**
  * Dispatch via the host Codex CLI using the operator's ChatGPT login (no API
  * key required). One-shot `codex exec` run: prompt over stdin (`-` arg, avoids
@@ -1222,10 +1242,11 @@ async function callLocalDirectly(task: DispatchableTask, prompt: string, model: 
   return callOpenAICompatible(task, prompt, endpoint, getLocalApiKey(), stripProviderPrefix(model), 'local')
 }
 
-async function callDirectly(task: DispatchableTask, prompt: string): Promise<AgentResponseParsed> {
+export async function callDirectly(task: DispatchableTask, prompt: string): Promise<AgentResponseParsed> {
   const model = classifyDirectModel(task)
-  const provider = pickProvider(model)
+  const provider = resolveDirectProvider(model)
   if (provider === 'openai') return callOpenAIDirectly(task, prompt, model)
+  if (provider === 'atlascloud') return callAtlasCloudDirectly(task, prompt, model)
   if (provider === 'local') return callLocalDirectly(task, prompt, model)
   // Anthropic: prefer the host Claude Code CLI when available — it uses the
   // operator's existing login, no API key needed. Fall back to the API key

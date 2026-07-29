@@ -34,6 +34,8 @@ export const MODEL_CATALOG: ModelConfig[] = [
   { alias: 'gpt-4.1-nano', name: 'openai/gpt-4.1-nano', provider: 'openai', description: 'GPT-4.1 Nano, ultra-fast', costPerMTok: { input: 0.1, output: 0.4 } },
   // Marked deprecated by OpenAI (still served) — https://developers.openai.com/api/docs/models/codex-mini-latest
   { alias: 'codex-mini', name: 'openai/codex-mini-latest', provider: 'openai', description: 'Codex Mini, optimized for code', costPerMTok: { input: 1.5, output: 6.0 } },
+  // Atlas Cloud — https://api.atlascloud.ai/v1/models (verified 2026-07-29)
+  { alias: 'atlas-deepseek', name: 'atlascloud/deepseek-ai/deepseek-v4-pro', provider: 'atlascloud', description: 'DeepSeek V4 Pro via Atlas Cloud', costPerMTok: { input: 1.68, output: 3.38 } },
   // Google — https://ai.google.dev/gemini-api/docs/pricing (verified 2026-07-04; Pro rates are the <=200K-token-prompt tier)
   { alias: 'gemini-2.5-pro', name: 'google/gemini-2.5-pro', provider: 'google', description: 'Gemini 2.5 Pro', costPerMTok: { input: 1.25, output: 10.0 } },
   { alias: 'gemini-2.5-flash', name: 'google/gemini-2.5-flash', provider: 'google', description: 'Gemini 2.5 Flash, fast', costPerMTok: { input: 0.3, output: 2.5 } },
