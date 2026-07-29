@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import Database from 'better-sqlite3'
-import { insertDispatchTokenUsage, resolveTaskDispatchModelOverride } from '@/lib/task-dispatch'
+import {
+  callDirectly,
+  insertDispatchTokenUsage,
+  resolveDirectProvider,
+  resolveTaskDispatchModelOverride,
+} from '@/lib/task-dispatch'
+
+const originalAtlasCloudApiKey = process.env.ATLASCLOUD_API_KEY
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  if (originalAtlasCloudApiKey === undefined) delete process.env.ATLASCLOUD_API_KEY
+  else process.env.ATLASCLOUD_API_KEY = originalAtlasCloudApiKey
+})
 
 describe('insertDispatchTokenUsage', () => {
   it('persists dispatch usage using the current token_usage schema', () => {
@@ -54,5 +67,52 @@ describe('resolveTaskDispatchModelOverride', () => {
 
   it('ignores malformed agent config payloads', () => {
     expect(resolveTaskDispatchModelOverride({ agent_config: '{not json' })).toBeNull()
+  })
+})
+
+describe('resolveDirectProvider', () => {
+  it('routes Atlas Cloud catalog names and aliases to its direct API path', () => {
+    expect(resolveDirectProvider('atlascloud/deepseek-ai/deepseek-v4-pro')).toBe('atlascloud')
+    expect(resolveDirectProvider('atlas-deepseek')).toBe('atlascloud')
+  })
+
+  it('dispatches Atlas Cloud models through its OpenAI-compatible endpoint', async () => {
+    process.env.ATLASCLOUD_API_KEY = 'atlas-test-key'
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: 'done' } }],
+      usage: { prompt_tokens: 4, completion_tokens: 2 },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await callDirectly({
+      id: 42,
+      title: 'Atlas test',
+      description: null,
+      status: 'assigned',
+      priority: 'medium',
+      assigned_to: 'atlas-agent',
+      workspace_id: 1,
+      agent_name: 'atlas-agent',
+      agent_id: 1,
+      agent_config: JSON.stringify({
+        dispatchModel: 'atlascloud/deepseek-ai/deepseek-v4-pro',
+      }),
+      ticket_prefix: null,
+      project_ticket_no: null,
+      project_id: null,
+    }, 'Complete this task')
+
+    expect(response.text).toBe('done')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.atlascloud.ai/v1/chat/completions')
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer atlas-test-key' })
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      model: 'deepseek-ai/deepseek-v4-pro',
+      max_tokens: 4096,
+    })
   })
 })
