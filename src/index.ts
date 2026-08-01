@@ -81,7 +81,10 @@ export interface ModelConfig {
   provider: string
   description: string
   /** USD per MILLION tokens (input/output) — mirrors ModelConfig in '@/lib/models' */
-  costPerMTok: { input: number; output: number }
+  costPerMTok: { input: number; output: number; cacheRead?: number; cacheWrite?: number | null }
+  contextWindow?: number
+  inputModalities?: Array<'text' | 'image' | 'video'>
+  thinking?: Array<'adaptive' | 'disabled' | 'always_on'>
 }
 
 // Mission Control Phase 2 Types
