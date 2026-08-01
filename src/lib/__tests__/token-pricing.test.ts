@@ -42,6 +42,26 @@ describe('token pricing', () => {
     expect(getModelPricing('minimax/minimax-m2.1')).toMatchObject({ inputPerMTok: 0.3, outputPerMTok: 1.2 })
   })
 
+  it('uses current MiniMax pricing, including cache rates', () => {
+    expect(getModelPricing('minimax/MiniMax-M3')).toMatchObject({
+      inputPerMTok: 0.6,
+      outputPerMTok: 2.4,
+      cacheReadPerMTok: 0.12,
+      cacheWritePerMTok: null,
+    })
+    expect(getModelPricing('minimax/MiniMax-M2.7')).toMatchObject({
+      inputPerMTok: 0.3,
+      outputPerMTok: 1.2,
+      cacheReadPerMTok: 0.06,
+      cacheWritePerMTok: 0.375,
+    })
+  })
+
+  it('maps bare MiniMax model IDs to the provider', () => {
+    expect(getProviderFromModel('MiniMax-M3')).toBe('minimax')
+    expect(getProviderFromModel('MiniMax-M2.7')).toBe('minimax')
+  })
+
   it('keeps local models at zero cost', () => {
     const cost = calculateTokenCost('ollama/qwen2.5-coder:14b', 50_000, 50_000)
     expect(cost).toBe(0)

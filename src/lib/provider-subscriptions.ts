@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import os from 'node:os'
 import { config } from '@/lib/config'
+import { classifyModelProvider } from '@/lib/models'
 
 interface ProviderSubscription {
   provider: string
@@ -213,6 +214,9 @@ export function getProviderFromModel(modelName: string): string {
   const normalized = modelName.trim().toLowerCase()
   if (!normalized) return 'unknown'
 
+  const catalogProvider = classifyModelProvider(normalized)
+  if (catalogProvider) return catalogProvider
+
   const [prefix] = normalized.split('/')
   if (prefix && !prefix.includes(':')) {
     // Most models are provider-prefixed, e.g., "anthropic/claude-sonnet-4-5".
@@ -225,4 +229,3 @@ export function getProviderFromModel(modelName: string): string {
   if (normalized.includes('gpt') || normalized.includes('codex') || normalized.includes('o1') || normalized.includes('o3')) return 'openai'
   return 'unknown'
 }
-
