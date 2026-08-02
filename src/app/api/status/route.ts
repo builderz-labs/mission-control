@@ -15,6 +15,7 @@ import { APP_VERSION } from '@/lib/version'
 import { isHermesInstalled, scanHermesSessions } from '@/lib/hermes-sessions'
 import { registerMcAsDashboard } from '@/lib/gateway-runtime'
 import { getWorkspaceIsolation } from '@/lib/workspace-isolation'
+import { discoverLocalModels } from '@/lib/local-model-providers'
 
 export async function GET(request: NextRequest) {
   // Docker/Kubernetes health probes must work without auth/cookies.
@@ -433,35 +434,14 @@ async function getAvailableModels() {
   const models = [...MODEL_CATALOG]
 
   try {
-    // Use Ollama HTTP API instead of `ollama list` CLI.
-    // On macOS desktop app installs, spawning CLI commands can restart/crash the GUI process.
-    const res = await fetch('http://127.0.0.1:11434/api/tags', {
-      signal: AbortSignal.timeout(5000),
-    })
-
-    if (!res.ok) {
-      throw new Error(`Ollama tags endpoint returned ${res.status}`)
-    }
-
-    const data = await res.json() as { models?: Array<{ name?: string; size?: number }> }
-    const ollamaModels = (data.models || [])
-      .filter((m) => typeof m?.name === 'string' && m.name.trim().length > 0)
-      .map((m) => ({
-        alias: m.name!.trim(),
-        name: `ollama/${m.name!.trim()}`,
-        provider: 'ollama',
-        description: 'Local model',
-        costPerMTok: { input: 0.0, output: 0.0 },
-        size: typeof m.size === 'number' ? String(m.size) : 'unknown',
-      }))
-
-    for (const model of ollamaModels) {
+    const localModels = await discoverLocalModels()
+    for (const model of localModels) {
       if (!models.find((m) => m.name === model.name)) {
         models.push(model)
       }
     }
   } catch (error) {
-    logger.error({ err: error }, 'Error checking Ollama models via HTTP API')
+    logger.error({ err: error }, 'Error checking local model providers')
   }
 
   return models

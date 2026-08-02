@@ -11,6 +11,7 @@ import { validateBody, integrationActionSchema } from '@/lib/validation'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { detectProviderSubscriptions } from '@/lib/provider-subscriptions'
 import { getPluginIntegrations, getPluginCategories } from '@/lib/plugins'
+import { isLocalProviderReachable, resolveOllamaBaseUrl } from '@/lib/local-model-providers'
 import type { PluginIntegrationDef } from '@/lib/plugins'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
@@ -35,6 +36,9 @@ interface IntegrationProbeSnapshot {
   xint: { installed: boolean; oauthConfigured: boolean; envConfigured: boolean }
   ollamaInstalled: boolean
   ollamaReachable: boolean
+  supagateReachable: boolean
+  lmstudioReachable: boolean
+  omlxReachable: boolean
   gwsInstalled: boolean
 }
 
@@ -45,11 +49,15 @@ const INTEGRATIONS: IntegrationDef[] = [
   // AI Providers
   { id: 'anthropic', name: 'Anthropic', category: 'ai', envVars: ['ANTHROPIC_API_KEY'], vaultItem: 'openclaw-anthropic-api-key', testable: true },
   { id: 'openai', name: 'OpenAI', category: 'ai', envVars: ['OPENAI_API_KEY'], vaultItem: 'openclaw-openai-api-key', testable: true },
+  { id: 'google', name: 'Google AI', category: 'ai', envVars: ['GOOGLE_API_KEY'], vaultItem: 'openclaw-google-api-key' },
   { id: 'openrouter', name: 'OpenRouter', category: 'ai', envVars: ['OPENROUTER_API_KEY'], vaultItem: 'openclaw-openrouter-api-key', testable: true },
   { id: 'venice', name: 'Venice AI', category: 'ai', envVars: ['VENICE_API_KEY'], vaultItem: 'openclaw-venice-api-key', testable: true },
   { id: 'nvidia', name: 'NVIDIA', category: 'ai', envVars: ['NVIDIA_API_KEY'], vaultItem: 'openclaw-nvidia-api-key' },
   { id: 'moonshot', name: 'Moonshot / Kimi', category: 'ai', envVars: ['MOONSHOT_API_KEY'], vaultItem: 'openclaw-moonshot-api-key' },
   { id: 'ollama', name: 'Ollama (Local)', category: 'ai', envVars: ['OLLAMA_API_KEY'], vaultItem: 'openclaw-ollama-api-key' },
+  { id: 'supagate', name: 'SupaGate (Local)', category: 'ai', envVars: ['SUPAGATE_BASE_URL', 'SUPAGATE_API_KEY'], vaultItem: 'openclaw-supagate-api-key' },
+  { id: 'lmstudio', name: 'LM Studio (Local)', category: 'ai', envVars: ['LMSTUDIO_BASE_URL', 'LMSTUDIO_API_KEY'] },
+  { id: 'omlx', name: 'oMLX (Local)', category: 'ai', envVars: ['OMLX_BASE_URL', 'OMLX_API_KEY'] },
 
   // Search
   { id: 'brave', name: 'Brave Search', category: 'search', envVars: ['BRAVE_API_KEY'], vaultItem: 'openclaw-brave-api-key' },
@@ -239,21 +247,8 @@ function checkXintState(): { installed: boolean; oauthConfigured: boolean; envCo
   return { installed, oauthConfigured, envConfigured }
 }
 
-function resolveOllamaBaseUrl(): string {
-  const raw = String(process.env.OLLAMA_HOST || '').trim()
-  if (!raw) return 'http://127.0.0.1:11434'
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
-  return `http://${raw}`
-}
-
 async function checkOllamaReachable(): Promise<boolean> {
-  try {
-    const base = resolveOllamaBaseUrl().replace(/\/+$/, '')
-    const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(1200) })
-    return res.ok
-  } catch {
-    return false
-  }
+  return isLocalProviderReachable('ollama')
 }
 
 async function getIntegrationProbeSnapshot(): Promise<IntegrationProbeSnapshot> {
@@ -267,6 +262,9 @@ async function getIntegrationProbeSnapshot(): Promise<IntegrationProbeSnapshot> 
     xint: checkXintState(),
     ollamaInstalled: checkCommandAvailable('ollama'),
     ollamaReachable: await checkOllamaReachable(),
+    supagateReachable: await isLocalProviderReachable('supagate'),
+    lmstudioReachable: await isLocalProviderReachable('lmstudio'),
+    omlxReachable: await isLocalProviderReachable('omlx'),
     gwsInstalled: checkCommandAvailable('gws'),
   }
   integrationProbeCache = { ts: now, value }
@@ -328,7 +326,7 @@ export async function GET(request: NextRequest) {
   }
 
   const probe = await getIntegrationProbeSnapshot()
-  const { opAvailable, xint, ollamaInstalled, ollamaReachable, gwsInstalled } = probe
+  const { opAvailable, xint, ollamaInstalled, ollamaReachable, supagateReachable, lmstudioReachable, omlxReachable, gwsInstalled } = probe
   const providerSubscriptions = detectProviderSubscriptions()
 
   // Merge plugin integrations and categories
@@ -411,6 +409,20 @@ export async function GET(request: NextRequest) {
       } else if (ollamaInstalled) {
         vars[primaryVar] = { redacted: 'installed (daemon not reachable)', set: true }
         allSet = false
+        anySet = true
+      }
+    }
+
+    if ((def.id === 'supagate' || def.id === 'lmstudio' || def.id === 'omlx') && !anySet) {
+      const reachable = def.id === 'supagate'
+        ? supagateReachable
+        : def.id === 'lmstudio'
+          ? lmstudioReachable
+          : omlxReachable
+      const primaryVar = def.envVars[0]
+      if (reachable) {
+        vars[primaryVar] = { redacted: 'local OpenAI-compatible endpoint', set: true }
+        allSet = true
         anySet = true
       }
     }

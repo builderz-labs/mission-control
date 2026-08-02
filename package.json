@@ -2,6 +2,7 @@
   "name": "mission-control",
   "version": "2.3.0",
   "description": "OpenClaw Mission Control \u2014 open-source agent orchestration dashboard",
+  "packageManager": "pnpm@10.25.0",
   "scripts": {
     "verify:node": "node scripts/check-node-version.mjs",
     "api:parity": "node scripts/check-api-contract-parity.mjs --root . --openapi openapi.json --ignore-file scripts/api-contract-parity.ignore",

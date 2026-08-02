@@ -100,7 +100,7 @@ describe('status route Ollama model discovery', () => {
 
     expect(response.status).toBe(200)
     expect(payload.models.some((m) => m.name === 'openai/gpt-4.1-mini')).toBe(true)
-    expect(loggerErrorMock).toHaveBeenCalled()
+    expect(loggerErrorMock).not.toHaveBeenCalled()
   })
 
   it('does not inspect deployment-global session stores for a strict workspace', async () => {
