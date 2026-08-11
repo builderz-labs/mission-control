@@ -1,3 +1,4 @@
+# pnpm 10+ reads these settings from this file (not package.json "pnpm" field).
 onlyBuiltDependencies:
   - '@parcel/watcher'
   - '@swc/core'

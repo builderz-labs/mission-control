@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server'
 import { destroySession, getUserFromRequest } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
-import { getMcSessionCookieName, getMcSessionCookieOptions, isRequestSecure, parseMcSessionCookieHeader } from '@/lib/session-cookie'
+import {
+  expireAllMcSessionCookies,
+  isRequestSecure,
+  parseAllMcSessionCookieTokens,
+} from '@/lib/session-cookie'
 
 export async function POST(request: Request) {
   const user = getUserFromRequest(request)
   const cookieHeader = request.headers.get('cookie') || ''
-  const token = parseMcSessionCookieHeader(cookieHeader)
 
-  if (token) {
+  // Revoke every presented token (secure + legacy names can both be present).
+  for (const token of parseAllMcSessionCookieTokens(cookieHeader)) {
     destroySession(token)
   }
 
@@ -18,11 +22,7 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ ok: true })
-  const isSecureRequest = isRequestSecure(request)
-  const cookieName = getMcSessionCookieName(isSecureRequest)
-  response.cookies.set(cookieName, '', {
-    ...getMcSessionCookieOptions({ maxAgeSeconds: 0, isSecureRequest }),
-  })
+  expireAllMcSessionCookies(response, isRequestSecure(request))
 
   return response
 }

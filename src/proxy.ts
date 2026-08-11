@@ -167,7 +167,10 @@ export function proxy(request: NextRequest) {
     .filter(Boolean)
   const implicitAllowedHosts = getImplicitAllowedHosts()
 
-  const enforceAllowlist = !allowAnyHost && allowedPatterns.length > 0
+  // Production is always fail-closed: even with an empty/missing MC_ALLOWED_HOSTS,
+  // only implicit local hosts (localhost / 127.0.0.1 / ::1 / os.hostname) are allowed.
+  // Deliberate open access still requires MC_ALLOW_ANY_HOST=1 (or non-production).
+  const enforceAllowlist = !allowAnyHost
   const isAllowedHost = !enforceAllowlist
     || requestHosts.some((hostName) =>
       implicitAllowedHosts.some((candidate) => hostMatches(candidate, hostName))

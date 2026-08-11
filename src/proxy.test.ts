@@ -171,4 +171,42 @@ describe('proxy host matching', () => {
     const response = proxy(request)
     expect(response.status).toBe(401)
   })
+
+  it('fails closed in production when MC_ALLOWED_HOSTS is empty (implicit local only)', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'hetzner-jarv' },
+      hostname: () => 'hetzner-jarv',
+    }))
+
+    const { proxy } = await import('./proxy')
+
+    setNodeEnv('production')
+    delete process.env.MC_ALLOWED_HOSTS
+    delete process.env.MC_ALLOW_ANY_HOST
+
+    const blocked = proxy({
+      headers: new Headers({ host: 'evil.example.com' }),
+      nextUrl: { host: 'evil.example.com', hostname: 'evil.example.com', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any)
+    expect(blocked.status).toBe(403)
+
+    const allowedLocal = proxy({
+      headers: new Headers({ host: 'localhost:3000' }),
+      nextUrl: { host: 'localhost:3000', hostname: 'localhost', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any)
+    expect(allowedLocal.status).not.toBe(403)
+
+    const allowedHostname = proxy({
+      headers: new Headers({ host: 'hetzner-jarv' }),
+      nextUrl: { host: 'hetzner-jarv', hostname: 'hetzner-jarv', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any)
+    expect(allowedHostname.status).not.toBe(403)
+  })
 })

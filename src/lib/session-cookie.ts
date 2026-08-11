@@ -14,14 +14,42 @@ export function isRequestSecure(request: Request): boolean {
 }
 
 export function parseMcSessionCookieHeader(cookieHeader: string): string | null {
-  if (!cookieHeader) return null
+  const tokens = parseAllMcSessionCookieTokens(cookieHeader)
+  return tokens[0] ?? null
+}
+
+/** Return every presented Mission Control session token (secure + legacy names). */
+export function parseAllMcSessionCookieTokens(cookieHeader: string): string[] {
+  if (!cookieHeader) return []
+  const tokens: string[] = []
   for (const cookieName of MC_SESSION_COOKIE_NAMES) {
     const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`))
-    if (match) {
-      return decodeURIComponent(match[1])
+    if (!match) continue
+    try {
+      tokens.push(decodeURIComponent(match[1]))
+    } catch {
+      tokens.push(match[1])
     }
   }
-  return null
+  return tokens
+}
+
+/**
+ * Expire both the __Host- and legacy session cookies so HTTP→HTTPS transitions
+ * cannot leave a valid session behind after logout.
+ */
+export function expireAllMcSessionCookies(
+  response: { cookies: { set: (name: string, value: string, options?: Partial<ResponseCookie>) => void } },
+  isSecureRequest: boolean,
+): void {
+  // __Host- cookies require Secure; always clear with that attribute.
+  response.cookies.set(MC_SESSION_COOKIE_NAME, '', {
+    ...getMcSessionCookieOptions({ maxAgeSeconds: 0, isSecureRequest: true }),
+    secure: true,
+  })
+  response.cookies.set(LEGACY_MC_SESSION_COOKIE_NAME, '', {
+    ...getMcSessionCookieOptions({ maxAgeSeconds: 0, isSecureRequest }),
+  })
 }
 
 function envFlag(name: string): boolean | undefined {

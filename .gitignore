@@ -12,8 +12,12 @@ dist/
 # Misc
 .DS_Store
 *.pem
-.env*.local
-.env.production
+
+# Secrets — ignore all env variants by default (incl. .env.bak*, .env.local, etc.)
+# Re-allow only the intentionally committed sample/test files.
+.env*
+!.env.example
+!.env.test
 
 # npm (project uses pnpm)
 package-lock.json
@@ -29,7 +33,6 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
-.env
 .data/
 aegis/
 

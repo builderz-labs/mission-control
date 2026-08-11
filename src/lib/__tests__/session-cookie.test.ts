@@ -1,5 +1,41 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { getMcSessionCookieOptions } from '../session-cookie'
+import {
+  LEGACY_MC_SESSION_COOKIE_NAME,
+  MC_SESSION_COOKIE_NAME,
+  expireAllMcSessionCookies,
+  getMcSessionCookieOptions,
+  parseAllMcSessionCookieTokens,
+  parseMcSessionCookieHeader,
+} from '../session-cookie'
+
+describe('session cookie parsing and expiry', () => {
+  it('collects both secure and legacy session tokens', () => {
+    const header = `${MC_SESSION_COOKIE_NAME}=secure-token; ${LEGACY_MC_SESSION_COOKIE_NAME}=legacy-token`
+    expect(parseAllMcSessionCookieTokens(header)).toEqual(['secure-token', 'legacy-token'])
+    // First match remains the preferred token for request auth.
+    expect(parseMcSessionCookieHeader(header)).toBe('secure-token')
+  })
+
+  it('expires both session cookie names on logout', () => {
+    const setCalls: Array<{ name: string; value: string; options?: Record<string, unknown> }> = []
+    const response = {
+      cookies: {
+        set: (name: string, value: string, options?: Record<string, unknown>) => {
+          setCalls.push({ name, value, options })
+        },
+      },
+    }
+
+    expireAllMcSessionCookies(response, true)
+
+    expect(setCalls.map((c) => c.name)).toEqual([
+      MC_SESSION_COOKIE_NAME,
+      LEGACY_MC_SESSION_COOKIE_NAME,
+    ])
+    expect(setCalls.every((c) => c.value === '' && c.options?.maxAge === 0)).toBe(true)
+    expect(setCalls[0].options?.secure).toBe(true)
+  })
+})
 
 describe('getMcSessionCookieOptions', () => {
   const env = process.env as Record<string, string | undefined>
