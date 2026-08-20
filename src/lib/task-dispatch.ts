@@ -1076,6 +1076,13 @@ async function dispatchViaClaudeSession(
     })
     return response
   } catch (err) {
+    // If this was a first-dispatch create attempt that failed, mark the session
+    // as materialized anyway. This allows retry to resume instead of attempting
+    // create again with the same id, which would collision-loop forever (#934).
+    // The original error is preserved in the audit and thrown upward unchanged.
+    if (!base.materialized) {
+      markClaudeBaseSessionMaterialized(task.agent_id, base.sessionId)
+    }
     auditClaudeSessionDispatch({
       agentId: task.agent_id,
       baseSessionId: base.sessionId,
