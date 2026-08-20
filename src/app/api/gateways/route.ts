@@ -66,10 +66,10 @@ export async function GET(request: NextRequest) {
     `).run(name, host, mainPort, mainToken)
 
     const seeded = db.prepare('SELECT * FROM gateways ORDER BY is_primary DESC, name ASC').all() as GatewayEntry[]
-    return NextResponse.json({ gateways: redactTokens(seeded) })
+    return NextResponse.json({ gateways: redactTokens(enrichGatewaysWithAgentCounts(db, seeded, auth.user.workspace_id)) })
   }
 
-  return NextResponse.json({ gateways: redactTokens(gateways) })
+  return NextResponse.json({ gateways: redactTokens(enrichGatewaysWithAgentCounts(db, gateways, auth.user.workspace_id)) })
 }
 
 /**
@@ -248,4 +248,26 @@ function redactToken(gw: GatewayEntry): GatewayEntry & { token_set: boolean } {
 
 function redactTokens(gws: GatewayEntry[]) {
   return gws.map(redactToken)
+}
+
+/**
+ * Enrich gateways with live agents_count derived from agents table.
+ * Since there is no agents.gateway_id FK, all gateways share the same count:
+ * the total number of agents with source='gateway' in the workspace.
+ */
+function enrichGatewaysWithAgentCounts(
+  db: ReturnType<typeof getDatabase>,
+  gateways: GatewayEntry[],
+  workspaceId: number
+): GatewayEntry[] {
+  const result = db.prepare(`
+    SELECT COUNT(*) as count FROM agents WHERE source = 'gateway' AND workspace_id = ?
+  `).get(workspaceId) as { count: number } | undefined
+  
+  const gatewayAgentsCount = result?.count ?? 0
+
+  return gateways.map(gw => ({
+    ...gw,
+    agents_count: gatewayAgentsCount
+  }))
 }
