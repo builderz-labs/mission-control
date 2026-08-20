@@ -30,7 +30,12 @@ export function parseAllMcSessionCookies(cookieHeader: string): string[] {
   for (const cookieName of MC_SESSION_COOKIE_NAMES) {
     const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`))
     if (match) {
-      tokens.push(decodeURIComponent(match[1]))
+      try {
+        tokens.push(decodeURIComponent(match[1]))
+      } catch {
+        // Malformed percent-encoding - push raw value so logout stays reachable
+        tokens.push(match[1])
+      }
     }
   }
   return tokens

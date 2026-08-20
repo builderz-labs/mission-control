@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { destroySession, getUserFromRequest } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
-import { getMcSessionCookieName, getMcSessionCookieOptions, isRequestSecure, parseAllMcSessionCookies, MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
+import { getMcSessionCookieOptions, parseAllMcSessionCookies, MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
 export async function POST(request: Request) {
   const user = getUserFromRequest(request)
@@ -19,7 +19,6 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ ok: true })
-  const isSecureRequest = isRequestSecure(request)
 
   // Expire BOTH the __Host-mc-session cookie and the legacy mc-session cookie
   // so an HTTP→HTTPS transition cannot leave a live session after logout.

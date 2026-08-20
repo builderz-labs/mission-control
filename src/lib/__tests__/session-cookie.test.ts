@@ -69,4 +69,11 @@ describe('parseAllMcSessionCookies', () => {
     const tokens = parseAllMcSessionCookies(cookieHeader)
     expect(tokens).toEqual(['secure token', 'legacy token'])
   })
+
+  it('does not throw on malformed percent-encoding and returns raw token', () => {
+    const cookieHeader = '__Host-mc-session=bad%2; mc-session=also%bad'
+    expect(() => parseAllMcSessionCookies(cookieHeader)).not.toThrow()
+    const tokens = parseAllMcSessionCookies(cookieHeader)
+    expect(tokens).toEqual(['bad%2', 'also%bad'])
+  })
 })
