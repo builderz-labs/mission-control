@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
-import { insertDispatchTokenUsage, resolveTaskDispatchModelOverride } from '@/lib/task-dispatch'
+import { insertDispatchTokenUsage, pickProvider, resolveTaskDispatchModelOverride } from '@/lib/task-dispatch'
 
 describe('insertDispatchTokenUsage', () => {
   it('persists dispatch usage using the current token_usage schema', () => {
@@ -54,5 +54,12 @@ describe('resolveTaskDispatchModelOverride', () => {
 
   it('ignores malformed agent config payloads', () => {
     expect(resolveTaskDispatchModelOverride({ agent_config: '{not json' })).toBeNull()
+  })
+})
+
+describe('MiniMax direct dispatch routing', () => {
+  it('selects the dedicated provider for both current model IDs', () => {
+    expect(pickProvider('MiniMax-M3')).toBe('minimax')
+    expect(pickProvider('minimax/MiniMax-M2.7')).toBe('minimax')
   })
 })

@@ -160,14 +160,18 @@ export function proxy(request: NextRequest) {
   // In production: default-deny unless explicitly allowed.
   // In dev/test: allow all hosts unless overridden.
   const requestHosts = getRequestHostCandidates(request)
-  const allowAnyHost = envFlag('MC_ALLOW_ANY_HOST') || process.env.NODE_ENV !== 'production'
+  const allowAnyHost = envFlag('MC_ALLOW_ANY_HOST')
   const allowedPatterns = String(process.env.MC_ALLOWED_HOSTS || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
   const implicitAllowedHosts = getImplicitAllowedHosts()
 
-  const enforceAllowlist = !allowAnyHost && allowedPatterns.length > 0
+  // Production must fail closed: when MC_ALLOW_ANY_HOST is not set,
+  // only implicit local hosts plus any explicit MC_ALLOWED_HOSTS patterns are allowed.
+  // Non-production keeps current looser behavior (allow all unless MC_ALLOWED_HOSTS is set).
+  const isProduction = process.env.NODE_ENV === 'production'
+  const enforceAllowlist = isProduction ? !allowAnyHost : allowedPatterns.length > 0
   const isAllowedHost = !enforceAllowlist
     || requestHosts.some((hostName) =>
       implicitAllowedHosts.some((candidate) => hostMatches(candidate, hostName))

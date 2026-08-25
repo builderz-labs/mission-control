@@ -13,7 +13,14 @@ export interface ModelCostPerMTok {
   input: number
   /** USD per 1M output tokens */
   output: number
+  /** USD per 1M cached input tokens read */
+  cacheRead?: number
+  /** USD per 1M cached input tokens written, when supported */
+  cacheWrite?: number | null
 }
+
+export type ModelInputModality = 'text' | 'image' | 'video'
+export type ModelThinkingMode = 'adaptive' | 'disabled' | 'always_on'
 
 export interface ModelConfig {
   alias: string
@@ -21,6 +28,9 @@ export interface ModelConfig {
   provider: string
   description: string
   costPerMTok: ModelCostPerMTok
+  contextWindow?: number
+  inputModalities?: ModelInputModality[]
+  thinking?: ModelThinkingMode[]
 }
 
 export const MODEL_CATALOG: ModelConfig[] = [
@@ -42,11 +52,31 @@ export const MODEL_CATALOG: ModelConfig[] = [
   // Groq (hosted inference) — https://groq.com/pricing (verified 2026-07-04)
   { alias: 'groq-fast', name: 'groq/llama-3.1-8b-instant', provider: 'groq', description: '840 tok/s, ultra fast', costPerMTok: { input: 0.05, output: 0.08 } },
   { alias: 'groq', name: 'groq/llama-3.3-70b-versatile', provider: 'groq', description: 'Fast + quality balance', costPerMTok: { input: 0.59, output: 0.79 } },
+  // MiniMax — https://platform.minimax.io/docs/guides/pricing-paygo (verified 2026-07-24)
+  {
+    alias: 'minimax',
+    name: 'minimax/MiniMax-M3',
+    provider: 'minimax',
+    description: 'Multimodal model with configurable thinking',
+    costPerMTok: { input: 0.6, output: 2.4, cacheRead: 0.12, cacheWrite: null },
+    contextWindow: 1_000_000,
+    inputModalities: ['text', 'image', 'video'],
+    thinking: ['adaptive', 'disabled'],
+  },
+  {
+    alias: 'minimax-m2.7',
+    name: 'minimax/MiniMax-M2.7',
+    provider: 'minimax',
+    description: 'Text model with always-on thinking',
+    costPerMTok: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0.375 },
+    contextWindow: 204_800,
+    inputModalities: ['text'],
+    thinking: ['always_on'],
+  },
   // Other providers — Moonshot list price via https://openrouter.ai/moonshotai/kimi-k2.5;
-  // Venice https://docs.venice.ai/overview/pricing; MiniMax https://platform.minimax.io/docs/guides/pricing-paygo
+  // Venice https://docs.venice.ai/overview/pricing.
   { alias: 'kimi', name: 'moonshot/kimi-k2.5', provider: 'moonshot', description: 'Alternative provider', costPerMTok: { input: 0.6, output: 3.0 } },
   { alias: 'venice-llama-3.3-70b', name: 'venice/llama-3.3-70b', provider: 'venice', description: 'Venice AI Llama 3.3 70B', costPerMTok: { input: 0.7, output: 2.8 } },
-  { alias: 'minimax', name: 'minimax/minimax-m2.1', provider: 'minimax', description: 'Cost-effective, strong coding', costPerMTok: { input: 0.3, output: 1.2 } },
 ]
 
 export function getModelByAlias(alias: string): ModelConfig | undefined {
@@ -84,7 +114,9 @@ export function classifyModelProvider(model: string): string | undefined {
   const normalized = model.trim().toLowerCase()
   if (!normalized) return undefined
   const entry = MODEL_CATALOG.find(m =>
-    m.name === normalized || getDispatchModelId(m) === normalized || m.alias === normalized
+    m.name.toLowerCase() === normalized
+    || getDispatchModelId(m).toLowerCase() === normalized
+    || m.alias.toLowerCase() === normalized
   )
   return entry?.provider
 }

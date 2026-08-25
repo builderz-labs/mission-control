@@ -6,7 +6,7 @@ import { getProviderSubscriptionFlags } from '@/lib/provider-subscriptions'
 import { logger } from '@/lib/logger'
 
 interface AgentBreakdownRow {
-  agent_name: string
+  agent_key: string
   total_input_tokens: number
   total_output_tokens: number
   session_count: number
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
         CASE
           WHEN INSTR(session_id, ':') > 0 THEN SUBSTR(session_id, 1, INSTR(session_id, ':') - 1)
           ELSE session_id
-        END AS agent_name,
+        END AS agent_key,
         SUM(input_tokens)  AS total_input_tokens,
         SUM(output_tokens) AS total_output_tokens,
         COUNT(DISTINCT session_id) AS session_count,
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       FROM token_usage
       WHERE workspace_id = ?
         AND created_at >= ?
-      GROUP BY agent_name
+      GROUP BY agent_key
       ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
     `).all(workspaceId, cutoff) as AgentBreakdownRow[]
 
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         CASE
           WHEN INSTR(session_id, ':') > 0 THEN SUBSTR(session_id, 1, INSTR(session_id, ':') - 1)
           ELSE session_id
-        END AS agent_name,
+        END AS agent_key,
         model,
         SUM(input_tokens)  AS input_tokens,
         SUM(output_tokens) AS output_tokens,
@@ -87,10 +87,10 @@ export async function GET(request: NextRequest) {
       FROM token_usage
       WHERE workspace_id = ?
         AND created_at >= ?
-      GROUP BY agent_name, model
-      ORDER BY agent_name, (SUM(input_tokens) + SUM(output_tokens)) DESC
+      GROUP BY agent_key, model
+      ORDER BY agent_key, (SUM(input_tokens) + SUM(output_tokens)) DESC
     `).all(workspaceId, cutoff) as Array<{
-      agent_name: string
+      agent_key: string
       model: string
       input_tokens: number
       output_tokens: number
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     const modelsByAgent = new Map<string, ModelBreakdown[]>()
     for (const row of modelRows) {
       const cost = calculateTokenCost(row.model, row.input_tokens, row.output_tokens, { providerSubscriptions })
-      const list = modelsByAgent.get(row.agent_name) || []
+      const list = modelsByAgent.get(row.agent_key) || []
       list.push({
         model: row.model,
         input_tokens: row.input_tokens,
@@ -109,15 +109,15 @@ export async function GET(request: NextRequest) {
         request_count: row.request_count,
         cost,
       })
-      modelsByAgent.set(row.agent_name, list)
+      modelsByAgent.set(row.agent_key, list)
     }
 
     // Assemble final response
     const agents: AgentBreakdown[] = rows.map((row) => {
-      const models = modelsByAgent.get(row.agent_name) || []
+      const models = modelsByAgent.get(row.agent_key) || []
       const totalCost = models.reduce((sum, m) => sum + m.cost, 0)
       return {
-        agent: row.agent_name,
+        agent: row.agent_key,
         total_input_tokens: row.total_input_tokens,
         total_output_tokens: row.total_output_tokens,
         total_tokens: row.total_input_tokens + row.total_output_tokens,

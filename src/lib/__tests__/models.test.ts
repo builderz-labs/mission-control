@@ -118,3 +118,33 @@ describe('classifyModelProvider (catalog-derived classification)', () => {
     expect(classifyModelProvider('')).toBeUndefined()
   })
 })
+
+describe('MiniMax model catalog', () => {
+  it('registers current models with pricing and capabilities', () => {
+    const m3 = getModelByAlias('minimax')
+    const m27 = getModelByAlias('minimax-m2.7')
+
+    expect(m3).toMatchObject({
+      name: 'minimax/MiniMax-M3',
+      provider: 'minimax',
+      contextWindow: 1_000_000,
+      inputModalities: ['text', 'image', 'video'],
+      thinking: ['adaptive', 'disabled'],
+      costPerMTok: { input: 0.6, output: 2.4, cacheRead: 0.12, cacheWrite: null },
+    })
+    expect(m27).toMatchObject({
+      name: 'minimax/MiniMax-M2.7',
+      provider: 'minimax',
+      contextWindow: 204_800,
+      inputModalities: ['text'],
+      thinking: ['always_on'],
+      costPerMTok: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0.375 },
+    })
+  })
+
+  it('classifies exact model IDs without changing their API casing', () => {
+    expect(classifyModelProvider('MiniMax-M3')).toBe('minimax')
+    expect(classifyModelProvider('MiniMax-M2.7')).toBe('minimax')
+    expect(getDispatchModelId(getModelByAlias('minimax')!)).toBe('MiniMax-M3')
+  })
+})
