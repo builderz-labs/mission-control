@@ -13,6 +13,7 @@ It works with OpenClaw, Claude Code, Codex, and other runtimes - it is not part 
 [![Quality Gate](https://github.com/builderz-labs/mission-control/actions/workflows/quality-gate.yml/badge.svg)](https://github.com/builderz-labs/mission-control/actions/workflows/quality-gate.yml)
 [![Release](https://img.shields.io/github/v/release/builderz-labs/mission-control)](https://github.com/builderz-labs/mission-control/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Sponsor](https://img.shields.io/github/sponsors/builderz-labs?label=Sponsor)](https://github.com/sponsors/builderz-labs)
 
 <img src="docs/mission-control-overview.png" alt="Mission Control overview dashboard with active sessions, live activity, fleet status per runtime, and the task pipeline" width="900">
 
@@ -291,7 +292,7 @@ the project does not promise dates for unassigned work.
 - Bugs and feature proposals: [GitHub Issues](https://github.com/builderz-labs/mission-control/issues)
 - Vulnerabilities: [private reporting instructions](SECURITY.md)
 - Builderz Labs: [builderz.dev](https://builderz.dev)
-- Maintained by [Nyk](https://nyk.dev). [Sponsor ongoing development](https://github.com/sponsors/0xNyk) or follow [@nykdotdev](https://x.com/nykdotdev).
+- Maintained by [Nyk](https://nyk.dev). Sponsor [Nyk](https://github.com/sponsors/0xNyk) or [Builderz Labs](https://github.com/sponsors/builderz-labs). Follow [@nykdotdev](https://x.com/nykdotdev).
 
 <p align="center">
   <picture>
