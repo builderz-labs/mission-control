@@ -34,6 +34,7 @@ describe('Hermes route security boundary', () => {
 
   it('strictly validates action-specific bodies and secret sizes', () => {
     expect(hermesMutationSchema.safeParse({ action: 'set-env', key: 'OPENAI_API_KEY', value: 'key' }).success).toBe(true)
+    expect(hermesMutationSchema.safeParse({ action: 'set-env', key: 'ORCAROUTER_API_KEY', value: 'sk-orca-key' }).success).toBe(true)
     expect(hermesMutationSchema.safeParse({ action: 'set-env', key: 'PATH', value: '/tmp' }).success).toBe(false)
     expect(hermesMutationSchema.safeParse({ action: 'install-hook', unexpected: true }).success).toBe(false)
     expect(hermesMutationSchema.safeParse({ action: 'run-command', command: 'x'.repeat(501) }).success).toBe(false)
