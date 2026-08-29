@@ -52,6 +52,7 @@ generate_hex() {
   fi
 }
 
+AUTH_USER="admin"
 AUTH_PASS="$(generate_password 24)"
 API_KEY="$(generate_hex 32)"
 AUTH_SECRET="$(generate_password 32)"
@@ -72,16 +73,29 @@ portable_sed() {
   fi
 }
 
+# Set KEY=VALUE in the generated file, uncommenting the key if needed: these
+# keys ship commented out in .env.example, so anchoring on "^KEY=" alone never
+# matches and the substitution is a silent no-op.
+set_env_var() {
+  local key="$1" value="$2" file="$3"
+  portable_sed "s|^#\{0,1\}[[:space:]]*${key}=.*|${key}=$(sed_escape "$value")|" "$file"
+  if ! grep -q "^${key}=" "$file"; then
+    echo "Error: could not set $key in $file (no '$key=' line in .env.example?)" >&2
+    exit 1
+  fi
+}
+
 # Replace the insecure defaults with generated values
-portable_sed "s|^AUTH_PASS=.*|AUTH_PASS=$(sed_escape "$AUTH_PASS")|" "$OUTPUT"
-portable_sed "s|^API_KEY=.*|API_KEY=$(sed_escape "$API_KEY")|" "$OUTPUT"
-portable_sed "s|^AUTH_SECRET=.*|AUTH_SECRET=$(sed_escape "$AUTH_SECRET")|" "$OUTPUT"
+set_env_var AUTH_USER "$AUTH_USER" "$OUTPUT"
+set_env_var AUTH_PASS "$AUTH_PASS" "$OUTPUT"
+set_env_var API_KEY "$API_KEY" "$OUTPUT"
+set_env_var AUTH_SECRET "$AUTH_SECRET" "$OUTPUT"
 
 # Lock down permissions
 chmod 600 "$OUTPUT"
 
 echo "Generated secure .env at $OUTPUT"
-echo "  AUTH_USER: admin"
+echo "  AUTH_USER: $AUTH_USER"
 echo "  AUTH_PASS: $AUTH_PASS"
 echo "  API_KEY:   $API_KEY"
 echo ""
