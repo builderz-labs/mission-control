@@ -481,28 +481,65 @@ function detectHermes(): RuntimeStatus {
   return { id: 'hermes', ...meta, installed, version, running, authenticated }
 }
 
+// Anything cmd.exe would interpret rather than treat as part of a path. A resolved path containing
+// one of these is never handed to a shell, even when it points at a real file on disk.
+const SHELL_METACHARACTERS = /[&|<>^"'`;()!%\n\r]/
+
 function detectBinary(bins: string[], versionFlag = '--version'): { installed: boolean; version: string | null; resolvedBin: string | null } {
   const { spawnSync } = require('node:child_process')
   const homedir = require('node:os').homedir()
   const path = require('node:path')
+  const fs = require('node:fs')
+  const isWindows = process.platform === 'win32'
+
+  // On Windows a global npm or pnpm install is a .cmd shim, and CreateProcess cannot execute one
+  // directly, so spawnSync fails with ENOENT unless it goes through a shell.
+  const executableExts: string[] = isWindows ? ['.cmd', '.exe', '.bat', ''] : ['']
+
+  // A bare name is one with no directory part. The original check only looked for a forward slash,
+  // which never matches a Windows path.
+  const isBareName = (bin: string) => !bin.includes('/') && !bin.includes(path.sep) && !path.isAbsolute(bin)
+
+  const installDirs = (): string[] => {
+    if (isWindows) {
+      const appData = process.env.APPDATA || path.join(homedir, 'AppData', 'Roaming')
+      const localAppData = process.env.LOCALAPPDATA || path.join(homedir, 'AppData', 'Local')
+      return [
+        path.join(appData, 'npm'),                       // npm global
+        path.join(localAppData, 'pnpm'),                 // pnpm global
+        path.join(localAppData, 'Yarn', 'bin'),          // yarn global
+        path.join(homedir, '.bun', 'bin'),               // bun
+      ]
+    }
+    return [
+      path.join(homedir, '.local', 'bin'),
+      path.join('/usr', 'local', 'bin'),
+      path.join(homedir, 'Library', 'pnpm'),  // macOS pnpm global
+      path.join(homedir, '.npm-global', 'bin'),
+    ]
+  }
 
   // Expand bare binary names with common install locations that may not be on PATH
   const candidates: string[] = []
   for (const bin of bins) {
-    if (!bin.includes('/')) {
-      candidates.push(
-        path.join(homedir, '.local', 'bin', bin),
-        path.join('/usr', 'local', 'bin', bin),
-        path.join(homedir, 'Library', 'pnpm', bin),  // macOS pnpm global
-        path.join(homedir, '.npm-global', 'bin', bin),
-      )
+    if (isBareName(bin)) {
+      for (const dir of installDirs()) {
+        for (const ext of executableExts) {
+          candidates.push(path.join(dir, bin + ext))
+        }
+      }
     }
     candidates.push(bin)
   }
 
   for (const bin of candidates) {
     try {
-      const result = spawnSync(bin, [versionFlag], { stdio: 'pipe', timeout: 3000 })
+      // A shim is only ever run through a shell when it is a real file on disk AND its path
+      // carries nothing a shell would reinterpret. config.openclawBin reaches this function from
+      // user configuration, so `shell: true` is never applied to an unresolved name.
+      const onDisk = path.isAbsolute(bin) && fs.existsSync(bin)
+      const needsShell = isWindows && onDisk && /\.(cmd|bat)$/i.test(bin) && !SHELL_METACHARACTERS.test(bin)
+      const result = spawnSync(bin, [versionFlag], { stdio: 'pipe', timeout: 3000, shell: needsShell })
       if (result.status === 0) {
         // Extract first meaningful line as version (skip wrapper/logging noise like [lacp])
         const rawOutput = (result.stdout?.toString() || '').trim()
