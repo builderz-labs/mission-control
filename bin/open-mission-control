@@ -1,0 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+ROOT="${HOME}/Dev/mission-control-desktop"
+export PATH="${HOME}/.nvm/versions/node/v24.16.0/bin:/opt/homebrew/bin:${PATH}"
+cd "${ROOT}"
+exec npx --no-install electron .
