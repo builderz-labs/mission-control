@@ -5,8 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 bash "${ROOT}/scripts/install-runtime.sh"
 APP="${MISSION_CONTROL_APP:-${HOME}/Applications/Mission Control.app}"
 RUNTIME="${ROOT}/node_modules/electron/dist/Electron.app"
-STAMP="$(/usr/bin/shasum -a 256 \
-  "${ROOT}/package.json" "${ROOT}/src/main.mjs" "${ROOT}/src/ensure-server.mjs" \
+STAMP="$(/usr/bin/shasum -a 256 "${ROOT}/package.json" "${ROOT}/src/"*.mjs \
   | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
 
 if [[ -x "${APP}/Contents/MacOS/Electron" \
@@ -29,7 +28,10 @@ ditto "${RUNTIME}" "${BUNDLE}"
 RES="${BUNDLE}/Contents/Resources/app"
 mkdir -p "${RES}/src"
 cp "${ROOT}/package.json" "${RES}/"
-cp "${ROOT}/src/main.mjs" "${ROOT}/src/ensure-server.mjs" "${RES}/src/"
+for src in "${ROOT}/src/"*.mjs; do
+  case "${src}" in *.test.mjs) continue ;; esac
+  cp "${src}" "${RES}/src/"
+done
 printf '%s' "${STAMP}" > "${RES}/.stamp"
 
 PLIST="${BUNDLE}/Contents/Info.plist"
