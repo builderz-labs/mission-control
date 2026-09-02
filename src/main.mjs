@@ -2,6 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { ensureServer } from "./ensure-server.mjs";
 
 const APP_URL = "http://127.0.0.1:3000";
+app.setName("Mission Control");
 
 function createWindow(ok) {
   const window = new BrowserWindow({

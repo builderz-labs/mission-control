@@ -6,13 +6,15 @@
   "type": "module",
   "main": "src/main.mjs",
   "scripts": {
-    "start": "electron .",
-    "test": "node --test src/ensure-server.test.mjs"
+    "start": "bash bin/open-mission-control",
+    "build": "bash scripts/build-app.sh",
+    "postinstall": "bash scripts/install-runtime.sh",
+    "test": "node --test src/*.test.mjs"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
-    "electron": "^38.0.0"
+    "electron": "^38.8.6"
   }
 }
