@@ -13,8 +13,15 @@ export function parseSessionCookie(setCookie) {
   const headers = Array.isArray(setCookie) ? setCookie : [setCookie];
   for (const header of headers) {
     if (!header) continue;
-    const match = String(header).match(/^(mc-session|__Host-mc-session)=([^;]+)/i);
-    if (match) return { name: match[1], value: match[2], path: "/" };
+    const text = String(header);
+    const match = text.match(/^(mc-session|__Host-mc-session)=([^;]+)/i);
+    if (!match) continue;
+    return {
+      name: match[1],
+      value: match[2],
+      path: "/",
+      secure: /(?:^|;)\s*Secure\b/i.test(text),
+    };
   }
   return null;
 }

@@ -13,6 +13,15 @@ test("parseSessionCookie reads the legacy cookie name", () => {
   const cookie = parseSessionCookie("mc-session=abc123; Path=/; HttpOnly");
   assert.equal(cookie.name, "mc-session");
   assert.equal(cookie.value, "abc123");
+  assert.equal(cookie.secure, false);
+});
+
+test("parseSessionCookie keeps the Secure flag", () => {
+  const cookie = parseSessionCookie(
+    "mc-session=tok; Path=/; Secure; HttpOnly; SameSite=strict",
+  );
+  assert.equal(cookie.secure, true);
+  assert.equal(cookie.value, "tok");
 });
 
 test("loginSession posts local credentials and returns the cookie", async () => {

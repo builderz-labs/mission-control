@@ -2,7 +2,7 @@
 # Install ~/Applications/Mission Control.app wrapping localhost:3000.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-bash "${ROOT}/scripts/install-runtime.sh"
+bash "${ROOT}/scripts/install-runtime.sh" || true
 APP="${MISSION_CONTROL_APP:-${HOME}/Applications/Mission Control.app}"
 RUNTIME="${ROOT}/node_modules/electron/dist/Electron.app"
 STAMP="$(/usr/bin/shasum -a 256 "${ROOT}/package.json" "${ROOT}/src/"*.mjs \
@@ -15,7 +15,12 @@ if [[ -x "${APP}/Contents/MacOS/Electron" \
   exit 0
 fi
 
-if [[ ! -d "${RUNTIME}" ]]; then
+if [[ ! -x "${RUNTIME}/Contents/MacOS/Electron" \
+  && -x "${APP}/Contents/MacOS/Electron" ]]; then
+  echo "build-app: using installed Electron runtime"
+  RUNTIME="${APP}"
+fi
+if [[ ! -x "${RUNTIME}/Contents/MacOS/Electron" ]]; then
   echo "build-app: Electron.app missing" >&2
   exit 1
 fi

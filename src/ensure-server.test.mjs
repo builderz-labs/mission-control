@@ -11,6 +11,14 @@ test("isHealthy accepts status ok", async () => {
   assert.equal(await isHealthy("http://127.0.0.1:3000/health", fetchImpl), true);
 });
 
+test("isHealthy rejects compile placeholder health", async () => {
+  const fetchImpl = async () => ({
+    ok: true,
+    json: async () => ({ status: "ok", live: false }),
+  });
+  assert.equal(await isHealthy("http://127.0.0.1:3000/health", fetchImpl), false);
+});
+
 test("isHealthy rejects failed fetches", async () => {
   const fetchImpl = async () => { throw new Error("down"); };
   assert.equal(await isHealthy("http://127.0.0.1:3000/health", fetchImpl), false);
