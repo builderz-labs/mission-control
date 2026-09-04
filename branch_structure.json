@@ -1,0 +1,33 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "dependabot/docker/node-24.20.0-slim",
+    "dependabot/github_actions/gh-actions-c909422a13",
+    "dependabot/npm_and_yarn/better-sqlite3-13.0.3",
+    "dependabot/npm_and_yarn/js-deps-8c4a37d082",
+    "dependabot/npm_and_yarn/jsdom-30.0.1",
+    "dependabot/npm_and_yarn/testing-library/jest-dom-7.0.1",
+    "feat/handoff-briefs",
+    "main"
+  ],
+  "parent": {
+    "dependabot/docker/node-24.20.0-slim": "main",
+    "dependabot/github_actions/gh-actions-c909422a13": "main",
+    "dependabot/npm_and_yarn/better-sqlite3-13.0.3": "main",
+    "dependabot/npm_and_yarn/js-deps-8c4a37d082": "main",
+    "dependabot/npm_and_yarn/jsdom-30.0.1": "main",
+    "dependabot/npm_and_yarn/testing-library/jest-dom-7.0.1": "main",
+    "feat/handoff-briefs": "main",
+    "main": null
+  },
+  "order": [
+    "main",
+    "dependabot/docker/node-24.20.0-slim",
+    "dependabot/github_actions/gh-actions-c909422a13",
+    "dependabot/npm_and_yarn/better-sqlite3-13.0.3",
+    "dependabot/npm_and_yarn/js-deps-8c4a37d082",
+    "dependabot/npm_and_yarn/jsdom-30.0.1",
+    "dependabot/npm_and_yarn/testing-library/jest-dom-7.0.1",
+    "feat/handoff-briefs"
+  ]
+}
