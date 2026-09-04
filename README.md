@@ -209,6 +209,7 @@ agent, task, and system events for operator review.
 | [Quickstart](docs/quickstart.md) | Register an agent and run the first task loop |
 | [Agent setup](docs/agent-setup.md) | Sources, identities, SOUL files, and heartbeats |
 | [Orchestration](docs/orchestration.md) | Dispatch, handoffs, workflows, and review gates |
+| [Handoff briefs](docs/handoff-briefs.md) | Structured context handoff between agents/runtimes and devices |
 | [CLI and MCP](docs/cli-agent-control.md) | Headless commands and agent tools |
 | [CLI integration](docs/cli-integration.md) | Claude Code, Codex, and gateway-free connections |
 | [Deployment](docs/deployment.md) | Local, Docker, standalone, reverse proxy, and VPS setup |

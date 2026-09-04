@@ -282,6 +282,12 @@ curl -X POST "$MC_URL/api/tasks" \
 
 **When to use**: Complex workflows where different agents have different specializations.
 
+> For handoffs across runtimes or devices (e.g. a mobile-reachable agent
+> handing a task to Claude Code, or back), a follow-up task's free-text
+> description isn't enough for the receiving session to pick up cleanly.
+> See [Handoff briefs](handoff-briefs.md) for a structured context object
+> the receiving session reads at startup instead.
+
 ## Pattern 7: Stale Task Recovery
 
 MC automatically recovers from stuck agents. The `requeueStaleTasks` scheduler job:
