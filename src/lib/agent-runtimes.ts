@@ -853,6 +853,24 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
       process.env.MC_HERMES_INSTALLER_SHA256 || '',
       job,
       env,
+      // Manually reviewed 2026-09-05 against the FULL 3890-line script pinned by
+      // MC_HERMES_INSTALLER_SHA256 above -- every occurrence of both rules, not
+      // only the first one the scanner reports:
+      //   cmd-pipe-download: all 6 matches are comments documenting the public
+      //     curl-pipe-bash one-liner (lines 9, 12, 86, 579, 1405, 2940). None of
+      //     them is executed.
+      //   cmd-shell-metachar: the same comments plus ordinary command
+      //     substitution -- mktemp, dirname, node --version, and the curl that
+      //     reads the nodejs.org index to resolve a tarball name. No dynamically
+      //     fetched code.
+      // The script's one real download-and-run -- the cua-driver installer,
+      // which pipes an unpinned third-party script into /bin/bash and which
+      // cmd-pipe-download misses because of the absolute interpreter path -- is
+      // NOT waived: it is disabled with --skip-computer-use below.
+      // Note also that scanForInjection() caps at 50 000 chars (about line 1249
+      // of this 169 KB script), so the SHA-256 pin, not the regex scan, is what
+      // covers the remainder.
+      ['cmd-shell-metachar', 'cmd-pipe-download'],
     )
     if (!reviewed) {
       job.status = 'failed'
@@ -866,7 +884,13 @@ async function installHermesLocal(job: InstallJob): Promise<void> {
 
     let result
     try {
-      result = await runCommand('bash', [reviewed.scriptPath, '--skip-setup'], {
+      // --skip-computer-use: the cua-driver step pipes an unpinned third-party
+      // script (raw.githubusercontent.com/trycua/cua) straight into /bin/bash,
+      // which would defeat the SHA-256 pinning this code path exists for. That
+      // driver only powers desktop control, which is meaningless on a headless
+      // server; an operator who wants it can still run "hermes computer-use
+      // install" explicitly.
+      result = await runCommand('bash', [reviewed.scriptPath, '--skip-setup', '--skip-computer-use'], {
         timeoutMs: 600_000, env,
         onData: (chunk) => { job.output += chunk },
       })
