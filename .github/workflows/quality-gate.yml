@@ -57,6 +57,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Desktop unit and packaging contract tests
+        run: pnpm test:desktop
+
       - name: Prepare E2E environment
         run: cp .env.test .env
 

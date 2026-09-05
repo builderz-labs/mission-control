@@ -54,10 +54,19 @@ src/components/   UI panels and shared components
 src/lib/          Core logic, database, utilities
 .data/            SQLite database + runtime state (gitignored)
 scripts/          Install, deploy, diagnostics scripts
+apps/desktop/     Native macOS window for the shared local backend
 docs/             Documentation and guides
 ```
 
 Path alias: `@/*` maps to `./src/*`
+
+## Native macOS App
+
+`apps/desktop` is a pnpm workspace package. Use `pnpm desktop:build`,
+`pnpm desktop:start`, and `pnpm test:desktop` from the repository root.
+It connects to the canonical local backend on port 3000. Do not package or
+start a second backend, copy `.env`/`.data` into the app, or resurrect the
+retired `~/Dev/mission-control-desktop` checkout. Use Node from `.nvmrc`.
 
 ## Data Directory
 

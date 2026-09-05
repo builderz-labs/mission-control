@@ -20,6 +20,7 @@ describe('fleet projects', () => {
     expect(actz?.githubRepo).toBe('tylerdevries22-afk/actz-may')
     expect(vault?.githubRepo).toBeNull()
     expect(desktop?.githubRepo).toBeNull()
+    expect(desktop?.path).toBe('~/Dev/mission-control/apps/desktop')
   })
 
   it('keeps discovered extra projects unique from the FLEET-MAP set', () => {

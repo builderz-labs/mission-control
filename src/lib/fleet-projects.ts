@@ -24,7 +24,7 @@ export const FLEET_PROJECTS: FleetProjectSpec[] = [
   { name: 'marketing-engine', slug: 'marketing-engine', ticketPrefix: 'MKTE', path: '~/Dev/marketing-engine', githubRepo: 'tylerdevries22-afk/marketing-engine' },
   { name: 'mfsuperior-crm', slug: 'mfsuperior-crm', ticketPrefix: 'MFSC', path: '~/Dev/mfsuperior-crm', githubRepo: 'tylerdevries22-afk/mfsuperior-crm' },
   { name: 'mission-control', slug: 'mission-control', ticketPrefix: 'MISCTL', path: '~/Dev/mission-control', githubRepo: null },
-  { name: 'mission-control-desktop', slug: 'mission-control-desktop', ticketPrefix: 'MCDT', path: '~/Dev/mission-control-desktop', githubRepo: null },
+  { name: 'mission-control-desktop', slug: 'mission-control-desktop', ticketPrefix: 'MCDT', path: '~/Dev/mission-control/apps/desktop', githubRepo: null },
   { name: 'omnia-vault', slug: 'omnia-vault', ticketPrefix: 'OVLT', path: '~/Dev/omnia-vault', githubRepo: null },
   { name: 'precision-imagery', slug: 'precision-imagery', ticketPrefix: 'PIMG', path: '~/Dev/precision-imagery', githubRepo: 'tylerdevries22-afk/precision-imagery' },
   { name: 'stout-music-studio', slug: 'stout-music-studio', ticketPrefix: 'SMS', path: '~/Dev/stout-music-studio', githubRepo: 'tylerdevries22-afk/Stout-Music-Studio' },
@@ -66,6 +66,15 @@ export function seedFleetProjects(
   let updated = 0
   let assigned = 0
   const tx = db.transaction(() => {
+    // Relocate only the generated checkout description; preserve custom text,
+    // project IDs, task ownership, and crew assignments from the standalone repo.
+    updated += db.prepare(`
+      UPDATE projects SET description = ?, updated_at = ?
+      WHERE workspace_id = ? AND slug = ? AND description = ?
+    `).run(
+      '~/Dev/mission-control/apps/desktop', now, workspaceId,
+      'mission-control-desktop', '~/Dev/mission-control-desktop',
+    ).changes
     for (const spec of allSeedProjects()) {
       let projectId = bySlug.get(spec.slug)?.id
       if (!projectId) {

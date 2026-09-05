@@ -9,6 +9,9 @@
     "mc": "node scripts/mc-cli.cjs",
     "mc:mcp": "node scripts/mc-mcp-server.cjs",
     "mc:tui": "node scripts/mc-tui.cjs",
+    "desktop:build": "pnpm --filter mission-control-desktop build",
+    "desktop:start": "pnpm --filter mission-control-desktop start",
+    "test:desktop": "pnpm --filter mission-control-desktop test",
     "dev": "pnpm run verify:node && next dev --hostname 127.0.0.1 --port ${PORT:-3000}",
     "build": "pnpm run verify:node && next build --webpack && pnpm artifact:prepare",
     "artifact:prepare": "node scripts/prepare-standalone-artifact.mjs",
@@ -27,7 +30,7 @@
     "test:e2e:openclaw:local": "pnpm run verify:node && E2E_GATEWAY_EXPECTED=0 playwright test -c playwright.openclaw.local.config.ts",
     "test:e2e:openclaw:gateway": "pnpm run verify:node && E2E_GATEWAY_EXPECTED=1 playwright test -c playwright.openclaw.gateway.config.ts",
     "test:e2e:openclaw": "pnpm test:e2e:openclaw:local && pnpm test:e2e:openclaw:gateway",
-    "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e",
+    "test:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:desktop && pnpm build && pnpm test:e2e",
     "quality:gate": "pnpm test:all",
     "postinstall": "node -e \"try{require('better-sqlite3')}catch(e){if(e.code==='ERR_DLOPEN_FAILED'||/NODE_MODULE_VERSION/.test(e.message)){console.error('\\n\u26a0  better-sqlite3 compiled for wrong Node version. Run: pnpm rebuild better-sqlite3\\n');process.exit(1)}}\""
   },

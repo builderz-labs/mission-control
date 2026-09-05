@@ -1,3 +1,6 @@
+packages:
+  - apps/desktop
+
 onlyBuiltDependencies:
   - '@parcel/watcher'
   - '@swc/core'
