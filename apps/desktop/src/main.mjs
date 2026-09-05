@@ -4,6 +4,7 @@ import { PACKAGE_ROOT } from "./app-paths.mjs";
 import { openBackend, partitionForOrigin } from "./backend-window.mjs";
 import { validateOrigin } from "./origin.mjs";
 import { configurePermissions, focusOrCreateWindow, secureWindow } from "./window-policy.mjs";
+import { configureRequestCookies } from "./request-policy.mjs";
 
 app.setName("Mission Control");
 const locked = app.requestSingleInstanceLock();
@@ -60,6 +61,7 @@ if (!locked) {
     catch { console.error("[desktop] invalid_backend_origin"); }
     // No persist: prefix: credentials live only for this app process and full origin.
     backendSession = session.fromPartition(origin ? partitionForOrigin(origin) : "mc-invalid-config");
+    configureRequestCookies(backendSession, origin);
     configurePermissions(backendSession, origin);
     createWindow();
     app.on("activate", () => {

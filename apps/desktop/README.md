@@ -50,6 +50,10 @@ Session storage is isolated by the complete origin (including port) and held in
 memory until the app quits. Legacy default-session cookies are never selected.
 Closing and reopening a window keeps the session; quitting the app requires a
 new login. Authentication and cookie attributes remain owned by the backend.
+Session request hooks strip outgoing Cookie and incoming Set-Cookie headers for
+other full origins, including gateway WebSocket handshakes. Intentional gateway
+connections and their explicit authentication remain available. Sanitized clipboard
+writes are permitted only for the selected backend; other permissions are denied.
 
 The window uses Electron sandbox and context isolation with Node integration off.
 Navigation and login redirects are limited to the selected origin; popups and
