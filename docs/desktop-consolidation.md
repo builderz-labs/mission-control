@@ -17,7 +17,9 @@ artifacts, and lifecycle ownership; it is not an implicit fallback.
 
 The app uses a validated loopback origin for health, login, and navigation.
 See `apps/desktop/README.md` for exact supported configuration and packaging
-options. Local runtime credentials remain in the canonical checkout's `.env`.
+options. The desktop never reads the backend's `.env` or sends its password
+automatically. Native login uses an in-memory session isolated by full origin;
+quitting the app clears that session. Codex Preview keeps its own browser session.
 
 ## Development
 

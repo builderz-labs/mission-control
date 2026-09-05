@@ -39,12 +39,3 @@ export function checkoutRoot({ env = process.env, start = PACKAGE_ROOT, home = o
   } catch { /* Unpackaged development fallback. No credentials are read here. */ }
   return path.join(home, "Dev", "mission-control");
 }
-
-export function envPath(options = {}) {
-  const env = options.env ?? process.env;
-  if (env.MC_DESKTOP_ENV_FILE !== undefined) {
-    if (!path.isAbsolute(env.MC_DESKTOP_ENV_FILE)) throw new Error("DESKTOP_ENV_PATH_INVALID");
-    return env.MC_DESKTOP_ENV_FILE;
-  }
-  return path.join(checkoutRoot(options), ".env");
-}

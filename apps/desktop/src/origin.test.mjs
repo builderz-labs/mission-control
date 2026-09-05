@@ -23,7 +23,7 @@ test("rejects remote, ambiguous, credentialed, path-bearing and unsafe origins",
   }
 });
 
-test("navigation stays at chosen origin and refuses popups, webviews and redirects", () => {
+test("navigation permits same-origin login redirects and refuses external destinations", () => {
   assert.equal(allowsNavigation(`${DEFAULT_ORIGIN}/tasks?q=1`, DEFAULT_ORIGIN), true);
   for (const url of ["https://example.com", "file:///tmp/a", "javascript:alert(1)",
     "http://localhost:3000", "http://127.0.0.1:3001", "http://user@127.0.0.1:3000"]) {
@@ -33,6 +33,12 @@ test("navigation stays at chosen origin and refuses popups, webviews and redirec
   let popup;
   secureWindow({ on: (name, fn) => events.set(name, fn), setWindowOpenHandler: (fn) => { popup = fn; } }, DEFAULT_ORIGIN);
   assert.deepEqual(popup(), { action: "deny" });
+  for (const name of ["will-navigate", "will-frame-navigate", "will-redirect"]) {
+    events.get(name)({ preventDefault() { assert.fail("same-origin blocked"); } }, `${DEFAULT_ORIGIN}/login`);
+    let portBlocked = false;
+    events.get(name)({ preventDefault() { portBlocked = true; } }, "http://127.0.0.1:3100/login");
+    assert.equal(portBlocked, true);
+  }
   for (const name of ["will-navigate", "will-frame-navigate", "will-redirect", "will-attach-webview"]) {
     let blocked = false;
     events.get(name)({ preventDefault() { blocked = true; } }, "https://example.com");

@@ -1,8 +1,8 @@
 # Mission Control desktop
 
 A lightweight native macOS window for the canonical Mission Control web checkout.
-It paints a dark shell immediately, waits for the existing backend, signs in with
-normal local credentials when available, and opens the dashboard. It contains no
+It paints a dark shell immediately, waits for the existing backend, and opens its
+normal login screen. It contains no
 backend, standalone Next.js output, Node server runtime or database.
 
 The default backend is **http://127.0.0.1:3000**. A healthy shared service is reused.
@@ -35,25 +35,26 @@ The source and build paths are discovered relative to this package, independent 
   runs find the repository and resolve Git's common checkout for worktrees. Packaged
   builds record that canonical path as non-secret metadata. The conventional
   `~/Dev/mission-control` is the fallback for an unpackaged copy with no repository.
-- `MC_DESKTOP_ENV_FILE`: optional absolute credentials file, default `<root>/.env`.
-  Reads `AUTH_USER` and `AUTH_PASS` (or `AUTH_PASS_B64`). Credentials are never bundled.
 - `MC_DESKTOP_URL`: optional loopback HTTP origin with an explicit port, such as
   `http://127.0.0.1:3100`, `http://localhost:3100`, or `http://[::1]:3100`.
   Ports must be 1024–65535; Chromium-blocked ports and port 4190 are refused. Other origins,
   userinfo, numeric host aliases, paths, queries and fragments are rejected. An
   optional trailing root slash is accepted.
 
-Health and credential-free login probes reject redirects before reading `.env`.
-The login POST also refuses redirects and never forwards credentials to a redirect
-location. Requests have a three-second timeout including body consumption and one
-retry for transport/timeouts or HTTP 408/500/502/503/504. Authentication failures
-and rate limits are not retried. Missing credentials or failed login lead to the
-ordinary local login page. Cookies retain Secure; failed cookie installation is
-never retried with weaker attributes. This app neither bypasses setup nor seeds users.
+Health probes have a three-second timeout including body consumption and one
+retry for transport/timeouts or HTTP 408/500/502/503/504. Probes reject redirects
+and never include credentials. A healthy port is not proof of service identity:
+the native client never reads `.env`, sends passwords automatically, or installs
+authentication cookies. Sign in through the ordinary local login screen.
+Session storage is isolated by the complete origin (including port) and held in
+memory until the app quits. Legacy default-session cookies are never selected.
+Closing and reopening a window keeps the session; quitting the app requires a
+new login. Authentication and cookie attributes remain owned by the backend.
 
 The window uses Electron sandbox and context isolation with Node integration off.
-Navigation is limited to the selected origin; all popups and navigation redirects
-are blocked. A single-instance lock focuses the existing window on a second launch.
+Navigation and login redirects are limited to the selected origin; popups and
+external redirects are blocked. A single-instance lock focuses the existing window
+on a second launch. Never enter credentials if the displayed service is unexpected.
 
 ## Packaging and installation
 
