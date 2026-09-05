@@ -25,6 +25,7 @@ Use the Node version in `.nvmrc` and the root `packageManager` pnpm version.
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm --dir apps/desktop exec install-electron
 pnpm test:desktop
 pnpm desktop:build
 pnpm desktop:start

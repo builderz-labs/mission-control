@@ -14,10 +14,12 @@ backend running.
 ## Development
 
 Use the Node version in the root `.nvmrc` and `pnpm@10.29.3`. The root workspace and
-`pnpm-lock.yaml` manage dependencies, including Electron's approved install script.
+`pnpm-lock.yaml` manage dependencies. Electron 44 downloads its runtime on first
+launch, or explicitly through its `install-electron` command before packaging.
 The desktop has no custom postinstall extraction or cached-runtime fallback.
 
 ```sh
+pnpm --dir apps/desktop exec install-electron
 pnpm --dir apps/desktop test
 pnpm --dir apps/desktop start
 pnpm --dir apps/desktop build --stage-only --output /absolute/path/to/artifacts

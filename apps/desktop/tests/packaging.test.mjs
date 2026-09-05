@@ -76,6 +76,7 @@ test("Electron resolves through pnpm symlink and rejects missing/mismatched pack
   const root = await packageFixture(t);
   const electron = path.join(root, "node_modules/.pnpm/electron@44.2.0/node_modules/electron");
   await put(electron, "package.json", '{"name":"electron","version":"44.2.0"}');
+  await assert.rejects(resolveElectron(root, { override: electron, stageOnly: true }), /RUNTIME_MISSING_RUN_INSTALL_ELECTRON/);
   await put(electron, "dist/version", "44.2.0");
   const binary = await put(electron, "dist/Electron.app/Contents/MacOS/Electron", "fixture");
   await chmod(binary, 0o755);

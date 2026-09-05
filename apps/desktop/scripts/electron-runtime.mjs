@@ -12,7 +12,9 @@ export async function resolveElectron(root, { override, stageOnly = false } = {}
     directory = await realpath(override ?? path.dirname(require.resolve("electron/package.json")));
   } catch { throw new Error("ELECTRON_MISSING_RUN_PNPM_INSTALL"); }
   const metadata = JSON.parse(await readFile(path.join(directory, "package.json"), "utf8"));
-  const version = (await readFile(path.join(directory, "dist/version"), "utf8")).trim();
+  let version;
+  try { version = (await readFile(path.join(directory, "dist/version"), "utf8")).trim(); }
+  catch { throw new Error("ELECTRON_RUNTIME_MISSING_RUN_INSTALL_ELECTRON"); }
   if (metadata.name !== "electron" || metadata.version !== ELECTRON_VERSION || version !== ELECTRON_VERSION) {
     throw new Error("ELECTRON_VERSION_MISMATCH");
   }
