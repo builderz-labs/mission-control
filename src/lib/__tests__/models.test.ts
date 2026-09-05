@@ -62,6 +62,14 @@ describe('getModelByAlias', () => {
     expect(haiku!.costPerMTok.input).toBeLessThan(sonnet!.costPerMTok.input)
     expect(haiku!.costPerMTok.output).toBeLessThan(sonnet!.costPerMTok.output)
   })
+
+  it('includes the Atlas Cloud default model', () => {
+    const atlas = getModelByAlias('atlas-deepseek')
+    expect(atlas).toMatchObject({
+      name: 'atlascloud/deepseek-ai/deepseek-v4-pro',
+      provider: 'atlascloud',
+    })
+  })
 })
 
 describe('getModelByName', () => {

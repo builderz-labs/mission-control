@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
 import { insertDispatchTokenUsage, pickProvider, resolveTaskDispatchModelOverride } from '@/lib/task-dispatch'
 
+
 describe('insertDispatchTokenUsage', () => {
   it('persists dispatch usage using the current token_usage schema', () => {
     const db = new Database(':memory:')
@@ -61,5 +62,12 @@ describe('MiniMax direct dispatch routing', () => {
   it('selects the dedicated provider for both current model IDs', () => {
     expect(pickProvider('MiniMax-M3')).toBe('minimax')
     expect(pickProvider('minimax/MiniMax-M2.7')).toBe('minimax')
+  })
+})
+
+describe('Atlas Cloud direct dispatch routing', () => {
+  it('routes Atlas Cloud catalog names and aliases to its direct API path', () => {
+    expect(pickProvider('atlascloud/deepseek-ai/deepseek-v4-pro')).toBe('atlascloud')
+    expect(pickProvider('atlas-deepseek')).toBe('atlascloud')
   })
 })
