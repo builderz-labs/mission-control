@@ -24,7 +24,7 @@ pnpm --dir apps/desktop start
 pnpm --dir apps/desktop build --stage-only --output /absolute/path/to/artifacts
 ```
 
-Electron is pinned to `38.8.6` and resolved from this package's installed dependency,
+Electron is pinned to `44.2.0` and resolved from this package's installed dependency,
 including pnpm's symlinked location. Missing or mismatched installations fail the build.
 The source and build paths are discovered relative to this package, independent of cwd.
 
@@ -75,6 +75,8 @@ The parent can separately install using `--install-to /absolute/Mission\ Control
 or `MISSION_CONTROL_APP`. A validated candidate is copied beside the destination;
 renames publish it and retain the old app as `.backup-<uuid>`. Failed publication
 restores the old app; a failed rollback retains the backup and candidate for recovery.
+If the installed app already passes validation for the exact current payload, it is
+reused without copying files or creating another backup.
 An exclusive installation lock prevents concurrent replacements. A process crash may
 leave that lock for the parent to inspect and remove before another installation.
 Signing failures stop the build. Quarantine is never modified. `--stage-only` refuses

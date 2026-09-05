@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, lstat } from "node:fs/promises";
 import path from "node:path";
 
-export const ELECTRON_VERSION = "38.8.6";
+export const ELECTRON_VERSION = "44.2.0";
 export const hash = (value) => createHash("sha256").update(value).digest("hex");
 
 export async function filesUnder(root, relative = "") {

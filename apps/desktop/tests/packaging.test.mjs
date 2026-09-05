@@ -39,7 +39,7 @@ test("fingerprint changes with source, package, build scripts, launcher, root an
   assert.notEqual((await packageInputs(root, "/other")).fingerprint, previous.fingerprint);
   assert.notEqual((await packageInputs(root, "/canonical", "identity")).fingerprint, previous.fingerprint);
   const metadata = JSON.parse(previous.payload.get("build-metadata.json"));
-  assert.equal(metadata.electron, "38.8.6");
+  assert.equal(metadata.electron, "44.2.0");
 });
 
 test("boundary rejects forbidden files, empty directories, changed source and symlinks", async (t) => {
@@ -74,12 +74,12 @@ test("cache validates payload and zip digest before hit", async (t) => {
 
 test("Electron resolves through pnpm symlink and rejects missing/mismatched packages", async (t) => {
   const root = await packageFixture(t);
-  const electron = path.join(root, "node_modules/.pnpm/electron@38.8.6/node_modules/electron");
-  await put(electron, "package.json", '{"name":"electron","version":"38.8.6"}');
-  await put(electron, "dist/version", "38.8.6");
+  const electron = path.join(root, "node_modules/.pnpm/electron@44.2.0/node_modules/electron");
+  await put(electron, "package.json", '{"name":"electron","version":"44.2.0"}');
+  await put(electron, "dist/version", "44.2.0");
   const binary = await put(electron, "dist/Electron.app/Contents/MacOS/Electron", "fixture");
   await chmod(binary, 0o755);
-  await symlink(".pnpm/electron@38.8.6/node_modules/electron", path.join(root, "node_modules/electron"));
+  await symlink(".pnpm/electron@44.2.0/node_modules/electron", path.join(root, "node_modules/electron"));
   assert.equal(await resolveElectron(root), path.join(electron, "dist/Electron.app"));
   await assert.rejects(resolveElectron(root, { override: electron }), /STAGE_ONLY/);
   assert.equal(await resolveElectron(root, { override: electron, stageOnly: true }), path.join(electron, "dist/Electron.app"));

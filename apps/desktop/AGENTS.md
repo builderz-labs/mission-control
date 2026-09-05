@@ -4,7 +4,7 @@ This package is a native Electron window onto one existing local Mission Control
 backend. Default origin: `http://127.0.0.1:3000`. Never bundle or spawn a backend,
 Node runtime, database, or alternate portable service.
 
-- Package manager: `pnpm@10.29.3`; Electron must be exactly `38.8.6`.
+- Package manager: `pnpm@10.29.3`; Electron must be exactly `44.2.0`.
 - Parent owns repository workspace/lockfile changes and integration checks.
 - Tests: `pnpm --dir apps/desktop test` (temporary fixtures only).
 - Stage: `pnpm --dir apps/desktop build --stage-only --output /absolute/output`.
