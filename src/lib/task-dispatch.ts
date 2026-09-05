@@ -15,6 +15,7 @@ import { getAllGatewaySessions } from './sessions'
 import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from './transcript-parser'
 import { syncTaskOutbound } from './github-sync-engine'
 import { classifyModelProvider, getDispatchModelId, getModelByAlias, getModelByName } from './models'
+import { getMiniMaxApiKey, resolveMiniMaxEndpoint } from './minimax'
 import type Database from 'better-sqlite3'
 
 const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
@@ -640,6 +641,10 @@ function getAnthropicApiKey(): string | null {
   return (process.env.ANTHROPIC_API_KEY || '').trim() || null
 }
 
+function getAtlasCloudApiKey(): string | null {
+  return (process.env.ATLASCLOUD_API_KEY || '').trim() || null
+}
+
 function isGatewayAvailable(): boolean {
   // `config.openclawHome` defaults to `~/.openclaw` even when OpenClaw is not
   // installed, so a truthy path string alone is not evidence that a gateway
@@ -685,8 +690,6 @@ function classifyDirectModel(task: DispatchableTask): string {
     try {
       const cfg = JSON.parse(task.agent_config)
       if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) {
-        const catalogModel = getModelByName(cfg.dispatchModel) ?? getModelByAlias(cfg.dispatchModel)
-        if (catalogModel) return getDispatchModelId(catalogModel)
         // Strip gateway prefixes like "9router/cc/" to get bare model ID
         return cfg.dispatchModel.replace(/^.*\//, '')
       }
@@ -808,8 +811,7 @@ async function callClaudeDirectly(
 }
 
 // ---------------------------------------------------------------------------
-// Direct OpenAI / Atlas Cloud / OpenAI-compatible local dispatch — also
-// gateway-free.
+// Direct compatibility API dispatch — also gateway-free.
 //
 // The "local" provider path is intentionally generic: it speaks the OpenAI
 // `/v1/chat/completions` REST shape, which is what LMStudio, Ollama, vLLM and
@@ -819,21 +821,16 @@ async function callClaudeDirectly(
 //
 // Model routing is done by prefix on the agent's `dispatchModel`:
 //   "openai/gpt-4o-mini", "gpt-4.1-mini", "o1-*", "o3-*"  → OpenAI cloud
-//   "atlascloud/<model>", "atlas-deepseek"                  → Atlas Cloud
 //   "local/<model>", "ollama/<model>", "lmstudio/<model>" → LOCAL_LLM_ENDPOINT
 //   anything else (incl. "claude-*")                      → Anthropic
 // ---------------------------------------------------------------------------
 
-export type DirectProvider = 'anthropic' | 'openai' | 'atlascloud' | 'local'
+export type DirectProvider = 'anthropic' | 'openai' | 'atlascloud' | 'local' | 'minimax'
 
 const ATLASCLOUD_API_BASE = 'https://api.atlascloud.ai/v1'
 
 function getOpenAIApiKey(): string | null {
   return (process.env.OPENAI_API_KEY || '').trim() || null
-}
-
-function getAtlasCloudApiKey(): string | null {
-  return (process.env.ATLASCLOUD_API_KEY || '').trim() || null
 }
 
 /**
@@ -851,28 +848,29 @@ function getLocalApiKey(): string | null {
   return (process.env.LOCAL_LLM_API_KEY || '').trim() || null
 }
 
-export function resolveDirectProvider(model: string): DirectProvider {
+export function pickProvider(model: string): DirectProvider {
   // Consult MODEL_CATALOG first (single source of truth). Only providers
   // with a direct dispatch path map to a DirectProvider; catalog providers
-  // without one (google, groq, moonshot, venice, minimax) fall through to
-  // the prefix rules below, which keeps their routing identical to before.
+  // without one fall through to the prefix rules below.
   const catalogProvider = classifyModelProvider(model)
   if (catalogProvider === 'anthropic') return 'anthropic'
   if (catalogProvider === 'openai') return 'openai'
-  if (catalogProvider === 'atlascloud') return 'atlascloud'
   if (catalogProvider === 'ollama') return 'local'
+  if (catalogProvider === 'minimax') return 'minimax'
+  if (catalogProvider === 'atlascloud') return 'atlascloud'
 
   // Prefix-match fallback for models not in the catalog — behavior for
   // unknown IDs is unchanged (default remains 'anthropic').
   const m = model.toLowerCase()
   if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
-  if (m.startsWith('atlascloud/')) return 'atlascloud'
   if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
+  if (m.startsWith('minimax/')) return 'minimax'
+  if (m.startsWith('atlascloud/')) return 'atlascloud'
   return 'anthropic'
 }
 
 function stripProviderPrefix(model: string): string {
-  return model.replace(/^(openai|atlascloud|local|ollama|lmstudio|litellm|anthropic)\//, '')
+  return model.replace(/^(openai|atlascloud|local|ollama|lmstudio|litellm|anthropic|minimax)\//i, '')
 }
 
 /**
@@ -882,27 +880,61 @@ function stripProviderPrefix(model: string): string {
  * the operator's existing login, plan, and rate limits without requiring
  * an `ANTHROPIC_API_KEY` to be exported into the container.
  */
-let claudeCliAvailableCache: boolean | null = null
-function isClaudeCliAvailable(): boolean {
+let claudeCliBinaryPath: string | false | null = null
+
+/**
+ * Resolve the Claude CLI binary path. Returns the absolute path when found
+ * at a known location, or 'claude' (bare command name) when it's in PATH.
+ * Prefers Docker paths, then Windows native install, then PATH resolution.
+ * Cached — spawnSync costs ~1s and existsSync results are stable per boot.
+ */
+function getClaudeCliBinaryPath(): string | null {
+  if (claudeCliBinaryPath !== null) {
+    return claudeCliBinaryPath || null
+  }
+
   try {
-    if (existsSync('/home/nextjs/.local/bin/claude')
-      || existsSync('/usr/local/bin/claude')
-      || existsSync('/usr/bin/claude')) return true
-    // Windows native install (~/.local/bin/claude.exe) or any PATH-resolvable
-    // binary: the container paths above never exist outside Docker, so fall
-    // back to actually resolving the CLI. Cached — spawnSync costs ~1s.
-    if (claudeCliAvailableCache !== null) return claudeCliAvailableCache
+    // Docker paths (preferred per #933 — container bind-mounts)
+    const dockerPaths = [
+      '/home/nextjs/.local/bin/claude',
+      '/usr/local/bin/claude',
+      '/usr/bin/claude',
+    ]
+    for (const p of dockerPaths) {
+      if (existsSync(p)) {
+        claudeCliBinaryPath = p
+        return p
+      }
+    }
+
+    // Windows native install (~/.local/bin/claude.exe)
     const os = require('node:os')
     const path = require('node:path')
-    if (existsSync(path.join(os.homedir(), '.local', 'bin', 'claude.exe'))) {
-      claudeCliAvailableCache = true
-      return true
+    const windowsPath = path.join(os.homedir(), '.local', 'bin', 'claude.exe')
+    if (existsSync(windowsPath)) {
+      claudeCliBinaryPath = windowsPath
+      return windowsPath
     }
+
+    // Try PATH resolution as fallback
     const { spawnSync } = require('node:child_process')
     const r = spawnSync('claude', ['--version'], { stdio: 'ignore', timeout: 5000 })
-    claudeCliAvailableCache = r.status === 0
-    return claudeCliAvailableCache
-  } catch { return false }
+    if (r.status === 0) {
+      // It's in PATH, use the bare name (let OS resolve)
+      claudeCliBinaryPath = 'claude'
+      return 'claude'
+    }
+
+    claudeCliBinaryPath = false
+    return null
+  } catch {
+    claudeCliBinaryPath = false
+    return null
+  }
+}
+
+function isClaudeCliAvailable(): boolean {
+  return getClaudeCliBinaryPath() !== null
 }
 
 /**
@@ -910,24 +942,44 @@ function isClaudeCliAvailable(): boolean {
  * OpenAI-model tasks can dispatch through `codex exec` without an
  * OPENAI_API_KEY — same idea as the Claude Code CLI path above.
  */
-let codexCliAvailableCache: boolean | null = null
-function isCodexCliAvailable(): boolean {
+let codexCliBinaryPath: string | false | null = null
+
+/**
+ * Resolve the Codex CLI binary path. Returns 'codex' (bare command name) when
+ * it's in PATH. Cached — spawnSync costs ~1s.
+ */
+function getCodexCliBinaryPath(): string | null {
+  if (codexCliBinaryPath !== null) {
+    return codexCliBinaryPath || null
+  }
+
   try {
-    if (codexCliAvailableCache !== null) return codexCliAvailableCache
     const { spawnSync } = require('node:child_process')
     const r = spawnSync('codex', ['--version'], { stdio: 'ignore', timeout: 5000 })
-    codexCliAvailableCache = r.status === 0
-    return codexCliAvailableCache
-  } catch { return false }
+    if (r.status === 0) {
+      codexCliBinaryPath = 'codex'
+      return 'codex'
+    }
+    codexCliBinaryPath = false
+    return null
+  } catch {
+    codexCliBinaryPath = false
+    return null
+  }
+}
+
+function isCodexCliAvailable(): boolean {
+  return getCodexCliBinaryPath() !== null
 }
 
 function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
   if (provider === 'anthropic') return !!getAnthropicApiKey() || isClaudeCliAvailable()
   if (provider === 'openai') return !!getOpenAIApiKey() || isCodexCliAvailable()
-  if (provider === 'atlascloud') return !!getAtlasCloudApiKey()
   if (provider === 'local') return !!getLocalEndpoint()
-  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getAtlasCloudApiKey()
-    || !!getLocalEndpoint() || isClaudeCliAvailable() || isCodexCliAvailable()
+  if (provider === 'minimax') return !!getMiniMaxApiKey()
+  if (provider === 'atlascloud') return !!getAtlasCloudApiKey()
+  return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint()
+    || !!getMiniMaxApiKey() || !!getAtlasCloudApiKey() || isClaudeCliAvailable() || isCodexCliAvailable()
 }
 
 /**
@@ -978,7 +1030,11 @@ async function callClaudeViaCli(
   )
 
   return await new Promise<AgentResponseParsed>((resolve, reject) => {
-    const proc = spawn('claude', args, {
+    const claudePath = getClaudeCliBinaryPath()
+    if (!claudePath) {
+      return reject(new Error('Claude CLI not available'))
+    }
+    const proc = spawn(claudePath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, CI: '1' },
       ...(sandbox.cwd ? { cwd: sandbox.cwd } : {}),
@@ -1090,6 +1146,13 @@ async function dispatchViaClaudeSession(
     })
     return response
   } catch (err) {
+    // If this was a first-dispatch create attempt that failed, mark the session
+    // as materialized anyway. This allows retry to resume instead of attempting
+    // create again with the same id, which would collision-loop forever (#934).
+    // The original error is preserved in the audit and thrown upward unchanged.
+    if (!base.materialized) {
+      markClaudeBaseSessionMaterialized(task.agent_id, base.sessionId)
+    }
     auditClaudeSessionDispatch({
       agentId: task.agent_id,
       baseSessionId: base.sessionId,
@@ -1151,6 +1214,84 @@ async function callOpenAICompatible(
   return { text, sessionId: null }
 }
 
+async function callMiniMaxAnthropicCompatible(
+  task: DispatchableTask,
+  prompt: string,
+  endpoint: string,
+  apiKey: string,
+  model: string,
+): Promise<AgentResponseParsed> {
+  const soul = getAgentSoulContent(task)
+  const messages: Array<{ role: string; content: string }> = [
+    { role: 'user', content: prompt },
+  ]
+  const body: Record<string, unknown> = { model, max_tokens: 4096, messages }
+  if (soul) body.system = soul
+
+  logger.info(
+    { taskId: task.id, model, agent: task.agent_name, provider: 'minimax' },
+    'Dispatching task via direct MiniMax API',
+  )
+
+  const res = await fetch(endpoint.replace(/\/$/, '') + '/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => '')
+    throw new Error('MiniMax API ' + res.status + ': ' + errorBody.substring(0, 500))
+  }
+
+  const data = await res.json() as {
+    content?: Array<{ type: string; text?: string }>
+    usage?: { input_tokens?: number; output_tokens?: number }
+  }
+  const text = data.content
+    ?.filter(block => block.type === 'text')
+    .map(block => block.text || '')
+    .join('\n') || null
+
+  if (data.usage) {
+    recordDispatchTokenUsage({
+      model,
+      sessionId: 'task-' + task.id,
+      inputTokens: data.usage.input_tokens || 0,
+      outputTokens: data.usage.output_tokens || 0,
+      workspaceId: task.workspace_id,
+    })
+  }
+
+  return { text, sessionId: null }
+}
+
+async function callAtlasCloudDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
+  const apiKey = getAtlasCloudApiKey()
+  if (!apiKey) throw new Error('ATLASCLOUD_API_KEY not set — cannot dispatch to Atlas Cloud without gateway')
+  return callOpenAICompatible(task, prompt, ATLASCLOUD_API_BASE, apiKey, stripProviderPrefix(model), 'atlascloud')
+}
+
+async function callMiniMaxDirectly(
+  task: DispatchableTask,
+  prompt: string,
+  model: string,
+): Promise<AgentResponseParsed> {
+  const apiKey = getMiniMaxApiKey()
+  if (!apiKey) throw new Error('MINIMAX_API_KEY not set — cannot dispatch to MiniMax without gateway')
+
+  const { baseUrl, protocol } = resolveMiniMaxEndpoint()
+  const modelId = stripProviderPrefix(model)
+  if (protocol === 'anthropic') {
+    return callMiniMaxAnthropicCompatible(task, prompt, baseUrl, apiKey, modelId)
+  }
+  return callOpenAICompatible(task, prompt, baseUrl, apiKey, modelId, 'minimax')
+}
+
 async function callOpenAIDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
   const apiKey = getOpenAIApiKey()
   if (!apiKey) {
@@ -1160,12 +1301,6 @@ async function callOpenAIDirectly(task: DispatchableTask, prompt: string, model:
     throw new Error('OPENAI_API_KEY not set and Codex CLI not found — cannot dispatch to OpenAI without gateway')
   }
   return callOpenAICompatible(task, prompt, 'https://api.openai.com/v1', apiKey, stripProviderPrefix(model), 'openai')
-}
-
-async function callAtlasCloudDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
-  const apiKey = getAtlasCloudApiKey()
-  if (!apiKey) throw new Error('ATLASCLOUD_API_KEY not set — cannot dispatch to Atlas Cloud without gateway')
-  return callOpenAICompatible(task, prompt, ATLASCLOUD_API_BASE, apiKey, stripProviderPrefix(model), 'atlascloud')
 }
 
 /**
@@ -1204,7 +1339,11 @@ async function callCodexViaCli(
   )
 
   return await new Promise<AgentResponseParsed>((resolve, reject) => {
-    const proc = spawn('codex', args, {
+    const codexPath = getCodexCliBinaryPath()
+    if (!codexPath) {
+      return reject(new Error('Codex CLI not available'))
+    }
+    const proc = spawn(codexPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env },
       ...(dispatchCwd ? { cwd: dispatchCwd } : {}),
@@ -1242,11 +1381,12 @@ async function callLocalDirectly(task: DispatchableTask, prompt: string, model: 
   return callOpenAICompatible(task, prompt, endpoint, getLocalApiKey(), stripProviderPrefix(model), 'local')
 }
 
-export async function callDirectly(task: DispatchableTask, prompt: string): Promise<AgentResponseParsed> {
+async function callDirectly(task: DispatchableTask, prompt: string): Promise<AgentResponseParsed> {
   const model = classifyDirectModel(task)
-  const provider = resolveDirectProvider(model)
-  if (provider === 'openai') return callOpenAIDirectly(task, prompt, model)
+  const provider = pickProvider(model)
+  if (provider === 'minimax') return callMiniMaxDirectly(task, prompt, model)
   if (provider === 'atlascloud') return callAtlasCloudDirectly(task, prompt, model)
+  if (provider === 'openai') return callOpenAIDirectly(task, prompt, model)
   if (provider === 'local') return callLocalDirectly(task, prompt, model)
   // Anthropic: prefer the host Claude Code CLI when available — it uses the
   // operator's existing login, no API key needed. Fall back to the API key
@@ -1369,7 +1509,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       let agentResponse: AgentResponseParsed
 
       if (!isGatewayAvailable() && isDirectDispatchAvailable()) {
-        // Direct API review — no gateway needed (Anthropic / OpenAI / local).
+        // Direct API review through the configured provider, with no gateway required.
         // Pass through agent_config so Aegis honors per-agent dispatchModel
         // overrides and routes to the matching provider.
         const reviewTask: DispatchableTask = {
@@ -1540,7 +1680,7 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
 
   // When MC runs in direct-API mode (no gateway), the agent has no heartbeat
   // and stays "offline" by design — but tasks still get dispatched via the
-  // direct provider (Anthropic/OpenAI/local). Skip the offline-stale check
+  // configured direct provider. Skip the offline-stale check
   // entirely in that mode, otherwise every task is failed after 5 cycles
   // before any direct-API dispatch can run.
   const directApiSkipsStaleCheck = !isGatewayAvailable() && isDirectDispatchAvailable()
@@ -1700,8 +1840,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         // less restrictive provider; failures surface as dispatch failures.
         agentResponse = await dispatchViaClaudeSession(task, prompt)
       } else if (useDirectApi && !targetSession) {
-        // Direct API dispatch — provider chosen by `dispatchModel` prefix
-        // (Anthropic / OpenAI / OpenAI-compatible local). No gateway needed.
+        // Direct API dispatch — provider chosen by `dispatchModel`. No gateway needed.
         agentResponse = await callDirectly(task, prompt)
       } else if (targetSession) {
         // Dispatch to a specific existing session via chat.send

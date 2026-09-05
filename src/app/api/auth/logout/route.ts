@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
 import { destroySession, getUserFromRequest } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
-import { getMcSessionCookieName, getMcSessionCookieOptions, isRequestSecure, parseMcSessionCookieHeader } from '@/lib/session-cookie'
+import { getMcSessionCookieOptions, parseAllMcSessionCookies, MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
 
 export async function POST(request: Request) {
   const user = getUserFromRequest(request)
   const cookieHeader = request.headers.get('cookie') || ''
-  const token = parseMcSessionCookieHeader(cookieHeader)
+  const tokens = parseAllMcSessionCookies(cookieHeader)
 
-  if (token) {
+  // Destroy all presented session tokens
+  for (const token of tokens) {
     destroySession(token)
   }
 
@@ -18,10 +19,14 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ ok: true })
-  const isSecureRequest = isRequestSecure(request)
-  const cookieName = getMcSessionCookieName(isSecureRequest)
-  response.cookies.set(cookieName, '', {
-    ...getMcSessionCookieOptions({ maxAgeSeconds: 0, isSecureRequest }),
+
+  // Expire BOTH the __Host-mc-session cookie and the legacy mc-session cookie
+  // so an HTTP→HTTPS transition cannot leave a live session after logout.
+  response.cookies.set(MC_SESSION_COOKIE_NAME, '', {
+    ...getMcSessionCookieOptions({ maxAgeSeconds: 0, isSecureRequest: true }),
+  })
+  response.cookies.set(LEGACY_MC_SESSION_COOKIE_NAME, '', {
+    ...getMcSessionCookieOptions({ maxAgeSeconds: 0, isSecureRequest: false }),
   })
 
   return response

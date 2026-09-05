@@ -31,16 +31,17 @@ test.describe('i18n Language Switcher', () => {
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
   })
 
-  test('language switcher shows all 10 languages', async ({ page }) => {
+  test('language switcher shows all 11 languages', async ({ page }) => {
     await page.goto('/login')
 
     const select = page.getByLabel('Language')
     await expect(select).toBeVisible()
 
     const options = await select.locator('option').allTextContents()
-    expect(options).toHaveLength(10)
+    expect(options).toHaveLength(11)
     expect(options).toContain('English')
     expect(options).toContain('中文')
+    expect(options).toContain('中文（台灣）')
     expect(options).toContain('日本語')
     expect(options).toContain('한국어')
     expect(options).toContain('Español')
@@ -59,6 +60,15 @@ test.describe('i18n Language Switcher', () => {
     await expect(page.locator('text=用户名')).toBeVisible()
     await expect(page.locator('text=密码')).toBeVisible()
     await expect(page.getByRole('button', { name: '登录' })).toBeVisible()
+  })
+
+  test('Traditional Chinese (Taiwan) locale renders zh-tw translations', async ({ page }) => {
+    await page.goto('/login')
+    await switchLocale(page, 'zh-tw')
+
+    await expect(page.locator('text=登入以繼續')).toBeVisible()
+    await expect(page.locator('text=使用者名稱')).toBeVisible()
+    await expect(page.getByRole('button', { name: '登入' })).toBeVisible()
   })
 
   test('language preference persists across page reload', async ({ page }) => {

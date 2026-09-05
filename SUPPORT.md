@@ -35,3 +35,6 @@ instructions in [SECURITY.md](SECURITY.md).
 Maintainers prioritize security, data-loss risk, release regressions, and reproducible defects.
 Questions may be answered by maintainers or other community members. The project does not include
 private deployment support, custom integration work, or a response-time commitment.
+
+Sponsorship of ongoing public maintenance: [Nyk](https://github.com/sponsors/0xNyk) or
+[Builderz Labs](https://github.com/sponsors/builderz-labs).

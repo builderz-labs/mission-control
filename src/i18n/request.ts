@@ -14,10 +14,15 @@ export default getRequestConfig(async () => {
     // 2. Fall back to Accept-Language header
     const headerStore = await headers()
     const acceptLang = headerStore.get('accept-language') || ''
-    const preferred = acceptLang
+    const tags = acceptLang
       .split(',')
-      .map((part) => part.split(';')[0].trim().substring(0, 2).toLowerCase())
-      .find((code) => locales.includes(code as Locale))
+      .map((part) => part.split(';')[0].trim().toLowerCase())
+    // Prefer an exact tag match (e.g. "zh-tw") before falling back to the
+    // bare 2-letter language code (e.g. "zh-cn" -> "zh"), so locales that
+    // share a 2-letter prefix (zh, zh-tw) resolve to the right one.
+    const preferred =
+      tags.find((tag) => locales.includes(tag as Locale)) ??
+      tags.map((tag) => tag.substring(0, 2)).find((code) => locales.includes(code as Locale))
     if (preferred) {
       locale = preferred as Locale
     }

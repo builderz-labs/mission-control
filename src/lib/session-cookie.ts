@@ -24,6 +24,23 @@ export function parseMcSessionCookieHeader(cookieHeader: string): string | null 
   return null
 }
 
+export function parseAllMcSessionCookies(cookieHeader: string): string[] {
+  if (!cookieHeader) return []
+  const tokens: string[] = []
+  for (const cookieName of MC_SESSION_COOKIE_NAMES) {
+    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`))
+    if (match) {
+      try {
+        tokens.push(decodeURIComponent(match[1]))
+      } catch {
+        // Malformed percent-encoding - push raw value so logout stays reachable
+        tokens.push(match[1])
+      }
+    }
+  }
+  return tokens
+}
+
 function envFlag(name: string): boolean | undefined {
   const raw = process.env[name]
   if (raw === undefined) return undefined
