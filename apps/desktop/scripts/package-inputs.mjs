@@ -57,7 +57,7 @@ export async function validateBoundary(app, payload) {
     }
   }
   for (const name of await readdir(path.dirname(root))) {
-    if (name !== "app" && name !== "electron.icns" && !/^[a-zA-Z_]+\.lproj$/.test(name)) {
+    if (name !== "app" && name !== "electron.icns" && !/^[a-z]{2,3}(?:_[A-Z]{2}|_[0-9]{3})?\.lproj$/.test(name)) {
       throw new Error("PACKAGE_BOUNDARY_INVALID");
     }
   }

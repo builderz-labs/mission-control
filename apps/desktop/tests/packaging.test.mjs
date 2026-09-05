@@ -111,6 +111,10 @@ test("mac tool failures stop the build and metadata commands use argument arrays
 
 test("boundary refuses alternate payloads alongside Resources/app", async (t) => {
   const inputs = await packageInputs(await packageFixture(t), "/canonical");
+  const localeOutput = await payloadFixture(t, inputs);
+  const localeApp = path.join(localeOutput, "Mission Control.app");
+  await put(localeApp, "Contents/Resources/es_419.lproj/InfoPlist.strings", "locale");
+  assert.equal(await validateBoundary(localeApp, inputs.payload), true);
   for (const name of ["app.asar", "default_app.asar", "server", "runtime", ".env"]) {
     const output = await payloadFixture(t, inputs);
     const app = path.join(output, "Mission Control.app");
