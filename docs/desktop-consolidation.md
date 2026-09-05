@@ -35,6 +35,23 @@ The production backend must be available. On the original host, the LaunchAgent
 production standalone build themselves. A missing/unhealthy service must produce
 a useful local error, rather than starting a second database-owning server.
 
+Electron is pinned to 44.2.0, a supported stable release listed in the
+[official Electron releases](https://releases.electronjs.org/release). This replaces
+the old 38.8.6 runtime flagged by the dependency audit. Its narrow release-age
+exception in `pnpm-workspace.yaml` is for this security update only.
+
+To build into a persistent cache and install the validated app on macOS:
+
+```bash
+pnpm --dir apps/desktop build \
+  --output "$HOME/Library/Caches/Mission Control/builds" \
+  --install-to "$HOME/Applications/Mission Control.app"
+```
+
+An unchanged, validated installed app is reused. A replaced app is retained as a
+sibling backup, and failed publication restores it. The archive remains inside the
+fingerprinted output directory; the package never silently overwrites a user ZIP.
+
 ## History and local data
 
 All six original desktop commits were imported without squashing through a Git

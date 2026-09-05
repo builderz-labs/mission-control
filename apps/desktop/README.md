@@ -13,10 +13,9 @@ backend running.
 
 ## Development
 
-Use Node >=22 and `pnpm@10.29.3`. The root owner manages workspace registration and
-`pnpm-lock.yaml`. Install dependencies with pnpm after that integration; installation
-must succeed and Electron's normal install script must be allowed by parent pnpm
-policy. The desktop has no postinstall runtime extraction or cached-runtime fallback.
+Use the Node version in the root `.nvmrc` and `pnpm@10.29.3`. The root workspace and
+`pnpm-lock.yaml` manage dependencies, including Electron's approved install script.
+The desktop has no custom postinstall extraction or cached-runtime fallback.
 
 ```sh
 pnpm --dir apps/desktop test
@@ -54,7 +53,7 @@ The window uses Electron sandbox and context isolation with Node integration off
 Navigation is limited to the selected origin; all popups and navigation redirects
 are blocked. A single-instance lock focuses the existing window on a second launch.
 
-## Packaging and parent installation
+## Packaging and installation
 
 Builds require macOS signing/archiving tools. Default output is a new temporary
 artifact directory, or set `--output /absolute/path` / `MC_DESKTOP_OUTPUT`.
@@ -71,24 +70,24 @@ output directory to rebuild. Staging is temporary and published only after valid
 signing and archive verification. Fingerprints are deterministic; signatures and zip
 metadata are not promised to be byte-for-byte reproducible between machines.
 
-The parent can separately install using `--install-to /absolute/Mission\ Control.app`
+Install using `--install-to /absolute/Mission\ Control.app`
 or `MISSION_CONTROL_APP`. A validated candidate is copied beside the destination;
 renames publish it and retain the old app as `.backup-<uuid>`. Failed publication
 restores the old app; a failed rollback retains the backup and candidate for recovery.
 If the installed app already passes validation for the exact current payload, it is
 reused without copying files or creating another backup.
 An exclusive installation lock prevents concurrent replacements. A process crash may
-leave that lock for the parent to inspect and remove before another installation.
+leave that lock to inspect before another installation.
 Signing failures stop the build. Quarantine is never modified. `--stage-only` refuses
 installation settings. Default signing is ad-hoc; `MC_DESKTOP_SIGN_IDENTITY` selects
-another identity. Notarization/distribution signing belongs to the parent.
+another identity. Notarization/distribution signing is a separate release step.
 
-For an explicitly authorized staged build only, the parent may pass
+For a staged build using another installed package, pass
 `--electron-package /absolute/path/to/node_modules/electron` (or
 `MC_DESKTOP_ELECTRON_PACKAGE`). This reads the specified installed Electron package
 and verifies both package and distribution versions; it never modifies that tree.
 No arbitrary cache or installed application is selected as a runtime source.
 
 All tests use temporary fixtures and mocked requests/LaunchAgent calls; they do not
-read production credentials/databases or mutate live services. Full root lint,
-integration, independent review, installation and quarantine handling belong to the parent.
+read production credentials/databases or mutate live services. The root quality gate
+also runs web lint, typecheck, tests, build, artifact checks, and E2E tests.

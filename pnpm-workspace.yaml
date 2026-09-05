@@ -5,6 +5,7 @@ onlyBuiltDependencies:
   - '@parcel/watcher'
   - '@swc/core'
   - better-sqlite3
+  - electron
   - esbuild
   - node-pty
   - sharp
@@ -13,6 +14,7 @@ onlyBuiltDependencies:
 minimumReleaseAge: 10080
 # Security hotfixes younger than the 7-day gate; remove entries once they age out.
 minimumReleaseAgeExclude:
+  - electron@44.2.0 # Replace legacy Electron 38 with the supported security-patched desktop runtime.
   - next@16.2.11 # 9 advisories incl. SSRF + middleware bypass (published 2026-07-21)
   - '@next/*' # env/swc/eslint siblings; versions are exact-pinned by next itself
   - brace-expansion@5.0.8 # GHSA-mh99-v99m-4gvg DoS (published 2026-07-23)
