@@ -23,6 +23,20 @@ test("installation preserves old app and uses a validated sibling candidate", as
   assert.equal(await exists(source), true);
 });
 
+test("repeated installation validates the existing app without accumulating backups", async (t) => {
+  const { root, source, destination, validate } = await setup(t);
+  await installApp(source, destination, { validate });
+  const before = (await readdir(root)).sort();
+  const unexpected = async () => { throw new Error("Unnecessary app replacement"); };
+
+  const result = await installApp(source, destination, {
+    validate, copy: unexpected, move: unexpected,
+  });
+
+  assert.deepEqual(result, { backup: null, unchanged: true });
+  assert.deepEqual((await readdir(root)).sort(), before);
+});
+
 test("failed validation/copy leaves old app untouched and cleans only owned staging", async (t) => {
   for (const failure of ["validate", "copy"]) {
     const { root, source, destination, validate } = await setup(t);

@@ -24,6 +24,12 @@ export async function installApp(source, destination, options = {}) {
 async function publishCandidate(source, destination, {
   validate, move = rename, copy = cp,
 }) {
+  if (await exists(destination)) {
+    try {
+      await validate(destination);
+      return { backup: null, unchanged: true };
+    } catch { /* Different or invalid installed payload: replace after staging. */ }
+  }
   const staging = await mkdtemp(path.join(path.dirname(destination), ".mc-install-"));
   const candidate = path.join(staging, "Mission Control.app");
   const backup = `${destination}.backup-${randomUUID()}`;

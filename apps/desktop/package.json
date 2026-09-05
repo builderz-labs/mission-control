@@ -14,7 +14,7 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "electron": "38.8.6"
+    "electron": "44.2.0"
   },
   "packageManager": "pnpm@10.29.3"
 }
