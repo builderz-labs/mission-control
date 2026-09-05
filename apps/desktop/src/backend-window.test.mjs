@@ -16,7 +16,7 @@ test("session partitions are ephemeral and separate different full origins", () 
   assert.equal(stores.get(partitionForOrigin("http://127.0.0.1:3100")), undefined);
 });
 
-test("a healthy unverified service gets only a credential-free probe and normal login page", async () => {
+test("a healthy service gets only a credential-free probe then backend-owned authentication", async () => {
   const calls = [];
   const urls = [];
   assert.equal(await openBackend({ origin: "http://127.0.0.1:3000", loadURL: async (url) => urls.push(url),
@@ -29,7 +29,7 @@ test("a healthy unverified service gets only a credential-free probe and normal 
     } }),
   }), true);
   assert.deepEqual(calls, ["http://127.0.0.1:3000/health"]);
-  assert.deepEqual(urls, ["http://127.0.0.1:3000/login"]);
+  assert.deepEqual(urls, ["http://127.0.0.1:3000/"]);
 });
 
 test("unavailable or invalid services never navigate", async () => {

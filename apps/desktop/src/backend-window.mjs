@@ -10,6 +10,7 @@ export function partitionForOrigin(origin) {
 export async function openBackend({ origin, loadURL, ensure = ensureServer }) {
   const selected = validateOrigin(origin);
   if (!await ensure({ origin: selected })) return false;
-  await loadURL(`${selected}/login`);
+  // The backend redirects unauthenticated requests; an existing session can reopen.
+  await loadURL(`${selected}/`);
   return true;
 }
