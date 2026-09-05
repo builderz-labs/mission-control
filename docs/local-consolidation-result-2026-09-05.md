@@ -97,9 +97,13 @@ All four temporarily paused background-job settings were restored to their exact
 original values; dispatch and Fly reconciliation were never paused. Fifty-four
 completed helper processes belonging only to this task were stopped.
 
-The app is installed and launches, and port 18791 remains closed. Codex Preview
-was opened at the canonical URL, but final navigation was not verified: the
-shared backend intermittently takes 10–30+ seconds or times out, and the native
-UI capture tool fails to create its screenshot destination after cache removal.
-This host/runtime limitation remains; a successful final interactive smoke test
-is not claimed. The source consolidation and validated installation are complete.
+The app is installed and launches, and port 18791 remains closed. Final installed
+bundle validation passed. After all background-job settings were restored, health
+returned HTTP 200 in 9.8 seconds and Codex Preview successfully loaded the
+authenticated Mission Control fleet/session interface at `http://127.0.0.1:3000/`.
+The Preview tab was retained as the deliverable. Source consolidation, validated
+installation and the requested Preview launch are complete.
+
+Host latency remains intermittent. Native UI capture could not be verified because
+the capture tool failed to create its screenshot destination after cache removal;
+the successful browser observation does not establish native GUI verification.
