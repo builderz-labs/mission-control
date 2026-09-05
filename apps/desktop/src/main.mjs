@@ -1,16 +1,26 @@
 import { app, BrowserWindow, session } from "electron";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { loginSession } from "./auto-login.mjs";
-import { ensureServer, isHealthy } from "./ensure-server.mjs";
+import {
+  hasBundledServer,
+  startBundledServer,
+  stopBundledServer,
+} from "./bundled-server.mjs";
+import { ensureServer } from "./ensure-server.mjs";
 
-const APP_URL = "http://127.0.0.1:3000/";
 const BG = "#09090b";
+const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const SHELL = path.join(APP_ROOT, "src", "shell.html");
 app.setName("Mission Control");
 app.commandLine.appendSwitch("disable-http-cache");
 
-async function applySessionCookie(cookie) {
+let serverChild = null;
+
+async function applySessionCookie(cookie, origin) {
   if (!cookie) return;
   const details = {
-    url: "http://127.0.0.1:3000",
+    url: origin,
     name: cookie.name,
     value: cookie.value,
     path: cookie.path || "/",
@@ -34,22 +44,13 @@ function dismissOnboarding(window) {
   });
 }
 
-function followLiveMain(window) {
-  let live = true;
-  setInterval(async () => {
-    const ok = await isHealthy();
-    if (ok && !live) window.webContents.reloadIgnoringCache();
-    live = ok;
-  }, 1500);
-}
-
 function showLoadError(window, detail) {
   const html = `<!doctype html><html style="background:${BG};color:#fafafa"><body style="font:14px system-ui;padding:32px"><h1>Mission Control failed to load</h1><p>${detail}</p></body></html>`;
   window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   if (!window.isVisible()) window.show();
 }
 
-async function createWindow(ok) {
+function createWindow() {
   const window = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -71,22 +72,58 @@ async function createWindow(ok) {
     showLoadError(window, `${desc} (${code}) ${url}`);
   });
   dismissOnboarding(window);
-  followLiveMain(window);
-  if (!ok) {
-    showLoadError(window, "Heal could not reach http://127.0.0.1:3000/health.");
-    return;
+  window.loadFile(SHELL);
+  return window;
+}
+
+async function resolveOrigin() {
+  const override = process.env.MC_DESKTOP_URL;
+  if (override) {
+    const ok = await ensureServer();
+    if (!ok) return null;
+    return override.replace(/\/$/, "");
   }
-  await applySessionCookie(await loginSession());
-  window.loadURL(APP_URL);
+  if (hasBundledServer(APP_ROOT)) {
+    const started = await startBundledServer({ appRoot: APP_ROOT });
+    serverChild = started.child;
+    return started.origin;
+  }
+  const ok = await ensureServer();
+  return ok ? "http://127.0.0.1:3000" : null;
+}
+
+async function attachWindow(window) {
+  try {
+    const origin = await resolveOrigin();
+    if (!origin) {
+      showLoadError(window, "Could not start the bundled Mission Control server.");
+      return;
+    }
+    await applySessionCookie(
+      await loginSession({ url: `${origin}/api/auth/login` }),
+      origin,
+    );
+    window.loadURL(`${origin}/`);
+  } catch (error) {
+    showLoadError(window, error instanceof Error ? error.message : String(error));
+  }
 }
 
 app.whenReady().then(async () => {
   await session.defaultSession.clearCache();
-  const ok = await ensureServer();
-  await createWindow(ok);
+  const window = createWindow();
+  await attachWindow(window);
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(ok);
+    if (BrowserWindow.getAllWindows().length === 0) {
+      const next = createWindow();
+      attachWindow(next);
+    }
   });
+});
+
+app.on("before-quit", () => {
+  stopBundledServer(serverChild);
+  serverChild = null;
 });
 
 app.on("window-all-closed", () => {

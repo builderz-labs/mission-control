@@ -1,15 +1,23 @@
 #!/bin/bash
-# Install ~/Applications/Mission Control.app wrapping localhost:3000.
+# Install a self-contained ~/Applications/Mission Control.app.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MC_ROOT="${MC_ROOT:-${HOME}/Dev/mission-control}"
+WT="${MC_ROOT}/.claude/worktrees/desktop-bundle"
 bash "${ROOT}/scripts/install-runtime.sh" || true
 APP="${MISSION_CONTROL_APP:-${HOME}/Applications/Mission Control.app}"
 RUNTIME="${ROOT}/node_modules/electron/dist/Electron.app"
-STAMP="$(/usr/bin/shasum -a 256 "${ROOT}/package.json" "${ROOT}/src/"*.mjs \
-  | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
+UI_ID="$(cat "${WT}/.next/standalone/.next/BUILD_ID" 2>/dev/null \
+  || cat "${MC_ROOT}/.next/standalone/.next/BUILD_ID" 2>/dev/null \
+  || echo none)"
+STAMP="$(printf '%s\n' "${UI_ID}" \
+  | cat - "${ROOT}/package.json" "${ROOT}/scripts/bundle-ui.sh" "${ROOT}/src/"*.mjs "${ROOT}/src/shell.html" \
+  | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
 
 if [[ -x "${APP}/Contents/MacOS/Electron" \
   && -f "${APP}/Contents/Resources/app/.stamp" \
+  && -f "${APP}/Contents/Resources/app/server/server.js" \
+  && -x "${APP}/Contents/Resources/app/runtime/node" \
   && "$(cat "${APP}/Contents/Resources/app/.stamp")" == "${STAMP}" ]]; then
   echo "build-app: up to date"
   exit 0
@@ -33,10 +41,12 @@ ditto "${RUNTIME}" "${BUNDLE}"
 RES="${BUNDLE}/Contents/Resources/app"
 mkdir -p "${RES}/src"
 cp "${ROOT}/package.json" "${RES}/"
+cp "${ROOT}/src/shell.html" "${RES}/src/"
 for src in "${ROOT}/src/"*.mjs; do
   case "${src}" in *.test.mjs) continue ;; esac
   cp "${src}" "${RES}/src/"
 done
+bash "${ROOT}/scripts/bundle-ui.sh" "${RES}"
 printf '%s' "${STAMP}" > "${RES}/.stamp"
 
 PLIST="${BUNDLE}/Contents/Info.plist"
@@ -54,4 +64,8 @@ rm -rf "${APP}"
 ditto "${BUNDLE}" "${APP}"
 codesign --force --deep -s - "${APP}" >/dev/null 2>&1 || true
 xattr -dr com.apple.quarantine "${APP}" 2>/dev/null || true
+ZIP="${MISSION_CONTROL_ZIP:-${HOME}/Applications/Mission Control.zip}"
+rm -f "${ZIP}"
+ditto -c -k --keepParent "${APP}" "${ZIP}"
 echo "build-app: installed ${APP}"
+echo "build-app: zip ${ZIP}"
