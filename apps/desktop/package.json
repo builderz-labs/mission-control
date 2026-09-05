@@ -1,0 +1,20 @@
+{
+  "name": "mission-control-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native window for the local Mission Control dashboard",
+  "type": "module",
+  "main": "src/main.mjs",
+  "scripts": {
+    "start": "bash bin/open-mission-control",
+    "build": "bash scripts/build-app.sh",
+    "postinstall": "bash scripts/install-runtime.sh",
+    "test": "node --test src/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "electron": "^38.8.6"
+  }
+}

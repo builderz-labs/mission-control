@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+ROOT="${HOME}/Dev/mission-control-desktop"
+export PATH="${HOME}/.nvm/versions/node/v24.16.0/bin:/opt/homebrew/bin:${PATH}"
+cd "${ROOT}"
+bash "${ROOT}/scripts/build-app.sh"
+open "${HOME}/Applications/Mission Control.app"
