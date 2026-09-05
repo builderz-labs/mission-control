@@ -1,24 +1,26 @@
 # Mission Control desktop
 
-Self-contained Electron app at `~/Applications/Mission Control.app`.
-The production Next.js standalone server is copied into
-`Contents/Resources/app/server` and spawned on `127.0.0.1:18791`.
-A Node binary ships in `Contents/Resources/app/runtime/node`.
-The window paints `src/shell.html` from disk immediately, then navigates
-to the bundled origin once `/health` is ok.
+This package is a native Electron window onto one existing local Mission Control
+backend. Default origin: `http://127.0.0.1:3000`. Never bundle or spawn a backend,
+Node runtime, database, or alternate portable service.
 
-- Build (and zip): `npm run build` → `~/Applications/Mission Control.app`
-  and `~/Applications/Mission Control.zip`
-- Open: `npm start` or the Applications bundle
-- Tests: `npm test`
-- Bundled origin stays on `127.0.0.1`. Do not copy `.env` into the app.
-- LaunchAgent `com.tylerdevries.mission-control` runs production standalone
-  on `:3000` (`MC_HOSTNAME=0.0.0.0`) for LAN. Never start live-main / `next dev`.
-- Runtime data prefers `~/Dev/mission-control/.data` when present, else
-  `~/Library/Application Support/Mission Control/data`.
-- Auth uses `AUTH_USER`/`AUTH_PASS` from `~/Dev/mission-control/.env`.
-- `MC_DESKTOP_URL` is a manual override only. Opening the .app must wait on
-  bundled `/health {status:ok}` (reject `{live:false}`) then load that origin.
-- Never package `next dev`. Rebuild the app after `pnpm build` in
-  `~/Dev/mission-control` so the shipped UI matches main.
-- Handoff: `python3 ~/Dev/omnia-vault/scripts/handoff.py --agent grok --summary "..."`
+- Package manager: `pnpm@10.29.3`; Electron must be exactly `38.8.6`.
+- Parent owns repository workspace/lockfile changes and integration checks.
+- Tests: `pnpm --dir apps/desktop test` (temporary fixtures only).
+- Stage: `pnpm --dir apps/desktop build --stage-only --output /absolute/output`.
+- Build never installs by default. Installation needs explicit `--install-to` or
+  `MISSION_CONTROL_APP`; preserve the old bundle and support rollback.
+- Resolve Electron from the installed dependency, including pnpm symlinks. An
+  explicit Electron package override is permitted only for staged macOS builds.
+- `MISSION_CONTROL_ROOT` identifies the canonical checkout; `MC_DESKTOP_ENV_FILE`
+  can select an absolute local credentials file. Never copy secrets into artifacts.
+- `MC_DESKTOP_URL` accepts explicit loopback HTTP origins with safe unprivileged
+  ports. Validate before credentials. Health, login and window use the same origin.
+- Refuse redirects and external navigation/popups. Preserve sandbox,
+  contextIsolation, disabled nodeIntegration and single-instance behavior.
+- Use ordinary local authentication and existing credentials. Never weaken cookies.
+- Reuse healthy service. Only unavailable canonical default may receive
+  `launchctl kickstart` without `-k`; no stop/restart/bootstrap of shared services.
+- Keep source modules <=200 lines, errors free of secrets, and retries/timeouts bounded.
+- No live service or production database mutations in tests. No app installation,
+  quarantine changes, Fly, push or main changes without separate authorization.

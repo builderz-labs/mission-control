@@ -6,15 +6,15 @@
   "type": "module",
   "main": "src/main.mjs",
   "scripts": {
-    "start": "bash bin/open-mission-control",
-    "build": "bash scripts/build-app.sh",
-    "postinstall": "bash scripts/install-runtime.sh",
-    "test": "node --test src/*.test.mjs"
+    "start": "electron .",
+    "build": "node scripts/build-app.mjs",
+    "test": "node --test src/*.test.mjs tests/*.test.mjs"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
-    "electron": "^38.8.6"
-  }
+    "electron": "38.8.6"
+  },
+  "packageManager": "pnpm@10.29.3"
 }
