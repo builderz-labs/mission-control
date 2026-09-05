@@ -10,6 +10,14 @@ const sessionHeader = "mc-session=token; Path=/; HttpOnly; SameSite=Strict";
 
 test("env parsing and canonical credential reading support quoted and base64 passwords", async (t) => {
   assert.equal(parseEnv(secretFile).AUTH_PASS, "secret#hash");
+  const exported = "export AUTH_USER=admin # account\r\nAUTH_PASS=pass#hash # comment\r\n";
+  assert.deepEqual(await readLocalAuth("/fixture/.env", async () => exported), {
+    username: "admin", password: "pass#hash",
+  });
+  assert.equal(parseEnv('AUTH_PASS="literal $TOKEN # quoted"').AUTH_PASS, "literal $TOKEN # quoted");
+  assert.equal(parseEnv("AUTH_PASS='  keep spaces  '").AUTH_PASS, "  keep spaces  ");
+  assert.throws(() => parseEnv('AUTH_PASS="unclosed'), /DESKTOP_ENV_INVALID/);
+  assert.equal(await readLocalAuth("/fixture/.env", async () => 'AUTH_PASS="unclosed'), null);
   const root = await fixture(t);
   const file = await put(root, ".env", `${secretFile}AUTH_PASS_B64=dGVzdA==\n`);
   assert.deepEqual(await readLocalAuth(file), { username: "admin", password: "test" });
