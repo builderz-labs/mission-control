@@ -3,7 +3,7 @@ import path from "node:path";
 import { PACKAGE_ROOT } from "./app-paths.mjs";
 import { openBackend, partitionForOrigin } from "./backend-window.mjs";
 import { validateOrigin } from "./origin.mjs";
-import { secureWindow } from "./window-policy.mjs";
+import { configurePermissions, focusOrCreateWindow, secureWindow } from "./window-policy.mjs";
 
 app.setName("Mission Control");
 const locked = app.requestSingleInstanceLock();
@@ -52,18 +52,15 @@ if (!locked) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (!window || window.isDestroyed()) return;
-    if (window.isMinimized()) window.restore();
-    window.show();
-    window.focus();
+    app.whenReady().then(() => { window = focusOrCreateWindow(window, createWindow); })
+      .catch(() => console.error("[desktop] window_reopen_failed"));
   });
   app.whenReady().then(() => {
     try { origin = validateOrigin(process.env.MC_DESKTOP_URL); }
     catch { console.error("[desktop] invalid_backend_origin"); }
     // No persist: prefix: credentials live only for this app process and full origin.
     backendSession = session.fromPartition(origin ? partitionForOrigin(origin) : "mc-invalid-config");
-    backendSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-    backendSession.setPermissionCheckHandler(() => false);
+    configurePermissions(backendSession, origin);
     createWindow();
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

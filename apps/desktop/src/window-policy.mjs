@@ -1,5 +1,25 @@
 import { allowsNavigation } from "./origin.mjs";
 
+export function configurePermissions(session, origin) {
+  const allowed = (contents, permission, requestingUrl) => permission === "clipboard-sanitized-write"
+    && Boolean(contents) && allowsNavigation(contents.getURL(), origin)
+    && allowsNavigation(requestingUrl, origin);
+  session.setPermissionRequestHandler((contents, permission, callback, details) => {
+    callback(allowed(contents, permission, details.requestingUrl));
+  });
+  session.setPermissionCheckHandler((contents, permission, requestingOrigin) => {
+    return allowed(contents, permission, requestingOrigin);
+  });
+}
+
+export function focusOrCreateWindow(window, create) {
+  if (!window || window.isDestroyed()) return create();
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  return window;
+}
+
 export function secureWindow(webContents, origin) {
   webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   for (const name of ["will-navigate", "will-frame-navigate", "will-redirect"]) {
