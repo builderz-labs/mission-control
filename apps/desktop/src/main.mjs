@@ -1,131 +1,73 @@
 import { app, BrowserWindow, session } from "electron";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { loginSession } from "./auto-login.mjs";
-import {
-  hasBundledServer,
-  startBundledServer,
-  stopBundledServer,
-} from "./bundled-server.mjs";
+import { PACKAGE_ROOT } from "./app-paths.mjs";
+import { applySessionCookie, loginSession } from "./auto-login.mjs";
 import { ensureServer } from "./ensure-server.mjs";
+import { validateOrigin } from "./origin.mjs";
+import { secureWindow } from "./window-policy.mjs";
 
-const BG = "#09090b";
-const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const SHELL = path.join(APP_ROOT, "src", "shell.html");
 app.setName("Mission Control");
-app.commandLine.appendSwitch("disable-http-cache");
+const locked = app.requestSingleInstanceLock();
+let window;
+let origin;
+const failedWindows = new WeakSet();
 
-let serverChild = null;
-
-async function applySessionCookie(cookie, origin) {
-  if (!cookie) return;
-  const details = {
-    url: origin,
-    name: cookie.name,
-    value: cookie.value,
-    path: cookie.path || "/",
-    httpOnly: true,
-    sameSite: "strict",
-    secure: Boolean(cookie.secure),
-  };
-  try {
-    await session.defaultSession.cookies.set(details);
-  } catch {
-    details.secure = false;
-    await session.defaultSession.cookies.set(details);
-  }
-}
-
-function dismissOnboarding(window) {
-  window.webContents.on("dom-ready", () => {
-    window.webContents.executeJavaScript(
-      "sessionStorage.setItem('mc-onboarding-dismissed','1')",
-    ).catch(() => {});
+function showLoadError(target) {
+  if (target.isDestroyed() || failedWindows.has(target)) return;
+  failedWindows.add(target);
+  target.loadFile(path.join(PACKAGE_ROOT, "src", "error.html")).catch(() => {
+    console.error("[desktop] shell_load_failed");
   });
+  target.show();
 }
 
-function showLoadError(window, detail) {
-  const html = `<!doctype html><html style="background:${BG};color:#fafafa"><body style="font:14px system-ui;padding:32px"><h1>Mission Control failed to load</h1><p>${detail}</p></body></html>`;
-  window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-  if (!window.isVisible()) window.show();
+async function attachWindow(target) {
+  try {
+    if (!origin || !await ensureServer({ origin })) { showLoadError(target); return; }
+    const cookie = await loginSession({ origin });
+    const authenticated = await applySessionCookie(session.defaultSession.cookies, cookie, origin);
+    if (!target.isDestroyed()) await target.loadURL(`${origin}/${authenticated ? "" : "login"}`);
+  } catch {
+    console.error("[desktop] backend_attach_failed");
+    showLoadError(target);
+  }
 }
 
 function createWindow() {
-  const window = new BrowserWindow({
-    width: 1280,
-    height: 840,
-    title: "Mission Control",
-    backgroundColor: BG,
-    show: false,
-    autoHideMenuBar: true,
-    webPreferences: {
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-      backgroundThrottling: false,
-    },
+  const target = new BrowserWindow({
+    width: 1280, height: 840, title: "Mission Control", backgroundColor: "#09090b",
+    show: true, autoHideMenuBar: true,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
-  window.once("ready-to-show", () => window.show());
-  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  window.webContents.on("did-fail-load", (_event, code, desc, url, isMain) => {
-    if (!isMain || code === -3) return;
-    showLoadError(window, `${desc} (${code}) ${url}`);
+  window = target;
+  secureWindow(target.webContents, origin);
+  target.webContents.on("will-redirect", () => showLoadError(target));
+  target.webContents.on("did-fail-load", (_event, code, _description, _url, isMain) => {
+    if (isMain && code !== -3) showLoadError(target);
   });
-  dismissOnboarding(window);
-  window.loadFile(SHELL);
-  return window;
+  target.loadFile(path.join(PACKAGE_ROOT, "src", "shell.html"))
+    .then(() => attachWindow(target)).catch(() => showLoadError(target));
+  return target;
 }
 
-async function resolveOrigin() {
-  const override = process.env.MC_DESKTOP_URL;
-  if (override) {
-    const ok = await ensureServer();
-    if (!ok) return null;
-    return override.replace(/\/$/, "");
-  }
-  if (hasBundledServer(APP_ROOT)) {
-    const started = await startBundledServer({ appRoot: APP_ROOT });
-    serverChild = started.child;
-    return started.origin;
-  }
-  const ok = await ensureServer();
-  return ok ? "http://127.0.0.1:3000" : null;
-}
-
-async function attachWindow(window) {
-  try {
-    const origin = await resolveOrigin();
-    if (!origin) {
-      showLoadError(window, "Could not start the bundled Mission Control server.");
-      return;
-    }
-    await applySessionCookie(
-      await loginSession({ url: `${origin}/api/auth/login` }),
-      origin,
-    );
-    window.loadURL(`${origin}/`);
-  } catch (error) {
-    showLoadError(window, error instanceof Error ? error.message : String(error));
-  }
-}
-
-app.whenReady().then(async () => {
-  await session.defaultSession.clearCache();
-  const window = createWindow();
-  await attachWindow(window);
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      const next = createWindow();
-      attachWindow(next);
-    }
+if (!locked) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
   });
-});
-
-app.on("before-quit", () => {
-  stopBundledServer(serverChild);
-  serverChild = null;
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-});
+  app.whenReady().then(() => {
+    try { origin = validateOrigin(process.env.MC_DESKTOP_URL); }
+    catch { console.error("[desktop] invalid_backend_origin"); }
+    session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+    session.defaultSession.setPermissionCheckHandler(() => false);
+    createWindow();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  }).catch(() => { console.error("[desktop] startup_failed"); app.quit(); });
+  app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
+}
