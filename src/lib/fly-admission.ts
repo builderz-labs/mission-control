@@ -6,7 +6,7 @@ import { priceFromFlyHistory } from './fly-sizing-history'
 
 export type SubmissionRow = {
   id: string; task_id: number; workspace_id: number; state: string; payload: string;
-  payload_hash: string; request_key: string; attempts: number; reason: string | null;
+  payload_hash: string; request_key: string; attempts: number; reason: string | null; session_id: string | null;
 }
 
 export function submitFlyLeaf(db: Database.Database, input: FlySubmission, workspace: number, actor: string) {

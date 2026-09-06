@@ -4,7 +4,8 @@ import { isFlyWorkerImageRef } from './fly-orchestrator'
 
 export function pricedFlyJob(input: Pick<FlySubmission, 'setup' | 'checks' | 'timeout_seconds'>, history: FlyUsageSample[] = []) {
   const browser = input.setup.endsWith('-playwright')
-  const spec = recommendFlyWorkerSize({ requiresBrowser: browser, requiresTesting: input.checks.some(check => check !== 'smoke') }, history)
+  const spec = recommendFlyWorkerSize({ requiresBrowser: browser, requiresDependencies: input.setup !== 'none',
+    requiresTesting: input.checks.some(check => check !== 'smoke') }, history)
   const rawRate = Number(process.env[`MC_FLY_${spec.size.replaceAll('-', '_').toUpperCase()}_HOURLY_USD`])
   const rate = Number.isFinite(rawRate) && rawRate > 0 ? rawRate : 0
   const image = browser ? process.env.MC_FLY_BROWSER_IMAGE : process.env.MC_FLY_CORE_IMAGE

@@ -23,6 +23,7 @@ export interface FlyJobProfile {
   macOnly?: boolean
   requiresBrowser?: boolean
   requiresTesting?: boolean
+  requiresDependencies?: boolean
   estimatedCpuSeconds?: number
   estimatedMemoryMb?: number
   predictedRuntimeSeconds?: number
@@ -57,6 +58,7 @@ export function recommendFlyWorkerSize(profile: FlyJobProfile, history: FlyUsage
     return memory > 4096 || cpu > 85 ? FLY_WORKER_SPECS['browser-large'] : FLY_WORKER_SPECS['browser-standard']
   }
   if (memory > 2048 || cpu > 80 || profile.requiresTesting) return FLY_WORKER_SPECS['core-performance']
-  if (memory > 1024 || cpu > 50) return FLY_WORKER_SPECS['core-standard']
+  // A dependency install measured a 596 MiB peak against a 1 GiB class; keep headroom.
+  if (memory > 1024 || cpu > 50 || profile.requiresDependencies) return FLY_WORKER_SPECS['core-standard']
   return FLY_WORKER_SPECS['core-small']
 }

@@ -5,6 +5,7 @@ import type Database from 'better-sqlite3'
 import { renameClaudeFleetAgentRows } from './claude-fleet-rename'
 import { flyAdmissionMigration } from './fly-admission-migration'
 import { flyRepairMigration } from './fly-repair-migration'
+import { flyTopologyMigration } from './fly-topology-migration'
 
 export type Migration = {
   id: string
@@ -1670,7 +1671,7 @@ export function runMigrations(db: Database.Database) {
     db.prepare('SELECT id FROM schema_migrations').all().map((row: any) => row.id)
   )
 
-  for (const migration of [...migrations, flyAdmissionMigration, flyRepairMigration, ...extraMigrations]) {
+  for (const migration of [...migrations, flyAdmissionMigration, flyRepairMigration, flyTopologyMigration, ...extraMigrations]) {
     if (applied.has(migration.id)) continue
     const restoreForeignKeys = migration.foreignKeysOff
       && db.pragma('foreign_keys', { simple: true }) === 1

@@ -55,6 +55,15 @@ export class FlyMachinesClient {
     return new FlyMachinesClient({ apiToken: env.FLY_API_TOKEN, appName: env.MC_FLY_WORKER_APP || env.FLY_APP_NAME })
   }
 
+  /** Retiring a worker app must not strand the jobs still running on it. */
+  withApp(appName: string): FlyMachinesClient {
+    return appName === this.options.appName ? this : new FlyMachinesClient({ ...this.options, appName })
+  }
+
+  get appName(): string | undefined {
+    return this.options.appName
+  }
+
   isEnabled(): boolean {
     return enabled(this.options)
   }

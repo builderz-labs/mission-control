@@ -1,6 +1,6 @@
-import { FLY_LAUNCH_BATCH_SIZE } from './fly-capacity'
+import { FLY_LAUNCH_BATCH_SIZE, flyLaunchRegions, flyWorkerLimit } from './fly-capacity'
 import type Database from 'better-sqlite3'
-import { FlyMachinesClient, type FlyMachineResponse } from './fly-machines-client'
+import { FlyMachinesClient, FlyMachinesError, type FlyMachineResponse } from './fly-machines-client'
 import { flyReadiness, flySubmissionSchema } from './fly-admission-schema'
 import { reserveFlyJob, type ReservedJob } from './fly-reservations'
 import { recordPolledResult, settleFlyJob } from './fly-polled-result'
@@ -8,6 +8,8 @@ import type { SubmissionRow } from './fly-admission'
 import { logger } from './logger'
 import { expireFlyQueue } from './fly-queue-control'
 import { acquireFlySchedulerLease } from './fly-scheduler-lease'
+import { flyControllerIsStale } from './fly-stale-controller'
+import { flyFairOrder } from './fly-fairness'
 
 async function pollJob(db: Database.Database, client: FlyMachinesClient, job: ReservedJob, machines: FlyMachineResponse[]) {
   const machine = machines.find(m => m.id === job.machine_id || m.name === job.launch_name)
@@ -33,7 +35,43 @@ async function pollJob(db: Database.Database, client: FlyMachinesClient, job: Re
   }
 }
 
+async function launchMachine(client: FlyMachinesClient, name: string, config: Record<string, unknown>) {
+  const regions = flyLaunchRegions()
+  for (let index = 0; index < regions.length; index++) {
+    try { return await client.createMachine({ name, region: regions[index], config }) }
+    catch (error) {
+      // createMachine only throws after confirming the name is absent, so a
+      // different region cannot duplicate an accepted launch.
+      if (index === regions.length - 1) throw error
+    }
+  }
+  throw new FlyMachinesError('No launch region is configured.')
+}
+
+/** Poll each worker app that still owns jobs, not only the currently configured one. */
+async function observeActive(db: Database.Database, client: FlyMachinesClient, active: ReservedJob[], assertOwned: () => void) {
+  const byApp = new Map<string, ReservedJob[]>()
+  for (const job of active) {
+    const app = job.worker_app || client.appName || ''
+    byApp.set(app, [...(byApp.get(app) || []), job])
+  }
+  for (const [app, jobs] of byApp) {
+    assertOwned()
+    const scoped = app ? client.withApp(app) : client
+    const machines = await scoped.listMachines()
+    for (let index = 0; index < jobs.length; index += 4) {
+      assertOwned()
+      await Promise.all(jobs.slice(index, index + 4).map(async job => {
+        try { await pollJob(db, scoped, job, machines) }
+        catch (error) { logger.warn({ jobId: job.id, error: error instanceof Error ? error.name : 'unknown' }, 'Fly observation/cleanup will retry') }
+      }))
+    }
+  }
+}
+
 export async function reconcileFlyWorkers(db: Database.Database, client = FlyMachinesClient.fromEnv(), admit = true): Promise<{ ok: boolean; message: string }> {
+  // A process whose artifact was replaced is running code the queue no longer matches.
+  if (flyControllerIsStale()) return { ok: false, message: 'Controller artifact was replaced after this process started; refusing admission from a stale build' }
   const lease = acquireFlySchedulerLease(db)
   if (!lease) return { ok: true, message: 'Fly reconciliation already active' }
   try {
@@ -42,19 +80,13 @@ export async function reconcileFlyWorkers(db: Database.Database, client = FlyMac
     const pending = db.prepare("SELECT 1 FROM fly_submissions WHERE state='queued' AND next_attempt_at<=unixepoch() LIMIT 1").get()
     if (!active.length && (!admit || !pending)) return { ok: true, message: 'Fly idle; no provider poll or idle worker required' }
     if (!client.isEnabled()) return { ok: !active.length, message: 'Fly credential unavailable; remote ownership retained' }
-    const machines = await client.listMachines()
-    for (let index = 0; index < active.length; index += 4) {
-      lease.assertOwned()
-      await Promise.all(active.slice(index,index+4).map(async job => {
-        try { await pollJob(db,client,job,machines) }
-        catch (error) { logger.warn({ jobId: job.id, error: error instanceof Error ? error.name : 'unknown' }, 'Fly observation/cleanup will retry') }
-      }))
-    }
+    await observeActive(db,client,active,() => lease.assertOwned())
     if (!admit || flyReadiness().length) return { ok: true, message: 'Existing workers reconciled; admission disabled' }
-    const queued = db.prepare(`SELECT s.* FROM fly_submissions s JOIN tasks t ON t.id=s.task_id
+    const ranked = db.prepare(`SELECT s.* FROM fly_submissions s JOIN tasks t ON t.id=s.task_id
       WHERE s.state='queued' AND s.next_attempt_at<=unixepoch()
       ORDER BY (CASE t.priority WHEN 'critical' THEN 3 WHEN 'high' THEN 2 WHEN 'medium' THEN 1 ELSE 0 END
         + (unixepoch()-s.created_at)/300) DESC,s.created_at,s.id LIMIT 30`).all() as SubmissionRow[]
+    const queued = flyFairOrder(db,ranked,flyWorkerLimit())
     let launched = 0
     for (const row of queued) {
       lease.assertOwned()
@@ -67,7 +99,7 @@ export async function reconcileFlyWorkers(db: Database.Database, client = FlyMac
       if (launched) await new Promise(resolve => setTimeout(resolve,1100))
       launched++
       try {
-        const machine = await client.createMachine({ name: reserved.name, region: process.env.FLY_REGION || 'iad', config: reserved.config })
+        const machine = await launchMachine(client,reserved.name,reserved.config)
         db.prepare("UPDATE fly_worker_jobs SET machine_id=?,state=CASE WHEN state='creating' THEN 'running' ELSE state END,started_at=COALESCE(started_at,unixepoch()) WHERE id=?")
           .run(machine.id,reserved.id)
       } catch {
