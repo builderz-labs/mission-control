@@ -253,7 +253,7 @@ export function OrchestrationBar() {
   return (
     <div className="border-b border-border bg-card/50">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 px-4 pt-2">
+      <div className="flex min-w-0 items-center gap-1 overflow-x-auto px-4 pt-2">
         {(['command', 'templates', 'pipelines', 'fleet'] as const).map(tab => (
           <Button
             key={tab}
@@ -286,11 +286,12 @@ export function OrchestrationBar() {
       {/* Command Tab */}
       {activeTab === 'command' && (
         <div className="p-4 pt-3">
-          <div className="flex gap-2">
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(140px,auto)_1fr_auto]">
             <select
+              aria-label={t('selectAgent')}
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
-              className="h-9 px-2 rounded-md bg-secondary border border-border text-sm text-foreground min-w-[140px]"
+              className="h-9 min-w-0 px-2 rounded-md bg-secondary border border-border text-sm text-foreground"
             >
               <option value="">{t('selectAgent')}</option>
               {agents.length === 0 && (
@@ -303,11 +304,12 @@ export function OrchestrationBar() {
               ))}
             </select>
             <input
+              aria-label={t('commandPlaceholder')}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendCommand()}
               placeholder={t('commandPlaceholder')}
-              className="flex-1 h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground"
+              className="h-9 min-w-0 px-3 rounded-md bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground"
             />
             <Button
               onClick={sendCommand}

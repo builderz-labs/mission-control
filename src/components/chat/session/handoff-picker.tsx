@@ -58,7 +58,7 @@ export function HandoffPicker({
             aria-pressed={seat.id === item.id}
             aria-label={item.label}
           >
-            <EngineLogo engine={item.engine} size={16} />
+            <EngineLogo engine={item.engine} size={16} decorative />
             {item.label}
           </button>
         ))}
@@ -71,7 +71,10 @@ export function HandoffPicker({
             onClick={() => setModel(item.alias)}
             className="flex h-8 w-full cursor-pointer items-center justify-between rounded-md px-2 text-[12px] text-[var(--chat-text)] duration-200 hover:bg-white/5"
           >
-            <span className="truncate">{modelPickerLabel(item.alias, item.name)}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <EngineLogo engine={seat.engine} size={13} decorative />
+              <span className="truncate">{modelPickerLabel(item.alias, item.name)}</span>
+            </span>
             {model === item.alias ? <IconCheck /> : null}
           </button>
         ))}

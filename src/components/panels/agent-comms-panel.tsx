@@ -566,6 +566,7 @@ export function AgentCommsPanel() {
         )}
         <div className="flex items-end gap-2">
           <textarea
+            aria-label={target ? t('composerPlaceholderTarget', { name: getIdentity(target.name).label }) : t('composerPlaceholderBroadcast')}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {

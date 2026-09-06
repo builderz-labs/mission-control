@@ -9,6 +9,7 @@ import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } 
 import { isOpenCodeInstalled, getOpenCodeVersion, scanOpenCodeSessions } from './opencode-sessions'
 import { logger } from './logger'
 import { isPortOpenSync } from './tcp-port'
+import { fetchWithRetry } from './fetch-with-retry'
 import {
   isValidInstallerSha256,
   resolvePinnedUserToolSpec,
@@ -136,7 +137,7 @@ async function reviewScriptWithAI(script: string, sourceUrl: string): Promise<Sc
   const truncated = script.length > 100_000 ? script.slice(0, 100_000) + '\n# ... truncated ...' : script
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetchWithRetry('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -164,7 +165,7 @@ ${truncated}
 \`\`\``,
         }],
       }),
-    })
+    }, { timeoutMs: 15_000 })
 
     if (!res.ok) {
       logger.warn({ status: res.status }, 'AI script review failed — skipping')

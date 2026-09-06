@@ -1,19 +1,30 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { apiFetch } from '@/lib/api-client'
+import { apiFetch, ApiError } from '@/lib/api-client'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { getLocalOsStatus, getMcHealth } from './widget-primitives'
 import { OnboardingChecklistWidget } from './widgets/onboarding-checklist-widget'
-import { EmptyStateLaunchpad } from './empty-state-launchpad'
+import { ActiveTerminalSessions } from './active-terminal-sessions'
 import { WidgetGrid } from './widget-grid'
 import { FleetLogosStrip } from './widgets/fleet-logos-strip'
 import type { DbStats, ClaudeStats, DashboardData } from './widget-primitives'
 import { claudeFleetPlanTotalUsd, formatClaudeFleetLabels } from '@/lib/claude-fleet-plans'
 import { buildCliFleets, type DashboardSession } from '@/lib/dashboard-cli-fleets'
 import { localSessionLogs, mergeRecentLogs } from '@/lib/dashboard-session-logs'
+import { Button } from '@/components/ui/button'
+import type { DashboardGitHubStats, DashboardSystemStats } from './dashboard-response-types'
+
+type DashboardRequest = 'system' | 'sessions' | 'claude' | 'github'
+
+const REQUEST_LABELS: Record<DashboardRequest, string> = {
+  system: 'system status',
+  sessions: 'sessions',
+  claude: 'Claude usage',
+  github: 'GitHub status',
+}
 
 export function Dashboard() {
   const {
@@ -30,37 +41,57 @@ export function Dashboard() {
 
   const navigateToPanel = useNavigateToPanel()
   const isLocal = dashboardMode === 'local'
-  const [systemStats, setSystemStats] = useState<any>(null)
+  const [systemStats, setSystemStats] = useState<DashboardSystemStats | null>(null)
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
   const [claudeStats, setClaudeStats] = useState<ClaudeStats | null>(null)
-  const [githubStats, setGithubStats] = useState<any>(null)
+  const [githubStats, setGithubStats] = useState<DashboardGitHubStats | null>(null)
   const [hermesCronJobCount, setHermesCronJobCount] = useState(0)
   const [loading, setLoading] = useState({ system: true, sessions: true, claude: true, github: true })
+  const [errors, setErrors] = useState<Partial<Record<DashboardRequest, string>>>({})
 
   const loadDashboard = useCallback(async () => {
+    setErrors({})
+    const failed = (request: DashboardRequest, error?: unknown) => {
+      if (error instanceof ApiError && error.code === 'UNAUTHENTICATED') return
+      setErrors((current) => ({
+        ...current,
+        [request]: `Could not load ${REQUEST_LABELS[request]}.`,
+      }))
+    }
     const requests: Promise<void>[] = [
-      apiFetch<any>('/api/status?action=dashboard')
+      apiFetch<DashboardSystemStats>('/api/status?action=dashboard')
         .then((data) => {
           if (data && !data.error) {
             setSystemStats(data)
             if (data.db) setDbStats(data.db)
           }
         })
-        .catch(() => {})
+        .catch((error: unknown) => failed('system', error))
         .finally(() => setLoading((prev) => ({ ...prev, system: false }))),
-      apiFetch<{ sessions?: DashboardSession[] }>('/api/sessions?limit=all')
+      apiFetch<{ sessions?: DashboardSession[] }>('/api/sessions', {
+        signal: AbortSignal.timeout(15_000),
+      })
         .then((data) => {
           if (data?.sessions) setSessions(data.sessions as Parameters<typeof setSessions>[0])
         })
-        .catch(() => {})
+        .catch((error: unknown) => failed('sessions', error))
         .finally(() => setLoading((prev) => ({ ...prev, sessions: false }))),
     ]
 
     if (isLocal) {
       requests.push(
-        apiFetch<any>('/api/claude/sessions').then((data) => { if (data?.stats) setClaudeStats(data.stats) }).catch(() => {}).finally(() => setLoading((prev) => ({ ...prev, claude: false }))),
-        apiFetch<any>('/api/github?action=stats').then((data) => { if (data && !data.error) setGithubStats(data) }).catch(() => {}).finally(() => setLoading((prev) => ({ ...prev, github: false }))),
-        apiFetch<any>('/api/hermes').then((data) => { if (data?.cronJobCount != null) setHermesCronJobCount(data.cronJobCount) }).catch(() => {}),
+        apiFetch<{ stats?: ClaudeStats }>('/api/claude/sessions').then((data) => { if (data?.stats) setClaudeStats(data.stats) }).catch((error: unknown) => failed('claude', error)).finally(() => setLoading((prev) => ({ ...prev, claude: false }))),
+        apiFetch<DashboardGitHubStats>('/api/github?action=stats')
+          .then((data) => { if (data && !data.error) setGithubStats(data) })
+          .catch((error: unknown) => {
+            const isOptionalIntegrationMissing =
+              error instanceof ApiError &&
+              error.status === 400 &&
+              error.message === 'GITHUB_TOKEN not configured'
+            if (!isOptionalIntegrationMissing) failed('github', error)
+          })
+          .finally(() => setLoading((prev) => ({ ...prev, github: false }))),
+        apiFetch<{ cronJobCount?: number }>('/api/hermes').then((data) => { if (data?.cronJobCount != null) setHermesCronJobCount(data.cronJobCount) }).catch(() => {}),
       )
     } else {
       setLoading((prev) => ({ ...prev, claude: false, github: false }))
@@ -99,12 +130,20 @@ export function Dashboard() {
 
   return (
     <div className="p-5 space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">Overview</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Fleet health, active work, and recent operational signals.</p>
+      </div>
+      {Object.keys(errors).length > 0 && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <span>{Object.values(errors).join(' ')}</span>
+          <Button variant="outline" size="sm" onClick={() => void loadDashboard()}>
+            Retry dashboard data
+          </Button>
+        </div>
+      )}
       <OnboardingChecklistWidget />
-      <EmptyStateLaunchpad
-        agentCount={dbStats?.agents.total ?? agents.length}
-        taskCount={dbStats?.tasks.total ?? tasks.length}
-        onNavigate={navigateToPanel}
-      />
+      <ActiveTerminalSessions data={dashboardData} />
       <FleetLogosStrip agents={agents} />
       <WidgetGrid data={dashboardData} />
     </div>

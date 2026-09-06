@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { useMissionControl } from '@/store'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { prepareDoctorBannerCopy } from '@/lib/doctor-banner-copy'
 
 interface OpenClawDoctorStatus {
   level: 'healthy' | 'warning' | 'error'
@@ -136,8 +137,9 @@ export function OpenClawDoctorBanner() {
           secondary: 'text-amber-300 border-amber-500/20 hover:border-amber-500/40 hover:text-amber-200',
         }
 
-  const visibleIssues = doctor.issues.slice(0, 3)
-  const extraCount = Math.max(doctor.issues.length - visibleIssues.length, 0)
+  const bannerCopy = prepareDoctorBannerCopy(doctor.summary, doctor.issues)
+  const visibleIssues = bannerCopy.issues.slice(0, 3)
+  const extraCount = Math.max(bannerCopy.issues.length - visibleIssues.length, 0)
   const busy = state === 'fixing'
   const headline =
     state === 'success'
@@ -152,25 +154,24 @@ export function OpenClawDoctorBanner() {
 
   return (
     <div className="mx-4 mt-3 mb-0">
-      <div className={`flex items-start gap-3 px-4 py-3 rounded-lg border text-sm ${tone.frame}`}>
-        <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
-        <div className="min-w-0 flex-1">
+      <div className={`flex flex-col items-start gap-3 rounded-lg border px-4 py-3 text-sm sm:flex-row ${tone.frame}`}>
+        <div className="flex w-full min-w-0 items-start gap-3 sm:flex-1">
+          <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden="true" />
+          <div className="min-w-0 flex-1">
           <p className="text-xs">
             <span className={`font-medium ${tone.primary}`}>{headline}</span>
             {' — '}
-            {state === 'error' ? errorMsg || doctor.summary : doctor.summary}
+            {state === 'error' ? errorMsg || bannerCopy.summary : bannerCopy.summary}
           </p>
           {visibleIssues.length > 0 && (
-            <div className="mt-2 space-y-1">
+            <ul className="mt-2 list-disc space-y-1 pl-4">
               {visibleIssues.map(issue => (
-                <p key={issue} className="text-2xs opacity-90">
-                  - {issue}
-                </p>
+                <li key={issue} className="text-2xs opacity-90">{issue}</li>
               ))}
               {extraCount > 0 && (
-                <p className="text-2xs opacity-75">{tc('moreIssues', { count: extraCount })}</p>
+                <li className="list-none text-2xs opacity-75">{tc('moreIssues', { count: extraCount })}</li>
               )}
-            </div>
+            </ul>
           )}
           {busy && fixProgress && (
             <p className="mt-2 text-2xs opacity-85">{fixProgress}</p>
@@ -178,10 +179,12 @@ export function OpenClawDoctorBanner() {
           {!busy && state === 'success' && fixProgress && (
             <p className="mt-2 text-2xs opacity-85">{fixProgress}</p>
           )}
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {doctor.canFix && state !== 'success' && (
             <button
+              type="button"
               onClick={handleFix}
               disabled={busy}
               className={`shrink-0 rounded px-2.5 py-1 text-2xs font-medium transition-colors ${tone.button}`}
@@ -190,6 +193,7 @@ export function OpenClawDoctorBanner() {
             </button>
           )}
           <button
+            type="button"
             onClick={() => setShowDetails(value => !value)}
             className={`shrink-0 rounded border px-2 py-1 text-2xs font-medium transition-colors ${tone.secondary}`}
           >
@@ -201,6 +205,7 @@ export function OpenClawDoctorBanner() {
             onClick={dismissDoctor}
             className="shrink-0 hover:bg-transparent"
             title={tc('dismiss')}
+            aria-label={tc('dismiss')}
           >
             <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M4 4l8 8M12 4l-8 8" />
@@ -210,7 +215,7 @@ export function OpenClawDoctorBanner() {
       </div>
       {showDetails && (
         <div className={`mt-1 max-h-80 overflow-y-auto rounded-lg border px-4 py-3 text-xs whitespace-pre-wrap ${tone.frame}`}>
-          {doctor.raw || doctor.summary}
+          {doctor.raw || bannerCopy.summary}
         </div>
       )}
     </div>

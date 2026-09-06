@@ -76,23 +76,29 @@ export function ModelPicker({
         />
       ))}
       <p className="mt-2 px-2 pb-1 text-[12px] text-[var(--chat-muted)]">{t('models')}</p>
-      {models.map((model) => (
-        <button
-          key={model.alias}
-          type="button"
-          className="flex h-8 w-full items-center justify-between rounded-md px-2 text-[13px] text-[var(--chat-text)] hover:bg-white/5"
-          onClick={() => {
-            onChange(model.alias)
-            onClose()
-          }}
-        >
-          <span>
-            {modelPickerLabel(model.alias, model.name)}
-            <span className="ml-2 text-[11px] text-[var(--chat-muted)]">{model.description}</span>
-          </span>
-          {value === model.alias && <IconCheck />}
-        </button>
-      ))}
+      {models.map((model) => {
+        const modelEngine = engineForProvider(model.provider)
+        return (
+          <button
+            key={model.alias}
+            type="button"
+            className="flex h-8 w-full items-center justify-between rounded-md px-2 text-[13px] text-[var(--chat-text)] hover:bg-white/5"
+            onClick={() => {
+              onChange(model.alias)
+              onClose()
+            }}
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              {modelEngine && <EngineLogo engine={modelEngine} size={14} decorative />}
+              <span className="truncate">
+                {modelPickerLabel(model.alias, model.name)}
+                <span className="ml-2 text-[11px] text-[var(--chat-muted)]">{model.description}</span>
+              </span>
+            </span>
+            {value === model.alias && <IconCheck />}
+          </button>
+        )
+      })}
       <label className="mt-2 flex items-center justify-between border-t border-[var(--chat-border)] px-2 py-2 text-[13px]">
         <span>{t('effort')}</span>
         <select
@@ -138,7 +144,7 @@ function EngineRow({
       className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] text-[var(--chat-text)] hover:bg-white/5"
       onClick={onPick}
     >
-      <EngineLogo engine={engine} size={16} />
+      <EngineLogo engine={engine} size={16} decorative />
       <span className="flex-1 text-left">{meta.label}</span>
       {selected && <IconCheck />}
     </button>

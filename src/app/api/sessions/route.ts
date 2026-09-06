@@ -52,7 +52,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sessions: merged })
   } catch (error) {
     logger.error({ err: error }, 'Sessions API error')
-    return NextResponse.json({ sessions: [] })
+    return NextResponse.json(
+      { sessions: [], error: 'Unable to load sessions' },
+      { status: 500 },
+    )
   }
 }
 

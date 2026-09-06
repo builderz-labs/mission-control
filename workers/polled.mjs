@@ -1,3 +1,4 @@
+import { clearGitCredentials } from './git-auth.mjs'
 import { mkdtemp } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { loadJob } from './job.mjs'
@@ -21,7 +22,7 @@ export async function executeJob(job, dependencies = {}) {
     const originalConfig = await checkoutRepository(job, run, cwd)
     // Approved command-only jobs never push. Drop the read-only clone credential
     // before package code; this reduces accidental inheritance, not same-UID access.
-    if (job.runtime === 'command') delete process.env.MC_FLY_GIT_AUTH_TOKEN
+    if (job.runtime === 'command') clearGitCredentials()
     await setupRepository(job, run, cwd)
     await runAgent(job, run, cwd)
     await verifyChecks(job, run, cwd)
@@ -33,7 +34,7 @@ export async function executeJob(job, dependencies = {}) {
     state = { ...state, state: 'failed', error_message: error instanceof Error ? error.message.slice(0, 500) : 'Worker failed' }
   } finally {
     clearInterval(heartbeat); clearTimeout(watchdog); run.stop?.()
-    if (job.runtime === 'command') delete process.env.MC_FLY_GIT_AUTH_TOKEN
+    if (job.runtime === 'command') clearGitCredentials()
     await write(state)
   }
   return state

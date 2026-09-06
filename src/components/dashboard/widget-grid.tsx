@@ -203,7 +203,7 @@ export function WidgetGrid({ data }: { data: DashboardData }) {
     return (
       <div
         key={widgetId}
-        className={`${colClass} relative ${customizing ? 'cursor-grab' : ''} ${
+        className={`${colClass} relative min-w-0 ${customizing ? 'cursor-grab' : ''} ${
           isDragging ? 'opacity-40' : ''
         } ${isDragOver ? 'ring-2 ring-primary/50 rounded-lg' : ''}`}
         draggable={customizing}

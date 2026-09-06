@@ -167,7 +167,10 @@ function readWorkspaceFile(workspace: string | undefined, filename: string): str
       closeSync(descriptor)
     }
   } catch (err) {
-    logger.warn({ err, workspace, filename }, 'Failed to read workspace file')
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') {
+      logger.warn({ code, workspace, filename }, 'Failed to read workspace file')
+    }
   }
   return null
 }

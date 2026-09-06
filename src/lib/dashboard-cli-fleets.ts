@@ -21,6 +21,8 @@ export interface DashboardSession {
   project?: string
   environment?: string
   workingDir?: string | null
+  source?: 'local' | 'gateway'
+  channel?: string
 }
 
 export interface CliFleet extends CliKindMeta {

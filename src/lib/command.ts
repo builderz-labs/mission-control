@@ -21,6 +21,21 @@ export function redactCommandLine(command: string, args: string[]): string {
   return `${command} ${safe.join(' ')}`.trim()
 }
 
+const MAX_ERROR_OUTPUT_CHARS = 512
+
+export function summarizeCommandOutput(stdout: string, stderr: string): string {
+  const output = (stderr || stdout).trim().replace(/\s+/g, ' ')
+  if (!output) return 'no output'
+  if (output.length <= MAX_ERROR_OUTPUT_CHARS) return output
+  return `${output.slice(0, MAX_ERROR_OUTPUT_CHARS)}… [truncated]`
+}
+
+function truncateOutput(output: string): string {
+  return output.length <= MAX_ERROR_OUTPUT_CHARS
+    ? output
+    : `${output.slice(0, MAX_ERROR_OUTPUT_CHARS)}… [truncated]`
+}
+
 export function runCommand(
   command: string,
   args: string[],
@@ -73,7 +88,7 @@ export function runCommand(
         const friendly = new Error(
           `Command not found: ${command}. Install it and ensure it is on PATH, or set ${binHint} to an absolute executable path.`
         )
-        ;(friendly as any).code = enoent.code
+        Object.assign(friendly, { code: enoent.code })
         reject(friendly)
         return
       }
@@ -89,21 +104,25 @@ export function runCommand(
       }
       if (timedOut) {
         const error = new Error(
-          `Command timed out after ${options.timeoutMs}ms (${redactCommandLine(command, args)}): ${stderr || stdout}`
+          `Command timed out after ${options.timeoutMs}ms (${redactCommandLine(command, args)}): ${summarizeCommandOutput(stdout, stderr)}`
         )
-        ;(error as any).stdout = stdout
-        ;(error as any).stderr = stderr
-        ;(error as any).code = code
-        ;(error as any).timedOut = true
+        Object.assign(error, {
+          stdout: truncateOutput(stdout),
+          stderr: truncateOutput(stderr),
+          code,
+          timedOut: true,
+        })
         reject(error)
         return
       }
       const error = new Error(
-        `Command failed (${redactCommandLine(command, args)}): ${stderr || stdout}`
+        `Command failed (${redactCommandLine(command, args)}): ${summarizeCommandOutput(stdout, stderr)}`
       )
-      ;(error as any).stdout = stdout
-      ;(error as any).stderr = stderr
-      ;(error as any).code = code
+      Object.assign(error, {
+        stdout: truncateOutput(stdout),
+        stderr: truncateOutput(stderr),
+        code,
+      })
       reject(error)
     })
 

@@ -70,3 +70,6 @@ agentdb.rvf.lock
 
 # Build rollback snapshots
 .next.rollback-*/
+
+# UI audit loop scratch
+.ui-audit-loop/

@@ -43,13 +43,17 @@ The source and build paths are discovered relative to this package, independent 
 
 Health probes have a three-second timeout including body consumption and one
 retry for transport/timeouts or HTTP 408/500/502/503/504. Probes reject redirects
-and never include credentials. A healthy port is not proof of service identity:
-the native client never reads `.env`, sends passwords automatically, or installs
-authentication cookies. Sign in through the ordinary local login screen.
+and never include credentials. A healthy port is not proof of service identity.
+The desktop unlock window accepts macOS Touch ID or a locally configured four-digit
+PIN. Only after that local check, the Electron main process reads the canonical
+checkout's account credentials and exchanges them directly with the backend login
+route; credentials never enter the web page or preload bridge. The PIN is stored as
+a salted scrypt hash with owner-only file permissions. The ordinary local login
+screen remains available as a fallback.
 Session storage is isolated by the complete origin (including port) and held in
 memory until the app quits. Legacy default-session cookies are never selected.
 Closing and reopening a window keeps the session; quitting the app requires a
-new login. Authentication and cookie attributes remain owned by the backend.
+new desktop unlock. Authentication and cookie attributes remain owned by the backend.
 Session request hooks strip outgoing Cookie and incoming Set-Cookie headers for
 other full origins, including gateway WebSocket handshakes. Intentional gateway
 connections and their explicit authentication remain available. Sanitized clipboard

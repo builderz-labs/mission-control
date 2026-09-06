@@ -2,6 +2,8 @@
 
 import { Button } from '@/components/ui/button'
 import type { CliFleet, DashboardSession } from '@/lib/dashboard-cli-fleets'
+import type { Agent, LogEntry, Task } from '@/store'
+import type { DashboardGitHubStats, DashboardSystemStats } from './dashboard-response-types'
 
 export interface DbStats {
   tasks: { total: number; byStatus: Record<string, number> }
@@ -34,15 +36,15 @@ export type LogLike = {
 
 export interface DashboardData {
   isLocal: boolean
-  systemStats: any
+  systemStats: DashboardSystemStats | null
   dbStats: DbStats | null
   claudeStats: ClaudeStats | null
-  githubStats: any
+  githubStats: DashboardGitHubStats | null
   loading: { system: boolean; sessions: boolean; claude: boolean; github: boolean }
   sessions: DashboardSession[]
-  logs: any[]
-  agents: any[]
-  tasks: any[]
+  logs: LogEntry[]
+  agents: Agent[]
+  tasks: Task[]
   connection: { isConnected: boolean; url: string; reconnectAttempts: number; latency?: number; sseConnected?: boolean }
   subscription: { type: string; provider?: string; rateLimitTier?: string } | null
   navigateToPanel: (tab: string) => void
@@ -83,7 +85,7 @@ export function MetricCard({ label, value, total, subtitle, icon, color }: {
   label: string
   value: number | string
   total?: number
-  subtitle?: string
+  subtitle?: React.ReactNode
   icon: React.ReactNode
   color: 'blue' | 'green' | 'purple' | 'red'
 }) {
@@ -190,7 +192,7 @@ export function LogRow({ log }: { log: LogLike }) {
 
 export function QuickAction({ label, desc, tab, icon, onNavigate }: {
   label: string
-  desc: string
+  desc: React.ReactNode
   tab: string
   icon: React.ReactNode
   onNavigate: (tab: string) => void
@@ -249,7 +251,7 @@ export function getLocalOsStatus(memPct: number | null, diskPct: number | null):
   return { value: 'Healthy', status: 'good' }
 }
 
-export function getMcHealth(systemStats: any, dbStats: DbStats | null, errorCount: number): { value: string; status: 'good' | 'warn' | 'bad' } {
+export function getMcHealth(systemStats: DashboardSystemStats | null, dbStats: DbStats | null, errorCount: number): { value: string; status: 'good' | 'warn' | 'bad' } {
   if (!systemStats || !dbStats) return { value: 'Unavailable', status: 'bad' }
   if (errorCount > 0) return { value: `${errorCount} errors`, status: 'warn' }
   return { value: 'Healthy', status: 'good' }

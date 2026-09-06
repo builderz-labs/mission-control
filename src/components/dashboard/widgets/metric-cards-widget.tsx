@@ -1,6 +1,7 @@
 'use client'
 
 import { SessionKindAvatar } from '@/components/chat/session-kind-brand'
+import { LlmLabel } from '@/components/brand/engine-logo'
 import {
   MetricCard,
   SessionIcon,
@@ -83,7 +84,7 @@ export function MetricCardsWidget({ data }: { data: DashboardData }) {
         <MetricCard
           label="Cost"
           value={isClaudeLoading ? '...' : (subscriptionLabel ? (subscriptionPrice ? `$${subscriptionPrice}/mo` : 'Included') : `$${(claudeStats?.total_estimated_cost ?? 0).toFixed(2)}`)}
-          subtitle={subscriptionLabel ? `${subscriptionLabel} plans` : 'estimated'}
+          subtitle={subscriptionLabel ? <LlmLabel text={`${subscriptionLabel} plans`} size={11} /> : 'estimated'}
           icon={<CostIcon />}
           color={errorCount > 0 ? 'red' : 'green'}
         />

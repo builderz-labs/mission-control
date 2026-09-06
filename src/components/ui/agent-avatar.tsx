@@ -4,7 +4,6 @@ import Image from 'next/image'
 import { EngineLogo } from '@/components/brand/engine-logo'
 import { inferEngineFromText } from '@/lib/chat-model-groups'
 import { brandFromAgent, brandLogo } from '@/lib/agent-brand'
-import { fleetAgentLogo } from '@/lib/fleet-agents'
 
 interface AgentAvatarProps {
   name?: string | null
@@ -58,26 +57,6 @@ export function AgentAvatar({
   className = '',
 }: AgentAvatarProps) {
   const safeName = name ?? ''
-  const override = fleetAgentLogo(safeName)
-  if (override) {
-    return (
-      <span
-        className={`inline-flex shrink-0 overflow-hidden rounded-[6px] ${sizeClasses[size]} ${className}`}
-        title={safeName}
-        aria-label={safeName || override.alt}
-      >
-        <Image
-          src={override.src}
-          alt={override.alt}
-          width={logoSize[size]}
-          height={logoSize[size]}
-          unoptimized
-          className={`h-full w-full rounded-[6px] ${override.contain ? 'object-contain p-[2px]' : 'object-cover'}`}
-        />
-      </span>
-    )
-  }
-
   const engine = inferEngineFromText(safeName) || inferEngineFromText(runtimeType || '')
   if (engine) {
     return (

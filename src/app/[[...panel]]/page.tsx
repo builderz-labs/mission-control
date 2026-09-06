@@ -1,47 +1,13 @@
 'use client'
 
-import { createElement, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { NavRail } from '@/components/layout/nav-rail'
 import { HeaderBar } from '@/components/layout/header-bar'
 import { LiveFeed } from '@/components/layout/live-feed'
-import { Dashboard } from '@/components/dashboard/dashboard'
-import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
-import { CronManagementPanel } from '@/components/panels/cron-management-panel'
-import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
-import { CostTrackerPanel } from '@/components/panels/cost-tracker-panel'
-import { TaskBoardPanel } from '@/components/panels/task-board-panel'
-import { ActivityFeedPanel } from '@/components/panels/activity-feed-panel'
-import { AgentSquadPanelPhase3 } from '@/components/panels/agent-squad-panel-phase3'
-import { AgentCommsPanel } from '@/components/panels/agent-comms-panel'
-import { StandupPanel } from '@/components/panels/standup-panel'
-import { OrchestrationBar } from '@/components/panels/orchestration-bar'
-import { NotificationsPanel } from '@/components/panels/notifications-panel'
-import { UserManagementPanel } from '@/components/panels/user-management-panel'
-import { AuditTrailPanel } from '@/components/panels/audit-trail-panel'
-import { WebhookPanel } from '@/components/panels/webhook-panel'
-import { SettingsPanel } from '@/components/panels/settings-panel'
-import { GatewayConfigPanel } from '@/components/panels/gateway-config-panel'
-import { IntegrationsPanel } from '@/components/panels/integrations-panel'
-import { AlertRulesPanel } from '@/components/panels/alert-rules-panel'
-import { MultiGatewayPanel } from '@/components/panels/multi-gateway-panel'
-import { GatewayControlPanel } from '@/components/panels/gateway-control-panel'
-import { SuperAdminPanel } from '@/components/panels/super-admin-panel'
-import { OfficePanel } from '@/components/panels/office-panel'
-import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
-import { SkillsPanel } from '@/components/panels/skills-panel'
-import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
-import { ChannelsPanel } from '@/components/panels/channels-panel'
-import { DebugPanel } from '@/components/panels/debug-panel'
-import { SecurityAuditPanel } from '@/components/panels/security-audit-panel'
-import { NodesPanel } from '@/components/panels/nodes-panel'
-import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
-import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
-import { FlyOrchestrationPanel } from '@/components/panels/fly-orchestration-panel'
-import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
+import { ContentRouter } from '@/components/layout/content-router'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
-import { getPluginPanel } from '@/lib/plugins'
 import { shouldRedirectDashboardToHttps } from '@/lib/browser-security'
 import { useTranslations } from 'next-intl'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -56,11 +22,11 @@ import { ExecApprovalOverlay } from '@/components/modals/exec-approval-overlay'
 import { useWebSocket } from '@/lib/websocket'
 import { useServerEvents } from '@/lib/use-server-events'
 import { completeNavigationTiming } from '@/lib/navigation-metrics'
-import { panelHref, useNavigateToPanel } from '@/lib/navigation'
+import { panelHref } from '@/lib/navigation'
 import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart, getOnboardingSessionDecision, markOnboardingReplayFromStart, readOnboardingDismissedThisSession } from '@/lib/onboarding-session'
-import { Button } from '@/components/ui/button'
 import { useMissionControl, type CurrentUser } from '@/store'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { canonicalPanelId } from '@/lib/panel-routing'
 
 interface GatewaySummary {
   id: number
@@ -89,11 +55,6 @@ const bootLabelKeys: Record<string, string> = {
   skills: 'indexingSkillCatalog',
 }
 
-function renderPluginPanel(panelId: string) {
-  const pluginPanel = getPluginPanel(panelId)
-  return pluginPanel ? createElement(pluginPanel) : <Dashboard />
-}
-
 export default function Home() {
   const router = useRouter()
   const { connect } = useWebSocket()
@@ -105,7 +66,7 @@ export default function Home() {
   // Sync URL → Zustand activeTab
   const pathname = usePathname()
   const panelFromUrl = pathname === '/' ? 'overview' : pathname.slice(1)
-  const normalizedPanel = panelFromUrl === 'sessions' ? 'chat' : panelFromUrl
+  const normalizedPanel = canonicalPanelId(panelFromUrl)
 
   useEffect(() => {
     completeNavigationTiming(pathname)
@@ -121,8 +82,8 @@ export default function Home() {
       setChatPanelOpen(false)
       setSidebarExpanded(false)
     }
-    if (panelFromUrl === 'sessions') {
-      router.replace('/chat')
+    if (panelFromUrl !== normalizedPanel) {
+      router.replace(panelHref(normalizedPanel))
     }
   }, [panelFromUrl, normalizedPanel, router, setActiveTab, setChatPanelOpen, setSidebarExpanded])
 
@@ -408,7 +369,9 @@ export default function Home() {
         .then((agentsData) => {
           if (agentsData?.agents) setAgents(agentsData.agents as Parameters<typeof setAgents>[0])
         }),
-      apiFetch<{ sessions?: unknown }>('/api/sessions?limit=all')
+      apiFetch<{ sessions?: unknown }>('/api/sessions', {
+        signal: AbortSignal.timeout(15_000),
+      })
         .then((sessionsData) => {
           if (sessionsData?.sessions) setSessions(sessionsData.sessions as Parameters<typeof setSessions>[0])
         }),
@@ -487,6 +450,7 @@ export default function Home() {
           onClick={toggleLiveFeed}
           className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-30 w-6 h-12 items-center justify-center bg-card border border-r-0 border-border rounded-l-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200"
           title={tp('showLiveFeed')}
+          aria-label={tp('showLiveFeed')}
         >
           <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M10 3l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
@@ -509,155 +473,6 @@ export default function Home() {
       )}
 
       <OnboardingWizard />
-    </div>
-  )
-}
-
-const ESSENTIAL_PANELS = new Set([
-  'overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
-])
-
-function ContentRouter({ tab }: { tab: string }) {
-  const tp = useTranslations('page')
-  const { dashboardMode, interfaceMode, setInterfaceMode } = useMissionControl()
-  const navigateToPanel = useNavigateToPanel()
-  const isLocal = dashboardMode === 'local'
-  const panelName = tab.replace(/-/g, ' ')
-
-  // Guard: show nudge for non-essential panels in essential mode
-  if (interfaceMode === 'essential' && !ESSENTIAL_PANELS.has(tab)) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-        <p className="text-sm text-muted-foreground">
-          {tp('availableInFullMode', { panel: panelName })}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              setInterfaceMode('full')
-              try { await apiFetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { 'general.interface_mode': 'full' } }) }) } catch {}
-            }}
-          >
-            {tp('switchToFull')}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigateToPanel('overview')}
-          >
-            {tp('goToOverview')}
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  switch (tab) {
-    case 'overview':
-      return (
-        <>
-          <Dashboard />
-          {!isLocal && (
-            <div className="mt-4 mx-4 mb-4 rounded-lg border border-border bg-card overflow-hidden">
-              <AgentCommsPanel />
-            </div>
-          )}
-        </>
-      )
-    case 'tasks':
-      return <TaskBoardPanel />
-    case 'agents':
-      return (
-        <>
-          <OrchestrationBar />
-          {isLocal && <LocalAgentsDocPanel />}
-          <AgentSquadPanelPhase3 />
-        </>
-      )
-    case 'notifications':
-      return <NotificationsPanel />
-    case 'standup':
-      return <StandupPanel />
-    case 'sessions':
-      return <ChatPagePanel />
-    case 'logs':
-      return <LogViewerPanel />
-    case 'cron':
-      return <CronManagementPanel />
-    case 'memory':
-      return <MemoryBrowserPanel />
-    case 'knowledge-graph':
-      return <MemoryBrowserPanel defaultView="graph" />
-    case 'cost-tracker':
-    case 'tokens':
-    case 'agent-costs':
-      return <CostTrackerPanel />
-    case 'users':
-      return <UserManagementPanel />
-    case 'history':
-    case 'activity':
-      return <ActivityFeedPanel />
-    case 'audit':
-      return <AuditTrailPanel />
-    case 'webhooks':
-      return <WebhookPanel />
-    case 'alerts':
-      return <AlertRulesPanel />
-    case 'gateways':
-      if (isLocal) return <GatewayControlPanel />
-      return <MultiGatewayPanel />
-    case 'gateway-config':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
-      return <GatewayConfigPanel />
-    case 'integrations':
-      return <IntegrationsPanel />
-    case 'settings':
-      return <SettingsPanel />
-    case 'super-admin':
-      return <SuperAdminPanel />
-    case 'github':
-      return <GitHubSyncPanel />
-    case 'office':
-      return <OfficePanel />
-    case 'monitor':
-      return <SystemMonitorPanel />
-    case 'fly':
-      return <FlyOrchestrationPanel />
-    case 'skills':
-      return <SkillsPanel />
-    case 'channels':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
-      return <ChannelsPanel />
-    case 'nodes':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
-      return <NodesPanel />
-    case 'security':
-      return <SecurityAuditPanel />
-    case 'debug':
-      return <DebugPanel />
-    case 'exec-approvals':
-      if (isLocal) return <LocalModeUnavailable panel={tab} />
-      return <ExecApprovalPanel />
-    case 'chat':
-      return <ChatPagePanel />
-    default: {
-      return renderPluginPanel(tab)
-    }
-  }
-}
-
-function LocalModeUnavailable({ panel }: { panel: string }) {
-  const tp = useTranslations('page')
-  return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <p className="text-sm text-muted-foreground">
-        {tp('requiresGateway', { panel })}
-      </p>
-      <p className="text-xs text-muted-foreground mt-1">
-        {tp('configureGateway')}
-      </p>
     </div>
   )
 }

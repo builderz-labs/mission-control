@@ -17,6 +17,7 @@ import { MarkdownRenderer } from '@/components/markdown-renderer'
 import { Button } from '@/components/ui/button'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } from '@/components/chat/session-message'
+import { EngineLogo } from '@/components/brand/engine-logo'
 
 const log = createClientLogger('TaskBoard')
 
@@ -762,6 +763,7 @@ export function TaskBoardPanel() {
   if (loading) {
     return (
       <div className="h-full flex flex-col" role="status" aria-live="polite">
+        <h1 className="sr-only">{t('title')}</h1>
         <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-7 w-28 bg-surface-1 rounded-md animate-pulse" />
@@ -802,9 +804,9 @@ export function TaskBoardPanel() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
           {gnapStatus?.enabled && (
             <button
               onClick={handleGnapSync}
@@ -825,6 +827,7 @@ export function TaskBoardPanel() {
           )}
           <div className="relative">
             <select
+              aria-label="Filter tasks by project"
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
               className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/50"
@@ -841,7 +844,7 @@ export function TaskBoardPanel() {
             </svg>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <Button variant="outline" onClick={() => setShowProjectManager(true)}>
             {t('projects')}
           </Button>
@@ -884,6 +887,7 @@ export function TaskBoardPanel() {
                   disabled={isSpawning}
                 />
                 <select
+                  aria-label="Agent model"
                   value={spawnFormData.model}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, model: e.target.value }))}
                   className="px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
@@ -1610,6 +1614,7 @@ function TaskDetailModal({
               <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 border border-border/30">
                 <span className="text-xs text-muted-foreground shrink-0">{t('assignedTo')}</span>
                 <select
+                  aria-label={t('assignedTo')}
                   className="flex-1 text-xs bg-card border border-border rounded-md px-2 py-1.5 text-foreground cursor-pointer focus:ring-1 focus:ring-primary/50 focus:border-primary/50 outline-hidden transition-colors"
                   value={task.assigned_to || ''}
                   onChange={async (e) => {
@@ -1836,6 +1841,7 @@ function TaskDetailModal({
                     placeholder={t('reviewerPlaceholder')}
                   />
                   <select
+                    aria-label="Review decision"
                     value={reviewStatus}
                     onChange={(e) => setReviewStatus(e.target.value as 'approved' | 'rejected')}
                     className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
@@ -1999,6 +2005,7 @@ function ClaudeCodeTasksSection() {
         className="w-full flex items-center justify-between px-4 py-3 bg-card hover:bg-secondary/50 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
+          <EngineLogo engine="claude" size={16} decorative />
           <span className="text-sm font-medium text-foreground">{t('claudeCodeTasks')}</span>
           {data.tasks.length > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">{data.tasks.length}</span>

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { flyRepositoryAuth } from './fly-repository-auth'
 import { pricedFlyJob } from './fly-pricing'
 
 export const flySubmissionSchema = z.object({
@@ -36,6 +37,10 @@ export function flyReadiness(input?: FlySubmission): string[] {
   if (!process.env.MC_FLY_ALLOWED_REPOS) issues.push('Repository allowlist is empty')
   if (input && !(process.env.MC_FLY_ALLOWED_REPOS || '').split(',').map(s => s.trim()).includes(input.repository)) {
     issues.push('Repository is not approved for Fly')
+  }
+  const privateRepos = (process.env.MC_FLY_PRIVATE_REPOS || '').split(',').map(value => value.trim())
+  if (input && privateRepos.includes(input.repository) && !Object.keys(flyRepositoryAuth(input.repository)).length) {
+    issues.push('Private repository requires a scoped deploy key or token with read-only Contents access before Fly admission')
   }
   if (input && input.runtime !== 'command') {
     // Provider inference spend has no hard reservation implementation yet.

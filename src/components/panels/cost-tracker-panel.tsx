@@ -222,7 +222,7 @@ export function CostTrackerPanel() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       {/* Header */}
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -230,13 +230,15 @@ export function CostTrackerPanel() {
             <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
             {/* View tabs */}
-            <div className="flex rounded-lg border border-border overflow-hidden">
+            <div aria-label="Cost views" className="grid min-w-0 grid-cols-4 overflow-hidden rounded-lg border border-border" role="tablist">
               {(['overview', 'agents', 'sessions', 'tasks'] as const).map(v => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
+                  aria-selected={view === v}
+                  role="tab"
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     view === v ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'
                   }`}
@@ -246,7 +248,7 @@ export function CostTrackerPanel() {
               ))}
             </div>
             {/* Timeframe */}
-            <div className="flex space-x-1">
+            <div aria-label="Cost timeframe" className="grid min-w-0 grid-cols-4 gap-1">
               {(['hour', 'day', 'week', 'month'] as const).map(tf => (
                 <Button key={tf} onClick={() => setTimeframe(tf)} variant={timeframe === tf ? 'default' : 'secondary'} size="sm">
                   {tf.charAt(0).toUpperCase() + tf.slice(1)}
@@ -449,7 +451,7 @@ function OverviewView({
             <div className="bg-secondary rounded-lg p-4">
               <div className="text-xs text-muted-foreground mb-1">{t('mostEfficientModel')}</div>
               <div className="flex items-center gap-2 text-lg font-bold text-green-500">
-                {mostEfficient && <EngineLogoForText text={mostEfficient[0]} size={18} />}
+                {mostEfficient && <EngineLogoForText text={mostEfficient[0]} size={18} decorative />}
                 {mostEfficient ? getModelDisplayName(mostEfficient[0]) : '-'}
               </div>
               {mostEfficient && <div className="text-xs text-muted-foreground">${(efficientCostPerToken * 1000).toFixed(4)}/1K tokens</div>}
@@ -472,7 +474,7 @@ function OverviewView({
               return (
                 <div key={m.fullName} className="flex items-center text-sm">
                   <div className="flex w-32 items-center gap-1.5 truncate text-muted-foreground">
-                    <EngineLogoForText text={m.fullName || m.name} size={14} />
+                    <EngineLogoForText text={m.fullName || m.name} size={14} decorative />
                     <span className="truncate">{m.name}</span>
                   </div>
                   <div className="flex-1 mx-3">

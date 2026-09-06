@@ -21,7 +21,7 @@ export async function filesUnder(root, relative = "") {
 export async function packageInputs(root, checkoutRoot, identity = "-") {
   const source = (await filesUnder(path.join(root, "src")))
     .filter((file) => !file.endsWith(".test.mjs"));
-  if (source.some((file) => file.includes(path.sep) || !/\.(mjs|html)$/.test(file))) {
+  if (source.some((file) => file.includes(path.sep) || !/\.(mjs|cjs|html)$/.test(file))) {
     throw new Error("PACKAGE_SOURCE_INVALID");
   }
   const payload = new Map();

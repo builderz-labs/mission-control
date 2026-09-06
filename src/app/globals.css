@@ -500,6 +500,31 @@
   }
 }
 
+@media (pointer: coarse) {
+  button,
+  select,
+  a[href] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  button,
+  select,
+  a[href],
+  input:not([type='checkbox']):not([type='radio']),
+  textarea {
+    min-height: 44px;
+  }
+
+  button,
+  select,
+  a[href] {
+    min-width: 44px;
+  }
+}
+
 @utility shimmer-bar {
   /* Touch-friendly tap targets */
 

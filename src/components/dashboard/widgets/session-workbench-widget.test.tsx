@@ -57,7 +57,7 @@ function data(sessions: DashboardSession[]): DashboardData {
 }
 
 describe('SessionWorkbenchWidget', () => {
-  it('renders every CLI engine session instead of a 10-item slice', () => {
+  it('renders sessions from every CLI engine on the first page', () => {
     const sessions = [
       session('claude-code', 'c1', 'Claude task', true),
       session('codex-cli', 'x1', 'Codex task'),
@@ -75,6 +75,18 @@ describe('SessionWorkbenchWidget', () => {
     expect(screen.getByText('OpenCode task')).toBeInTheDocument()
     expect(screen.getByText('Extra 7')).toBeInTheDocument()
     expect(screen.getByText('14/14')).toBeInTheDocument()
+  })
+
+  it('caps the initial DOM and progressively reveals more sessions', () => {
+    const sessions = Array.from({ length: 45 }, (_, index) => (
+      session('codex-cli', `codex-${index}`, `Codex ${index}`)
+    ))
+    render(<SessionWorkbenchWidget data={data(sessions)} />)
+
+    expect(screen.getByText('Codex 39')).toBeInTheDocument()
+    expect(screen.queryByText('Codex 40')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show 5 more' }))
+    expect(screen.getByText('Codex 44')).toBeInTheDocument()
   })
 
   it('filters to a single CLI engine', () => {

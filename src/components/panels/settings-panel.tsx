@@ -13,6 +13,7 @@ import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart } f
 import { resolveCoordinatorDeliveryTarget, type CoordinatorAgentRecord } from '@/lib/coordinator-routing'
 import type { GatewaySession } from '@/lib/sessions'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { LlmLabel } from '@/components/brand/engine-logo'
 
 interface Setting {
   key: string
@@ -413,7 +414,7 @@ export function SettingsPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
+          <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('description')}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -899,7 +900,7 @@ export function SettingsPanel() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">{formatLabel(shortKey)}</span>
+                    <LlmLabel text={formatLabel(shortKey)} size={16} className="text-sm font-medium text-foreground" />
                     {setting.is_default && (
                       <span className="text-2xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">default</span>
                     )}
@@ -915,6 +916,7 @@ export function SettingsPanel() {
                   <div className="flex items-center gap-2">
                     {dropdownOptions ? (
                       <select
+                        aria-label={formatLabel(shortKey)}
                         value={currentValue}
                         onChange={e => handleEdit(setting.key, e.target.value)}
                         className="w-64 px-2 py-1 text-sm bg-background border border-border rounded-md focus:border-primary focus:outline-hidden"
@@ -928,6 +930,10 @@ export function SettingsPanel() {
                       </select>
                     ) : isBooleanish ? (
                     <button
+                      type="button"
+                      role="switch"
+                      aria-checked={currentValue === 'true'}
+                      aria-label={formatLabel(shortKey)}
                       onClick={() => handleEdit(setting.key, currentValue === 'true' ? 'false' : 'true')}
                       className={`w-10 h-5 rounded-full relative transition-colors select-none ${
                         currentValue === 'true' ? 'bg-primary' : 'bg-muted'
@@ -939,6 +945,7 @@ export function SettingsPanel() {
                     </button>
                   ) : isNumeric ? (
                     <input
+                      aria-label={formatLabel(shortKey)}
                       type="number"
                       value={currentValue}
                       onChange={e => handleEdit(setting.key, e.target.value)}
@@ -946,6 +953,7 @@ export function SettingsPanel() {
                     />
                   ) : (
                     <input
+                      aria-label={formatLabel(shortKey)}
                       type="text"
                       value={currentValue}
                       onChange={e => handleEdit(setting.key, e.target.value)}

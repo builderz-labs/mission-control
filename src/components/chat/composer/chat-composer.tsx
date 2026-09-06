@@ -82,6 +82,7 @@ export function ChatComposer({
       {usage.sessionLimitReached ? <UsageBanner resetsAt={usage.sessionLimitResetsAt} /> : null}
       <div className="relative rounded-xl border border-[var(--chat-border)] bg-[var(--chat-elevated)] px-3 py-2">
         <textarea
+          aria-label={placeholder}
           ref={textareaRef}
           value={value}
           onChange={(event) => setValue(event.target.value)}

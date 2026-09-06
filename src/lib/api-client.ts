@@ -67,6 +67,26 @@ export interface ApiFetchOptions extends RequestInit {
   raw?: boolean
 }
 
+const RETRYABLE_READ_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+
+async function fetchWithReadRetry(path: string, init: RequestInit): Promise<Response> {
+  const method = (init.method || 'GET').toUpperCase()
+  const canRetry = method === 'GET' || method === 'HEAD'
+  for (let attempt = 0; attempt < (canRetry ? 2 : 1); attempt += 1) {
+    const timeoutSignal = AbortSignal.timeout(20_000)
+    const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
+    try {
+      const response = await fetch(path, { ...init, signal })
+      if (!RETRYABLE_READ_STATUSES.has(response.status) || attempt === 1) return response
+      await response.arrayBuffer().catch(() => undefined)
+    } catch (error) {
+      if (!canRetry || attempt === 1 || init.signal?.aborted) throw error
+    }
+    await new Promise(resolve => setTimeout(resolve, 150))
+  }
+  throw new Error('Request retry exhausted')
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
   options: ApiFetchOptions = {}
@@ -80,7 +100,7 @@ export async function apiFetch<T = unknown>(
 
   let response: Response
   try {
-    response = await fetch(path, {
+    response = await fetchWithReadRetry(path, {
       credentials: 'include',
       headers: {
         Accept: 'application/json',
@@ -90,7 +110,7 @@ export async function apiFetch<T = unknown>(
         ...headers,
       },
       ...rest,
-      signal: rest.signal ?? AbortSignal.timeout(8_000),
+      signal: rest.signal,
     })
   } catch (err) {
     throw new ApiError(

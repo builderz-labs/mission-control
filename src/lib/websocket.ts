@@ -326,8 +326,10 @@ export function useWebSocket() {
       case 'session_update':
         if (message.data?.sessions) {
           setSessions(message.data.sessions.map((session: any, index: number) => ({
-            id: session.key || `session-${index}`,
+            id: session.sessionId || session.id || session.key || `session-${index}`,
             key: session.key || '',
+            agent: session.agent,
+            channel: session.channel,
             kind: session.kind || 'unknown',
             age: session.age || '',
             model: normalizeModel(session.model),
@@ -337,7 +339,8 @@ export function useWebSocket() {
             startTime: session.startTime,
             lastActivity: session.lastActivity,
             messageCount: session.messageCount,
-            cost: session.cost
+            cost: session.cost,
+            source: 'gateway' as const,
           })))
         }
         break
@@ -514,8 +517,10 @@ export function useWebSocket() {
         const snapshot = frame.payload?.snapshot
         if (snapshot?.sessions) {
           setSessions(snapshot.sessions.map((session: any, index: number) => ({
-            id: session.key || `session-${index}`,
+            id: session.sessionId || session.id || session.key || `session-${index}`,
             key: session.key || '',
+            agent: session.agent,
+            channel: session.channel,
             kind: session.kind || 'unknown',
             age: formatAge(session.updatedAt),
             model: normalizeModel(session.model),
@@ -525,7 +530,8 @@ export function useWebSocket() {
             startTime: session.updatedAt,
             lastActivity: session.updatedAt,
             messageCount: session.messageCount,
-            cost: session.cost
+            cost: session.cost,
+            source: 'gateway' as const,
           })))
         }
       } else if (frame.event === 'log') {

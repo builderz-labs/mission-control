@@ -7,6 +7,7 @@ import { Loader } from '@/components/ui/loader'
 import { createClientLogger } from '@/lib/client-logger'
 import { apiFetch, ApiError } from '@/lib/api-client'
 import Link from 'next/link'
+import { EngineLogoForText, LlmLabel } from '@/components/brand/engine-logo'
 
 const log = createClientLogger('AgentDetailTabs')
 
@@ -1188,14 +1189,17 @@ export function CreateAgentModal({
                         formData.modelTier === tier ? MODEL_TIER_COLORS[tier] : ''
                       }`}
                     >
-                      {MODEL_TIER_LABELS[tier]}
+                      <LlmLabel text={MODEL_TIER_LABELS[tier]} size={14} />
                     </Button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm text-muted-foreground mb-1">{t('primaryModel')}</label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="text-sm text-muted-foreground">{t('primaryModel')}</label>
+                  <LlmLabel text={formData.modelPrimary} size={13} className="text-xs text-muted-foreground" textClassName="max-w-64 truncate font-mono" />
+                </div>
                 <input
                   type="text"
                   value={formData.modelPrimary}
@@ -1318,7 +1322,10 @@ export function CreateAgentModal({
                       <div><span className="text-muted-foreground">{t('templateLabel')}:</span> <span className="text-foreground">{selectedTemplateData?.label || t('custom')}</span></div>
                       <div><span className="text-muted-foreground">{t('model')}:</span> <span className={`px-2 py-0.5 rounded text-xs ${MODEL_TIER_COLORS[formData.modelTier]}`}>{MODEL_TIER_LABELS[formData.modelTier]}</span></div>
                       <div><span className="text-muted-foreground">{t('toolsLabel')}:</span> <span className="text-foreground">{selectedTemplateData?.toolCount || t('custom')}</span></div>
-                      <div className="col-span-2"><span className="text-muted-foreground">{t('primaryModel')}:</span> <span className="text-foreground font-mono">{formData.modelPrimary || DEFAULT_MODEL_BY_TIER[formData.modelTier]}</span></div>
+                      <div className="col-span-2 flex items-center gap-1.5">
+                        <span className="text-muted-foreground">{t('primaryModel')}:</span>
+                        <LlmLabel text={formData.modelPrimary || DEFAULT_MODEL_BY_TIER[formData.modelTier]} size={14} textClassName="font-mono text-foreground" />
+                      </div>
                       <div><span className="text-muted-foreground">{t('workspace')}:</span> <span className="text-foreground">{formData.workspaceAccess}</span></div>
                       <div><span className="text-muted-foreground">{t('sandbox')}:</span> <span className="text-foreground">{formData.sandboxMode}</span></div>
                       <div><span className="text-muted-foreground">{t('network')}:</span> <span className="text-foreground">{formData.dockerNetwork}</span></div>
@@ -1695,7 +1702,10 @@ export function ConfigTab({
             {editing ? (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">{t('primaryModel')}</label>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <label className="text-xs text-muted-foreground">{t('primaryModel')}</label>
+                    <LlmLabel text={modelPrimary} size={12} className="text-2xs text-muted-foreground" textClassName="max-w-56 truncate font-mono" />
+                  </div>
                   <input
                     value={modelPrimary}
                     onChange={(e) => updateModelConfig((current) => ({ ...current, primary: e.target.value }))}
@@ -1713,7 +1723,8 @@ export function ConfigTab({
                   <label className="block text-xs text-muted-foreground mb-1">{t('fallbackModels')}</label>
                   <div className="space-y-2">
                     {modelFallbacks.map((fallback: string, index: number) => (
-                      <div key={`${fallback}-${index}`} className="flex gap-2">
+                      <div key={`${fallback}-${index}`} className="flex items-center gap-2">
+                        <EngineLogoForText text={fallback} size={13} decorative />
                         <input
                           value={fallback}
                           onChange={(e) => {
@@ -1757,13 +1768,18 @@ export function ConfigTab({
               </div>
             ) : (
               <div className="text-sm">
-                <div><span className="text-muted-foreground">{t('primary')}:</span> <span className="text-foreground font-mono">{modelPrimary || t('notConfigured')}</span></div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">{t('primary')}:</span>
+                  {modelPrimary
+                    ? <LlmLabel text={modelPrimary} size={14} textClassName="font-mono text-foreground" />
+                    : <span className="text-foreground font-mono">{t('notConfigured')}</span>}
+                </div>
                 {modelFallbacks.length > 0 && (
                   <div className="mt-1">
                     <span className="text-muted-foreground">{t('fallbacks')}:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {modelFallbacks.map((fb: string, i: number) => (
-                        <span key={i} className="px-2 py-0.5 text-xs bg-surface-2 rounded text-muted-foreground font-mono">{fb.split('/').pop()}</span>
+                        <LlmLabel key={i} text={fb} size={12} className="rounded bg-surface-2 px-2 py-0.5 text-xs text-muted-foreground" textClassName="font-mono" />
                       ))}
                     </div>
                   </div>
@@ -2932,7 +2948,10 @@ export function ModelsTab({ agent }: { agent: Agent }) {
 
       {/* Primary model */}
       <div className="bg-surface-1/50 rounded-lg p-4">
-        <h5 className="text-sm font-medium text-foreground mb-2">{t('primaryModel')}</h5>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h5 className="text-sm font-medium text-foreground">{t('primaryModel')}</h5>
+          <LlmLabel text={primary} size={14} className="text-xs text-muted-foreground" textClassName="max-w-64 truncate font-mono" />
+        </div>
         <select
           value={primary}
           onChange={(e) => setPrimary(e.target.value)}
@@ -2962,7 +2981,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
             {fallbacks.map((fb, i) => (
               <div key={`${fb}-${i}`} className="flex items-center gap-2 bg-surface-1 rounded px-3 py-1.5">
                 <span className="text-xs text-muted-foreground w-5">{i + 1}.</span>
-                <span className="flex-1 font-mono text-xs text-foreground">{fb}</span>
+                <LlmLabel text={fb} size={13} className="flex-1" textClassName="truncate font-mono text-xs text-foreground" />
                 <button
                   onClick={() => moveFallback(i, -1)}
                   disabled={i === 0}

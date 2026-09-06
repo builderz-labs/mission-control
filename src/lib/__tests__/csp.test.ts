@@ -9,6 +9,17 @@ describe('buildMissionControlCsp', () => {
     expect(csp).toContain("style-src 'self' 'unsafe-inline'")
     expect(csp).toContain("style-src-elem 'self' 'unsafe-inline'")
     expect(csp).toContain("style-src-attr 'unsafe-inline'")
+    expect(csp).not.toContain("'unsafe-eval'")
+  })
+
+  it('allows React development evaluation only when explicitly enabled', () => {
+    const csp = buildMissionControlCsp({
+      nonce: 'dev-nonce',
+      googleEnabled: false,
+      allowUnsafeEval: true,
+    })
+
+    expect(csp).toContain("'unsafe-eval'")
   })
 })
 

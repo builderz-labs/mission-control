@@ -1,24 +1,15 @@
-import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { cleanEnvironment, retry } from './process.mjs'
-
-function gitEnvironment() {
-  const env = cleanEnvironment()
-  if (process.env.MC_FLY_GIT_AUTH_TOKEN) {
-    env.MC_FLY_GIT_AUTH_TOKEN = process.env.MC_FLY_GIT_AUTH_TOKEN
-    env.GIT_ASKPASS = `node ${fileURLToPath(new URL('./git-askpass.mjs', import.meta.url))}`
-  }
-  return env
-}
+import { withGitAuth } from './git-auth.mjs'
+import { retry } from './process.mjs'
 
 export async function checkoutRepository(job, run, cwd) {
   const options = { cwd }
   await run('git', ['init', '--quiet'], options)
   await run('git', ['remote', 'add', 'origin', job.repository], options)
-  await retry(run, 'git', ['-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=30', 'fetch', '--depth', '1', 'origin', job.base_sha], {
-    cwd, env: gitEnvironment(), timeoutMs: 120_000, label: 'Repository fetch',
-  })
+  await withGitAuth(job.repository, env => retry(run, 'git', ['-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=30', 'fetch', '--depth', '1', 'origin', job.base_sha], {
+    cwd, env, timeoutMs: 120_000, label: 'Repository fetch',
+  }))
   await run('git', ['checkout', '--quiet', '--detach', 'FETCH_HEAD'], options)
   const sha = await run('git', ['rev-parse', 'HEAD'], options)
   if (sha !== job.base_sha) throw new Error('Fetched revision does not match the pinned SHA')
@@ -40,9 +31,9 @@ export async function publishResult(job, run, cwd, originalConfig) {
     await run('git', ['add', '-A'], options)
     const changed = await run('git', ['diff', '--cached', '--name-only'], options)
     if (changed) await run('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-m', `feat: complete Mission Control task ${job.id.slice(0, 8)}`], options)
-    await retry(run, 'git', ['-c', 'core.hooksPath=/dev/null', '-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=30', 'push', job.repository, `HEAD:refs/heads/${job.branch_name}`], {
-      cwd, env: gitEnvironment(), timeoutMs: 120_000, label: 'Result branch push',
-    })
+    await withGitAuth(job.repository, env => retry(run, 'git', ['-c', 'core.hooksPath=/dev/null', '-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=30', 'push', job.repository, `HEAD:refs/heads/${job.branch_name}`], {
+      cwd, env, timeoutMs: 120_000, label: 'Result branch push',
+    }))
   }
   const resultSha = await run('git', ['rev-parse', 'HEAD'], options)
   if (!/^[a-f0-9]{40}$/.test(resultSha)) throw new Error('Result revision is malformed')

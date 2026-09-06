@@ -13,6 +13,7 @@ async function packageFixture(t) {
   const root = await fixture(t);
   await put(root, "package.json", '{"name":"fixture"}');
   await put(root, "src/main.mjs", "// main");
+  await put(root, "src/preload.cjs", "// preload");
   await put(root, "src/main.test.mjs", "// test");
   await put(root, "scripts/build-app.mjs", "// build");
   await put(root, "bin/open", "// open");
@@ -29,6 +30,7 @@ test("fingerprint changes with source, package, build scripts, launcher, root an
   const root = await packageFixture(t);
   let previous = await packageInputs(root, "/canonical");
   assert.equal(previous.payload.has("src/main.test.mjs"), false);
+  assert.equal(previous.payload.has("src/preload.cjs"), true);
   assert.equal(previous.payload.has("scripts/build-app.mjs"), false);
   for (const file of ["src/main.mjs", "package.json", "scripts/build-app.mjs", "bin/open"]) {
     await put(root, file, `changed ${file}`);

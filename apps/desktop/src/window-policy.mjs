@@ -20,8 +20,23 @@ export function focusOrCreateWindow(window, create) {
   return window;
 }
 
-export function secureWindow(webContents, origin) {
-  webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+export function isSafeExternalUrl(target, origin) {
+  try {
+    const url = new URL(target);
+    return url.protocol === "https:" && !url.username && !url.password
+      && !allowsNavigation(url.href, origin);
+  } catch { return false; }
+}
+
+export function secureWindow(webContents, origin, openExternal = () => {}) {
+  webContents.setWindowOpenHandler(({ url } = {}) => {
+    if (isSafeExternalUrl(url, origin)) {
+      Promise.resolve(openExternal(url)).catch(() => {
+        console.error("[desktop] external_link_failed");
+      });
+    }
+    return { action: "deny" };
+  });
   for (const name of ["will-navigate", "will-frame-navigate", "will-redirect"]) {
     webContents.on(name, (event, url) => {
       if (!allowsNavigation(url ?? event.url, origin)) event.preventDefault();

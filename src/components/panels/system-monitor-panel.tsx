@@ -5,6 +5,7 @@ import { useSmartPoll } from '@/lib/use-smart-poll'
 import { apiFetch } from '@/lib/api-client'
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, ReferenceLine } from 'recharts'
 import { MacCleanupMonitor } from './mac-cleanup-monitor'
+import { Button } from '@/components/ui/button'
 
 interface CpuData {
   usagePercent: number
@@ -166,8 +167,20 @@ export function SystemMonitorPanel() {
 
   if (!latest) {
     return (
-      <div className="p-5 flex items-center justify-center h-64 text-muted-foreground">
-        {error ? `Error: ${error}` : 'Loading system metrics...'}
+      <div className="p-5 space-y-4">
+        <h1 className="text-lg font-semibold text-foreground">System Monitor</h1>
+        {error ? (
+          <div className="flex min-h-52 flex-col items-center justify-center gap-3 text-center" role="alert">
+            <p className="text-sm text-red-400">Unable to load system metrics: {error}</p>
+            <Button variant="outline" size="sm" onClick={() => void fetchData()}>
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className="flex min-h-52 items-center justify-center text-sm text-muted-foreground" role="status" aria-live="polite">
+            Loading system metrics…
+          </div>
+        )}
       </div>
     )
   }
@@ -175,8 +188,13 @@ export function SystemMonitorPanel() {
   return (
     <div className="p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">System Monitor</h2>
-        {error && <span className="text-xs text-red-500">{error}</span>}
+        <h1 className="text-lg font-semibold">System Monitor</h1>
+        {error && (
+          <div className="flex items-center gap-2" role="alert">
+            <span className="text-xs text-red-500">Metrics refresh failed: {error}</span>
+            <Button variant="outline" size="xs" onClick={() => void fetchData()}>Retry</Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

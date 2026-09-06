@@ -4,7 +4,7 @@ COPY --from=node-runtime /usr/local/ /usr/local/
 
 ARG PNPM_VERSION=10.34.5
 ARG NPM_VERSION=11.19.1
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git libpcre2-8-0 python3 build-essential libstdc++6 libatomic1 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git openssh-client libpcre2-8-0 python3 build-essential libstdc++6 libatomic1 && rm -rf /var/lib/apt/lists/*
 RUN npm install -g "npm@${NPM_VERSION}" "pnpm@${PNPM_VERSION}" && npm cache clean --force
 # Replace vulnerable pnpm-bundled packages with a locked dependency tree.
 COPY workers/package-manager-patches/ /opt/mc-package-manager-patches/

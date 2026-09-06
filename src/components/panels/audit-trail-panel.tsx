@@ -12,7 +12,7 @@ interface AuditEvent {
   actor_id?: number
   target_type?: string
   target_id?: number
-  detail?: any
+  detail?: Record<string, unknown>
   ip_address?: string
   user_agent?: string
   created_at: number
@@ -141,8 +141,8 @@ export function AuditTrailPanel() {
       const data = await res.json()
       setEvents(data.events)
       setTotal(data.total)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t('failedFetch'))
     } finally {
       setLoading(false)
     }
@@ -194,9 +194,13 @@ export function AuditTrailPanel() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-400">
-          {error}
+      <div className="p-6 space-y-4">
+        <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-400">
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={() => void fetchEvents()}>
+            {t('refresh')}
+          </Button>
         </div>
       </div>
     )
@@ -207,7 +211,7 @@ export function AuditTrailPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-foreground">{t('title')}</h2>
+          <h1 className="text-base font-semibold text-foreground">{t('title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">{t('eventsLogged', { count: total })}</p>
         </div>
         <Button
@@ -221,7 +225,9 @@ export function AuditTrailPanel() {
 
       {/* Filters */}
       <div className="flex gap-2">
+        <label htmlFor="audit-action-filter" className="sr-only">{t('allActions')}</label>
         <select
+          id="audit-action-filter"
           value={filter.action}
           onChange={e => { setFilter(f => ({ ...f, action: e.target.value })); setPage(0) }}
           className="h-8 px-2 text-xs rounded-md bg-secondary border border-border text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
@@ -240,10 +246,10 @@ export function AuditTrailPanel() {
             <option value="user_create">{t('actionUserCreate')}</option>
             <option value="user_update">{t('actionUserUpdate')}</option>
             <option value="user_delete">{t('actionUserDelete')}</option>
-            <option value="role_denied">{t('actionRoleDenied')}</option>
+            <option value="role_denied">{t('actionRoleDenied')} · role</option>
             <option value="access_request">{t('actionAccessRequest')}</option>
             <option value="access_approve">{t('actionAccessApprove')}</option>
-            <option value="access_deny">{t('actionAccessDeny')}</option>
+            <option value="access_deny">{t('actionAccessDeny')} · request</option>
           </optgroup>
           <optgroup label={t('groupAgents')}>
             <option value="agent_register">{t('actionAgentRegister')}</option>
@@ -273,7 +279,9 @@ export function AuditTrailPanel() {
             <option value="workspace_delete">{t('actionWorkspaceDelete')}</option>
           </optgroup>
         </select>
+        <label htmlFor="audit-actor-filter" className="sr-only">{t('filterByActor')}</label>
         <input
+          id="audit-actor-filter"
           type="text"
           value={filter.actor}
           onChange={e => { setFilter(f => ({ ...f, actor: e.target.value })); setPage(0) }}

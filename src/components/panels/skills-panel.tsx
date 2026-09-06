@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { Button } from '@/components/ui/button'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { LlmLabel } from '@/components/brand/engine-logo'
 
 interface SkillSummary {
   id: string
@@ -442,7 +443,7 @@ export function SkillsPanel() {
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
+          <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('subtitle')} {dashboardMode === 'local' ? t('localMode') : t('gatewayMode')}.
           </p>
@@ -481,6 +482,7 @@ export function SkillsPanel() {
               <path d="M10.5 10.5L14 14" />
             </svg>
             <input
+              aria-label={t('searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('searchPlaceholder')}
@@ -551,6 +553,7 @@ export function SkillsPanel() {
             )}
             <div className="grid grid-cols-1 md:grid-cols-[240px_1fr_auto] gap-2">
               <select
+                aria-label="Skill destination"
                 value={createSource}
                 onChange={(e) => setCreateSource(e.target.value)}
                 className="h-9 rounded-md border border-border bg-secondary/50 px-2 text-xs text-foreground"
@@ -565,6 +568,7 @@ export function SkillsPanel() {
                 <option value="workspace">{SOURCE_LABELS['workspace']}</option>
               </select>
               <input
+                aria-label="Skill name"
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
                 placeholder="new-skill-name"
@@ -575,6 +579,7 @@ export function SkillsPanel() {
               </Button>
             </div>
             <textarea
+              aria-label={t('initialContent')}
               value={createContent}
               onChange={(e) => setCreateContent(e.target.value)}
               className="w-full h-24 rounded-md border border-border bg-secondary/30 p-2 text-xs text-foreground font-mono focus:outline-hidden"
@@ -610,15 +615,13 @@ export function SkillsPanel() {
                         : 'border-border hover:border-border/80'
                     }`}
                   >
-                    <div className="text-xs font-medium text-muted-foreground">{getSourceLabel(group.source)}</div>
+                    <LlmLabel text={getSourceLabel(group.source)} size={14} className="text-xs font-medium text-muted-foreground" />
                     <div className="mt-1 text-lg font-semibold text-foreground">{group.skills.length}</div>
                     <div className="mt-1 text-2xs text-muted-foreground truncate">{group.path}</div>
                     {group.source === 'user-agents' && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {['codex', 'claude', 'grok', 'kimi', 'openclaw'].map((alias) => (
-                          <span key={alias} className="text-2xs rounded-full border border-border px-1.5 py-0.5 text-muted-foreground">
-                            {alias}
-                          </span>
+                          <LlmLabel key={alias} text={alias} size={11} className="rounded-full border border-border px-1.5 py-0.5 text-2xs text-muted-foreground" />
                         ))}
                       </div>
                     )}
@@ -636,18 +639,18 @@ export function SkillsPanel() {
                   <div className="divide-y divide-border">
                     {filtered.map((skill) => (
                       <div key={skill.id} className="px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <div className="font-medium text-sm text-foreground">{skill.name}</div>
+                        <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <div className="break-all text-sm font-medium text-foreground">{skill.name}</div>
                             {skill.registry_slug && (
                               <span className="text-2xs rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/30 px-1.5 py-0.5">
                                 registry
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex max-w-full flex-wrap items-center gap-2">
                             {securityBadge(skill.security_status)}
-                            <span className={`text-2xs rounded-full border px-2 py-0.5 ${
+                            <LlmLabel text={getSourceLabel(skill.source)} size={11} className={`text-2xs rounded-full border px-2 py-0.5 ${
                               skill.source === 'openclaw'
                                 ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
                                 : skill.source.startsWith('workspace-')
@@ -655,9 +658,7 @@ export function SkillsPanel() {
                                   : skill.source.startsWith('project-')
                                     ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                                     : 'border-border text-muted-foreground'
-                            }`}>
-                              {getSourceLabel(skill.source)}
-                            </span>
+                            }`} />
                             <Button variant="outline" size="xs" onClick={() => checkSecurity(skill)}>
                               {t('scan')}
                             </Button>
@@ -685,6 +686,7 @@ export function SkillsPanel() {
           <div className="rounded-lg border border-border bg-card p-3 space-y-3">
             <div className="flex items-center gap-2">
               <select
+                aria-label="Skill registry"
                 value={registrySource}
                 onChange={(e) => { setRegistrySource(e.target.value as 'clawhub' | 'skills-sh' | 'awesome-openclaw'); setRegistryResults([]); setRegistrySearched(false) }}
                 className="h-9 rounded-md border border-border bg-secondary/50 px-2 text-xs text-foreground"
@@ -707,6 +709,7 @@ export function SkillsPanel() {
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{t('installTo')}</span>
               <select
+                aria-label={t('installTo')}
                 value={installTarget}
                 onChange={(e) => setInstallTarget(e.target.value)}
                 className="h-7 rounded-md border border-border bg-secondary/50 px-2 text-xs text-foreground"

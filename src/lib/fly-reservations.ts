@@ -1,3 +1,4 @@
+import { flyRepositoryAuth } from './fly-repository-auth'
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { flyNumber, type FlySubmission } from './fly-admission-schema'
@@ -44,7 +45,7 @@ export function reserveFlyJob(db: Database.Database, row: SubmissionRow, input: 
     return { id, name, config: { image, auto_destroy: true, restart: { policy: 'no' },
       guest: { cpu_kind: spec.cpuKind, cpus: spec.cpus, memory_mb: spec.memoryMb },
       files: [{ guest_path: '/etc/mc-job.json', raw_value: Buffer.from(JSON.stringify(payload)).toString('base64') }],
-      env: { MC_FLY_WORKER_CLASS: spec.workerClass, ...(process.env.MC_FLY_GIT_AUTH_TOKEN ? { MC_FLY_GIT_AUTH_TOKEN: process.env.MC_FLY_GIT_AUTH_TOKEN } : {}) },
+      env: { MC_FLY_WORKER_CLASS: spec.workerClass, ...flyRepositoryAuth(input.repository) },
       metadata: { mission_control_job: id, mission_control_submission: row.id, worker_class: spec.workerClass },
     } }
   }).immediate()

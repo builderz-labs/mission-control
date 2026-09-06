@@ -283,6 +283,9 @@ export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ 
     const markRemovedStmt = db.prepare(`
       UPDATE agents SET status = 'offline', updated_at = ? WHERE id = ? AND workspace_id = ?
     `)
+    const findIdentityOwnerStmt = db.prepare(
+      `SELECT id FROM agents WHERE name = ? AND workspace_id = ?`,
+    )
 
     db.transaction(() => {
       // Disk → DB: additions and changes
@@ -291,6 +294,10 @@ export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ 
         const configJson = disk.configContent ? disk.configContent : null
 
         if (!existing) {
+          // Gateway and local discovery may describe the same agent. The schema
+          // intentionally allows one row per name/workspace, so keep the existing
+          // identity instead of turning a routine sync into a UNIQUE violation.
+          if (findIdentityOwnerStmt.get(name, workspaceId)) continue
           insertStmt.run(name, disk.role, disk.soulContent, disk.contentHash, disk.dir, configJson, now, now, workspaceId)
           created++
         } else if (existing.content_hash !== disk.contentHash) {

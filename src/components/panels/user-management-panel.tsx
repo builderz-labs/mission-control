@@ -69,7 +69,7 @@ export function UserManagementPanel() {
   const [error, setError] = useState<string | null>(null)
 
   const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState({ username: '', password: '', display_name: '', role: 'operator' as const })
+  const [createForm, setCreateForm] = useState({ username: '', password: '', display_name: '', role: 'operator' as UserRecord['role'] })
   const [creating, setCreating] = useState(false)
 
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -236,7 +236,7 @@ export function UserManagementPanel() {
   if (currentUser?.role !== 'admin') {
     return (
       <div className="p-8 text-center">
-        <div className="text-lg font-semibold text-foreground mb-2">{t('accessDenied')}</div>
+        <h1 className="text-lg font-semibold text-foreground mb-2">{t('accessDenied')}</h1>
         <p className="text-sm text-muted-foreground">{t('adminRequired')}</p>
       </div>
     )
@@ -244,22 +244,31 @@ export function UserManagementPanel() {
 
   if (loading) {
     return (
-      <div className="p-8 text-center">
-        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse mx-auto mb-2" />
-        <span className="text-sm text-muted-foreground">{t('loadingUsers')}</span>
+      <div className="p-8 text-center space-y-4">
+        <h1 className="text-lg font-semibold text-foreground">{t('usersTitle')}</h1>
+        <div role="status" aria-live="polite">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse mx-auto mb-2" aria-hidden="true" />
+          <span className="text-sm text-muted-foreground">{t('loadingUsers')}</span>
+        </div>
       </div>
     )
   }
 
   if (error) {
-    return <div className="p-8 text-center"><div className="text-sm text-red-400">{error}</div></div>
+    return (
+      <div className="p-8 text-center space-y-4">
+        <h1 className="text-lg font-semibold text-foreground">{t('usersTitle')}</h1>
+        <div className="text-sm text-red-400" role="alert">{error}</div>
+        <Button variant="outline" size="sm" onClick={() => { setLoading(true); void fetchAll() }}>Retry</Button>
+      </div>
+    )
   }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">{t('usersTitle')}</h2>
+          <h1 className="text-lg font-semibold text-foreground">{t('usersTitle')}</h1>
           <p className="text-sm text-muted-foreground">{t('usersSummary', { count: users.length, pending: pendingRequests.length })}</p>
         </div>
         <Button
@@ -326,8 +335,9 @@ export function UserManagementPanel() {
                       {reviewingRequestId === req.id ? (
                         <div className="flex items-center gap-2 justify-end">
                           <select
+                            aria-label="Access request role"
                             value={reviewForm.role}
-                            onChange={(e) => setReviewForm(f => ({ ...f, role: e.target.value as any }))}
+                            onChange={(e) => setReviewForm(f => ({ ...f, role: e.target.value as UserRecord['role'] }))}
                             className="h-7 px-2 rounded bg-secondary border border-border text-xs text-foreground"
                           >
                             <option value="viewer">{t('roleViewer')}</option>
@@ -400,7 +410,7 @@ export function UserManagementPanel() {
             <input value={createForm.username} onChange={(e) => setCreateForm((f) => ({ ...f, username: e.target.value }))} placeholder={t('username')} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
             <input type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} placeholder={t('password')} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
             <input value={createForm.display_name} onChange={(e) => setCreateForm((f) => ({ ...f, display_name: e.target.value }))} placeholder={t('displayName')} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground" />
-            <select value={createForm.role} onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as any }))} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground">
+            <select aria-label="New user role" value={createForm.role} onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as UserRecord['role'] }))} className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground">
               <option value="viewer">{t('roleViewer')}</option>
               <option value="operator">{t('roleOperator')}</option>
               <option value="admin">{t('roleAdmin')}</option>
@@ -435,7 +445,7 @@ export function UserManagementPanel() {
                     </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">{u.provider || 'local'}</td>
                     <td className="px-4 py-2.5">
-                      <select value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as any }))} className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground" disabled={u.id === currentUser?.id}>
+                      <select aria-label={`Role for ${u.username}`} value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as UserRecord['role'] }))} className="h-8 px-2 rounded bg-secondary border border-border text-sm text-foreground" disabled={u.id === currentUser?.id}>
                         <option value="viewer">{t('roleViewer')}</option>
                         <option value="operator">{t('roleOperator')}</option>
                         <option value="admin">{t('roleAdmin')}</option>

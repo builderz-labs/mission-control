@@ -14,8 +14,8 @@
  * Walks the XFF chain right-to-left, skipping IPs present in `trusted`.
  * Returns the first (rightmost) IP not in the trusted set.
  *
- * Falls back to X-Real-IP (only meaningful when set by a trusted proxy,
- * e.g. nginx proxy_set_header X-Real-IP $remote_addr), then `fallback`.
+ * Falls back to X-Real-IP only when proxy trust is configured, then `fallback`.
+ * Without a trusted proxy, forwarded identity headers remain client-controlled.
  */
 export function extractClientIpFromTrusted(
   request: Request,
@@ -29,5 +29,6 @@ export function extractClientIpFromTrusted(
       if (!trusted.has(ips[i])) return ips[i]
     }
   }
-  return request.headers.get('x-real-ip')?.trim() || fallback
+  if (trusted.size > 0) return request.headers.get('x-real-ip')?.trim() || fallback
+  return fallback
 }

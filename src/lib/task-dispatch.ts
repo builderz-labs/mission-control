@@ -19,6 +19,7 @@ import { getMiniMaxApiKey, resolveMiniMaxEndpoint } from './minimax'
 import { claudeConfigDirForAgent } from './claude-config-dir'
 import { resolveGrokCliPath, resolveKimiCliPath, runGrokPrompt, runKimiPrompt } from './fleet-cli-dispatch'
 import { dispatchToFly } from './fly-orchestrator'
+import { fetchWithRetry } from './fetch-with-retry'
 import type Database from 'better-sqlite3'
 
 const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
@@ -773,7 +774,7 @@ async function callClaudeDirectly(
 
   logger.info({ taskId: task.id, model, agent: task.agent_name }, 'Dispatching task via direct Claude API')
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetchWithRetry('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -781,7 +782,7 @@ async function callClaudeDirectly(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify(body),
-  })
+  }, { timeoutMs: 120_000 })
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '')
@@ -1197,11 +1198,11 @@ async function callOpenAICompatible(
   logger.info({ taskId: task.id, model, agent: task.agent_name, provider: providerLabel },
     `Dispatching task via direct ${providerLabel} API`)
 
-  const res = await fetch(`${endpoint.replace(/\/$/, '')}/chat/completions`, {
+  const res = await fetchWithRetry(`${endpoint.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-  })
+  }, { timeoutMs: 120_000 })
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '')
@@ -1247,7 +1248,7 @@ async function callMiniMaxAnthropicCompatible(
     'Dispatching task via direct MiniMax API',
   )
 
-  const res = await fetch(endpoint.replace(/\/$/, '') + '/v1/messages', {
+  const res = await fetchWithRetry(endpoint.replace(/\/$/, '') + '/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1255,7 +1256,7 @@ async function callMiniMaxAnthropicCompatible(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify(body),
-  })
+  }, { timeoutMs: 120_000 })
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '')

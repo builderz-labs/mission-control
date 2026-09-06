@@ -26,6 +26,7 @@ export interface Session {
   messageCount?: number
   cost?: number
   label?: string
+  source?: 'local' | 'gateway'
 }
 
 export interface LogEntry {

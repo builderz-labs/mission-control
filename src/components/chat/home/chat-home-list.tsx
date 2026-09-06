@@ -79,7 +79,7 @@ export function ChatHomeList({
               return (
                 <button key={row.id} type="button" className={ROW} onClick={() => onSelectSession(row.id)}>
                   <span className={`shrink-0 text-[12px] ${pillClass(pill)}`}>{t(`sessionPill.${pill}`)}</span>
-                  <EngineLogoForText text={`${row.subtitle} ${row.title}`} size={18} />
+                  <EngineLogoForText text={`${row.subtitle} ${row.title}`} size={18} decorative />
                   <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--chat-text)]">{row.title}</span>
                   <span className="hidden max-w-[180px] truncate text-[12px] text-[var(--chat-muted)] sm:block">{row.subtitle}</span>
                   <span className="hidden text-[12px] text-[var(--chat-muted)] md:block">{row.repo}</span>

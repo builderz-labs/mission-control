@@ -28,9 +28,13 @@ describe('chat model groups', () => {
 describe('inferEngineFromText', () => {
   it('maps agent names and model ids', () => {
     expect(inferEngineFromText('claude-20x')).toBe('claude')
+    expect(inferEngineFromText('Anthropic Sonnet 4.6')).toBe('claude')
     expect(inferEngineFromText('codex')).toBe('codex')
+    expect(inferEngineFromText('OpenAI GPT-5.3')).toBe('codex')
     expect(inferEngineFromText('kimi')).toBe('kimi')
+    expect(inferEngineFromText('Moonshot K2')).toBe('kimi')
     expect(inferEngineFromText('grok-4.6')).toBe('grok')
+    expect(inferEngineFromText('xAI Grok')).toBe('grok')
     expect(engineFromKind('claude-code')).toBe('claude')
     expect(engineFromKind('codex-cli')).toBe('codex')
   })

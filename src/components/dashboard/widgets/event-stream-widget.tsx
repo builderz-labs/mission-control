@@ -1,6 +1,7 @@
 'use client'
 
 import { LogRow, type DashboardData } from '../widget-primitives'
+import { EngineLogoSet } from '@/components/brand/engine-logo'
 
 export function EventStreamWidget({ data }: { data: DashboardData }) {
   const { isLocal, mergedRecentLogs, recentErrorLogs, isSessionsLoading } = data
@@ -19,9 +20,10 @@ export function EventStreamWidget({ data }: { data: DashboardData }) {
             <p className="text-xs text-muted-foreground">
               {isSessionsLoading ? 'Loading logs...' : 'No logs yet'}
             </p>
-            <p className="text-2xs text-muted-foreground/60 mt-1">
-              {isLocal ? 'Local Claude/Codex events stream here.' : 'Gateway incidents and warnings stream here.'}
-            </p>
+            <div className="mt-1 flex items-center justify-center gap-1.5 text-2xs text-muted-foreground/60">
+              {isLocal && <EngineLogoSet kinds={['claude-code', 'codex-cli']} size={12} decorative />}
+              <span>{isLocal ? 'Local Claude/Codex events stream here.' : 'Gateway incidents and warnings stream here.'}</span>
+            </div>
           </div>
         ) : (
           mergedRecentLogs.map((log) => <LogRow key={log.id} log={log} />)

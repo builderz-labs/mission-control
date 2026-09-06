@@ -45,7 +45,7 @@ export function ChatSessionRow({
     >
       <span className="relative mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
         <span className={`absolute left-1/2 top-[-6px] h-2 w-px -translate-x-1/2 ${live ? 'bg-[var(--chat-success)]' : 'bg-[var(--chat-border)]'}`} />
-        {engine ? <EngineLogo engine={engine} size={16} /> : <span className="text-[9px]">{ENGINE_LABELS[session.kind][0]}</span>}
+        {engine ? <EngineLogo engine={engine} size={16} decorative /> : <span className="text-[9px]">{ENGINE_LABELS[session.kind][0]}</span>}
       </span>
       <ChatLiveDot live={live} label={t(live ? 'sessionPill.active' : 'sessionPill.idle')} />
       <span className="min-w-0 flex-1 truncate">{session.title}</span>

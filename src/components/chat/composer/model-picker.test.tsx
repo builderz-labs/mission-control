@@ -26,7 +26,7 @@ describe('ModelPicker', () => {
   it('lists LLMs before models and marks the active engine', async () => {
     const onChange = vi.fn()
     const onEffort = vi.fn()
-    render(wrap(
+    const { container } = render(wrap(
       <ModelPicker
         value="opus"
         onChange={onChange}
@@ -43,6 +43,7 @@ describe('ModelPicker', () => {
     expect(screen.getByText('Codex')).toBeInTheDocument()
     expect(screen.getByText('Kimi')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('Grok')).toBeInTheDocument())
+    expect(container.querySelectorAll('img[src*="/brand/"]').length).toBeGreaterThanOrEqual(8)
     fireEvent.click(screen.getByText('Sonnet 4.6'))
     expect(onChange).toHaveBeenCalledWith('sonnet')
   })

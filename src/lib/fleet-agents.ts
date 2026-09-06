@@ -46,12 +46,3 @@ export function fleetAgentFromWorkspace(projectPath: string | null | undefined):
   }
   return 'claude-1'
 }
-
-export function fleetAgentLogo(
-  name?: string | null,
-): { src: string; alt: string; contain?: boolean } | null {
-  if (asFleetAgentName(name || '') === 'claude-2') {
-    return { src: '/brand/stillpoint-mark.webp', alt: 'Stillpoint Claude', contain: true }
-  }
-  return null
-}

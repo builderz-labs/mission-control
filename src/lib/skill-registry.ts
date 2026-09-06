@@ -12,6 +12,7 @@ import { resolveWithin } from './paths'
 import { skillTargetDir } from './skill-roots'
 import { logger } from './logger'
 import { atomicReplaceFileSync } from './atomic-file'
+import { fetchWithRetry } from './fetch-with-retry'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -241,14 +242,7 @@ async function fetchAwesomeIndex(): Promise<RegistrySkill[]> {
     return awesomeCache.skills
   }
   try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 15_000)
-    let res: Response
-    try {
-      res = await fetch(AWESOME_OPENCLAW_README, { signal: controller.signal })
-    } finally {
-      clearTimeout(timer)
-    }
+    const res = await fetchWithRetry(AWESOME_OPENCLAW_README, {}, { timeoutMs: 15_000 })
     if (!res.ok) throw new Error(`GitHub fetch failed (${res.status})`)
     const markdown = await res.text()
     const skills = parseAwesomeReadme(markdown)
@@ -281,13 +275,7 @@ async function fetchAwesomeOpenclawSkill(slug: string): Promise<{ content: strin
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
-  try {
-    return await fetch(url, { ...options, signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
-  }
+  return fetchWithRetry(url, options, { timeoutMs: FETCH_TIMEOUT })
 }
 
 async function searchClawdHub(query: string): Promise<RegistrySearchResult> {

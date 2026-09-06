@@ -5,6 +5,26 @@ function setNodeEnv(value: string) {
 }
 
 describe('proxy host matching', () => {
+  it('adds browser security policy and HSTS to HTTPS responses', async () => {
+    vi.resetModules()
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({ host: 'localhost:3000', 'x-forwarded-proto': 'https' }),
+      nextUrl: {
+        host: 'localhost:3000', hostname: 'localhost', pathname: '/login', protocol: 'https:',
+        clone: () => ({ pathname: '/login' }),
+      },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    const response = proxy(request)
+    expect(response.headers.get('permissions-policy')).toContain('camera=()')
+    expect(response.headers.get('cross-origin-opener-policy')).toBe('same-origin-allow-popups')
+    expect(response.headers.get('strict-transport-security')).toContain('max-age=31536000')
+  })
+
   it('allows the system hostname implicitly', async () => {
     vi.resetModules()
     vi.doMock('node:os', () => ({

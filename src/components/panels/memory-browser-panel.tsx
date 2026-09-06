@@ -147,6 +147,10 @@ export function MemoryBrowserPanel({
   const memoryFilesRef = useRef(memoryFiles)
 
   useEffect(() => {
+    if (window.matchMedia('(max-width: 767px)').matches) setSidebarOpen(false)
+  }, [])
+
+  useEffect(() => {
     memoryFilesRef.current = memoryFiles
   }, [memoryFiles])
 
@@ -225,6 +229,7 @@ export function MemoryBrowserPanel({
         if (activeView === 'graph' || activeView === 'health' || activeView === 'pipeline') {
           setActiveView('files')
         }
+        if (window.matchMedia('(max-width: 767px)').matches) setSidebarOpen(false)
       }
     } catch (error) {
       log.error('Failed to load file content:', error)
@@ -527,8 +532,12 @@ export function MemoryBrowserPanel({
   return (
     <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-border bg-[hsl(var(--surface-0))]">
+      <div className="flex min-w-0 items-center gap-1 overflow-x-auto border-b border-border bg-[hsl(var(--surface-0))] px-3 py-2">
+        <h1 className="sr-only">{activeView === 'graph' ? 'Knowledge Graph' : 'Memory Browser'}</h1>
         <button
+          type="button"
+          aria-label={sidebarOpen ? t('hideSidebar') : t('showSidebar')}
+          aria-expanded={sidebarOpen}
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="p-1.5 rounded hover:bg-[hsl(var(--surface-2))] text-muted-foreground text-xs font-mono"
           title={sidebarOpen ? t('hideSidebar') : t('showSidebar')}
@@ -541,11 +550,11 @@ export function MemoryBrowserPanel({
             className={`px-2.5 py-1 rounded text-xs font-mono transition-colors capitalize ${activeView === view ? 'bg-[hsl(var(--surface-2))] text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >{view}</button>
         ))}
-        <div className="flex-1" />
+        <div className="min-w-2 flex-1" />
         {healthReport && (
-          <span className={`text-[10px] font-mono ${statusColor(healthReport.overall)} tabular-nums mr-1`}>{healthReport.overallScore}%</span>
+          <span className={`mr-1 hidden text-[10px] font-mono ${statusColor(healthReport.overall)} tabular-nums sm:inline`}>{healthReport.overallScore}%</span>
         )}
-        <span className="text-[10px] text-muted-foreground/50 font-mono tabular-nums">{t('fileCountSize', { count: fileCount, size: formatFileSize(sizeTotal) })}</span>
+        <span className="hidden text-[10px] text-muted-foreground/50 font-mono tabular-nums sm:inline">{t('fileCountSize', { count: fileCount, size: formatFileSize(sizeTotal) })}</span>
         {isHydratingTree && <span className="ml-2 text-[10px] text-muted-foreground/35 font-mono">{t('indexing')}</span>}
         <div className="w-px h-4 bg-border mx-1" />
         <button onClick={() => setShowCreateModal(true)} className="px-2 py-1 rounded text-xs font-mono text-muted-foreground hover:text-foreground hover:bg-[hsl(var(--surface-2))] transition-colors">{t('newFile')}</button>
@@ -554,9 +563,9 @@ export function MemoryBrowserPanel({
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
         {sidebarOpen && (
-          <div className="w-60 shrink-0 border-r border-border bg-[hsl(var(--surface-0))] flex flex-col min-h-0">
+          <div className="flex min-h-0 w-full shrink-0 flex-col border-r border-border bg-[hsl(var(--surface-0))] md:w-60">
             <div className="p-2">
-              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchFiles()} placeholder={t('searchPlaceholder')} className="w-full px-2 py-1.5 text-xs font-mono bg-[hsl(var(--surface-1))] border border-border/50 rounded text-foreground placeholder-muted-foreground/40 focus:outline-hidden focus:border-primary/30" />
+              <input aria-label={t('searchPlaceholder')} type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchFiles()} placeholder={t('searchPlaceholder')} className="w-full px-2 py-1.5 text-xs font-mono bg-[hsl(var(--surface-1))] border border-border/50 rounded text-foreground placeholder-muted-foreground/40 focus:outline-hidden focus:border-primary/30" />
             </div>
             <div className="flex gap-0.5 px-2 pb-2">
               {(['all', 'daily', 'knowledge'] as const).map((f) => (
@@ -946,12 +955,12 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
       <div className="bg-[hsl(var(--surface-1))] border border-border rounded-lg max-w-md w-full p-5 shadow-xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-sm font-semibold text-foreground font-mono">{t('newFileTitle')}</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg leading-none">x</button>
+          <button type="button" onClick={onClose} aria-label={t('cancel')} className="text-muted-foreground hover:text-foreground text-lg leading-none">x</button>
         </div>
         <div className="space-y-3">
           <div>
             <label className="block text-[11px] font-mono text-muted-foreground mb-1">{t('directory')}</label>
-            <select value={filePath} onChange={(e) => setFilePath(e.target.value)} className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-hidden focus:border-primary/30">
+            <select aria-label={t('directory')} value={filePath} onChange={(e) => setFilePath(e.target.value)} className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-hidden focus:border-primary/30">
               <option value="knowledge-base/">knowledge-base/</option>
               <option value="memory/">memory/</option>
               <option value="knowledge/">knowledge/</option>
@@ -966,7 +975,7 @@ function CreateFileModal({ onClose, onCreate }: { onClose: () => void; onCreate:
           </div>
           <div>
             <label className="block text-[11px] font-mono text-muted-foreground mb-1">{t('fileType')}</label>
-            <select value={fileType} onChange={(e) => { setFileType(e.target.value); setInitialContent(templates[e.target.value] || '') }} className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-hidden focus:border-primary/30">
+            <select aria-label={t('fileType')} value={fileType} onChange={(e) => { setFileType(e.target.value); setInitialContent(templates[e.target.value] || '') }} className="w-full px-2.5 py-1.5 text-xs font-mono bg-[hsl(var(--surface-0))] border border-border/50 rounded text-foreground focus:outline-hidden focus:border-primary/30">
               <option value="md">.md</option>
               <option value="json">.json</option>
               <option value="txt">.txt</option>

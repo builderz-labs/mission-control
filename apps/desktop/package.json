@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "build": "node scripts/build-app.mjs",
+    "configure-auth": "node scripts/configure-desktop-auth.mjs",
     "test": "node --test src/*.test.mjs tests/*.test.mjs"
   },
   "engines": {

@@ -5,7 +5,8 @@ import { ELECTRON_VERSION, validateBoundary } from "./package-inputs.mjs";
 
 export function run(command, args) {
   try {
-    return execFileSync(command, args, { encoding: "utf8", timeout: 120_000, stdio: ["ignore", "pipe", "pipe"] }).trim();
+    const timeout = path.basename(command) === "ditto" || path.basename(command) === "codesign" ? 300_000 : 120_000;
+    return execFileSync(command, args, { encoding: "utf8", timeout, stdio: ["ignore", "pipe", "pipe"] }).trim();
   } catch { throw new Error(`BUILD_TOOL_FAILED_${path.basename(command)}`); }
 }
 

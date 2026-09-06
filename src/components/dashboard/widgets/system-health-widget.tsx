@@ -95,7 +95,7 @@ export function SystemHealthWidget({ data }: { data: DashboardData }) {
             <HealthRow label="Memory" value={`${memPct}%`} status={memPct > 90 ? 'bad' : memPct > 70 ? 'warn' : 'good'} bar={memPct} />
           )}
           {systemStats?.disk && (
-            <HealthRow label="Disk" value={systemStats.disk.usage || 'N/A'} status={parseInt(systemStats.disk.usage) > 90 ? 'bad' : 'good'} />
+            <HealthRow label="Disk" value={systemStats.disk.usage || 'N/A'} status={parseInt(systemStats.disk.usage ?? '') > 90 ? 'bad' : 'good'} />
           )}
         </div>
       )}

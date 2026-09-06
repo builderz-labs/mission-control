@@ -254,7 +254,7 @@ export function StandupPanel() {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
-        <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+        <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
 
         <div className="flex items-center gap-3">
           {/* View Toggle */}
@@ -278,6 +278,7 @@ export function StandupPanel() {
           {view === 'current' && (
             <>
               <input
+                aria-label="Standup date"
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}

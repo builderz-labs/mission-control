@@ -1,7 +1,9 @@
-import { app, BrowserWindow, session } from "electron";
+import { app, BrowserWindow, session, shell } from "electron";
 import path from "node:path";
-import { PACKAGE_ROOT } from "./app-paths.mjs";
+import { checkoutRoot, PACKAGE_ROOT } from "./app-paths.mjs";
 import { openBackend, partitionForOrigin } from "./backend-window.mjs";
+import { createDesktopUnlock } from "./desktop-unlock.mjs";
+import { isLoginPage } from "./desktop-navigation.mjs";
 import { validateOrigin } from "./origin.mjs";
 import { configurePermissions, focusOrCreateWindow, secureWindow } from "./window-policy.mjs";
 import { configureRequestCookies } from "./request-policy.mjs";
@@ -11,6 +13,7 @@ const locked = app.requestSingleInstanceLock();
 let window;
 let origin;
 let backendSession;
+let desktopUnlock;
 const failedWindows = new WeakSet();
 
 function showLoadError(target) {
@@ -35,14 +38,22 @@ async function attachWindow(target) {
 
 function createWindow() {
   const target = new BrowserWindow({
-    width: 1280, height: 840, title: "Mission Control", backgroundColor: "#09090b",
-    show: true, autoHideMenuBar: true,
+    width: 1280, height: 840, minWidth: 720, minHeight: 560,
+    title: "Mission Control", backgroundColor: "#09090b",
+    show: false, autoHideMenuBar: true,
     webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, session: backendSession },
   });
   window = target;
-  secureWindow(target.webContents, origin);
+  secureWindow(target.webContents, origin, (url) => shell.openExternal(url));
+  target.once("ready-to-show", () => {
+    if (!target.isDestroyed()) target.show();
+  });
   target.webContents.on("did-fail-load", (_event, code, _description, _url, isMain) => {
     if (isMain && code !== -3) showLoadError(target);
+  });
+  target.webContents.on("did-navigate", (_event, url) => {
+    if (isLoginPage(url, origin)) desktopUnlock.open(target);
+    else desktopUnlock.close();
   });
   target.loadFile(path.join(PACKAGE_ROOT, "src", "shell.html"))
     .then(() => attachWindow(target)).catch(() => showLoadError(target));
@@ -63,6 +74,7 @@ if (!locked) {
     backendSession = session.fromPartition(origin ? partitionForOrigin(origin) : "mc-invalid-config");
     configureRequestCookies(backendSession, origin);
     configurePermissions(backendSession, origin);
+    desktopUnlock = createDesktopUnlock({ app, origin, backendSession, checkout: checkoutRoot() });
     createWindow();
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

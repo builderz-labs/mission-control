@@ -3,7 +3,6 @@ import {
   asFleetAgentName,
   canonicalFleetAgentName,
   fleetAgentFromWorkspace,
-  fleetAgentLogo,
   fleetAgentsShareIdentity,
   FLEET_AGENT_NAMES,
   isFleetAgentName,
@@ -29,11 +28,5 @@ describe('fleet agents', () => {
     expect(fleetAgentFromWorkspace('/x/workspace-claude-5x')).toBe('claude-2')
     expect(fleetAgentFromWorkspace('/x/.claude-account2/projects')).toBe('claude-2')
     expect(fleetAgentFromWorkspace('~/Dev/actz-may')).toBe('claude-1')
-  })
-
-  it('uses the Stillpoint mark only for the Stillpoint seat', () => {
-    expect(fleetAgentLogo('claude-2')?.src).toBe('/brand/stillpoint-mark.webp')
-    expect(fleetAgentLogo('claude-5x')?.src).toBe('/brand/stillpoint-mark.webp')
-    expect(fleetAgentLogo('claude-1')).toBeNull()
   })
 })

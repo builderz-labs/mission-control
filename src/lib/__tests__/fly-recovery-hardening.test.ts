@@ -3,13 +3,44 @@ import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { acquireFlySchedulerLease } from '../fly-scheduler-lease'
 import { readPolledResult, settleFlyJob } from '../fly-polled-result'
+import { flyRepositoryAuth } from '../fly-repository-auth'
+import { flyReadiness, flySubmissionSchema } from '../fly-admission-schema'
 import { FlyMachinesClient } from '../fly-machines-client'
 import type { ReservedJob } from '../fly-reservations'
 
 vi.mock('../event-bus', () => ({ eventBus: { broadcast: vi.fn() } }))
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs() })
 
 describe('Fly recovery boundaries', () => {
+  it('selects only the matching repository credential from the global registry', () => {
+    vi.stubEnv('MC_FLY_GIT_AUTH_TOKEN', '')
+    vi.stubEnv('MC_FLY_GIT_SSH_REPOSITORY', '')
+    vi.stubEnv('MC_FLY_GIT_SSH_KEYS_JSON', JSON.stringify({repoA:{private_key:'keyA',known_hosts:'host'},repoB:{private_key:'keyB',known_hosts:'host'}}))
+    expect(flyRepositoryAuth('repoA')).toEqual({MC_FLY_GIT_SSH_REPOSITORY:'repoA',MC_FLY_GIT_SSH_KEY:'keyA',MC_FLY_GIT_SSH_KNOWN_HOSTS:'host'})
+    expect(flyRepositoryAuth('repoC')).toEqual({})
+    vi.stubEnv('MC_FLY_GIT_SSH_KEYS_JSON','invalid')
+    expect(flyRepositoryAuth('repoA')).toEqual({})
+  })
+
+  it('declines private repositories before launch when their credential is missing', () => {
+    const repository = 'https://github.com/example/private.git'
+    vi.stubEnv('MC_FLY_PRIVATE_REPOS', repository)
+    vi.stubEnv('MC_FLY_GIT_AUTH_TOKEN', '')
+    const input = flySubmissionSchema.parse({title:'private',description:'verify',repository,base_sha:'a'.repeat(40)})
+    expect(flyReadiness(input).join(';')).toContain('read-only Contents access')
+    vi.stubEnv('MC_FLY_GIT_SSH_REPOSITORY', repository)
+    vi.stubEnv('MC_FLY_GIT_SSH_KEY', 'test-key')
+    vi.stubEnv('MC_FLY_GIT_SSH_KNOWN_HOSTS', 'test-host')
+    expect(flyReadiness(input).join(';')).not.toContain('read-only Contents access')
+    expect(flyRepositoryAuth('https://github.com/example/public.git')).toEqual({})
+    expect(flyRepositoryAuth(repository)).toHaveProperty('MC_FLY_GIT_SSH_KEY','test-key')
+    vi.stubEnv('MC_FLY_GIT_SSH_KEY', '')
+    vi.stubEnv('MC_FLY_GIT_AUTH_TOKEN', 'test')
+    expect(flyReadiness(input).join(';')).not.toContain('read-only Contents access')
+    vi.stubEnv('MC_FLY_GIT_AUTH_TOKEN', '')
+    expect(flyReadiness({...input,repository:'https://github.com/example/public.git'}).join(';')).not.toContain('read-only Contents access')
+  })
+
   it('renews during slow calls, fences lost ownership, and preserves successor leases', () => {
     vi.useFakeTimers()
     const db = new Database(':memory:')

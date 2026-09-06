@@ -166,7 +166,7 @@ export function NodesPanel() {
   return (
     <div className="m-4">
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
+        <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
         <span
           className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border ${
             connected

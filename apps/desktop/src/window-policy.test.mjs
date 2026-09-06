@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { configurePermissions, focusOrCreateWindow } from "./window-policy.mjs";
+import {
+  configurePermissions,
+  focusOrCreateWindow,
+  isSafeExternalUrl,
+  secureWindow,
+} from "./window-policy.mjs";
 
 test("only selected-origin sanitized clipboard writes receive permission", () => {
   const origin = "http://127.0.0.1:3000";
@@ -31,4 +36,31 @@ test("subsequent launches reopen closed windows and focus existing ones", () => 
     restore: () => calls.push("restore"), show: () => calls.push("show"), focus: () => calls.push("focus") };
   assert.equal(focusOrCreateWindow(existing, () => assert.fail("duplicate window")), existing);
   assert.deepEqual(calls, ["restore", "show", "focus"]);
+});
+
+test("external links open only through safe HTTPS URLs", async () => {
+  const origin = "http://127.0.0.1:3000";
+  const opened = [];
+  let popupHandler;
+  const events = new Map();
+  secureWindow({
+    setWindowOpenHandler: (handler) => { popupHandler = handler; },
+    on: (name, handler) => events.set(name, handler),
+  }, origin, async (url) => { opened.push(url); });
+
+  for (const url of [
+    `${origin}/tasks`,
+    "http://example.com",
+    "file:///tmp/report.html",
+    "javascript:alert(1)",
+    "https://user:pass@example.com/private",
+  ]) {
+    assert.deepEqual(popupHandler({ url }), { action: "deny" });
+  }
+  assert.deepEqual(popupHandler({ url: "https://developer.apple.com/design/" }), { action: "deny" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(opened, ["https://developer.apple.com/design/"]);
+  assert.equal(isSafeExternalUrl("https://example.com", origin), true);
+  assert.equal(isSafeExternalUrl("http://example.com", origin), false);
+  assert.equal(events.has("will-navigate"), true);
 });
