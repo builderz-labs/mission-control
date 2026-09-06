@@ -10,6 +10,10 @@ test('command environment excludes model, Git, Doppler and job secrets', () => {
   const env = cleanEnvironment({ PATH: '/usr/bin', HOME: '/home/worker', ANTHROPIC_API_KEY: 'fake',
     OPENAI_API_KEY: 'fake', MC_FLY_GIT_AUTH_TOKEN: 'fake', DOPPLER_TOKEN: 'fake', MC_FLY_JOB_TOKEN: 'fake' })
   assert.equal(env.PATH, '/usr/bin')
+  assert.equal(env.GIT_AUTHOR_NAME, 'Mission Control Fly Worker')
+  assert.equal(env.GIT_AUTHOR_EMAIL, 'fly-worker@mission-control.local')
+  assert.equal(env.GIT_COMMITTER_NAME, 'Mission Control Fly Worker')
+  assert.equal(env.GIT_COMMITTER_EMAIL, 'fly-worker@mission-control.local')
   for (const key of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'MC_FLY_GIT_AUTH_TOKEN', 'DOPPLER_TOKEN', 'MC_FLY_JOB_TOKEN']) {
     assert.equal(env[key], undefined)
   }
@@ -69,5 +73,4 @@ test('state writes are atomic, serialized, private, and terminal remains latest'
   assert.equal((await stat(file)).mode & 0o777, 0o600)
   assert.deepEqual(await readdir(directory), ['state.json'])
 })
-
 

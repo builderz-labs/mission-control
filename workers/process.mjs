@@ -5,7 +5,9 @@ export function cleanEnvironment(env = process.env) {
   const selected = Object.fromEntries(['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'PLAYWRIGHT_BROWSERS_PATH']
     .filter(name => env[name]).map(name => [name, env[name]]))
   return { ...selected, CI: 'true', GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null', npm_config_update_notifier: 'false' }
+    GIT_CONFIG_GLOBAL: '/dev/null', GIT_AUTHOR_NAME: 'Mission Control Fly Worker',
+    GIT_AUTHOR_EMAIL: 'fly-worker@mission-control.local', GIT_COMMITTER_NAME: 'Mission Control Fly Worker',
+    GIT_COMMITTER_EMAIL: 'fly-worker@mission-control.local', npm_config_update_notifier: 'false' }
 }
 
 export function createRunner(deadline, defaults = {}) {
@@ -50,5 +52,4 @@ export async function retry(run, command, args, options = {}) {
     return run(command, args, options)
   }
 }
-
 
