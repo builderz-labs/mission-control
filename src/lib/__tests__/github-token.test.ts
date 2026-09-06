@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const getEffectiveEnvValue = vi.fn(async () => null)
-const spawnSync = vi.fn()
+const getEffectiveEnvValue = vi.fn<(key: string) => Promise<string | null>>()
+const spawnSync = vi.fn<(...args: unknown[]) => unknown>()
 
 vi.mock('@/lib/runtime-env', () => ({
-  getEffectiveEnvValue: (...args: unknown[]) => getEffectiveEnvValue(...args),
+  getEffectiveEnvValue: (key: string) => getEffectiveEnvValue(key),
 }))
 
 vi.mock('node:child_process', () => {

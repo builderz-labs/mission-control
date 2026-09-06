@@ -158,6 +158,7 @@ export function loadSkillsGraph(skillsRoot: string): GraphAgentData | null {
       }
     }
   }
+  files.sort((left, right) => left.path.split('/').length - right.path.split('/').length || left.path.localeCompare(right.path))
   if (!files.length) return null
   return {
     name: 'skills',

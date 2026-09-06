@@ -353,6 +353,7 @@ const TOOLS = [
     },
     handler: async (args) => api('POST', '/api/tasks', args),
   },
+  ...require('./mc-fly-tools.cjs').createFlyTools(api),
   {
     name: 'mc_update_task',
     description: 'Update an existing task (status, priority, assigned_to, title, description, etc.)',

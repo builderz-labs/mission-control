@@ -873,7 +873,7 @@ export function useWebSocket() {
       }
       setConnection({ isConnected: false })
     }
-  }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat, normalizeWebSocketUrl, shouldSuppressWebSocketError])
+  }, [setConnection, handleGatewayFrame, addLog, stopHeartbeat, normalizeWebSocketUrl, shouldSuppressWebSocketError, sendConnectHandshake])
 
   // Keep ref in sync so onclose always calls the latest version of connect
   useEffect(() => {

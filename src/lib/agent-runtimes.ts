@@ -412,7 +412,7 @@ function detectOpenClaw(): RuntimeStatus {
     ...meta,
     installed: binary || hasConfig,
     version,
-    running: isPortOpenSync(config.gatewayHost, config.gatewayPort),
+    running: binary && isPortOpenSync(config.gatewayHost, config.gatewayPort),
     authenticated,
   }
 }

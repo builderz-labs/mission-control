@@ -80,6 +80,19 @@ describe('proxy host matching', () => {
     expect(response.status).not.toBe(401)
   })
 
+  it('keeps host validation for a Fly private health probe', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({ default: { hostname: () => 'control' }, hostname: () => 'control' }))
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({ host: '[fdaa:75:746e:a7b:7d4:8b00:8857:2]:3000' }),
+      nextUrl: { host: '[fdaa:75:746e:a7b:7d4:8b00:8857:2]:3000', hostname: 'fdaa:75:746e:a7b:7d4:8b00:8857:2', pathname: '/api/health', searchParams: new URLSearchParams(), clone: () => ({ pathname: '/api/health' }) },
+      method: 'GET', cookies: { get: () => undefined },
+    } as any
+    setNodeEnv('production'); process.env.MC_ALLOWED_HOSTS = 'mission-control-control-tyler.fly.dev'; delete process.env.MC_ALLOW_ANY_HOST
+    expect(proxy(request).status).toBe(403)
+  })
+
   it('still blocks unauthenticated non-health status API calls', async () => {
     vi.resetModules()
     vi.doMock('node:os', () => ({

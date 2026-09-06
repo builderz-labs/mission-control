@@ -1,0 +1,58 @@
+app = "mission-control-control-tyler"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "30s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1gb"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  HOSTNAME = "::"
+  MISSION_CONTROL_DATA_DIR = "/data"
+  MC_COOKIE_SECURE = "1"
+  MC_COOKIE_SAMESITE = "strict"
+  MC_ENABLE_HSTS = "1"
+  MC_ALLOWED_HOSTS = "mission-control-control-tyler.fly.dev"
+  NEXT_PUBLIC_GATEWAY_OPTIONAL = "true"
+  MC_FLY_ENABLED = "false"
+  MC_FLY_CONTROL_URL = "https://mission-control-control-tyler.fly.dev"
+  FLY_APP_NAME = "mission-control-workers-tyler"
+  FLY_REGION = "iad"
+
+[[mounts]]
+  source = "mc_data"
+  destination = "/data"
+  initial_size = "3GB"
+  snapshot_retention = 14
+  scheduled_snapshots = true
+  auto_extend_size_threshold = 80
+  auto_extend_size_increment = "1GB"
+  auto_extend_size_limit = "10GB"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_start_machines = false
+  auto_stop_machines = "off"
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 100
+    hard_limit = 150
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    timeout = "5s"
+    method = "GET"
+    path = "/api/health"
+
+    [http_service.checks.headers]
+      Host = "mission-control-control-tyler.fly.dev"

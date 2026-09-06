@@ -81,7 +81,7 @@ describe('adaptive-context pin', () => {
     const spec = buildHandoffCommand({
       kind: 'codex-cli', resumeId: null, prompt: 'go', cwd: '/tmp', bin: 'codex',
       extraArgs: ['-c', 'model_auto_compact_token_limit=245400'],
-      env: { ADAPTIVE_CONTEXT_POLICY_PATH: '/x/policy.json' },
+      env: { ...process.env, ADAPTIVE_CONTEXT_POLICY_PATH: '/x/policy.json' },
       outputPath: '/tmp/out.txt',
     })
     expect(spec.args.slice(0, 3)).toEqual(['-c', 'model_auto_compact_token_limit=245400', 'exec'])

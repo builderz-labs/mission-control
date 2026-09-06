@@ -30,7 +30,7 @@ export function readSecretRefId(value: unknown): string {
 
 export function resolveGatewayCredential(
   value: unknown,
-  env: NodeJS.ProcessEnv = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
   stateDir = config.openclawStateDir,
 ): string {
   if (typeof value === 'string') {

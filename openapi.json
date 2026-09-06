@@ -9084,6 +9084,250 @@
         }
       }
     },
+    "/api/fly/telemetry": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Get Fly worker fleet telemetry",
+        "operationId": "getFlyTelemetry",
+        "responses": {
+          "200": {
+            "description": "Fleet, queue, Mac pressure, cost, and bottleneck snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "queue",
+                    "fleet",
+                    "cost",
+                    "mac",
+                    "bottlenecks"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/fly/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Get scoped Fly worker job instructions",
+        "operationId": "getFlyWorkerJob",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-mc-fly-job-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job-scoped task payload"
+          },
+          "401": {
+            "description": "Invalid or expired worker token"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Report Fly worker heartbeat or terminal result",
+        "operationId": "updateFlyWorkerJob",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-mc-fly-job-token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "running",
+                      "succeeded",
+                      "failed"
+                    ]
+                  },
+                  "cpu_percent": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "memory_bytes": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "swap_bytes": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "observed_cost_usd": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "resolution": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "error_message": {
+                    "type": "string",
+                    "maxLength": 5000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Worker update accepted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Invalid or expired worker token"
+          }
+        }
+      }
+    },
+    "/api/agents/{id}/inventory": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get agent inventory",
+        "operationId": "getAgentInventory",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent inventory"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/models/access": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get model access",
+        "operationId": "getModelAccess",
+        "responses": {
+          "200": {
+            "description": "Available model access"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/artifact": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Get a session artifact",
+        "operationId": "getSessionArtifact",
+        "responses": {
+          "200": {
+            "description": "Session artifact"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/archive": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Archive a session",
+        "operationId": "archiveSession",
+        "responses": {
+          "200": {
+            "description": "Session archived"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/handoff": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Hand off a session",
+        "operationId": "handoffSession",
+        "responses": {
+          "200": {
+            "description": "Session handoff created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/api/workload": {
       "get": {
         "tags": [
