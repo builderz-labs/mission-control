@@ -1,10 +1,10 @@
-# Fly scale and cost decision — 2026-09-05
+# Fly scale and cost decision — 2026-09-06
 
 ## Recommendation
 
 One local Mission Control scheduler, SQLite durable queue, disposable polled command workers, and local subscription agents. No second cloud controller, callback tunnel, Redis, Kubernetes, model gateway, or permanently idle fleet is needed for this workload. This is the lowest-complexity fit for the current single-host deployment; it is not a claim of optimality under every workload.
 
-Do not provision more workers yet. Commission one, then allow up to six concurrently. Twenty to thirty logical agents can queue 500 leaves without requiring 20–30 paid Machines. Native swarm worker count is separate from Fly compute capacity and remains subject to host slots and the user's swarm policy.
+The commissioned shared pool admits up to 25 workers. Core and browser command leaves have passed on Fly, and four simultaneous Machines were independently observed. Logical agents can queue leaves without keeping an idle Machine per agent. Native swarm worker count is separate from Fly compute capacity and remains subject to host slots and the user's swarm policy.
 
 ## Architecture
 
@@ -50,9 +50,9 @@ Formula: jobs × (work seconds + collection/start allowance) / 3600 × verified 
 
 At an illustrative $0.10/hour, 500 ten-minute leaves cost about $8.33 for work alone. A 30-second per-leaf allowance raises that to $8.75. Reserving a 900-second timeout plus 300-second safety window reserves at most $0.0333 per attempt; 500 such reservations total $16.67 before released headroom. Two attempts can double consumed compute, but each submission still shares its configured cumulative per-job cap. These are assumptions, not a regional price quote or invoice.
 
-At six continuously productive slots and ten-minute average work, the idealized queue duration is approximately 13.9 hours, before startup, dependencies and failures. With 20 slots it is 4.2 hours. Neither scenario is a measured throughput result; do not buy 20 slots until speed requirements and measured efficiency justify it.
+At 25 continuously productive slots and ten-minute average work, 500 leaves take an idealized 3.33 hours before startup, dependencies, budgets and failures. This is arithmetic, not measured throughput or a promise that the configured daily budget admits all 500 jobs.
 
-Read current regional rates at [Fly pricing](https://fly.io/docs/about/pricing/). Set all selected-class prices explicitly. This audit could not read restricted production configuration or provider invoices: actual worker count, currently deployed rates and observed provider spend remain unverified. Local test mocks are not billable-cost observations.
+Read current regional rates at [Fly pricing](https://fly.io/docs/about/pricing/). Set all selected-class prices explicitly. Scoped Doppler configuration and independent Fly inventory were verified. Admission uses explicit regional rates with $0.25/job, $3/day and $40/month compute budgets. Reported spend is a control-plane estimate, not a reconciled provider invoice. See [commissioning evidence](fly-commissioning-2026-09-06.md).
 
 ## Cost improvements already implemented
 
@@ -67,3 +67,11 @@ Read current regional rates at [Fly pricing](https://fly.io/docs/about/pricing/)
 ## Deliberate limits
 
 One durable host remains a single availability boundary. Generic desktop chats require an actual MCP-capable execution adapter; transcript mirroring alone is insufficient. Large-history rollups, dependency DAG execution, multi-region recovery, per-class fairness quotas and runtime/cost-trained sizing are future work, not implemented guarantees. Application scripts execute approved repository code and must not be treated as hostile multi-tenant sandbox workloads.
+
+## Recovery and skill integration
+
+All four provider registrations and canonical swarm/Ruflo skills use `~/.agents/skills/_shared/fly-command-contract.md`, also projected into their global rules. Existing tool snapshots can invoke the same MCP handlers through `scripts/mc-fly.cjs`. Stable request/session/swarm IDs preserve attribution and idempotency.
+
+Scheduler ownership renews every 30 seconds during slow provider calls and is fenced on loss. Provider Retry-After is honored up to ten seconds per retry. Polling prioritizes least recently observed workers. Completed results remain available for the remaining reserved Machine lease; successful collection destroys the worker early. An absent worker with an old cached heartbeat can settle and enter bounded retry instead of remaining stuck indefinitely.
+
+This reduces short-outage losses but cannot survive arbitrary Mac downtime. Moving the single canonical scheduler and database to Fly requires an explicit hosting decision and a migration with the local scheduler stopped. Do not start the retained cloud controller as an unsynchronized second scheduler.
