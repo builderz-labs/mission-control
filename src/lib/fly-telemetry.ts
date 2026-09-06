@@ -1,3 +1,4 @@
+import { flyWorkerLimit } from './fly-capacity'
 import type Database from 'better-sqlite3'
 import os from 'node:os'
 import type { HostMetrics } from './host-metrics'
@@ -64,7 +65,7 @@ export function buildFlyTelemetry(db: Database.Database, workspaceId: number, ho
     if (fresh && typeof row.memory_bytes === 'number') { value.memory += row.memory_bytes; value.memoryN++ }
     classes.set(row.worker_class, value)
   }
-  const maxWorkers = Math.min(30, Math.floor(flyNumber('MC_FLY_MAX_WORKERS', 6)))
+  const maxWorkers = flyWorkerLimit()
   const bottlenecks: Array<{ label: string; severity: 'warn' | 'error' }> = []
   const readiness = flyReadiness()
   for (const label of readiness) bottlenecks.push({label,severity:'warn'})

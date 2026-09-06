@@ -224,12 +224,6 @@ export function proxy(request: NextRequest) {
   // Check for session cookie
   const sessionToken = request.cookies.get(MC_SESSION_COOKIE_NAME)?.value || request.cookies.get(LEGACY_MC_SESSION_COOKIE_NAME)?.value
 
-  // Legacy callbacks carry a job-scoped token; their route validates it.
-  if (/^\/api\/fly\/jobs\/[a-zA-Z0-9_-]{12,96}$/.test(pathname) && ['GET','POST'].includes(method)) {
-    const { response, nonce } = nextResponseWithNonce(request)
-    return addSecurityHeaders(response, request, nonce)
-  }
-
   // API routes: accept session cookie OR API key
   if (pathname.startsWith('/api/')) {
     const configuredApiKey = (process.env.API_KEY || '').trim()

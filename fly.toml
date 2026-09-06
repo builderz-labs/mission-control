@@ -1,3 +1,5 @@
+# Retained, stopped cloud-controller archive. Canonical controller runs locally.
+# Do not deploy this configuration as a second scheduler against the shared pool.
 app = "mission-control-control-tyler"
 primary_region = "iad"
 kill_signal = "SIGTERM"
@@ -23,8 +25,7 @@ kill_timeout = "30s"
   NEXT_PUBLIC_GATEWAY_OPTIONAL = "true"
   MC_FLY_ENABLED = "false"
   MC_FLY_MAX_WORKERS = "25"
-  MC_FLY_CONTROL_URL = "https://mission-control-control-tyler.fly.dev"
-  FLY_APP_NAME = "mission-control-workers-tyler"
+  MC_FLY_WORKER_APP = "mission-control-workers-tyler"
   FLY_REGION = "iad"
 
 [[mounts]]
@@ -40,7 +41,7 @@ kill_timeout = "30s"
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_start_machines = true
+  auto_start_machines = false
   auto_stop_machines = "stop"
 
   [http_service.concurrency]

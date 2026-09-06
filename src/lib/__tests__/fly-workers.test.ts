@@ -2,15 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { FlyMachinesClient, FlyMachinesError } from '@/lib/fly-machines-client'
 import { isFlyWorkerImageRef } from '@/lib/fly-orchestrator'
 import {
-  FLY_WORKER_SPECS,
-  decideFlyPlacement,
-  estimateFlyJobCost,
-  isFlyBudgetAllowed,
   recommendFlyWorkerSize,
 } from '@/lib/fly-workers'
-
-const budget = { dailySpentUsd: 1, monthlySpentUsd: 10, dailyLimitUsd: 20, monthlyLimitUsd: 100 }
-const capacity = { enabled: true, networkAvailable: true, activeWorkers: 0, maxWorkers: 3 }
 
 describe('Fly worker policy', () => {
   it('accepts only immutable digests from the configured worker app', () => {
@@ -21,11 +14,7 @@ describe('Fly worker policy', () => {
     expect(isFlyWorkerImageRef('registry.fly.io/other-app:core', 'mission-control-workers-tyler')).toBe(false)
   })
 
-  it('keeps Mac-only jobs local and routes browser jobs to Fly', () => {
-    expect(decideFlyPlacement({ macOnly: true }, capacity, budget, []).route).toBe('local')
-    const browser = decideFlyPlacement({ requiresBrowser: true }, capacity, budget, [])
-    expect(browser).toMatchObject({ route: 'fly', workerClass: 'browser' })
-  })
+
 
   it('sizes from p95 resource history and job requirements', () => {
     expect(recommendFlyWorkerSize({ estimatedMemoryMb: 3000 }, []).size).toBe('core-performance')
@@ -34,23 +23,11 @@ describe('Fly worker policy', () => {
     expect(recommendFlyWorkerSize({ requiresTesting: true }, []).size).toBe('core-performance')
   })
 
-  it('enforces capacity and all cost ceilings before dispatch', () => {
-    expect(decideFlyPlacement({}, { ...capacity, activeWorkers: 3 }, budget, []).route).toBe('deferred')
-    expect(isFlyBudgetAllowed({ perJobBudgetUsd: 1 }, 2, budget)).toBe(false)
-    expect(isFlyBudgetAllowed({}, 20, budget)).toBe(false)
-  })
 
-  it('uses configured hourly pricing for the dispatch budget decision', () => {
-    const priced = { ...FLY_WORKER_SPECS['core-small'], hourlyCostUsd: 0.12 }
-    const placement = decideFlyPlacement({ predictedRuntimeSeconds: 3600 }, capacity, { ...budget, dailySpentUsd: 19.9 }, [], priced)
-    expect(placement.route).toBe('deferred')
-    expect(placement.reason).toMatch(/budget/i)
-  })
 
-  it('calculates a machine runtime estimate from its configured rate', () => {
-    const spec = { ...FLY_WORKER_SPECS['core-small'], hourlyCostUsd: 0.12 }
-    expect(estimateFlyJobCost({ predictedRuntimeSeconds: 1800 }, spec)).toBe(0.06)
-  })
+
+
+
 })
 
 describe('Fly Machines client', () => {

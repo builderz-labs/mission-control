@@ -53,7 +53,7 @@ Canonical repository: `/Users/tylerdevries/Dev/mission-control`. Consolidation r
 - Runtime/cost history is not yet a statistically validated autosizer; cold-start, p95 throughput, setup amortization and invoice optimization need real samples.
 - No stopped-pool leasing, regional failover, dependency DAG, cross-host HA or per-class quota scheduler. These are deliberate scope limits, not hidden completeness claims.
 - Out-of-band/orphan Machines not represented in the local DB require operator inventory. The reconciler must not destroy unrelated Machines speculatively.
-- Existing callback compatibility routes/helpers remain for historical rows; new submissions cannot use them. Remove them in a separate migration after confirming no legacy consumers. The old cloud-controller `fly.toml` is archival only.
+- The September 6 cleanup verified that every database job uses the polled protocol, then removed the unused callback endpoint, its proxy exception and protocol helpers. Database migrations and history remain intact. The retained cloud-controller `fly.toml` disables automatic startup.
 - Separate consolidation work reported dependency advisories. No blanket dependency upgrade or deletion of user/runtime caches was performed in this audit; release scanning remains mandatory.
 
 The detailed configuration and client steps are in `docs/fly-agent-workers.md`; capacity and cost assumptions are in `docs/fly-scale-architecture.md`.

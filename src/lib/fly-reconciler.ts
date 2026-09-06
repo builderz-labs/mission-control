@@ -1,3 +1,4 @@
+import { FLY_LAUNCH_BATCH_SIZE } from './fly-capacity'
 import type Database from 'better-sqlite3'
 import { FlyMachinesClient, type FlyMachineResponse } from './fly-machines-client'
 import { flyReadiness, flySubmissionSchema } from './fly-admission-schema'
@@ -57,7 +58,7 @@ export async function reconcileFlyWorkers(db: Database.Database, client = FlyMac
     let launched = 0
     for (const row of queued) {
       lease.assertOwned()
-      if (launched >= 3) break
+      if (launched >= FLY_LAUNCH_BATCH_SIZE) break
       const input = flySubmissionSchema.parse(JSON.parse(row.payload))
       const reasons = flyReadiness(input)
       if (reasons.length) { db.prepare('UPDATE fly_submissions SET reason=?,next_attempt_at=unixepoch()+60 WHERE id=?').run(reasons.join('; '),row.id); continue }

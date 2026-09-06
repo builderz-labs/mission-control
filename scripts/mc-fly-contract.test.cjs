@@ -37,3 +37,12 @@ test('queued cancellation accepts only confirmed release', async () => {
   assert.equal((await cancel.handler({ submission_id: 'a'.repeat(32) })).released, true)
   await assert.rejects(cancel.handler({ submission_id: '../invalid' }))
 })
+test('all agent clients discover only commissioned command execution', () => {
+  const submit = createFlyTools(async () => ({})).find(tool => tool.name === 'mc_submit_fly_leaf')
+  assert.deepEqual(submit.inputSchema.properties.runtime.enum, ['command'])
+})
+test('status preserves server-reported global capacity separately from native slots', async () => {
+  const capacity = { scope: 'controller-global', max_workers: 25, active_workers: 3, available_slots: 22, launch_batch_size: 3, native_subagent_limit: null }
+  const status = createFlyTools(async () => ({ ready: true, issues: [], submissions: [], transport: 'polled', capacity })).find(tool => tool.name === 'mc_fly_status')
+  assert.deepEqual((await status.handler({})).capacity, capacity)
+})

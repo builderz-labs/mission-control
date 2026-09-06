@@ -1,9 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { executeJob } from '../polled.mjs'
-import { checkoutRepository, publishResult } from '../repository.mjs'
+import { checkoutRepository, verifiedRevision } from '../repository.mjs'
 import { job, fixture, fixtureRunner } from './helpers.mjs'
 
 test('command workflow clones exact SHA, verifies actual test script and never pushes', async () => {
@@ -47,32 +47,6 @@ test('missing package check is a failure instead of a skipped success', async ()
   assert.match(result.error_message, /script build is missing/)
 })
 
-test('agent commits are still pushed when its working tree is already clean', async () => {
-  const source = await fixture(); const calls = []; const underlying = fixtureRunner(source, calls)
-  const leaf = job({ base_sha: source.sha, runtime: 'claude' })
-  const originalConfig = await checkoutRepository(leaf, underlying, source.checkout)
-  await writeFile(path.join(source.checkout, 'result.txt'), 'approved edit')
-  await underlying('git', ['add', '-A'], { cwd: source.checkout })
-  await underlying('git', ['commit', '-m', 'Agent already committed'], { cwd: source.checkout })
-  let pushed = false
-  const run = async (command, args, options) => {
-    if (args.includes('push')) { pushed = true; return '' }
-    return underlying(command, args, options)
-  }
-  const resultSha = await publishResult(leaf, run, source.checkout, originalConfig)
-  assert.equal(pushed, true)
-  assert.notEqual(resultSha, source.sha)
-})
-
-test('agent cannot redirect credential-bearing push through Git configuration', async () => {
-  const source = await fixture(); const run = fixtureRunner(source)
-  const leaf = job({ base_sha: source.sha, runtime: 'claude' })
-  const originalConfig = await checkoutRepository(leaf, run, source.checkout)
-  const file = path.join(source.checkout, '.git/config')
-  await writeFile(file, `${await readFile(file, 'utf8')}\n[remote "origin"]\n pushurl = https://example.invalid/other.git\n`)
-  await assert.rejects(publishResult(leaf, run, source.checkout, originalConfig), /repository configuration/)
-})
-
 test('command clone credential is dropped before package setup and verification', async () => {
   const source = await fixture(); const calls = []; const underlying = fixtureRunner(source, calls)
   const saved = process.env.MC_FLY_GIT_AUTH_TOKEN
@@ -96,16 +70,15 @@ test('command clone credential is dropped before package setup and verification'
   }
 })
 
-test('agent result must descend from the approved base revision', async () => {
+test('command verification rejects a changed revision', async () => {
   const source = await fixture(); const run = fixtureRunner(source)
-  const leaf = job({ base_sha: source.sha, runtime: 'claude' }); const options = { cwd: source.checkout }
-  const originalConfig = await checkoutRepository(leaf, run, source.checkout)
-  await run('git', ['checkout', '--orphan', 'unrelated'], options)
-  await run('git', ['add', '-A'], options)
-  await run('git', ['commit', '-m', 'Unrelated root'], options)
-  await run('git', ['branch', '-D', leaf.branch_name], options)
-  await run('git', ['branch', '-m', leaf.branch_name], options)
-  await assert.rejects(publishResult(leaf, run, source.checkout, originalConfig), /Result revision ancestry failed/)
+  const leaf = job({ base_sha: source.sha })
+  await checkoutRepository(leaf, run, source.checkout)
+  await writeFile(path.join(source.checkout, 'result.txt'), 'unexpected edit')
+  await run('git', ['add', '-A'], { cwd: source.checkout })
+  await run('git', ['commit', '-m', 'Unexpected revision'], { cwd: source.checkout })
+  await assert.rejects(verifiedRevision(leaf, run, source.checkout), /changed the pinned revision/)
 })
-
-
+test('uncommissioned LLM runtimes fail before any worker command executes', async () => {
+  await assert.rejects(executeJob(job({runtime: 'claude'})), /Only command/)
+})

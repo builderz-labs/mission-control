@@ -1,3 +1,4 @@
+import { flyWorkerLimit } from './fly-capacity'
 import { flyRepositoryAuth } from './fly-repository-auth'
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
@@ -19,7 +20,7 @@ export function reserveFlyJob(db: Database.Database, row: SubmissionRow, input: 
       .get(row.id) as SubmissionRow | undefined
     if (!fresh) return null
     const count = db.prepare("SELECT COUNT(*) AS n FROM fly_worker_jobs WHERE state IN ('creating','running','cleaning')").get() as { n: number }
-    const max = Math.min(30, Math.floor(flyNumber('MC_FLY_MAX_WORKERS', 6)))
+    const max = flyWorkerLimit()
     if (count.n >= max) return null
     const { spec, rate, image, ttl, reserve, issues } = priceFromFlyHistory(db,input)
     const now = Math.floor(Date.now() / 1000)

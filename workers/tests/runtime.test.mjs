@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { packageManager, setupRepository, runAgent, verifyChecks } from '../runtime.mjs'
+import { packageManager, setupRepository, verifyChecks } from '../runtime.mjs'
 import { fixture, job } from './helpers.mjs'
 
 test('setup profiles require lockfiles and pnpm uses frozen installs', async () => {
@@ -38,44 +38,6 @@ test('browser setup runs only installed project Playwright without implicit pack
   } finally {
     if (saved) process.env.MC_FLY_WORKER_CLASS = saved; else delete process.env.MC_FLY_WORKER_CLASS
   }
-})
-
-test('command runtime never invokes an LLM', async () => {
-  let calls = 0
-  await runAgent(job(), async () => { calls++ }, '/tmp')
-  assert.equal(calls, 0)
-})
-
-test('Claude worker uses dedicated API and fails closed on malformed/failed outputs', async () => {
-  const saved = process.env.ANTHROPIC_API_KEY; process.env.ANTHROPIC_API_KEY = 'test-dedicated-key'
-  try {
-    const leaf = job({ runtime: 'claude' })
-    await assert.rejects(runAgent(leaf, async () => 'unexpected', '/tmp'), /malformed/)
-    await assert.rejects(runAgent(leaf, async () => JSON.stringify({ type: 'result', is_error: true }), '/tmp'), /successful completion/)
-    await runAgent(leaf, async (command, args, options) => {
-      assert.equal(command, 'claude')
-      assert.ok(!args.includes('--dangerously-skip-permissions'))
-      assert.equal(options.env.ANTHROPIC_API_KEY, 'test-dedicated-key')
-      assert.equal(options.env.ANTHROPIC_AUTH_TOKEN, undefined)
-      assert.equal(options.env.MC_FLY_GIT_AUTH_TOKEN, undefined)
-      return JSON.stringify({ type: 'result', is_error: false, subtype: 'success' })
-    }, '/tmp')
-  } finally { if (saved) process.env.ANTHROPIC_API_KEY = saved; else delete process.env.ANTHROPIC_API_KEY }
-})
-
-test('Codex authenticates with dedicated API and requires completed structured output', async () => {
-  const saved = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = 'test-dedicated-key'
-  try {
-    const leaf = job({ runtime: 'codex' }); const calls = []
-    await runAgent(leaf, async (command, args, options) => {
-      calls.push({ command, args })
-      assert.equal(options.env.OPENAI_API_KEY, 'test-dedicated-key')
-      return args[0] === 'login' ? 'ok' : JSON.stringify({ type: 'turn.completed' })
-    }, '/tmp')
-    assert.deepEqual(calls[0].args, ['login', '--with-api-key'])
-    assert.ok(calls[1].args.includes('--json'))
-    await assert.rejects(runAgent(leaf, async () => '{}', '/tmp'), /successful completion/)
-  } finally { if (saved) process.env.OPENAI_API_KEY = saved; else delete process.env.OPENAI_API_KEY }
 })
 
 test('verification ignores arbitrary description commands and executes named package scripts', async () => {

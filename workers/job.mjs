@@ -1,6 +1,6 @@
 export const CHECKS = new Set(['smoke', 'test', 'lint', 'typecheck', 'build', 'test:e2e'])
 const SETUPS = new Set(['none', 'npm-ci', 'pnpm-ci', 'npm-ci-playwright', 'pnpm-ci-playwright'])
-const RUNTIMES = new Set(['command', 'claude', 'codex'])
+const RUNTIMES = new Set(['command'])
 
 function text(value, field, max) {
   if (typeof value !== 'string' || !value.trim() || value.length > max || value.includes('\0')) {
@@ -30,8 +30,6 @@ export function validateJob(value, now = Math.floor(Date.now() / 1000)) {
   }
   if (!Number.isInteger(value.timeout_seconds) || value.timeout_seconds < 1 || value.timeout_seconds > 1800) throw new Error('Invalid job timeout')
   if (!Number.isInteger(value.expires_at) || value.expires_at <= now) throw new Error('Job has expired')
-  if (value.runtime === 'claude' && !process.env.ANTHROPIC_API_KEY) throw new Error('Dedicated Anthropic API key is required')
-  if (value.runtime === 'codex' && !process.env.OPENAI_API_KEY) throw new Error('Dedicated OpenAI API key is required')
   return { id, title, description, repository, base_sha, branch_name, runtime: value.runtime, setup: value.setup,
     checks: [...new Set(value.checks)], timeout_seconds: value.timeout_seconds, expires_at: value.expires_at }
 }

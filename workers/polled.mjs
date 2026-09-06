@@ -4,11 +4,12 @@ import { fileURLToPath } from 'node:url'
 import { loadJob } from './job.mjs'
 import { createRunner } from './process.mjs'
 import { createStateWriter } from './state.mjs'
-import { checkoutRepository, publishResult } from './repository.mjs'
-import { runAgent, setupRepository, verifyChecks } from './runtime.mjs'
+import { checkoutRepository, verifiedRevision } from './repository.mjs'
+import { setupRepository, verifyChecks } from './runtime.mjs'
 import { retainResult, workDeadline } from './lifecycle.mjs'
 
 export async function executeJob(job, dependencies = {}) {
+  if (job.runtime !== 'command') throw new Error('Only command workers are supported')
   const deadline = workDeadline(job)
   const run = dependencies.run || createRunner(deadline)
   const write = dependencies.write || createStateWriter()
@@ -19,22 +20,21 @@ export async function executeJob(job, dependencies = {}) {
   const heartbeat = setInterval(() => { void write(state).catch(() => run.stop?.()) }, 5_000)
   const watchdog = setTimeout(() => run.stop?.(), Math.max(1, deadline - Date.now()))
   try {
-    const originalConfig = await checkoutRepository(job, run, cwd)
+    await checkoutRepository(job, run, cwd)
     // Approved command-only jobs never push. Drop the read-only clone credential
     // before package code; this reduces accidental inheritance, not same-UID access.
-    if (job.runtime === 'command') clearGitCredentials()
+    clearGitCredentials()
     await setupRepository(job, run, cwd)
-    await runAgent(job, run, cwd)
     await verifyChecks(job, run, cwd)
-    const resultSha = await publishResult(job, run, cwd, originalConfig)
+    const resultSha = await verifiedRevision(job, run, cwd)
     if (Date.now() >= deadline) throw new Error('Job deadline exceeded')
     state = { ...state, state: 'succeeded', result_sha: resultSha,
-      resolution: `${job.checks.join(', ')} passed at ${resultSha}; ${job.runtime === 'command' ? 'verification only, no branch pushed' : `result branch ${job.branch_name} pushed`}` }
+      resolution: `${job.checks.join(', ')} passed at ${resultSha}; verification only, no branch pushed` }
   } catch (error) {
     state = { ...state, state: 'failed', error_message: error instanceof Error ? error.message.slice(0, 500) : 'Worker failed' }
   } finally {
     clearInterval(heartbeat); clearTimeout(watchdog); run.stop?.()
-    if (job.runtime === 'command') clearGitCredentials()
+    clearGitCredentials()
     await write(state)
   }
   return state

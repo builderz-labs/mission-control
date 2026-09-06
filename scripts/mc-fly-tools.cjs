@@ -11,7 +11,7 @@ function createFlyTools(api) {
         title: { type: 'string' }, description: { type: 'string' },
         repository: { type: 'string', description: 'Approved HTTPS GitHub .git URL' },
         base_sha: { type: 'string', description: 'Clean pushed 40-character Git commit SHA' },
-        runtime: { type: 'string', enum: ['command','claude','codex'], default: 'command' },
+        runtime: { type: 'string', enum: ['command'], default: 'command' },
         setup: { type: 'string', enum: ['none','npm-ci','pnpm-ci','npm-ci-playwright','pnpm-ci-playwright'] },
         checks: { type: 'array', minItems: 1, maxItems: 6, items: { type: 'string', enum: ['smoke','test','lint','typecheck','build','test:e2e'] } },
         timeout_seconds: { type: 'integer', minimum: 60, maximum: 1800 },
@@ -34,7 +34,7 @@ function createFlyTools(api) {
     },
   }, {
     name: 'mc_fly_status',
-    description: 'Read Fly readiness, durable queue, result, worker count and estimated compute cost. No mutation; authoritative remote ownership survives client disconnects.',
+    description: 'Read shared Fly command capacity (separate from native LLM subagent slots), readiness, durable queue, results and estimated compute cost. No mutation; authoritative remote ownership survives client disconnects.',
     inputSchema: { type: 'object', properties: { submission_id: { type: 'string' }, session_id: { type: 'string', maxLength: 200 } } },
     handler: async args => {
       const params = new URLSearchParams()

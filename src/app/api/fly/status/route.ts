@@ -1,3 +1,4 @@
+import { flyCapacity } from '@/lib/fly-capacity'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   if (id && !/^[a-f0-9]{32}$/.test(id)) return NextResponse.json({ error: 'Invalid submission ID' }, { status: 400 })
   try {
     const issues = flyReadiness()
-    return NextResponse.json({ ready: !issues.length, issues, transport: 'polled', cost_basis: 'estimated Fly compute; excludes inference, storage and egress',
+    return NextResponse.json({ capacity: flyCapacity(getDatabase()), ready: !issues.length, issues, transport: 'polled', cost_basis: 'estimated Fly compute; excludes inference, storage and egress',
       readiness_basis: 'Configuration only; commission a real canary before relying on provider connectivity',
       activity: buildFlyActivity(getDatabase(),auth.user.workspace_id,session),
       submissions: flySubmissionStatus(getDatabase(), auth.user.workspace_id, id, session) })

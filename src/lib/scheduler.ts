@@ -1,3 +1,4 @@
+import { FLY_RECONCILE_INTERVAL_MS } from './fly-capacity'
 import { getDatabase, logAuditEvent } from './db'
 import { syncAgentsFromConfig } from './agent-sync'
 import { config, ensureDirExists } from './config'
@@ -310,7 +311,6 @@ async function syncAgentLiveStatuses(requestedWorkspaceId?: number): Promise<num
 const DAILY_MS = 24 * 60 * 60 * 1000
 const FIVE_MINUTES_MS = 5 * 60 * 1000
 const TICK_MS = 60 * 1000 // Preserve the normal scan/dispatch/cleanup cadence.
-const FLY_TICK_MS = 15 * 1000
 
 /** Initialize the scheduler */
 export function initScheduler() {
@@ -459,9 +459,9 @@ export function initScheduler() {
 
   tasks.set('fly_worker_reconcile', {
     name: 'Fly Worker Reconcile',
-    intervalMs: FLY_TICK_MS,
+    intervalMs: FLY_RECONCILE_INTERVAL_MS,
     lastRun: null,
-    nextRun: now + FLY_TICK_MS,
+    nextRun: now + FLY_RECONCILE_INTERVAL_MS,
     enabled: true,
     running: false,
   })

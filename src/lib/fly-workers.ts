@@ -37,29 +37,6 @@ export interface FlyUsageSample {
   costUsd: number
 }
 
-export interface FlyBudget {
-  dailyLimitUsd?: number
-  monthlyLimitUsd?: number
-  dailySpentUsd: number
-  monthlySpentUsd: number
-}
-
-export interface FlyCapacity {
-  enabled: boolean
-  networkAvailable: boolean
-  activeWorkers: number
-  maxWorkers: number
-}
-
-export type FlyRoute = 'local' | 'fly' | 'deferred'
-
-export interface FlyPlacement {
-  route: FlyRoute
-  workerClass: FlyWorkerClass | null
-  reason: string
-  fallbackToLocal: boolean
-}
-
 function finite(value: number | undefined, fallback = 0): number {
   return value !== undefined && Number.isFinite(value) ? Math.max(0, value) : fallback
 }
@@ -68,18 +45,6 @@ function percentile(values: number[], ratio: number): number {
   const sorted = values.filter(Number.isFinite).sort((a, b) => a - b)
   if (!sorted.length) return 0
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * ratio) - 1)]
-}
-
-export function estimateFlyJobCost(profile: FlyJobProfile, spec: FlyMachineSpec): number {
-  const runtimeSeconds = finite(profile.predictedRuntimeSeconds, 60)
-  return Math.round((runtimeSeconds / 3600) * finite(spec.hourlyCostUsd) * 1_000_000) / 1_000_000
-}
-
-export function isFlyBudgetAllowed(profile: FlyJobProfile, estimateUsd: number, budget: FlyBudget): boolean {
-  const cost = Math.max(finite(estimateUsd), finite(profile.predictedCostUsd))
-  if (profile.perJobBudgetUsd !== undefined && cost > finite(profile.perJobBudgetUsd)) return false
-  if (budget.dailyLimitUsd !== undefined && finite(budget.dailySpentUsd) + cost > finite(budget.dailyLimitUsd)) return false
-  return budget.monthlyLimitUsd === undefined || finite(budget.monthlySpentUsd) + cost <= finite(budget.monthlyLimitUsd)
 }
 
 export function recommendFlyWorkerSize(profile: FlyJobProfile, history: FlyUsageSample[]): FlyMachineSpec {
@@ -94,37 +59,4 @@ export function recommendFlyWorkerSize(profile: FlyJobProfile, history: FlyUsage
   if (memory > 2048 || cpu > 80 || profile.requiresTesting) return FLY_WORKER_SPECS['core-performance']
   if (memory > 1024 || cpu > 50) return FLY_WORKER_SPECS['core-standard']
   return FLY_WORKER_SPECS['core-small']
-}
-
-export function decideFlyPlacement(
-  profile: FlyJobProfile,
-  capacity: FlyCapacity,
-  budget: FlyBudget,
-  history: FlyUsageSample[],
-  pricedSpec?: FlyMachineSpec,
-): FlyPlacement {
-  if (profile.macOnly) return { route: 'local', workerClass: null, reason: 'Job requires a Mac-only capability.', fallbackToLocal: false }
-  const spec = pricedSpec ?? recommendFlyWorkerSize(profile, history)
-  const estimate = estimateFlyJobCost(profile, spec)
-  if (!capacity.enabled) return { route: 'local', workerClass: spec.workerClass, reason: 'Fly workers are disabled.', fallbackToLocal: true }
-  if (!capacity.networkAvailable) return { route: 'local', workerClass: spec.workerClass, reason: 'Fly network is unavailable.', fallbackToLocal: true }
-  if (capacity.activeWorkers >= capacity.maxWorkers) return { route: 'deferred', workerClass: spec.workerClass, reason: 'Fly concurrency limit reached.', fallbackToLocal: false }
-  if (!isFlyBudgetAllowed(profile, estimate, budget)) return { route: 'deferred', workerClass: spec.workerClass, reason: 'Fly cost budget would be exceeded.', fallbackToLocal: false }
-  return { route: 'fly', workerClass: spec.workerClass, reason: `Selected ${spec.size}.`, fallbackToLocal: true }
-}
-
-export interface FlyWorkerTelemetry {
-  workerId: string
-  taskId: number | null
-  workerClass: FlyWorkerClass
-  size: FlyWorkerSize
-  state: 'created' | 'started' | 'running' | 'stopping' | 'destroyed' | 'failed'
-  cpuPercent: number | null
-  memoryMb: number | null
-  swapMb: number | null
-  queueDepth: number
-  runtimeSeconds: number
-  estimatedCostUsd: number
-  observedCostUsd: number
-  recordedAt: number
 }

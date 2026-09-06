@@ -23,15 +23,9 @@ test('invalid and unbounded jobs fail closed', () => {
   assert.throws(() => validateJob(null))
 })
 
-test('agent runtimes require dedicated API keys and reject OAuth-only configuration', () => {
-  const saved = { anthropic: process.env.ANTHROPIC_API_KEY, openai: process.env.OPENAI_API_KEY }
-  delete process.env.ANTHROPIC_API_KEY; delete process.env.OPENAI_API_KEY
-  try {
-    assert.throws(() => validateJob(job({ runtime: 'claude' })), /Dedicated Anthropic/)
-    assert.throws(() => validateJob(job({ runtime: 'codex' })), /Dedicated OpenAI/)
-  } finally {
-    if (saved.anthropic) process.env.ANTHROPIC_API_KEY = saved.anthropic
-    if (saved.openai) process.env.OPENAI_API_KEY = saved.openai
+test('uncommissioned runtimes are rejected for every provider', () => {
+  for (const runtime of ['claude', 'codex', 'kimi', 'grok']) {
+    assert.throws(() => validateJob(job({ runtime })), /Unsupported job runtime/)
   }
 })
 
