@@ -58,3 +58,15 @@ docs/_*.png
 # Local agent run artifacts
 .swarm/
 .claude-flow/
+
+# Local agent state and worktrees
+.claude/
+.adaptive-context/
+
+# Local vector/agent databases
+ruvector.db
+agentdb.rvf
+agentdb.rvf.lock
+
+# Build rollback snapshots
+.next.rollback-*/
