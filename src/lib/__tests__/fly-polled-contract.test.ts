@@ -18,6 +18,7 @@ describe('actual worker / controller contract', () => {
     const identity = {id:states[0].job_id,branch_name:states[0].branch_name}
     expect(states.map(state=>readPolledResult(JSON.stringify(state),identity).state)).toEqual(['running','succeeded'])
     expect(() => readPolledResult(JSON.stringify(states[1]),{...identity,branch_name:'different'})).toThrow('identity mismatch')
-  })
+  // The child process is allowed 30s; the default 5s vitest timeout fires first under load.
+  }, 35_000)
 })
 

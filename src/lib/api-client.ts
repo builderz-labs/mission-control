@@ -72,19 +72,24 @@ const RETRYABLE_READ_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 async function fetchWithReadRetry(path: string, init: RequestInit): Promise<Response> {
   const method = (init.method || 'GET').toUpperCase()
   const canRetry = method === 'GET' || method === 'HEAD'
-  for (let attempt = 0; attempt < (canRetry ? 2 : 1); attempt += 1) {
+  const attempts = canRetry ? 2 : 1
+  let lastError: unknown
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const isFinalAttempt = attempt === attempts - 1
     const timeoutSignal = AbortSignal.timeout(20_000)
     const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
     try {
       const response = await fetch(path, { ...init, signal })
-      if (!RETRYABLE_READ_STATUSES.has(response.status) || attempt === 1) return response
+      // On the last attempt the caller owns the response, retryable status or not.
+      if (isFinalAttempt || !RETRYABLE_READ_STATUSES.has(response.status)) return response
       await response.arrayBuffer().catch(() => undefined)
     } catch (error) {
-      if (!canRetry || attempt === 1 || init.signal?.aborted) throw error
+      lastError = error
+      if (isFinalAttempt || init.signal?.aborted) throw error
     }
     await new Promise(resolve => setTimeout(resolve, 150))
   }
-  throw new Error('Request retry exhausted')
+  throw lastError instanceof Error ? lastError : new Error('Request retry exhausted')
 }
 
 export async function apiFetch<T = unknown>(

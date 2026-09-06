@@ -117,7 +117,8 @@ describe('apiFetch — global HTTP and network error handling', () => {
   })
 
   it('throws SERVER_ERROR on 500 with upstream message', async () => {
-    global.fetch = vi.fn().mockResolvedValue(mockResponse(500, { error: 'database is locked' }))
+    // apiFetch retries retryable GETs, so hand back a fresh body per call like real fetch does.
+    global.fetch = vi.fn(async () => mockResponse(500, { error: 'database is locked' }))
     await expect(apiFetch('/api/tokens')).rejects.toMatchObject({
       code: 'SERVER_ERROR',
       status: 500,

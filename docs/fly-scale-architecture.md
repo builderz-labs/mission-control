@@ -75,3 +75,5 @@ All four provider registrations and canonical swarm/Ruflo skills use `~/.agents/
 Scheduler ownership renews every 30 seconds during slow provider calls and is fenced on loss. Provider Retry-After is honored up to ten seconds per retry. Polling prioritizes least recently observed workers. Completed results remain available for the remaining reserved Machine lease; successful collection destroys the worker early. An absent worker with an old cached heartbeat can settle and enter bounded retry instead of remaining stuck indefinitely.
 
 This reduces short-outage losses but cannot survive arbitrary Mac downtime. Moving the single canonical scheduler and database to Fly requires an explicit hosting decision and a migration with the local scheduler stopped. Do not start the retained cloud controller as an unsynchronized second scheduler.
+
+Repository access now uses a global Doppler registry with one read-only deploy key per private repository. All 39 current owner repositories are enrolled; all 26 private keys passed checkout authentication. See [global enrollment and recovery evidence](fly-hardening-2026-09-06.md).

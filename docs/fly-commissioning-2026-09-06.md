@@ -45,16 +45,16 @@ This does not increase native LLM subagent slots in an already running host. Cod
 
 Private local evidence is under `/Users/tylerdevries/.agents/state/`, including `mc-fly-r7-concurrent-evidence.json`, `mc-provider-registration-evidence.json`, `mc-fly-final-worker-tests.log`, and `mc-worker-images-20260906/`.
 
-## Final live result
+## Initial r9 live result
 
-At completion, the API reports ready with no issues; telemetry is healthy, capacity 25, active/queued/reserved counts zero, and no bottlenecks. The independent Fly API confirms zero worker Machines. Total estimated audit compute is **$0.01644552** (about 1.65 cents); historical failures remain visible.
+At the end of r9 commissioning, the API reported ready with no issues; telemetry is healthy, capacity 25, active/queued/reserved counts zero, and no bottlenecks. The independent Fly API confirms zero worker Machines. Total estimated audit compute is **$0.01644552** (about 1.65 cents); historical failures remain visible.
 
 - Browser task 27 / submission `6085cb8e35454fe59b58c47ef598fd91`: pnpm frozen install, Playwright Chromium setup and real DOM render passed at the approved SHA; 293 metered seconds, $0.00700856 estimated compute. Machine `80e90d6a159598` destroyed. Final memory 1,799,643,136 bytes and CPU 62.41%; live samples prove cgroup v1 reporting.
 - Core task 28 / submission `683ba44acc6540a08320223a026ce61e`: smoke passed at the same SHA, 55 metered seconds, $0.000121 estimated compute. Machine `8ee321b7333098` destroyed. Final memory 208,027,648 bytes and CPU 26.2%.
 - Both leaves were submitted through the CLI bridge, sharing the same session/swarm and exact MCP admission handlers.
 - Final evidence: `mc-fly-final-status.json`, `mc-fly-final-telemetry.json`, `mc-fly-final-provider.json`, `mc-fly-r9-live-evidence.json` under the private state directory.
 
-Current immutable images:
+Initial r9 immutable images (superseded by the recovery/access release):
 
 - MC_FLY_CORE_IMAGE: `registry.fly.io/mission-control-workers-tyler@sha256:327d7a978d3c3b9206807dcc216eac4a8ffe5b2cae5d8805178e95195b48eb2c`
 - MC_FLY_BROWSER_IMAGE: `registry.fly.io/mission-control-workers-tyler@sha256:8ac721ca3947347606c1666119331b9429c37bae1d8b16bd243205cae67c0e3a`
@@ -67,4 +67,10 @@ Both final r9 image scans report 5 critical and 108 high findings attributed to 
 
 The scoped Doppler token is `mission-control-local-workers-20260906`, stored at `/Users/tylerdevries/.agents/state/mission-control-doppler-service-token` with mode 0600. Revoke/rotate through Doppler; never copy its value into reports or command arguments. Existing repository allowlists and credentials were preserved.
 
-Previous backend artifacts are retained at `.next.rollback-20260906`, `/Users/tylerdevries/.agents/state/mc-backend-before-gap-20260906`, and `/Users/tylerdevries/.agents/state/mc-backend-before-metrics-20260906`. Pre-promotion DB rehearsal backup is `/Users/tylerdevries/.agents/state/mc-release-20260906-110837/pre-promotion.db`. Configuration backups are under `/Users/tylerdevries/.agents/backups/fly-concurrency-20260906T165413Z/`. Existing dirty work is preserved and uncommitted. Drain active ownership before rollback or scheduler replacement.
+Previous backend artifacts are retained at `.next.rollback-20260906`, `/Users/tylerdevries/.agents/state/mc-backend-before-gap-20260906`, and `/Users/tylerdevries/.agents/state/mc-backend-before-metrics-20260906`. Pre-promotion DB rehearsal backup is `/Users/tylerdevries/.agents/state/mc-release-20260906-110837/pre-promotion.db`. Configuration backups are under `/Users/tylerdevries/.agents/backups/fly-concurrency-20260906T165413Z/`. Existing work is preserved; concurrent repository integration is tracked separately. Drain active ownership before rollback or scheduler replacement.
+
+## Recovery and global repository release
+
+See [the hardening report](fly-hardening-2026-09-06.md) for scheduler recovery, the common swarm/Ruflo contract, all-provider rules and global repository enrollment. The r10 recovery canary (task34, submission `29834d3cd0434c3f8eb672ae94e0bcc1`) passed at the pinned revision; Machine `811d196ce69d18` was destroyed. Estimated compute was $0.00017759.
+
+All 39 current owner repositories are enrolled, including 26 private repositories whose individual read-only SSH credentials passed authentication. Global access means one controller and pool; it does not grant every worker all repository keys or prove every project build.
