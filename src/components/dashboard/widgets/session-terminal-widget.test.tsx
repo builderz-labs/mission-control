@@ -82,6 +82,20 @@ describe('SessionTerminalWidget', () => {
     expect(screen.getByText('❯ running…')).toBeInTheDocument()
   })
 
+  // Both of these were real regressions: without them the pane grew to the
+  // height of the transcript and to the width of its longest line, so the page
+  // scrolled instead of the terminal and the "Jump to latest" button landed
+  // hundreds of pixels off screen.
+  it('keeps the terminal inside a bounded box so its own scrollback scrolls', () => {
+    render(<SessionTerminalWidget data={data([session('live', { active: true })])} />)
+    const surface = screen.getByRole('log').parentElement as HTMLElement
+    expect(surface.className).toContain('min-w-0')
+
+    const column = surface.parentElement as HTMLElement
+    expect(column.className).toContain('min-w-0')
+    expect(column.parentElement?.className).toMatch(/h-\[\d+rem\]/)
+  })
+
   it('opens the full session view from the title bar', () => {
     const payload = data([session('one')])
     render(<SessionTerminalWidget data={payload} />)

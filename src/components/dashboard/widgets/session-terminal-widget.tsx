@@ -88,7 +88,7 @@ export function SessionTerminalWidget({ data }: { data: TerminalWidgetData }) {
             selectedId={selected ? terminalTabId(selected) : null}
             onSelect={setSelectedId}
           />
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {selected && <TerminalTitleBar session={selected} onOpen={() => data.openSession(selected)} />}
             <SessionTerminalView
               lines={lines}

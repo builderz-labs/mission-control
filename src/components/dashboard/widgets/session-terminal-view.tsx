@@ -55,7 +55,7 @@ export function SessionTerminalView({
   }, [])
 
   return (
-    <div className="relative flex-1 min-h-0 bg-[hsl(222_47%_4%)]">
+    <div className="relative flex-1 min-h-0 min-w-0 bg-[hsl(222_47%_4%)]">
       <div
         ref={scrollRef}
         role="log"
