@@ -19,6 +19,13 @@ type TerminalWidgetData = Pick<
   'sessions' | 'isSessionsLoading' | 'openSession' | 'navigateToPanel'
 >
 
+/**
+ * A terminal is a fixed viewport onto scrollback. Without a bounded height the
+ * pane grows to the full transcript and the page scrolls instead, so the inner
+ * scroller never overflows and auto-tail has nothing to follow.
+ */
+const TERMINAL_FRAME = 'flex h-[32rem] max-h-[70vh] flex-col lg:flex-row'
+
 /** Adapts a dashboard session row to the shape the shared transcript poller wants. */
 function transcriptSubject(session: DashboardSession | undefined) {
   if (!session) return undefined
@@ -75,13 +82,13 @@ export function SessionTerminalWidget({ data }: { data: TerminalWidgetData }) {
           </p>
         </div>
       ) : (
-        <div className="flex min-h-[26rem] flex-col lg:flex-row">
+        <div className={TERMINAL_FRAME}>
           <TerminalTabList
             tabs={tabs}
             selectedId={selected ? terminalTabId(selected) : null}
             onSelect={setSelectedId}
           />
-          <div className="flex min-h-[18rem] flex-1 flex-col lg:min-h-0">
+          <div className="flex min-h-0 flex-1 flex-col">
             {selected && <TerminalTitleBar session={selected} onOpen={() => data.openSession(selected)} />}
             <SessionTerminalView
               lines={lines}

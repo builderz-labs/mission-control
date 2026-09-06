@@ -7,7 +7,6 @@ import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { getLocalOsStatus, getMcHealth } from './widget-primitives'
 import { OnboardingChecklistWidget } from './widgets/onboarding-checklist-widget'
-import { ActiveTerminalSessions } from './active-terminal-sessions'
 import { WidgetGrid } from './widget-grid'
 import { FleetLogosStrip } from './widgets/fleet-logos-strip'
 import type { DbStats, ClaudeStats, DashboardData } from './widget-primitives'
@@ -143,7 +142,6 @@ export function Dashboard() {
         </div>
       )}
       <OnboardingChecklistWidget />
-      <ActiveTerminalSessions data={dashboardData} />
       <FleetLogosStrip agents={agents} />
       <WidgetGrid data={dashboardData} />
     </div>
