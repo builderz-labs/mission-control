@@ -1570,6 +1570,7 @@
     "saving": "保存中...",
     "cancel": "キャンセル",
     "selectFilePrompt": "ファイルを選択して表示",
+    "loadFileError": "ファイルを開けませんでした",
     "orSwitchView": "またはヘルス/パイプラインビューに切り替え",
     "schemaWarnings": "スキーマ警告：",
     "editPlaceholder": "ファイル内容を編集...",

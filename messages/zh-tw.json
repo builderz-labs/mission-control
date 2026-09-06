@@ -1570,6 +1570,7 @@
     "saving": "儲存中...",
     "cancel": "取消",
     "selectFilePrompt": "選擇檔案以檢視",
+    "loadFileError": "無法開啟檔案",
     "orSwitchView": "或切換到健康/流程檢視",
     "schemaWarnings": "模式警告：",
     "editPlaceholder": "編輯檔案內容...",

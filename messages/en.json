@@ -1570,6 +1570,7 @@
     "saving": "saving...",
     "cancel": "cancel",
     "selectFilePrompt": "select a file to view",
+    "loadFileError": "couldn't open this file",
     "orSwitchView": "or switch to health / pipeline view",
     "schemaWarnings": "Schema warnings:",
     "editPlaceholder": "Edit file content...",

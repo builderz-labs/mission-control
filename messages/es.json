@@ -1570,6 +1570,7 @@
     "saving": "guardando...",
     "cancel": "cancelar",
     "selectFilePrompt": "seleccionar un archivo para ver",
+    "loadFileError": "no se pudo abrir el archivo",
     "orSwitchView": "o cambiar a vista de salud / pipeline",
     "schemaWarnings": "Advertencias de esquema:",
     "editPlaceholder": "Editar contenido del archivo...",

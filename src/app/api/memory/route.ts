@@ -26,6 +26,24 @@ interface MemoryFile {
   children?: MemoryFile[]
 }
 
+// Shared guard chain for single-file actions: allowed-check, configured
+// memory dir, canonicalize, safe-resolve. Returns an error response or the
+// resolved paths.
+async function resolveMemoryFilePath(
+  memoryPath: string | null,
+  path: string,
+): Promise<{ canonicalPath: string; fullPath: string } | NextResponse> {
+  if (!isPathAllowed(path)) {
+    return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
+  }
+  if (!memoryPath || !existsSync(memoryPath)) {
+    return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
+  }
+  const canonicalPath = canonicalizeMemoryRelativePath(path)
+  const fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
+  return { canonicalPath, fullPath }
+}
+
 async function buildFileTree(
   dirPath: string,
   relativePath: string = '',
@@ -145,17 +163,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ tree })
     }
 
-    if (action === 'content' && path) {
+    if ((action === 'exists' || action === 'content') && path) {
+      const resolved = await resolveMemoryFilePath(memoryPath, path)
+      if (resolved instanceof NextResponse) return resolved
+      const { canonicalPath, fullPath } = resolved
+
+      if (action === 'exists') {
+        // Lightweight existence probe (no content transfer) so clients can
+        // distinguish real file links from planned/non-existent paths.
+        const stats = await stat(fullPath).catch(() => null)
+        return NextResponse.json({ path: canonicalPath, exists: Boolean(stats?.isFile()) })
+      }
+
       // Return file content
-      if (!isPathAllowed(path)) {
-        return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
-      }
-      if (!memoryPath || !existsSync(memoryPath)) {
-        return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
-      }
-      const canonicalPath = canonicalizeMemoryRelativePath(path)
-      const fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
-      
       try {
         const content = await readFile(fullPath, 'utf-8')
         const stats = await stat(fullPath)

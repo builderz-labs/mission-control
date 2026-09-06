@@ -1420,7 +1420,7 @@ function TaskDetailModal({
           </div>
           <span>{new Date(comment.created_at * 1000).toLocaleString()}</span>
         </div>
-        <div className="text-sm text-foreground/90 mt-1 prose prose-invert prose-sm max-w-none"><MarkdownRenderer content={text} /></div>
+        <div className="text-sm text-foreground/90 mt-1 prose prose-invert prose-sm max-w-none"><MarkdownRenderer content={text} linkifyFilePaths /></div>
         {comment.replies && comment.replies.length > 0 && (
           <div className="mt-3 space-y-3">
             {comment.replies.map(reply => renderComment(reply, depth + 1))}

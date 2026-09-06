@@ -139,6 +139,7 @@ export function MemoryBrowserPanel() {
   const [mocGroups, setMocGroups] = useState<MOCGroup[]>([])
   const [isRunningPipeline, setIsRunningPipeline] = useState(false)
   const [isHydratingTree, setIsHydratingTree] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const memoryFilesRef = useRef(memoryFiles)
 
   useEffect(() => {
@@ -193,6 +194,7 @@ export function MemoryBrowserPanel() {
 
   const loadFileContent = async (filePath: string) => {
     setIsLoading(true)
+    setLoadError(null)
     try {
       const data = await apiFetch<{ content?: string; wikiLinks?: unknown[] }>(`/api/memory?action=content&path=${encodeURIComponent(filePath)}`)
       if (data.content !== undefined) {
@@ -223,10 +225,21 @@ export function MemoryBrowserPanel() {
       }
     } catch (error) {
       log.error('Failed to load file content:', error)
+      setLoadError(filePath)
     } finally {
       setIsLoading(false)
     }
   }
+
+  // Deep-link support: `/memory?path=<relative-path>` opens a file directly.
+  const deepLinkHandled = useRef(false)
+  useEffect(() => {
+    if (deepLinkHandled.current || typeof window === 'undefined') return
+    deepLinkHandled.current = true
+    const path = new URLSearchParams(window.location.search).get('path')
+    if (path) void loadFileContent(path)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const searchFiles = async () => {
     if (!searchQuery.trim()) return
@@ -618,7 +631,7 @@ export function MemoryBrowserPanel() {
                           <button onClick={() => { setIsEditing(false); setEditedContent('') }} className="px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">{t('cancel')}</button>
                         </>
                       )}
-                      <button onClick={() => { setSelectedMemoryFile(''); setMemoryContent(''); setMemoryFileLinks(null); setIsEditing(false); setEditedContent(''); setSchemaWarnings([]); setLinksOpen(false) }} className="px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground/40 hover:text-muted-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">x</button>
+                      <button onClick={() => { setSelectedMemoryFile(''); setMemoryContent(''); setMemoryFileLinks(null); setIsEditing(false); setEditedContent(''); setSchemaWarnings([]); setLinksOpen(false); setLoadError(null) }} className="px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground/40 hover:text-muted-foreground rounded hover:bg-[hsl(var(--surface-2))] transition-colors">x</button>
                     </div>
                   </div>
                 )}
@@ -646,6 +659,11 @@ export function MemoryBrowserPanel() {
                       ) : (
                         <pre className="text-sm font-mono whitespace-pre-wrap wrap-break-word text-foreground/80 leading-relaxed">{memoryContent}</pre>
                       )}
+                    </div>
+                  ) : loadError ? (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground/50">
+                      <span className="text-sm font-mono">{t('loadFileError')}</span>
+                      <span className="text-xs font-mono mt-1 text-muted-foreground/40">{loadError}</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground/30">

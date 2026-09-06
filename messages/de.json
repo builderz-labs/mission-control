@@ -1570,6 +1570,7 @@
     "saving": "Speichern...",
     "cancel": "Abbrechen",
     "selectFilePrompt": "Datei zum Anzeigen auswählen",
+    "loadFileError": "Datei konnte nicht geöffnet werden",
     "orSwitchView": "oder zur Gesundheits-/Pipeline-Ansicht wechseln",
     "schemaWarnings": "Schema-Warnungen:",
     "editPlaceholder": "Dateiinhalt bearbeiten...",

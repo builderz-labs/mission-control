@@ -1570,6 +1570,7 @@
     "saving": "저장 중...",
     "cancel": "취소",
     "selectFilePrompt": "보려면 파일을 선택하세요",
+    "loadFileError": "파일을 열 수 없습니다",
     "orSwitchView": "또는 상태/파이프라인 뷰로 전환",
     "schemaWarnings": "스키마 경고:",
     "editPlaceholder": "파일 내용 편집...",
