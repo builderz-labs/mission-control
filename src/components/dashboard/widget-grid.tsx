@@ -9,6 +9,7 @@ import type { DashboardData } from './widget-primitives'
 import { MetricCardsWidget } from './widgets/metric-cards-widget'
 import { RuntimeHealthWidget } from './widgets/runtime-health-widget'
 import { GatewayHealthWidget } from './widgets/gateway-health-widget'
+import { SessionTerminalWidget } from './widgets/session-terminal-widget'
 import { SessionWorkbenchWidget } from './widgets/session-workbench-widget'
 import { EventStreamWidget } from './widgets/event-stream-widget'
 import { TaskFlowWidget } from './widgets/task-flow-widget'
@@ -31,6 +32,7 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<{ data: DashboardDat
   'metric-cards': MetricCardsWidget,
   'runtime-health': RuntimeHealthWidget,
   'gateway-health': GatewayHealthWidget,
+  'session-terminal': SessionTerminalWidget,
   'session-workbench': SessionWorkbenchWidget,
   'event-stream': EventStreamWidget,
   'task-flow': TaskFlowWidget,
