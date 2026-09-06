@@ -16,6 +16,7 @@ import { APP_VERSION } from '@/lib/version'
 import { isHermesInstalled, scanHermesSessions } from '@/lib/hermes-sessions'
 import { registerMcAsDashboard } from '@/lib/gateway-runtime'
 import { getWorkspaceIsolation } from '@/lib/workspace-isolation'
+import { getDiskHealth } from '@/lib/disk-health'
 
 export async function GET(request: NextRequest) {
   // Docker/Kubernetes health probes must work without auth/cookies.
@@ -565,22 +566,15 @@ async function performHealthCheck() {
     })
   }
 
-  // Check disk space (cross-platform: use df -h / and parse capacity column)
+  // Check the volume that actually holds Mission Control data.
   try {
-    const { stdout } = await runCommand('df', ['-h', '/'], {
-      timeoutMs: 3000
-    })
-    const lines = stdout.trim().split('\n')
-    const last = lines[lines.length - 1] || ''
-    const parts = last.split(/\s+/)
-    // On macOS capacity is col 4 ("85%"), on Linux use% is col 4 as well
-    const pctField = parts.find(p => p.endsWith('%')) || '0%'
-    const usagePercent = parseInt(pctField.replace('%', '') || '0')
+    const { usedPercent: usagePercent, availableBytes } = await getDiskHealth(path.dirname(config.dbPath))
 
     health.checks.push({
       name: 'Disk Space',
       status: usagePercent < 90 ? 'healthy' : usagePercent < 95 ? 'warning' : 'critical',
-      message: `Disk usage: ${usagePercent}%`
+      message: `Data volume usage: ${usagePercent}%`,
+      detail: { usedPercent: usagePercent, availableBytes }
     })
   } catch (error) {
     health.checks.push({

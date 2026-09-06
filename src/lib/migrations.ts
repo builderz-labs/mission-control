@@ -3,6 +3,8 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import type Database from 'better-sqlite3'
 import { renameClaudeFleetAgentRows } from './claude-fleet-rename'
+import { flyAdmissionMigration } from './fly-admission-migration'
+import { flyRepairMigration } from './fly-repair-migration'
 
 export type Migration = {
   id: string
@@ -1585,6 +1587,74 @@ const migrations: Migration[] = [
     up(db: Database.Database) {
       renameClaudeFleetAgentRows(db)
     }
+  },
+  {
+    // Ephemeral Fly Machines are represented independently from tasks so their
+    // lifecycle, measured cost, and heartbeats remain auditable after cleanup.
+    id: '059_fly_worker_jobs',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS fly_worker_jobs (
+          id TEXT PRIMARY KEY,
+          task_id INTEGER NOT NULL UNIQUE,
+          workspace_id INTEGER NOT NULL,
+          state TEXT NOT NULL,
+          worker_class TEXT NOT NULL,
+          execution_target TEXT NOT NULL,
+          machine_id TEXT,
+          image_kind TEXT NOT NULL,
+          branch_name TEXT NOT NULL,
+          repository TEXT NOT NULL,
+          worktree_path TEXT,
+          token_hash TEXT NOT NULL,
+          estimated_cost_usd REAL NOT NULL DEFAULT 0,
+          observed_cost_usd REAL NOT NULL DEFAULT 0,
+          runtime_seconds INTEGER NOT NULL DEFAULT 0,
+          cpu_percent REAL,
+          memory_bytes INTEGER,
+          swap_bytes INTEGER,
+          error_message TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          started_at INTEGER,
+          heartbeat_at INTEGER,
+          completed_at INTEGER,
+          expires_at INTEGER NOT NULL,
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_fly_worker_jobs_workspace_state
+          ON fly_worker_jobs(workspace_id, state, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_fly_worker_jobs_expiry
+          ON fly_worker_jobs(state, expires_at);
+      `)
+    }
+  },
+  {
+    // A task may safely retry on a new disposable Machine after a failure.
+    // Migration 059 incorrectly made task_id unique, which prevented that.
+    id: '060_fly_worker_retry_attempts',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE fly_worker_jobs_rebuilt (
+          id TEXT PRIMARY KEY, task_id INTEGER NOT NULL, workspace_id INTEGER NOT NULL,
+          state TEXT NOT NULL, worker_class TEXT NOT NULL, execution_target TEXT NOT NULL,
+          machine_id TEXT, image_kind TEXT NOT NULL, branch_name TEXT NOT NULL,
+          repository TEXT NOT NULL, worktree_path TEXT, token_hash TEXT NOT NULL,
+          estimated_cost_usd REAL NOT NULL DEFAULT 0, observed_cost_usd REAL NOT NULL DEFAULT 0,
+          runtime_seconds INTEGER NOT NULL DEFAULT 0, cpu_percent REAL, memory_bytes INTEGER,
+          swap_bytes INTEGER, error_message TEXT, created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          started_at INTEGER, heartbeat_at INTEGER, completed_at INTEGER, expires_at INTEGER NOT NULL,
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+        INSERT INTO fly_worker_jobs_rebuilt SELECT * FROM fly_worker_jobs;
+        DROP TABLE fly_worker_jobs;
+        ALTER TABLE fly_worker_jobs_rebuilt RENAME TO fly_worker_jobs;
+        CREATE INDEX idx_fly_worker_jobs_workspace_state
+          ON fly_worker_jobs(workspace_id, state, created_at DESC);
+        CREATE INDEX idx_fly_worker_jobs_expiry ON fly_worker_jobs(state, expires_at);
+      `)
+    }
   }
 ]
 
@@ -1600,7 +1670,7 @@ export function runMigrations(db: Database.Database) {
     db.prepare('SELECT id FROM schema_migrations').all().map((row: any) => row.id)
   )
 
-  for (const migration of [...migrations, ...extraMigrations]) {
+  for (const migration of [...migrations, flyAdmissionMigration, flyRepairMigration, ...extraMigrations]) {
     if (applied.has(migration.id)) continue
     const restoreForeignKeys = migration.foreignKeysOff
       && db.pragma('foreign_keys', { simple: true }) === 1

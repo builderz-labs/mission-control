@@ -260,7 +260,7 @@ export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ 
     }
 
     const dbRows = db.prepare(
-      `SELECT id, name, role, soul_content, status, source, content_hash, workspace_path, config FROM agents WHERE workspace_id = ?`
+      `SELECT id, name, role, soul_content, status, source, content_hash, workspace_path, config FROM agents WHERE source = 'local' AND workspace_id = ?`
     ).all(workspaceId) as AgentRow[]
 
     const dbMap = new Map<string, AgentRow>()

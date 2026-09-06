@@ -674,7 +674,7 @@ export function TasksTab({ agent }: { agent: Agent }) {
     }
 
     fetchTasks()
-  }, [agent.name])
+  }, [agent.id, agent.name])
 
   if (loading) {
     return (
@@ -773,7 +773,7 @@ export function ActivityTab({ agent }: { agent: Agent }) {
     }
 
     fetchActivities()
-  }, [agent.name])
+  }, [agent.id, agent.name])
 
   if (loading) {
     return (
@@ -2695,7 +2695,7 @@ export function CronTab({ agent }: { agent: Agent }) {
   const [error, setError] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
 
-  const loadCron = async () => {
+  const loadCron = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -2713,9 +2713,9 @@ export function CronTab({ agent }: { agent: Agent }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [agent.id])
 
-  useEffect(() => { loadCron() }, [])
+  useEffect(() => { void loadCron() }, [loadCron])
 
   const agentName = agent.name.toLowerCase().replace(/\s+/g, '-')
   const agentJobs = showAll

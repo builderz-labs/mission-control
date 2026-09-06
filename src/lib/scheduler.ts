@@ -16,6 +16,8 @@ import { spawnRecurringTasks } from './recurring-tasks'
 import { resolveSharedRuntimeWorkspaceId } from './workspace-isolation'
 import { evaluateAllRules } from './alert-evaluate'
 import { runMacCleanupWatch } from './mac-cleanup/watch'
+import { reconcileFlyWorkers } from './fly-reconciler'
+import { startFlyReconcileLoop } from './fly-scheduler'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -185,7 +187,7 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
 
     // Find agents that are not offline but haven't been seen recently
     const staleAgents = db.prepare(`
-      SELECT id, name, status, last_seen, workspace_id, runtime_type FROM agents
+       SELECT id, name, status, last_seen, workspace_id, runtime_type FROM agents
       WHERE status != 'offline' AND (last_seen IS NULL OR last_seen < ?)
     `).all(threshold) as Array<{ id: number; name: string; status: string; last_seen: number | null; workspace_id: number; runtime_type: string | null }>
 
@@ -307,7 +309,8 @@ async function syncAgentLiveStatuses(requestedWorkspaceId?: number): Promise<num
 
 const DAILY_MS = 24 * 60 * 60 * 1000
 const FIVE_MINUTES_MS = 5 * 60 * 1000
-const TICK_MS = 60 * 1000 // Check every minute
+const TICK_MS = 60 * 1000 // Preserve the normal scan/dispatch/cleanup cadence.
+const FLY_TICK_MS = 15 * 1000
 
 /** Initialize the scheduler */
 export function initScheduler() {
@@ -454,8 +457,19 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('fly_worker_reconcile', {
+    name: 'Fly Worker Reconcile',
+    intervalMs: FLY_TICK_MS,
+    lastRun: null,
+    nextRun: now + FLY_TICK_MS,
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
+  const flyTask = tasks.get('fly_worker_reconcile')
+  if (flyTask) startFlyReconcileLoop(flyTask, () => reconcileFlyWorkers(getDatabase(), undefined, isSettingEnabled('fly.enabled', true)))
   logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook/claude/skill/local-agent/gateway-agent sync every 60s')
 }
 
@@ -475,6 +489,7 @@ async function tick() {
   const now = Date.now()
 
   for (const [id, task] of tasks) {
+    if (id === 'fly_worker_reconcile') continue // Its independent loop also drains while admission is disabled.
     if (task.running || now < task.nextRun) continue
 
     // Check if this task is enabled in settings (heartbeat is always enabled)
@@ -491,8 +506,9 @@ async function tick() {
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
       : id === 'alert_evaluate' ? 'general.alert_evaluate'
       : id === 'mac_cleanup_watch' ? 'general.mac_cleanup_watch'
+      : id === 'fly_worker_reconcile' ? 'fly.enabled'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'alert_evaluate' || id === 'mac_cleanup_watch'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'alert_evaluate' || id === 'mac_cleanup_watch' || id === 'fly_worker_reconcile'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -523,6 +539,7 @@ async function tick() {
             return { ok: true, message: `Alerts: ${result.triggered}/${result.evaluated} triggered, seeded ${result.seeded}` }
           })()
         : id === 'mac_cleanup_watch' ? await runMacCleanupWatch()
+        : id === 'fly_worker_reconcile' ? await reconcileFlyWorkers(getDatabase())
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -561,8 +578,9 @@ export function getSchedulerStatus() {
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
       : id === 'alert_evaluate' ? 'general.alert_evaluate'
       : id === 'mac_cleanup_watch' ? 'general.mac_cleanup_watch'
+      : id === 'fly_worker_reconcile' ? 'fly.enabled'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'alert_evaluate' || id === 'mac_cleanup_watch'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'alert_evaluate' || id === 'mac_cleanup_watch' || id === 'fly_worker_reconcile'
     result.push({
       id,
       name: task.name,
@@ -597,6 +615,7 @@ export async function triggerTask(taskId: string, workspaceId?: number): Promise
     return { ok: true, message: `Alerts: ${result.triggered}/${result.evaluated} triggered, seeded ${result.seeded}` }
   }
   if (taskId === 'mac_cleanup_watch') return runMacCleanupWatch()
+  if (taskId === 'fly_worker_reconcile') return reconcileFlyWorkers(getDatabase(), undefined, isSettingEnabled('fly.enabled', true))
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 

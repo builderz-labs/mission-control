@@ -62,7 +62,14 @@ export function parseAdaptiveHandoff(stdout: string): Pick<AdaptiveHandoffPin, '
   const window = parsed.handoff?.window
   const env = parsed.launch?.to?.env
   const argv = parsed.launch?.to?.argv
-  if (!parsed.ok || !Number.isInteger(window) || !env || !Array.isArray(argv) || argv.some((item) => typeof item !== 'string')) {
+  if (
+    !parsed.ok
+    || typeof window !== 'number'
+    || !Number.isInteger(window)
+    || !env
+    || !Array.isArray(argv)
+    || argv.some((item) => typeof item !== 'string')
+  ) {
     throw new Error('adaptive_context_failed: handoff output was incomplete')
   }
   return { window, env, argv: argv as string[], compactRequired: parsed.handoff?.compactRequired === true }

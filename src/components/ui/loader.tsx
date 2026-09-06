@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useTranslations } from 'next-intl'
+import Image from 'next/image'
 import { APP_VERSION } from '@/lib/version'
 
 interface InitStep {
@@ -115,7 +116,7 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
               {LOADER_AGENTS.map((agent) => (
                 <div key={agent.key} className={agent.wrapperClass}>
                   <div className="relative">
-                    <img
+                    <Image
                       src={agent.src}
                       alt={agent.name}
                       width={36}
@@ -135,7 +136,7 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
           {/* Phase 2: MC mark emerges (fades in at 2.0s) */}
           <div className="absolute inset-0 flex items-center justify-center opacity-0 animate-mc-fade-in">
             <div className="animate-float" style={{ animationDelay: '2.7s' }}>
-              <img
+              <Image
                 src="/brand/mc-logo-128.png"
                 alt="Mission Control"
                 width={56}

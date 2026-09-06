@@ -22,7 +22,10 @@ function envFlag(name: string): boolean {
 }
 
 function normalizeHostname(raw: string): string {
-  return raw.trim().replace(/^\[|\]$/g, '').split(':')[0].replace(/\.$/, '').toLowerCase()
+  const value = raw.trim().toLowerCase()
+  if (value.startsWith('[')) return value.slice(1, value.indexOf(']'))
+  if ((value.match(/:/g) || []).length > 1) return value
+  return value.split(':')[0].replace(/\.$/, '')
 }
 
 function parseForwardedHost(forwarded: string | null): string[] {
@@ -156,6 +159,10 @@ function extractApiKeyFromRequest(request: NextRequest): string {
 }
 
 export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const isPublicHealthProbe = pathname === '/api/status' && request.nextUrl.searchParams.get('action') === 'health'
+  const isPublicHealthRoute = pathname === '/api/health' || pathname === '/health'
+
   // Network access control.
   // In production: default-deny unless explicitly allowed.
   // In dev/test: allow all hosts unless overridden.
@@ -182,8 +189,6 @@ export function proxy(request: NextRequest) {
     return addSecurityHeaders(new NextResponse('Forbidden', { status: 403 }), request)
   }
 
-  const { pathname } = request.nextUrl
-
   // CSRF Origin validation for mutating requests
   const method = request.method.toUpperCase()
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
@@ -198,9 +203,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Allow login, setup, auth API, docs, and container health probes without session
-  const isPublicHealthProbe = pathname === '/api/status' && request.nextUrl.searchParams.get('action') === 'health'
   // Exact-match only (no prefix/wildcard) so this exempts just the two health routes.
-  const isPublicHealthRoute = pathname === '/api/health' || pathname === '/health'
   if (pathname === '/login' || pathname === '/setup' || pathname.startsWith('/api/auth/') || pathname === '/api/setup' || pathname === '/api/docs' || pathname === '/docs' || isPublicHealthProbe || isPublicHealthRoute) {
     const { response, nonce } = nextResponseWithNonce(request)
     return addSecurityHeaders(response, request, nonce)
@@ -208,6 +211,12 @@ export function proxy(request: NextRequest) {
 
   // Check for session cookie
   const sessionToken = request.cookies.get(MC_SESSION_COOKIE_NAME)?.value || request.cookies.get(LEGACY_MC_SESSION_COOKIE_NAME)?.value
+
+  // Legacy callbacks carry a job-scoped token; their route validates it.
+  if (/^\/api\/fly\/jobs\/[a-zA-Z0-9_-]{12,96}$/.test(pathname) && ['GET','POST'].includes(method)) {
+    const { response, nonce } = nextResponseWithNonce(request)
+    return addSecurityHeaders(response, request, nonce)
+  }
 
   // API routes: accept session cookie OR API key
   if (pathname.startsWith('/api/')) {

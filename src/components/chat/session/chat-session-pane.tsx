@@ -10,6 +10,7 @@ import { SessionHeader } from './session-header'
 import { SessionPrChip } from './session-pr-chip'
 import { SessionStatusBar } from './session-status-bar'
 import { SessionThread } from './session-thread'
+import { FlySessionStatus } from './fly-session-status'
 import type { SessionTranscriptMessage } from '../session-message'
 
 export function ChatSessionPane({
@@ -45,6 +46,7 @@ export function ChatSessionPane({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <SessionHeader title={title} project={project} kind={session.sessionKind} />
+      <FlySessionStatus sessionId={session.sessionId} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading && messages.length === 0 && <p className="px-8 pt-6 text-[13px] text-[var(--chat-muted)]">Loading…</p>}
         {error && <p className="px-8 pt-6 text-[13px] text-red-400">{error}</p>}

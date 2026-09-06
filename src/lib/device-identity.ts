@@ -333,6 +333,7 @@ export function cacheDeviceToken(value: string): void {
  */
 export function clearDeviceIdentity(): void {
   ephemeralIdentity = null
+  if (typeof localStorage === 'undefined') return
   localStorage.removeItem(STORAGE_DEVICE_ID)
   localStorage.removeItem(STORAGE_PUBKEY)
   localStorage.removeItem(STORAGE_PRIVKEY_V1)

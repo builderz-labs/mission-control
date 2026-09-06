@@ -38,7 +38,7 @@ try {
     desktopTitle: body.includes('Franchise readiness agent handoff'),
     projectChip: body.includes('stillpoint-builders'),
     handoff: /Handoff/i.test(body),
-    picker: body.includes('Claude') && body.includes('Codex') && body.includes('Grok') && body.includes('Kimi'),
+    picker: body.includes('Claude 1') && body.includes('Claude 2') && body.includes('Codex') && body.includes('Grok') && body.includes('Kimi'),
     engineIdFallback: body.includes('Claude e4deed8c-857'),
   }
   await page.screenshot({ path: out, fullPage: false })

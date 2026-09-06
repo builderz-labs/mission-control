@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { POST } from '@/app/api/sessions/handoff/route'
 
 const mocks = vi.hoisted(() => ({
-  runCommand: vi.fn(async () => ({ stdout: 'ok', stderr: '', code: 0 })),
+  runCommand: vi.fn<(...args: unknown[]) => Promise<{ stdout: string; stderr: string; code: number }>>(),
   requireRole: vi.fn(() => ({ user: { role: 'operator', username: 'tester' } })),
   deny: vi.fn(() => null as unknown),
   pin: vi.fn(async (input: { from: string; to: string }) => ({

@@ -38,7 +38,7 @@ describe('scheduler workspace isolation', () => {
     const end = scheduler.indexOf('/** Sync live agent statuses')
     const heartbeat = scheduler.slice(start, end)
 
-    expect(heartbeat).toContain('SELECT id, name, status, last_seen, workspace_id FROM agents')
+    expect(heartbeat).toContain('SELECT id, name, status, last_seen, workspace_id, runtime_type FROM agents')
     expect(heartbeat).toContain('WHERE id = ? AND workspace_id = ?')
     expect(heartbeat).toContain('description, workspace_id)')
     expect(heartbeat).toContain('source_id, workspace_id)')

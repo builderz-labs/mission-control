@@ -44,4 +44,13 @@ export MISSION_CONTROL_DATA_DIR="${MISSION_CONTROL_DATA_DIR:-$PROJECT_ROOT/.data
 # Next.js standalone server reads HOSTNAME to decide bind address.
 # Default to 0.0.0.0 so the server is accessible from outside the host.
 export HOSTNAME="${HOSTNAME:-0.0.0.0}"
+# Load Doppler last so approved values override local dotenv defaults.
+# Keep disabled until the launchd identity passes a no-fallback preflight.
+if [[ "${MC_USE_DOPPLER:-0}" == "1" ]]; then
+  if ! command -v doppler >/dev/null 2>&1; then
+    echo "error: Doppler CLI is required when MC_USE_DOPPLER=1" >&2
+    exit 1
+  fi
+  exec doppler run --project mission-control --config prd --no-fallback -- node server.js
+fi
 exec node server.js
