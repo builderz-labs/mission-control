@@ -168,22 +168,47 @@ The four affected rows are all in terminal states and were left in place as
 evidence; the reconciler already falls back to the client's app for a NULL
 `worker_app`, so they are still observable and cleanable.
 
-**`launchctl kickstart -k` orphans the running server every time.** This was
-observed on both redeploys in this session, and the cause is structural: the
+**`launchctl kickstart -k` can orphan the running server.** It was observed on
+both manual redeploys earlier in this session, and the cause is structural: the
 launchd job runs `doppler run ... -- node server.js`, and `doppler run` spawns
-node as a child rather than exec'ing it. Kickstart replaces the job's main
-process (doppler) and the node server survives, reparented to PID 1, still
-holding the database. Every redeploy therefore needs an explicit check and kill:
+node as a child rather than exec'ing it, so kickstart replaces the job's main
+process (doppler) while the node server survives, reparented to PID 1, still
+holding the port and the database.
+
+Two fixes now sit in front of that, in the order they run:
+
+1. **`~/.agents/scripts/mission-control-start.sh`** (the launchd entry point per
+   `ProgramArguments`; it lives outside this repository and therefore cannot be
+   committed here — backup at `mission-control-start.sh.bak-20260906`). Its
+   startup path previously held an *unbounded* `while port_bound; do sleep 5; done`,
+   which would have deadlocked the restart forever against exactly the orphan
+   described above. It now waits up to 15 s for an orderly exit, then calls
+   `reap_port_holder()` — SIGTERM, then SIGKILL after 10 s — against any listener
+   on `$PORT` whose cwd is `${CANON}/.next/standalone`, waits another 20 s, and
+   only supervises indefinitely if a *foreign* process still holds the port.
+2. **`scripts/start-standalone.sh`** (`reap_previous_controller`) applies the same
+   cwd-scoped rule to processes holding the SQLite file, catching an orphan that
+   has already lost the port.
+
+Both match on the standalone cwd, so neither can kill an unrelated process.
+
+**Measured on the 2026-09-06 20:02:57 restart:** the outgoing controller (pid
+43556) received the signal, closed its database at 20:02:47 and exited inside the
+15 s orderly window, so the new controller (pid 47662) started 11 s later with no
+`PPID 1` survivor and a single listener on port 3000. The reaper therefore did
+*not* need to fire on this restart: the bounded-wait change is proven in
+production, the kill path is proven only by `bash -n` and by the cwd-matching
+logic itself. Treat the kill path as untested until a restart actually orphans a
+process.
+
+The stale-controller guard is the third layer: an orphan that does survive now
+refuses Fly admission outright. It does not stop the orphan's other scheduler
+work, so the manual check below still belongs in any redeploy runbook.
 
 ```sh
 ps -ax -o pid,ppid,lstart,command | grep "[n]ext-server"   # any PPID 1 is an orphan
 kill -TERM <pid>                                            # SIGKILL if it ignores TERM
 ```
-
-The stale-controller guard limits the damage — an orphan now refuses Fly
-admission — but it does not stop the orphan's other scheduler work, so the kill
-is still required. A durable fix belongs in the launchd job: have it kill the
-process group, or exec node directly rather than through a wrapper that forks.
 
 Before the cutover, and before trusting any canary, confirm exactly one
 controller process owns the database:
@@ -195,6 +220,22 @@ lsof -nP -iTCP:3000 -sTCP:LISTEN
 
 Any `next-server` whose PID is not a child of the launchd-supervised
 `doppler run` wrapper is an orphan and must be terminated before deploying.
+
+## Post-redeploy validation (2026-09-06 20:09)
+
+Task 61, a checkout-only smoke at `c761d1a`, was admitted by the redeployed
+controller, launched Machine `80d212b66d4d58`, succeeded in 53 s and was
+destroyed at 20:09:41 for $0.00127. `worker_app` was recorded as
+`mission-control-workers-tyler`, as it was for tasks 58-60. `mc_fly_status` now
+returns `worker_network`, `launch_regions` and the fair-share rule, which is
+proof the new code is the code serving requests.
+
+It was sized `core-performance` even though it peaked at 54% CPU and 201 MiB.
+That is the known sizing defect: `peak_cpu_percent` is stored unnormalised by
+vCPU count, so task 49's 99.38% on a 1-vCPU machine pins the whole smoke profile
+to the largest core class. Tracked separately; it over-spends but does not
+under-provision, and task 55's exit 137 shows under-provisioning is the harmful
+direction.
 
 ## Boundaries
 
