@@ -71,6 +71,12 @@ reap_previous_controller
 # Next.js standalone server reads HOSTNAME to decide bind address.
 # Default to 0.0.0.0 so the server is accessible from outside the host.
 export HOSTNAME="${HOSTNAME:-0.0.0.0}"
+# Next.js overwrites argv[0] with `next-server (vX.Y.Z)`. A bare `node server.js`
+# argv is shorter than that title, so the write runs past the end of the argv
+# region and `ps` keeps reading into the adjacent environment block, printing
+# API_KEY and every other secret to any local user. Reserving a longer argv[0]
+# keeps the title inside its own region. Must stay longer than the Next title.
+export MC_PROCESS_NAME="mission-control-standalone-server"
 # Load Doppler last so approved values override local dotenv defaults.
 # Keep disabled until the launchd identity passes a no-fallback preflight.
 if [[ "${MC_USE_DOPPLER:-0}" == "1" ]]; then
@@ -78,6 +84,7 @@ if [[ "${MC_USE_DOPPLER:-0}" == "1" ]]; then
     echo "error: Doppler CLI is required when MC_USE_DOPPLER=1" >&2
     exit 1
   fi
-  exec doppler run --project mission-control --config prd --no-fallback -- node server.js
+  exec doppler run --project mission-control --config prd --no-fallback -- \
+    bash -c 'exec -a "${MC_PROCESS_NAME}" node server.js'
 fi
-exec node server.js
+exec -a "${MC_PROCESS_NAME}" node server.js
