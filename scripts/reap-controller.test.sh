@@ -74,4 +74,42 @@ kill -0 "$BYSTANDER" 2>/dev/null || fail "the reaper signalled an unrelated proc
   " ) > "$TMP_DIR/self.out" 2>/dev/null || fail 'the reaper killed its own shell or an ancestor'
 [[ "$(cat "$TMP_DIR/self.out")" == "alive" ]] || fail 'the reaper did not survive its own sweep'
 
-echo "reap-controller: a prior controller is reaped by working directory, bystanders and ancestors are not"
+
+# A redeploy rebuilds $STANDALONE_DIR before the new server starts, which replaces
+# the directory. The prior controller's cwd then refers to the old, unlinked inode:
+# it still reports the same path, but `lsof <dir>` matches by inode and no longer
+# finds it. This was observed in production — the reaper ran, saw nothing, and left
+# a second scheduler polling the same durable queue. The database handle is what
+# still gives the process away.
+DATA_DIR="$TMP_DIR/data"
+REBUILT_DIR="$TMP_DIR/rebuilt"
+mkdir -p "$DATA_DIR" "$REBUILT_DIR"
+: > "$DATA_DIR/mission-control.db"
+cat > "$REBUILT_DIR/server.js" <<'EOF'
+const fs = require('fs')
+fs.openSync(process.env.MC_TEST_DB, 'r')   // hold the database open, as a controller does
+process.on('SIGTERM', () => {})            // hung shutdown, as observed in production
+setTimeout(() => {}, 60000)
+EOF
+REBUILT_STALE="$( cd "$REBUILT_DIR" && MC_TEST_DB="$DATA_DIR/mission-control.db" \
+  bash -c 'node server.js >/dev/null 2>&1 & echo $!' )"
+PIDS+=("$REBUILT_STALE")
+sleep 1
+kill -0 "$REBUILT_STALE" 2>/dev/null || fail 'the rebuilt-directory stand-in did not start'
+
+# Replace the directory exactly as a build does, then assert the regression
+# condition actually holds: a path-based cwd lookup must no longer see it.
+rm -rf "$REBUILT_DIR"
+mkdir -p "$REBUILT_DIR"
+if lsof -t -a -d cwd -c node -- "$REBUILT_DIR" 2>/dev/null | grep -qx "$REBUILT_STALE"; then
+  fail 'fixture is wrong: the stand-in is still reachable by directory path after the rebuild'
+fi
+
+( STANDALONE_DIR="$REBUILT_DIR" MISSION_CONTROL_DATA_DIR="$DATA_DIR" \
+    reap_previous_controller 2>"$TMP_DIR/reap2.err"
+  : > "$TMP_DIR/reap2.done" ) || true
+[[ -f "$TMP_DIR/reap2.done" ]] || fail "the reaper aborted: $(cat "$TMP_DIR/reap2.err" 2>/dev/null)"
+
+kill -0 "$REBUILT_STALE" 2>/dev/null && fail "a prior controller survived the reaper after the standalone directory was replaced (pid $REBUILT_STALE)"
+
+echo "reap-controller: a prior controller is reaped by working directory or database handle, across a rebuild, and bystanders and ancestors are not"
