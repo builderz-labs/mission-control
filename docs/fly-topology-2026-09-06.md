@@ -109,8 +109,15 @@ Before applying it:
    already holds an `Org deploy token`; either reuse it or mint a fresh one:
 
    ```sh
-   fly tokens create org --name mission-control-worker-scheduler-org --expiry 720h
+   fly tokens create org --name mission-control-worker-scheduler-org --expiry 720h -o personal
    ```
+
+   **This has been done and measured.** A token minted by that exact command
+   returns **HTTP 200** for *both* `mission-control-workers-tyler` and
+   `mission-control-workers-iso-tyler`, so an org-scoped credential is confirmed
+   sufficient for the cutover. Storing it is the one step left: writing a
+   production secret is outside what an agent session may do here, so the value
+   must be put into Doppler by hand.
 
    Re-run the status-only check after storing it — expect `200` from **both** apps:
 
@@ -221,6 +228,15 @@ lsof -nP -iTCP:3000 -sTCP:LISTEN
 Any `next-server` whose PID is not a child of the launchd-supervised
 `doppler run` wrapper is an orphan and must be terminated before deploying.
 
+Running that `ps` is also how the controller's secrets were found to be readable.
+Next.js overwrites `argv[0]` with `next-server (vX.Y.Z)`, which is longer than a
+bare `node server.js` argv, so the write ran past the end of the argv region and
+`ps` kept reading into the adjacent environment block — printing `API_KEY` to any
+local user, with no flag required. `scripts/start-standalone.sh` now reserves a
+longer `argv[0]` through `exec -a`, on both the Doppler and bare launch paths, and
+`scripts/process-title.test.sh` races a short-argv control against the reserved
+name so a regression fails the shell suite rather than waiting to be noticed.
+
 ## Post-redeploy validation (2026-09-06 20:09)
 
 Task 61, a checkout-only smoke at `c761d1a`, was admitted by the redeployed
@@ -230,12 +246,19 @@ destroyed at 20:09:41 for $0.00127. `worker_app` was recorded as
 returns `worker_network`, `launch_regions` and the fair-share rule, which is
 proof the new code is the code serving requests.
 
-It was sized `core-performance` even though it peaked at 54% CPU and 201 MiB.
-That is the known sizing defect: `peak_cpu_percent` is stored unnormalised by
-vCPU count, so task 49's 99.38% on a 1-vCPU machine pins the whole smoke profile
-to the largest core class. Tracked separately; it over-spends but does not
-under-provision, and task 55's exit 137 shows under-provisioning is the harmful
-direction.
+It was sized `core-performance` at 54.18% CPU. That first read as over-provisioning
+against task 49's 99.38%, but it is not: `workers/metrics.mjs` already divides by
+`availableParallelism()`, so a sample is a share of its own whole Machine. Task 49
+saturated one vCPU; task 61 used 54% of two, or 1.08 vCPU. The upgrade was correct
+and the classes converged.
+
+The real defect was dimensional. A share of *its own* Machine was compared against
+fixed thresholds, so 50% of a four-vCPU worker (two vCPUs) read identically to 50%
+of one, and history from a large class mis-sized later jobs in both directions —
+under-provisioning at the top end, and never able to step back down. Samples now
+carry the vCPU count of the class they ran on, recovered from `image_kind` in the
+history query, and the percentile is taken over vCPUs used. Thresholds compare
+against each class's own `cpus` instead of magic numbers.
 
 ## Boundaries
 
