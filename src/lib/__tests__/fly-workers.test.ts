@@ -23,6 +23,27 @@ describe('Fly worker policy', () => {
     expect(recommendFlyWorkerSize({ requiresTesting: true }, []).size).toBe('core-performance')
   })
 
+  it('reads a CPU sample as a share of the machine that produced it, not as an absolute', () => {
+    const sample = (cpuPercent: number, cpus: number) => [{ cpuPercent, memoryMb: 200, runtimeSeconds: 60, costUsd: 0, cpus }]
+    // Half of a four-vCPU machine is two vCPUs and must not read the same as half of one vCPU.
+    expect(recommendFlyWorkerSize({ requiresBrowser: true }, sample(50, 4)).size).toBe('browser-large')
+    expect(recommendFlyWorkerSize({ requiresBrowser: true }, sample(50, 2)).size).toBe('browser-standard')
+    // An unknown class is treated as the smallest, so a bare percent keeps its old meaning.
+    expect(recommendFlyWorkerSize({}, [{ cpuPercent: 20, memoryMb: 200, runtimeSeconds: 60, costUsd: 0 }]).size).toBe('core-small')
+  })
+
+  it('reproduces the measured sizing decisions for the smoke profile', () => {
+    // Task 49 saturated its single vCPU, so the next job is correctly moved up a class.
+    const task49 = { cpuPercent: 99.38, memoryMb: 196, runtimeSeconds: 44, costUsd: 0.00018172, cpus: 1 }
+    expect(recommendFlyWorkerSize({}, [task49]).size).toBe('core-performance')
+    // Task 61 then used 1.08 vCPU of two, which must hold the class rather than oscillate back down.
+    const task61 = { cpuPercent: 54.18, memoryMb: 201, runtimeSeconds: 53, costUsd: 0.00126776, cpus: 2 }
+    expect(recommendFlyWorkerSize({}, [task49, task61]).size).toBe('core-performance')
+    // A job that never needed the larger class does step back down once its history says so.
+    const light = { cpuPercent: 30.16, memoryMb: 279, runtimeSeconds: 289, costUsd: 0.0006358, cpus: 2 }
+    expect(recommendFlyWorkerSize({}, [light]).size).toBe('core-standard')
+  })
+
 
 
 

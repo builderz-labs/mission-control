@@ -36,7 +36,16 @@ export interface FlyUsageSample {
   memoryMb: number
   runtimeSeconds: number
   costUsd: number
+  /**
+   * vCPUs of the Machine that produced the sample. `cpuPercent` is already a share of
+   * that whole Machine, so it only becomes comparable across classes once multiplied
+   * back into vCPUs. Defaults to one vCPU, the smallest class, when the class is unknown.
+   */
+  cpus?: number
 }
+
+/** Keep memory below the OOM limit and leave a vCPU spare for the next class up. */
+const HEADROOM = 1.25
 
 function finite(value: number | undefined, fallback = 0): number {
   return value !== undefined && Number.isFinite(value) ? Math.max(0, value) : fallback
@@ -49,16 +58,18 @@ function percentile(values: number[], ratio: number): number {
 }
 
 export function recommendFlyWorkerSize(profile: FlyJobProfile, history: FlyUsageSample[]): FlyMachineSpec {
-  const cpuP95 = percentile(history.map(sample => sample.cpuPercent), 0.95)
+  const vcpuP95 = percentile(history.map(sample => sample.cpuPercent / 100 * finite(sample.cpus, 1)), 0.95)
   const memoryP95 = percentile(history.map(sample => sample.memoryMb), 0.95)
-  const cpu = Math.max(cpuP95, finite(profile.estimatedCpuSeconds) > 600 ? 85 : 0)
-  const memory = Math.max(memoryP95, finite(profile.estimatedMemoryMb)) * 1.25 // Preserve headroom below the OOM limit.
+  // A job that runs CPU-bound for ten minutes needs a core to itself even without history.
+  const vcpu = Math.max(vcpuP95, finite(profile.estimatedCpuSeconds) > 600 ? 1 : 0) * HEADROOM
+  const memory = Math.max(memoryP95, finite(profile.estimatedMemoryMb)) * HEADROOM
 
   if (profile.requiresBrowser) {
-    return memory > 4096 || cpu > 85 ? FLY_WORKER_SPECS['browser-large'] : FLY_WORKER_SPECS['browser-standard']
+    return memory > 4096 || vcpu > FLY_WORKER_SPECS['browser-standard'].cpus
+      ? FLY_WORKER_SPECS['browser-large'] : FLY_WORKER_SPECS['browser-standard']
   }
-  if (memory > 2048 || cpu > 80 || profile.requiresTesting) return FLY_WORKER_SPECS['core-performance']
+  if (memory > 2048 || vcpu > FLY_WORKER_SPECS['core-standard'].cpus || profile.requiresTesting) return FLY_WORKER_SPECS['core-performance']
   // A dependency install measured a 596 MiB peak against a 1 GiB class; keep headroom.
-  if (memory > 1024 || cpu > 50 || profile.requiresDependencies) return FLY_WORKER_SPECS['core-standard']
+  if (memory > 1024 || vcpu > 0.5 || profile.requiresDependencies) return FLY_WORKER_SPECS['core-standard']
   return FLY_WORKER_SPECS['core-small']
 }
