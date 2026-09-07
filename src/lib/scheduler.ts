@@ -1,3 +1,4 @@
+import { FLY_RECONCILE_INTERVAL_MS } from './fly-capacity'
 import { getDatabase, logAuditEvent } from './db'
 import { syncAgentsFromConfig } from './agent-sync'
 import { config, ensureDirExists } from './config'
@@ -13,6 +14,8 @@ import { syncLocalAgents } from './local-agent-sync'
 import { dispatchAssignedTasks, runAegisReviews, requeueStaleTasks, autoRouteInboxTasks, reconcileDeferredTaskCompletions } from './task-dispatch'
 import { spawnRecurringTasks } from './recurring-tasks'
 import { resolveSharedRuntimeWorkspaceId } from './workspace-isolation'
+import { reconcileFlyWorkers } from './fly-reconciler'
+import { startFlyReconcileLoop } from './fly-scheduler'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -424,8 +427,19 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('fly_worker_reconcile', {
+    name: 'Fly Worker Reconcile',
+    intervalMs: FLY_RECONCILE_INTERVAL_MS,
+    lastRun: null,
+    nextRun: now + FLY_RECONCILE_INTERVAL_MS,
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
+  const flyTask = tasks.get('fly_worker_reconcile')
+  if (flyTask) startFlyReconcileLoop(flyTask, () => reconcileFlyWorkers(getDatabase(), undefined, isSettingEnabled('fly.enabled', true)))
   logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook/claude/skill/local-agent/gateway-agent sync every 60s')
 }
 
@@ -445,6 +459,7 @@ async function tick() {
   const now = Date.now()
 
   for (const [id, task] of tasks) {
+    if (id === 'fly_worker_reconcile') continue // Its independent loop also drains while admission is disabled.
     if (task.running || now < task.nextRun) continue
 
     // Check if this task is enabled in settings (heartbeat is always enabled)
@@ -459,8 +474,9 @@ async function tick() {
       : id === 'aegis_review' ? 'general.aegis_review'
       : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
+      : id === 'fly_worker_reconcile' ? 'fly.enabled'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'fly_worker_reconcile'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -485,6 +501,7 @@ async function tick() {
         : id === 'aegis_review' ? await runAegisReviews()
         : id === 'recurring_task_spawn' ? await spawnRecurringTasks()
         : id === 'stale_task_requeue' ? await requeueStaleTasks()
+        : id === 'fly_worker_reconcile' ? await reconcileFlyWorkers(getDatabase())
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -521,8 +538,9 @@ export function getSchedulerStatus() {
       : id === 'aegis_review' ? 'general.aegis_review'
       : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
+      : id === 'fly_worker_reconcile' ? 'fly.enabled'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'fly_worker_reconcile'
     result.push({
       id,
       name: task.name,
@@ -551,6 +569,7 @@ export async function triggerTask(taskId: string, workspaceId?: number): Promise
   if (taskId === 'aegis_review') return runAegisReviews()
   if (taskId === 'recurring_task_spawn') return spawnRecurringTasks()
   if (taskId === 'stale_task_requeue') return requeueStaleTasks()
+  if (taskId === 'fly_worker_reconcile') return reconcileFlyWorkers(getDatabase(), undefined, isSettingEnabled('fly.enabled', true))
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 
