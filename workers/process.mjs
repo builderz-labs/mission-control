@@ -25,7 +25,7 @@ export function createRunner(deadline, defaults = {}) {
       active.add(child)
       let output = ''; let diagnostic = ''; let timedOut = false
       const timer = setTimeout(() => { timedOut = true; terminate(child) }, timeout)
-      child.stdout.on('data', chunk => { output = (output + chunk.toString()).slice(-65_536); diagnostic = (diagnostic + chunk.toString()).slice(-8192) })
+      child.stdout.on('data', chunk => { const text = chunk.toString(); output = (output + text).slice(-65_536); diagnostic = (diagnostic + text).slice(-8192) })
       child.stderr.on('data', chunk => { diagnostic = (diagnostic + chunk.toString()).slice(-8192) })
       child.stdin.on('error', () => {})
       child.once('error', () => {
