@@ -22,7 +22,17 @@ function isAbort(err: unknown): boolean {
     || (err instanceof Error && (err.name === 'AbortError' || /aborted/i.test(err.message)))
 }
 
-export function useSessionTranscript(session: Conversation['session'] | undefined) {
+export interface TranscriptPollOptions {
+  /** Poll cadence for a live session. Grid panes back off so a wall of
+   *  terminals does not multiply the request rate by the number of cells. */
+  activeMs?: number
+  idleMs?: number
+}
+
+export function useSessionTranscript(
+  session: Conversation['session'] | undefined,
+  options: TranscriptPollOptions = {},
+) {
   const [messages, setMessages] = useState<SessionTranscriptMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +42,8 @@ export function useSessionTranscript(session: Conversation['session'] | undefine
   const sessionId = session?.sessionId
   const sessionKind = session?.sessionKind
   const active = !!session?.active
+  const activeMs = options.activeMs ?? ACTIVE_MS
+  const idleMs = options.idleMs ?? IDLE_MS
 
   const load = useCallback(async (
     current: NonNullable<Conversation['session']>,
@@ -72,7 +84,7 @@ export function useSessionTranscript(session: Conversation['session'] | undefine
       if (!current || document.visibilityState === 'hidden' || ac.signal.aborted) return
       void load(current, false, ac.signal)
     }
-    const id = window.setInterval(tick, active ? ACTIVE_MS : IDLE_MS)
+    const id = window.setInterval(tick, active ? activeMs : idleMs)
     const onVis = () => {
       if (document.visibilityState === 'visible') tick()
     }
@@ -82,7 +94,7 @@ export function useSessionTranscript(session: Conversation['session'] | undefine
       window.clearInterval(id)
       document.removeEventListener('visibilitychange', onVis)
     }
-  }, [sessionId, sessionKind, active, load])
+  }, [sessionId, sessionKind, active, activeMs, idleMs, load])
 
   const refresh = useCallback(() => {
     const current = sessionRef.current

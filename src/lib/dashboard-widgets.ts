@@ -3,10 +3,11 @@ import { WIDGET_CATALOG, type DashboardWidget } from './dashboard-widget-catalog
 export { WIDGET_CATALOG }
 export type { DashboardWidget }
 
+// The terminal wall already lists every live CLI session, so the older
+// session-workbench card would be a second surface for the same thing.
 export const LOCAL_DEFAULT_LAYOUT = [
   'briefing-bar',
   'session-terminal',
-  'session-workbench',
   'activity-timeline',
   'fleet-status',
   'task-pipeline',
@@ -17,7 +18,6 @@ export const LOCAL_DEFAULT_LAYOUT = [
 export const GATEWAY_DEFAULT_LAYOUT = [
   'briefing-bar',
   'session-terminal',
-  'session-workbench',
   'activity-timeline',
   'fleet-status',
   'task-pipeline',
@@ -43,6 +43,16 @@ const SUPERSEDED_DEFAULT_LAYOUTS = [
   ],
   [
     'briefing-bar',
+    'session-workbench',
+    'activity-timeline',
+    'fleet-status',
+    'task-pipeline',
+    'system-health',
+    'quick-actions',
+  ],
+  [
+    'briefing-bar',
+    'session-terminal',
     'session-workbench',
     'activity-timeline',
     'fleet-status',

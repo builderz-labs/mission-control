@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { TerminalView } from '@/components/terminal/terminal-view'
+import { useTailScroll } from '@/lib/use-tail-scroll'
 import type { Conversation } from '@/store'
 import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } from '../session-message'
 import { getSessionKindLabel, SessionKindAvatar } from '../session-kind-brand'
@@ -30,11 +31,8 @@ export function OverlaySessionView({
   const [viewMode, setViewMode] = useState<'terminal' | 'transcript'>('transcript')
   const [prompt, setPrompt] = useState('')
   const scrollRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const node = scrollRef.current
-    if (node) node.scrollTop = node.scrollHeight
-  }, [messages, loading])
+  // Opens on the newest message and keeps following until the reader scrolls up.
+  useTailScroll(scrollRef, { key: session.sessionId, count: messages.length })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -57,7 +55,7 @@ export function OverlaySessionView({
           <TerminalView sessionId={session.sessionId} sessionKind={session.sessionKind} mode="readonly" onError={() => setViewMode('transcript')} />
         </div>
       ) : (
-        <div ref={scrollRef} className="flex-1 overflow-y-auto py-2 font-mono-tight">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto py-2 font-mono-tight">
           {loading && <div className="px-4 text-xs text-muted-foreground/50">Loading transcript...</div>}
           {error && <div className="px-4 text-xs text-red-400">{error}</div>}
           {!loading && !error && messages.map((msg, idx) => (
