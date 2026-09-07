@@ -44,25 +44,48 @@ export MISSION_CONTROL_DATA_DIR="${MISSION_CONTROL_DATA_DIR:-$PROJECT_ROOT/.data
 # `launchctl kickstart -k` replaces the doppler wrapper but not the node server
 # doppler forked from it: that server survives, reparented to PID 1, and keeps
 # polling this database with the build it was started from. Two builds sharing
-# one durable queue mis-attribute rows, so reap a prior controller before
-# binding. Match on the standalone working directory to leave development
-# servers and database clients alone.
+# one durable queue mis-attribute rows, so reap a prior controller before binding.
+#
+# Select by working directory, not by who holds the port or the database. A
+# controller that is shutting down releases both while it is still alive, so a
+# reaper that samples either one can look at exactly the wrong instant, find
+# nothing, and let a process that then fails to exit come back to life against
+# the new build. This was observed in production: the port was already free and
+# the database handle already closed when both reapers ran, and the old server
+# reopened the database seconds later and ran a second scheduler. A working
+# directory is stable for the whole life of a process. Restrict it to node and
+# doppler so a shell someone left sitting in the directory is never signalled.
 reap_previous_controller() {
   command -v lsof >/dev/null 2>&1 || return 0
-  local db="$MISSION_CONTROL_DATA_DIR/mission-control.db"
-  [[ -f "$db" ]] || return 0
-  local pid cwd
-  for pid in $(lsof -t "$db" 2>/dev/null || true); do
-    [[ "$pid" == "$$" ]] && continue
-    cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1 || true)"
-    [[ "$cwd" == "$STANDALONE_DIR" ]] || continue
+  # Never signal ourselves or anything that started us.
+  local self ancestors=" $$ "
+  self="$(ps -o ppid= -p "$$" 2>/dev/null | tr -d ' ')"
+  while [[ -n "$self" && "$self" != 0 && "$self" != 1 ]]; do
+    ancestors+="$self "
+    self="$(ps -o ppid= -p "$self" 2>/dev/null | tr -d ' ')"
+  done
+  local pid
+  for pid in $(lsof -t -a -d cwd -c node -c doppler -- "$STANDALONE_DIR" 2>/dev/null || true); do
+    [[ "$ancestors" == *" $pid "* ]] && continue
     echo "reaping previous controller pid $pid" >&2
     kill -TERM "$pid" 2>/dev/null || true
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
+    # A hung controller has been measured ignoring SIGTERM for more than ten
+    # seconds, so give an orderly exit real time before forcing it.
+    for _ in $(seq 1 20); do
       kill -0 "$pid" 2>/dev/null || break
-      sleep 0.5
+      sleep 1
     done
-    kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -KILL "$pid" 2>/dev/null || true
+      # SIGKILL returns before the kernel has torn the process down, and the
+      # descriptors it is about to release are the port and the database this
+      # server is seconds away from taking. Returning here would hand the caller
+      # a directory that still has an owner, so wait for the pid to actually go.
+      for _ in $(seq 1 50); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.1
+      done
+    fi
   done
 }
 
