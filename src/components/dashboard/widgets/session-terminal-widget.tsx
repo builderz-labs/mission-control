@@ -1,18 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { EngineLogoForText } from '@/components/brand/engine-logo'
+import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { useSessionTranscript } from '@/components/chat/use-session-transcript'
-import { workingDirLeaf } from '@/lib/chat-display'
-import { sessionTitle } from '@/lib/chat-session-identity'
-import { cliKindLabel, normalizeCliKind } from '@/lib/cli-session-kinds'
 import type { DashboardSession } from '@/lib/dashboard-cli-fleets'
-import { isAgentWorking } from '@/lib/session-transcript-types'
-import { terminalCursorLabel, transcriptToTerminalLines } from '@/lib/terminal-transcript'
-import { orderTerminalSessions, terminalTabId } from '@/lib/terminal-sessions'
+import {
+  TERMINAL_GRID_SNAPS,
+  gridTerminalSessions,
+  terminalGridClass,
+  terminalGridColumns,
+  type TerminalGridDensity,
+} from '@/lib/terminal-grid'
+import { terminalTabId } from '@/lib/terminal-sessions'
 import type { DashboardData } from '../widget-primitives'
-import { SessionTerminalView } from './session-terminal-view'
+import { SessionTerminalCell } from './session-terminal-cell'
 
 type TerminalWidgetData = Pick<
   DashboardData,
@@ -20,84 +20,61 @@ type TerminalWidgetData = Pick<
 >
 
 /**
- * A terminal is a fixed viewport onto scrollback. Without a bounded height the
- * pane grows to the full transcript and the page scrolls instead, so the inner
+ * A terminal is a fixed viewport onto scrollback. Without a bounded height each
+ * cell grows to its full transcript and the page scrolls instead, so the inner
  * scroller never overflows and auto-tail has nothing to follow.
  */
-const TERMINAL_FRAME = 'flex h-[32rem] max-h-[70vh] flex-col lg:flex-row'
+const CELL_HEIGHT = 'h-[17rem]'
 
-/** Adapts a dashboard session row to the shape the shared transcript poller wants. */
-function transcriptSubject(session: DashboardSession | undefined) {
-  if (!session) return undefined
-  return {
-    sessionId: session.id,
-    sessionKey: session.key,
-    sessionKind: normalizeCliKind(session.kind),
-    active: session.active,
-  }
-}
+/** The wall itself is bounded too, so twelve terminals cannot own the whole page. */
+const WALL_FRAME = 'max-h-[46rem] overflow-y-auto p-3'
 
 export function SessionTerminalWidget({ data }: { data: TerminalWidgetData }) {
-  const tabs = useMemo(() => orderTerminalSessions(data.sessions), [data.sessions])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [density, setDensity] = useState<TerminalGridDensity>('auto')
+  const [focusedId, setFocusedId] = useState<string | null>(null)
 
-  const selected = useMemo(
-    () => tabs.find((tab) => terminalTabId(tab) === selectedId) ?? tabs[0],
-    [tabs, selectedId],
-  )
-
-  // Keep a valid selection when the session list churns underneath us.
-  useEffect(() => {
-    if (selected && terminalTabId(selected) !== selectedId) setSelectedId(terminalTabId(selected))
-  }, [selected, selectedId])
-
-  const { messages, loading, error } = useSessionTranscript(transcriptSubject(selected))
-  const lines = useMemo(() => transcriptToTerminalLines(messages), [messages])
-  const working = useMemo(
-    () => isAgentWorking(messages, { active: selected?.active }),
-    [messages, selected?.active],
-  )
+  const cells = useMemo(() => gridTerminalSessions(data.sessions), [data.sessions])
+  const liveCount = useMemo(() => data.sessions.filter((s) => s.active).length, [data.sessions])
+  const columns = terminalGridColumns(cells.length, density)
 
   return (
     <div className="panel flex flex-col">
       <div className="panel-header">
-        <h3 className="text-sm font-semibold">CLI Sessions — Terminal</h3>
+        <h3 className="text-sm font-semibold">CLI Sessions — Terminals</h3>
         <div className="flex items-center gap-2">
-          <span className="text-2xs text-muted-foreground font-mono-tight">
-            {tabs.filter((tab) => tab.active).length} live · {tabs.length}
+          <span className="font-mono-tight text-2xs text-muted-foreground">
+            {liveCount} live · {data.sessions.length}
           </span>
+          {cells.length > 1 && <GridSnapControl density={density} onChange={setDensity} />}
           <Button variant="outline" size="sm" onClick={() => data.navigateToPanel('sessions')}>
             All sessions
           </Button>
         </div>
       </div>
 
-      {tabs.length === 0 ? (
-        <div className="px-4 py-10 text-center">
-          <p className="text-xs text-muted-foreground">
-            {data.isSessionsLoading ? 'Loading sessions…' : 'No CLI sessions'}
-          </p>
-          <p className="mt-1 text-2xs text-muted-foreground/60">
-            Start a Claude, Codex, Grok, Kimi, Hermes, or OpenCode session to see its terminal here.
-          </p>
-        </div>
+      {cells.length === 0 ? (
+        <EmptyWall loading={data.isSessionsLoading} />
       ) : (
-        <div className={TERMINAL_FRAME}>
-          <TerminalTabList
-            tabs={tabs}
-            selectedId={selected ? terminalTabId(selected) : null}
-            onSelect={setSelectedId}
-          />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {selected && <TerminalTitleBar session={selected} onOpen={() => data.openSession(selected)} />}
-            <SessionTerminalView
-              lines={lines}
-              cursor={terminalCursorLabel(working, !!selected?.active)}
-              working={working}
-              loading={loading}
-              error={error}
-              emptyLabel="No transcript recorded for this session yet."
-            />
+        <div className={WALL_FRAME}>
+          {liveCount === 0 && (
+            <p className="mb-2 text-2xs text-muted-foreground/70">
+              Nothing is running right now — showing the most recent sessions.
+            </p>
+          )}
+          <div className={`grid gap-3 ${terminalGridClass(columns)}`}>
+            {cells.map((session) => {
+              const id = terminalTabId(session)
+              return (
+                <div key={id} className={CELL_HEIGHT}>
+                  <SessionTerminalCell
+                    session={session}
+                    focused={id === focusedId}
+                    onFocus={() => setFocusedId(id)}
+                    onOpen={() => data.openSession(session)}
+                  />
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -105,73 +82,54 @@ export function SessionTerminalWidget({ data }: { data: TerminalWidgetData }) {
   )
 }
 
-function TerminalTabList({
-  tabs,
-  selectedId,
-  onSelect,
+function EmptyWall({ loading }: { loading: boolean }) {
+  return (
+    <div className="px-4 py-10 text-center">
+      <p className="text-xs text-muted-foreground">{loading ? 'Loading sessions…' : 'No CLI sessions'}</p>
+      <p className="mt-1 text-2xs text-muted-foreground/60">
+        Start a Claude, Codex, Grok, Kimi, Hermes, or OpenCode session to see its terminal here.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Fixed column snaps rather than free resizing, the way VS Code offers a short
+ * list of editor layouts instead of asking the operator to drag every split.
+ */
+function GridSnapControl({
+  density,
+  onChange,
 }: {
-  tabs: DashboardSession[]
-  selectedId: string | null
-  onSelect: (id: string) => void
+  density: TerminalGridDensity
+  onChange: (next: TerminalGridDensity) => void
 }) {
+  const options: { value: TerminalGridDensity; label: string }[] = [
+    { value: 'auto', label: 'Auto' },
+    ...TERMINAL_GRID_SNAPS.map((snap) => ({ value: snap as TerminalGridDensity, label: String(snap) })),
+  ]
   return (
     <div
-      role="tablist"
-      aria-label="CLI session terminals"
-      aria-orientation="vertical"
-      className="flex shrink-0 gap-px overflow-x-auto border-b border-border/50 bg-secondary/20 p-1.5 lg:w-64 lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r"
+      role="radiogroup"
+      aria-label="Terminal grid columns"
+      className="flex items-center gap-px rounded-md border border-border/60 bg-secondary/30 p-0.5"
     >
-      {tabs.map((tab) => {
-        const id = terminalTabId(tab)
-        const selected = id === selectedId
-        return (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            onClick={() => onSelect(id)}
-            className={`flex min-h-9 shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-2xs transition-smooth lg:w-full ${
-              selected ? 'bg-primary/15 text-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`h-1.5 w-1.5 shrink-0 rounded-full ${tab.active ? 'bg-emerald-400' : 'bg-muted-foreground/40'}`}
-            />
-            <EngineLogoForText text={normalizeCliKind(tab.kind)} size={12} decorative />
-            <span className="truncate">{tabTitle(tab)}</span>
-          </button>
-        )
-      })}
+      {options.map((option) => (
+        <button
+          key={String(option.value)}
+          type="button"
+          role="radio"
+          aria-checked={density === option.value}
+          onClick={() => onChange(option.value)}
+          className={`rounded px-1.5 py-0.5 text-2xs transition-smooth ${
+            density === option.value
+              ? 'bg-primary/20 text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   )
-}
-
-function TerminalTitleBar({ session, onOpen }: { session: DashboardSession; onOpen: () => void }) {
-  const dir = workingDirLeaf(session.workingDir)
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/50 bg-secondary/20 px-4 py-2">
-      <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-foreground">{tabTitle(session)}</p>
-        <p className="truncate font-mono-tight text-2xs text-muted-foreground">
-          {cliKindLabel(normalizeCliKind(session.kind))}
-          {dir ? ` · ${dir}` : ''}
-          {session.model ? ` · ${session.model}` : ''}
-        </p>
-      </div>
-      <Button variant="ghost" size="sm" onClick={onOpen}>
-        Open
-      </Button>
-    </div>
-  )
-}
-
-function tabTitle(session: DashboardSession): string {
-  return sessionTitle({
-    customTitle: session.title,
-    lastUserPrompt: session.lastUserPrompt,
-    kind: normalizeCliKind(session.kind),
-    id: session.id,
-  })
 }

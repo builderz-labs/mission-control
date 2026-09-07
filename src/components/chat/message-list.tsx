@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useLayoutEffect, useMemo, useState, useCallback } from 'react'
 import { useMissionControl, ChatMessage } from '@/store'
 import { apiFetch } from '@/lib/api-client'
 import { MessageBubble } from './message-bubble'
@@ -53,6 +53,12 @@ export function MessageList() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [showNewMessages, setShowNewMessages] = useState(false)
   const prevMessageCountRef = useRef(0)
+  const pinnedConversationRef = useRef<string | null>(null)
+
+  const messageCount = useMemo(
+    () => chatMessages.filter((m) => m.conversation_id === activeConversation).length,
+    [chatMessages, activeConversation],
+  )
 
   const isNearBottom = useCallback(() => {
     const container = containerRef.current
@@ -75,12 +81,24 @@ export function MessageList() {
     prevMessageCountRef.current = newCount
   }, [chatMessages, activeConversation, isNearBottom])
 
-  // Scroll to bottom on conversation change
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView()
+  // Open a thread on its newest message. Messages load after the conversation
+  // switches, so scrolling once on the switch lands on an empty list and leaves
+  // the reader at the very first message when the thread finally renders; keep
+  // pinning until the thread actually has content.
+  useLayoutEffect(() => {
+    if (pinnedConversationRef.current === activeConversation && messageCount > 0) return
+    const pin = () => {
+      const container = containerRef.current
+      if (container) container.scrollTop = container.scrollHeight
+    }
+    pin()
+    // Markdown and code blocks finish laying out after this commit.
+    const frame = requestAnimationFrame(pin)
     setShowNewMessages(false)
-    prevMessageCountRef.current = 0
-  }, [activeConversation])
+    prevMessageCountRef.current = messageCount
+    if (messageCount > 0) pinnedConversationRef.current = activeConversation
+    return () => cancelAnimationFrame(frame)
+  }, [activeConversation, messageCount])
 
   // Track scroll position to hide "new messages" indicator
   const handleScroll = useCallback(() => {

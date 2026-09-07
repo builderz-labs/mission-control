@@ -72,16 +72,18 @@ describe('session list balance', () => {
 })
 
 describe('dashboard layout', () => {
-  it('leads the default overview with the session terminal, then the workbench', () => {
+  it('leads the default overview with the terminal wall and drops the duplicate workbench', () => {
     expect(LOCAL_DEFAULT_LAYOUT[1]).toBe('session-terminal')
-    expect(LOCAL_DEFAULT_LAYOUT[2]).toBe('session-workbench')
+    expect(LOCAL_DEFAULT_LAYOUT).not.toContain('session-workbench')
   })
 
   it('upgrades any previous default layout to include the current CLI widgets', () => {
     const oldest = ['briefing-bar', 'activity-timeline', 'fleet-status', 'task-pipeline', 'system-health', 'quick-actions']
     const withWorkbench = ['briefing-bar', 'session-workbench', ...oldest.slice(1)]
+    const withBoth = ['briefing-bar', 'session-terminal', 'session-workbench', ...oldest.slice(1)]
     expect(resolveDashboardLayout(oldest, 'local')).toEqual(LOCAL_DEFAULT_LAYOUT)
     expect(resolveDashboardLayout(withWorkbench, 'local')).toEqual(LOCAL_DEFAULT_LAYOUT)
+    expect(resolveDashboardLayout(withBoth, 'local')).toEqual(LOCAL_DEFAULT_LAYOUT)
     expect(resolveDashboardLayout(['briefing-bar', 'metric-cards'], 'local')).toEqual(['briefing-bar', 'metric-cards'])
   })
 })
