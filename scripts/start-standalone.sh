@@ -46,15 +46,17 @@ export MISSION_CONTROL_DATA_DIR="${MISSION_CONTROL_DATA_DIR:-$PROJECT_ROOT/.data
 # polling this database with the build it was started from. Two builds sharing
 # one durable queue mis-attribute rows, so reap a prior controller before binding.
 #
-# Select by working directory, not by who holds the port or the database. A
-# controller that is shutting down releases both while it is still alive, so a
-# reaper that samples either one can look at exactly the wrong instant, find
-# nothing, and let a process that then fails to exit come back to life against
-# the new build. This was observed in production: the port was already free and
-# the database handle already closed when both reapers ran, and the old server
-# reopened the database seconds later and ran a second scheduler. A working
-# directory is stable for the whole life of a process. Restrict it to node and
-# doppler so a shell someone left sitting in the directory is never signalled.
+# No single signal finds it reliably:
+#   - the port and the database handle are both released early in shutdown, so a
+#     reaper that samples either can look at exactly the wrong instant, find
+#     nothing, and let a process that then fails to exit come back to life;
+#   - a redeploy replaces $STANDALONE_DIR, so the prior controller's cwd points at
+#     the old, unlinked inode. `lsof <dir>` matches by inode rather than by path
+#     and cannot see it, even though the process still reports that same path.
+# Both failures were observed in production. So take the union of all three
+# signals to find candidates, then confirm each one by the working directory it
+# reports, which stays correct even when the inode behind it is gone. That
+# confirmation is what keeps an unrelated database client or port holder safe.
 reap_previous_controller() {
   command -v lsof >/dev/null 2>&1 || return 0
   # Never signal ourselves or anything that started us.
@@ -64,12 +66,31 @@ reap_previous_controller() {
     ancestors+="$self "
     self="$(ps -o ppid= -p "$self" 2>/dev/null | tr -d ' ')"
   done
-  local pid
-  for pid in $(lsof -t -a -d cwd -c node -c doppler -- "$STANDALONE_DIR" 2>/dev/null || true); do
+
+  local db="${MISSION_CONTROL_DATA_DIR:-}/mission-control.db"
+  # lsof reports a physically resolved path. $STANDALONE_DIR may still contain a
+  # symlink (on macOS /var and /tmp are links into /private), so keep both forms
+  # and accept either; the directory may also have just been replaced, so fall
+  # back to the literal value when it cannot be resolved.
+  local want="$STANDALONE_DIR" want_real
+  want_real="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || echo "$STANDALONE_DIR")"
+  local candidates pid cwd
+  candidates="$(
+    {
+      lsof -t -a -d cwd -c node -c doppler -- "$STANDALONE_DIR" 2>/dev/null || true
+      [[ -f "$db" ]] && { lsof -t -- "$db" 2>/dev/null || true; }
+      lsof -t -nP -iTCP:"${PORT:-3000}" -sTCP:LISTEN 2>/dev/null || true
+    } | sort -u
+  )"
+
+  for pid in $candidates; do
     [[ "$ancestors" == *" $pid "* ]] && continue
+    # Only ever signal a process whose working directory is this deployment.
+    cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    [[ "$cwd" == "$want" || "$cwd" == "$want_real" ]] || continue
     echo "reaping previous controller pid $pid" >&2
     kill -TERM "$pid" 2>/dev/null || true
-    # A hung controller has been measured ignoring SIGTERM for more than ten
+    # A hung controller has been measured ignoring SIGTERM for a full twenty
     # seconds, so give an orderly exit real time before forcing it.
     for _ in $(seq 1 20); do
       kill -0 "$pid" 2>/dev/null || break
