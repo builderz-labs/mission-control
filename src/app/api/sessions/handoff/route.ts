@@ -7,7 +7,7 @@ import { heavyLimiter } from '@/lib/rate-limit'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { continueEffort, continueModelId } from '@/lib/session-continue-model'
 import { fleetAgentFromHandoff, sameHandoffSeat } from '@/lib/adaptive-context-agent'
-import { pinAdaptiveContext, type AdaptiveHandoffPin } from '@/lib/adaptive-context-handoff'
+import { handoffEnv, pinAdaptiveContext, type AdaptiveHandoffPin } from '@/lib/adaptive-context-handoff'
 import { buildHandoffBrief } from '@/lib/handoff-brief'
 import { gitSnapshot } from '@/lib/handoff-git'
 import { readKindTranscript } from '@/lib/session-transcript-read'
@@ -138,7 +138,7 @@ async function makeSpec(input: HandoffRequest, resume: boolean, prompt: string, 
     cwd,
     bin: await resolveExecutable(handoffBinName(input.targetKind)),
     extraArgs: pin.argv,
-    env: { ...process.env, ...pin.env },
+    env: handoffEnv(process.env, pin),
     outputPath: input.targetKind === 'codex-cli'
       ? path.join('/tmp', `mc-codex-handoff-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`)
       : undefined,

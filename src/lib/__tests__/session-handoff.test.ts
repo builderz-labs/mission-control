@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
     to: input.to,
     window: 160000,
     compactRequired: false,
-    env: { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '160000', ADAPTIVE_CONTEXT_POLICY_PATH: '/tmp/policy.json' },
+    env: { ADAPTIVE_CONTEXT_POLICY_PATH: '/tmp/policy.json' },
+    unsetEnv: ['CLAUDE_CODE_AUTO_COMPACT_WINDOW'],
     argv: ['-c', 'model_auto_compact_token_limit=160000'],
     policyPath: '/tmp/policy.json',
   })),
@@ -36,7 +37,8 @@ vi.mock('@/lib/session-transcript-read', () => ({
 vi.mock('@/lib/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }))
-vi.mock('@/lib/adaptive-context-handoff', () => ({
+vi.mock('@/lib/adaptive-context-handoff', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/adaptive-context-handoff')>()),
   pinAdaptiveContext: mocks.pin,
 }))
 
@@ -214,7 +216,10 @@ describe('POST /api/sessions/handoff', () => {
     expect(spawnArgs?.[1]).toEqual(expect.arrayContaining(['-p']))
     expect(spawnArgs?.[1]).not.toContain('--resume')
     expect(mocks.pin).toHaveBeenCalled()
-    expect(spawnArgs?.[2]?.env?.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('160000')
+    expect(spawnArgs?.[2]?.env?.ADAPTIVE_CONTEXT_POLICY_PATH).toBe('/tmp/policy.json')
+    // The window must reach the session as a setting, never as this variable: it outranks
+    // the setting and locks the window for the whole session.
+    expect(spawnArgs?.[2]?.env).not.toHaveProperty('CLAUDE_CODE_AUTO_COMPACT_WINDOW')
   })
 
   it('returns pending id when spawn output has no UUID and honors auth isolation', async () => {

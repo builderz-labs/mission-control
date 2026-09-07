@@ -13,6 +13,7 @@ export interface AdaptiveHandoffPin {
   window: number
   compactRequired: boolean
   env: Record<string, string>
+  unsetEnv: string[]
   argv: string[]
   policyPath: string
 }
@@ -51,16 +52,17 @@ async function writeLedger(policyPath: string, ledger: Record<string, string>): 
   return target
 }
 
-export function parseAdaptiveHandoff(stdout: string): Pick<AdaptiveHandoffPin, 'window' | 'env' | 'argv' | 'compactRequired'> {
+export function parseAdaptiveHandoff(stdout: string): Pick<AdaptiveHandoffPin, 'window' | 'env' | 'unsetEnv' | 'argv' | 'compactRequired'> {
   let parsed: {
     ok?: boolean
     handoff?: { window?: number; compactRequired?: boolean }
-    launch?: { to?: { env?: Record<string, string>; argv?: unknown } }
+    launch?: { to?: { env?: Record<string, string>; unsetEnv?: unknown; argv?: unknown } }
   }
   try { parsed = JSON.parse(stdout) as typeof parsed }
   catch { throw new Error('adaptive_context_failed: handoff output was not JSON') }
   const window = parsed.handoff?.window
   const env = parsed.launch?.to?.env
+  const unsetEnv = parsed.launch?.to?.unsetEnv ?? []
   const argv = parsed.launch?.to?.argv
   if (
     !parsed.ok
@@ -69,10 +71,27 @@ export function parseAdaptiveHandoff(stdout: string): Pick<AdaptiveHandoffPin, '
     || !env
     || !Array.isArray(argv)
     || argv.some((item) => typeof item !== 'string')
+    || !Array.isArray(unsetEnv)
+    || unsetEnv.some((item) => typeof item !== 'string')
   ) {
     throw new Error('adaptive_context_failed: handoff output was incomplete')
   }
-  return { window, env, argv: argv as string[], compactRequired: parsed.handoff?.compactRequired === true }
+  return {
+    window,
+    env,
+    unsetEnv: unsetEnv as string[],
+    argv: argv as string[],
+    compactRequired: parsed.handoff?.compactRequired === true,
+  }
+}
+
+// The pin says which variables must not reach the spawned session. Claude Code reads
+// CLAUDE_CODE_AUTO_COMPACT_WINDOW ahead of its own setting and then refuses to let the
+// window be changed, so an inherited copy has to be dropped rather than passed on.
+export function handoffEnv(base: NodeJS.ProcessEnv, pin: Pick<AdaptiveHandoffPin, 'env' | 'unsetEnv'>): NodeJS.ProcessEnv {
+  const merged: NodeJS.ProcessEnv = { ...base, ...pin.env }
+  for (const key of pin.unsetEnv ?? []) delete merged[key]
+  return merged
 }
 
 export async function pinAdaptiveContext(input: {

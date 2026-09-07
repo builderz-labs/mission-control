@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({
     to: input.to,
     window: 245400,
     compactRequired: input.to === 'codex',
-    env: { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '245400' },
+    env: {},
+    unsetEnv: ['CLAUDE_CODE_AUTO_COMPACT_WINDOW'],
     argv: ['-c', 'model_auto_compact_token_limit=245400'],
     policyPath: '/tmp/policy.json',
   })),
@@ -27,7 +28,10 @@ vi.mock('@/lib/session-transcript-read', () => ({
   readKindTranscript: vi.fn(() => []),
 }))
 vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }))
-vi.mock('@/lib/adaptive-context-handoff', () => ({ pinAdaptiveContext: mocks.pin }))
+vi.mock('@/lib/adaptive-context-handoff', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/adaptive-context-handoff')>()),
+  pinAdaptiveContext: mocks.pin,
+}))
 
 function post(body: Record<string, unknown>) {
   return POST(new NextRequest('http://localhost/api/sessions/handoff', {

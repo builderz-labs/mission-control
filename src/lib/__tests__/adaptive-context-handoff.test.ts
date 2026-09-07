@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fleetAgentFromHandoff, handoffKindFromAgent, sameHandoffSeat } from '@/lib/adaptive-context-agent'
 import {
-  ledgerFromSession, parseAdaptiveHandoff, pinAdaptiveContext, resolveWorkspacePolicyPath,
+  handoffEnv, ledgerFromSession, parseAdaptiveHandoff, pinAdaptiveContext,
+  resolveWorkspacePolicyPath,
 } from '@/lib/adaptive-context-handoff'
 import { buildHandoffCommand } from '@/lib/session-handoff'
 
@@ -57,7 +58,13 @@ describe('adaptive-context pin', () => {
         stdout: JSON.stringify({
           ok: true,
           handoff: { window: 160000, compactRequired: false },
-          launch: { to: { env: { CLAUDE_CODE_AUTO_COMPACT_WINDOW: '160000' }, argv: [] } },
+          launch: {
+            to: {
+              env: { ADAPTIVE_CONTEXT_POLICY_PATH: '/tmp/policy.json' },
+              unsetEnv: ['CLAUDE_CODE_AUTO_COMPACT_WINDOW'],
+              argv: [],
+            },
+          },
         }),
         stderr: '',
         code: 0,
@@ -86,5 +93,26 @@ describe('adaptive-context pin', () => {
     })
     expect(spec.args.slice(0, 3)).toEqual(['-c', 'model_auto_compact_token_limit=245400', 'exec'])
     expect(spec.env?.ADAPTIVE_CONTEXT_POLICY_PATH).toBe('/x/policy.json')
+  })
+
+  it('drops an inherited auto-compact window instead of passing it to the session', () => {
+    const inherited = { NODE_ENV: 'test' as const, PATH: '/usr/bin', CLAUDE_CODE_AUTO_COMPACT_WINDOW: '160000' }
+    const env = handoffEnv(inherited, {
+      env: { ADAPTIVE_CONTEXT_POLICY_PATH: '/x/policy.json' },
+      unsetEnv: ['CLAUDE_CODE_AUTO_COMPACT_WINDOW'],
+    })
+    expect(env).not.toHaveProperty('CLAUDE_CODE_AUTO_COMPACT_WINDOW')
+    expect(env.ADAPTIVE_CONTEXT_POLICY_PATH).toBe('/x/policy.json')
+    expect(env.PATH).toBe('/usr/bin')
+  })
+
+  it('accepts a pin from an older CLI that sends no unsetEnv', () => {
+    const parsed = parseAdaptiveHandoff(JSON.stringify({
+      ok: true,
+      handoff: { window: 160000, compactRequired: false },
+      launch: { to: { env: {}, argv: [] } },
+    }))
+    expect(parsed.unsetEnv).toEqual([])
+    expect(handoffEnv({ NODE_ENV: 'test' as const, PATH: '/usr/bin' }, parsed).PATH).toBe('/usr/bin')
   })
 })
