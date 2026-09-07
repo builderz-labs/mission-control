@@ -32,6 +32,16 @@ export interface FlyTelemetrySnapshot {
 
 const RUNNING = new Set(['creating', 'running', 'cleaning'])
 
+/** Mirrors the scheduler's `fly.enabled` gate; an unreadable setting keeps the default. */
+function flyAdmissionEnabled(db: Database.Database): boolean {
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('fly.enabled') as { value: string } | undefined
+    return row ? row.value === 'true' : true
+  } catch {
+    return true
+  }
+}
+
 export function buildFlyTelemetry(db: Database.Database, workspaceId: number, host?: HostMetrics): FlyTelemetrySnapshot {
   const rows = db.prepare(`
     SELECT state, worker_class, execution_target, observed_cost_usd, estimated_cost_usd,
@@ -39,6 +49,11 @@ export function buildFlyTelemetry(db: Database.Database, workspaceId: number, ho
     FROM fly_worker_jobs WHERE workspace_id = ? AND state IN ('creating','running','cleaning')
   `).all(workspaceId) as JobRow[]
   const enabled = process.env.MC_FLY_ENABLED === 'true'
+  // The scheduler gates admission on the `fly.enabled` setting independently of
+  // MC_FLY_ENABLED, and with it off the reconciler still drains running jobs but
+  // launches nothing new. Reporting `healthy` there tells an operator the queue is
+  // moving when it is not, so surface the pause as its own blocked state.
+  const admitting = flyAdmissionEnabled(db)
   const classes = new Map<string, { total: number; running: number; cpu: number; cpuN: number; memory: number; memoryN: number }>()
   const submissions = db.prepare("SELECT state,COUNT(*) AS n FROM fly_submissions WHERE workspace_id=? GROUP BY state")
     .all(workspaceId) as Array<{state:string;n:number}>
@@ -71,7 +86,10 @@ export function buildFlyTelemetry(db: Database.Database, workspaceId: number, ho
   for (const label of readiness) bottlenecks.push({label,severity:'warn'})
   if (queued > 0 && running >= maxWorkers) bottlenecks.push({ label: 'Worker concurrency limit reached', severity: 'warn' })
   // Completed command failures remain in history; they are not fleet outages.
-  const status = !enabled ? 'disabled' : readiness.length ? 'blocked' : bottlenecks.length > 0 ? 'degraded' : 'healthy'
+  if (enabled && !admitting) bottlenecks.push({ label: 'Admission paused by the fly.enabled setting', severity: 'warn' })
+  const status = !enabled ? 'disabled'
+    : readiness.length || !admitting ? 'blocked'
+    : bottlenecks.length > 0 ? 'degraded' : 'healthy'
   return {
     status,
     updated_at: Math.floor(Date.now() / 1000),

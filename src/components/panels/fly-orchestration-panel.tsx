@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import Image from 'next/image'
 import { apiFetch } from '@/lib/api-client'
 import { useSmartPoll } from '@/lib/use-smart-poll'
@@ -94,12 +94,9 @@ export function FlyOrchestrationPanel() {
       setError(cause instanceof Error ? cause.message : 'Telemetry is unavailable')
     } finally { setRefreshing(false); inFlight.current = false }
   }, [])
+  // The 5s poll is the only refresh path: `fly.worker.updated` is a server-side
+  // event-bus type with no client bridge, so a window listener for it never fires.
   useSmartPoll(refresh, 5_000, { backoff: true })
-  useEffect(() => {
-    const onWorkerUpdate = () => { void refresh() }
-    window.addEventListener('mission-control:fly-worker-updated', onWorkerUpdate)
-    return () => window.removeEventListener('mission-control:fly-worker-updated', onWorkerUpdate)
-  }, [refresh])
 
   const queue = telemetry?.queue ?? {}
   const fleet = telemetry?.fleet ?? {}
