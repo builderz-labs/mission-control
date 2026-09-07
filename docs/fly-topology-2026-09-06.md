@@ -168,6 +168,23 @@ The four affected rows are all in terminal states and were left in place as
 evidence; the reconciler already falls back to the client's app for a NULL
 `worker_app`, so they are still observable and cleanable.
 
+**`launchctl kickstart -k` orphans the running server every time.** This was
+observed on both redeploys in this session, and the cause is structural: the
+launchd job runs `doppler run ... -- node server.js`, and `doppler run` spawns
+node as a child rather than exec'ing it. Kickstart replaces the job's main
+process (doppler) and the node server survives, reparented to PID 1, still
+holding the database. Every redeploy therefore needs an explicit check and kill:
+
+```sh
+ps -ax -o pid,ppid,lstart,command | grep "[n]ext-server"   # any PPID 1 is an orphan
+kill -TERM <pid>                                            # SIGKILL if it ignores TERM
+```
+
+The stale-controller guard limits the damage — an orphan now refuses Fly
+admission — but it does not stop the orphan's other scheduler work, so the kill
+is still required. A durable fix belongs in the launchd job: have it kill the
+process group, or exec node directly rather than through a wrapper that forks.
+
 Before the cutover, and before trusting any canary, confirm exactly one
 controller process owns the database:
 
