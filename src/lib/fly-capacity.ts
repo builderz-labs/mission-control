@@ -23,6 +23,10 @@ export function flyCapacity(db: Database.Database) {
     scope: 'controller-global', runtime: 'command', worker_app: process.env.MC_FLY_WORKER_APP || null,
     max_workers: limit, active_workers: active, available_slots: Math.max(0, limit - active),
     launch_batch_size: FLY_LAUNCH_BATCH_SIZE, reconcile_interval_ms: FLY_RECONCILE_INTERVAL_MS,
+    // A label, not an enforcement point. Machines are created at
+    // POST /apps/{MC_FLY_WORKER_APP}/machines with no network field, so the app
+    // decides the network and this only names it. Set it when the worker app
+    // moves, never on its own: alone it reports an isolation that does not exist.
     worker_network: process.env.MC_FLY_WORKER_NETWORK || 'default-org-6pn',
     launch_regions: flyLaunchRegions(),
     fair_share_note: 'One project or session may use the whole pool while nothing else waits, then yields an equal share.',

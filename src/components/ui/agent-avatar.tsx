@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { EngineLogo } from '@/components/brand/engine-logo'
 import { inferEngineFromText } from '@/lib/chat-model-groups'
 import { brandFromAgent, brandLogo } from '@/lib/agent-brand'
+import { fleetAgentLogo } from '@/lib/fleet-agents'
 
 interface AgentAvatarProps {
   name?: string | null
@@ -57,6 +58,22 @@ export function AgentAvatar({
   className = '',
 }: AgentAvatarProps) {
   const safeName = name ?? ''
+  // Ahead of the engine lookup: 'claude-2' infers the claude engine like every
+  // other Claude name, so a fleet slot with its own mark has to win first.
+  const fleetLogo = fleetAgentLogo(safeName)
+  if (fleetLogo) {
+    return (
+      <div
+        className={`rounded-full flex items-center justify-center shrink-0 overflow-hidden border border-border/50 bg-surface-2 ${sizeClasses[size]} ${className}`}
+        title={safeName}
+        aria-label={safeName || fleetLogo.alt}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={fleetLogo.src} alt={fleetLogo.alt} className={`w-full h-full ${fleetLogo.contain ? 'object-contain p-0.5' : 'object-cover'}`} />
+      </div>
+    )
+  }
+
   const engine = inferEngineFromText(safeName) || inferEngineFromText(runtimeType || '')
   if (engine) {
     return (

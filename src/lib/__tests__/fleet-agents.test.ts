@@ -3,6 +3,7 @@ import {
   asFleetAgentName,
   canonicalFleetAgentName,
   fleetAgentFromWorkspace,
+  fleetAgentLogo,
   fleetAgentsShareIdentity,
   FLEET_AGENT_NAMES,
   isFleetAgentName,
@@ -28,5 +29,17 @@ describe('fleet agents', () => {
     expect(fleetAgentFromWorkspace('/x/workspace-claude-5x')).toBe('claude-2')
     expect(fleetAgentFromWorkspace('/x/.claude-account2/projects')).toBe('claude-2')
     expect(fleetAgentFromWorkspace('~/Dev/actz-may')).toBe('claude-1')
+  })
+
+  it('gives claude-2 its own mark so the two Claude seats are told apart', () => {
+    // Every generic logo path infers the same engine from both names, so without
+    // this override the two accounts render identically.
+    expect(fleetAgentLogo('claude-2')?.src).toBe('/brand/stillpoint-mark.webp')
+    expect(fleetAgentLogo('claude-5x')?.src).toBe('/brand/stillpoint-mark.webp')
+    expect(fleetAgentLogo('claude-2')?.contain).toBe(true)
+    expect(fleetAgentLogo('claude-1')).toBeNull()
+    expect(fleetAgentLogo('claude-20x')).toBeNull()
+    expect(fleetAgentLogo('codex')).toBeNull()
+    expect(fleetAgentLogo(null)).toBeNull()
   })
 })

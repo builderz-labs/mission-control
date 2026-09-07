@@ -22,6 +22,16 @@ export function asFleetAgentName(value: string): FleetAgentName | null {
   return isFleetAgentName(canonical) ? canonical : null
 }
 
+// Both Claude slots infer the same engine from their name, so every generic
+// logo path renders them identically even though they are separate accounts.
+// Only claude-2 (claude-5x) overrides that, with its own mark.
+export function fleetAgentLogo(name?: string | null): { src: string; alt: string; contain?: boolean } | null {
+  if (asFleetAgentName(name || '') === 'claude-2') {
+    return { src: '/brand/stillpoint-mark.webp', alt: 'Stillpoint Claude', contain: true }
+  }
+  return null
+}
+
 export function fleetAgentsShareIdentity(left: string, right: string): boolean {
   const a = asFleetAgentName(left)
   const b = asFleetAgentName(right)
