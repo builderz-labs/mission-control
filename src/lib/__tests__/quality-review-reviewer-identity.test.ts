@@ -4,7 +4,9 @@ import { NextRequest } from 'next/server'
 const requireRoleMock = vi.fn()
 const validateBodyMock = vi.fn()
 const prepareMock = vi.fn()
-const runMock = vi.fn(() => ({ lastInsertRowid: 9 }))
+const runMock = vi.fn<(...args: unknown[]) => { lastInsertRowid: number }>(
+  () => ({ lastInsertRowid: 9 }),
+)
 
 vi.mock('@/lib/auth', () => ({ requireRole: requireRoleMock }))
 vi.mock('@/lib/rate-limit', () => ({ mutationLimiter: vi.fn(() => null) }))
