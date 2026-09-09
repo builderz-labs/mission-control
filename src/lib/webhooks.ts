@@ -39,11 +39,25 @@ const WEBHOOK_BLOCKED_HOSTNAMES = new Set([
   'localhost', '0.0.0.0', 'metadata.google.internal', 'metadata.internal', 'instance-data',
 ])
 
+function ipv4FromEmbedded(address: string): string | null {
+  if (isIP(address) === 4) return address
+  const mappedDotted = address.startsWith('::ffff:') ? address.slice(7) : null
+  if (mappedDotted && isIP(mappedDotted) === 4) return mappedDotted
+  const hex = address.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i)
+    ?? address.match(/^::([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i)
+  if (!hex) return null
+  const hi = Number.parseInt(hex[1], 16)
+  const lo = Number.parseInt(hex[2], 16)
+  if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null
+  return `${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`
+}
+
 function isPrivateAddress(address: string): boolean {
   const normalized = address.toLowerCase().split('%')[0]
   if (normalized === '::1' || normalized === '::') return true
   if (normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb')) return true
-  if (normalized.startsWith('::ffff:')) return isPrivateAddress(normalized.slice(7))
+  const embedded = ipv4FromEmbedded(normalized)
+  if (embedded && embedded !== normalized) return isPrivateAddress(embedded)
   if (isIP(normalized) !== 4) return false
 
   const [a, b] = normalized.split('.').map(Number)

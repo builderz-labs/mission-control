@@ -270,7 +270,7 @@ export const gatewayControlSchema = z.object({
 
 export const qualityReviewSchema = z.object({
   taskId: z.number(),
-  reviewer: z.string().default('aegis'),
+  reviewer: z.string().max(200).optional(),
   status: z.enum(['approved', 'rejected']),
   notes: z.string().min(1, 'Notes are required for quality reviews'),
 })

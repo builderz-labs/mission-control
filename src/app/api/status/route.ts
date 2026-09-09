@@ -604,12 +604,13 @@ async function performHealthCheck() {
   // Determine overall health
   const hasError = health.checks.some((check: any) => check.status === 'error')
   const hasCritical = health.checks.some((check: any) => check.status === 'critical')
+  const hasUnhealthy = health.checks.some((check: any) => check.status === 'unhealthy')
   const hasWarning = health.checks.some((check: any) => check.status === 'warning')
   const hasDegraded = health.checks.some((check: any) =>
     check.name === 'Database' && check.status === 'warning'
   )
 
-  if (hasError || hasCritical) {
+  if (hasError || hasCritical || hasUnhealthy) {
     health.status = 'unhealthy'
   } else if (hasDegraded) {
     health.status = 'degraded'
