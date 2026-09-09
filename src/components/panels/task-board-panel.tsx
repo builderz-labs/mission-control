@@ -7,7 +7,7 @@ import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { apiFetch, ApiError } from '@/lib/api-client'
 import { countCommentsDeep } from '@/lib/comment-utils'
-import { normalizedProjectGroup, UNGROUPED_PROJECT_GROUP } from '@/lib/project-groups'
+import { normalizedProjectGroup, projectGroupIdentity, UNGROUPED_PROJECT_GROUP } from '@/lib/project-groups'
 
 import { createClientLogger } from '@/lib/client-logger'
 
@@ -600,31 +600,36 @@ export function TaskBoardPanel() {
   const groupedTasksByStatus = useMemo(() => {
     return Object.fromEntries(Object.entries(tasksByStatus).map(([status, statusTasks]) => {
       const grouped = new Map<string, Task[]>()
+      const identities = new Map<string, ReturnType<typeof projectGroupIdentity>>()
       for (const task of statusTasks) {
-        const group = normalizedProjectGroup(task.project_group) || UNGROUPED_PROJECT_GROUP
-        const current = grouped.get(group) || []
+        const identity = projectGroupIdentity(task.project_group)
+        const current = grouped.get(identity.key) || []
         current.push(task)
-        grouped.set(group, current)
+        grouped.set(identity.key, current)
+        identities.set(identity.key, identity)
       }
       const groups = Array.from(grouped.entries()).sort(([a], [b]) => {
+        const aName = identities.get(a)?.name || ''
+        const bName = identities.get(b)?.name || ''
         if (a === UNGROUPED_PROJECT_GROUP) return -1
         if (b === UNGROUPED_PROJECT_GROUP) return 1
-        return a.localeCompare(b, undefined, { sensitivity: 'base' })
+        return aName.localeCompare(bName, undefined, { sensitivity: 'base' })
       })
-      return [status, groups]
-    })) as Record<string, Array<[string, Task[]]>>
+      return [status, groups.map(([key, groupTasks]) => [identities.get(key)!, groupTasks] as [ReturnType<typeof projectGroupIdentity>, Task[]])]
+    })) as Record<string, Array<[ReturnType<typeof projectGroupIdentity>, Task[]]>>
   }, [tasksByStatus])
 
   const groupedTaskSummary = useMemo(() => {
-    const counts = new Map<string, number>()
+    const counts = new Map<string, { identity: ReturnType<typeof projectGroupIdentity>; count: number }>()
     tasks.forEach((task) => {
-      const group = normalizedProjectGroup(task.project_group) || UNGROUPED_PROJECT_GROUP
-      counts.set(group, (counts.get(group) || 0) + 1)
+      const identity = projectGroupIdentity(task.project_group)
+      const current = counts.get(identity.key)
+      counts.set(identity.key, { identity, count: (current?.count || 0) + 1 })
     })
-    return [...counts.entries()].sort(([a], [b]) => {
-      if (a === UNGROUPED_PROJECT_GROUP) return 1
-      if (b === UNGROUPED_PROJECT_GROUP) return -1
-      return a.localeCompare(b, undefined, { sensitivity: 'base' })
+    return [...counts.values()].sort((a, b) => {
+      if (a.identity.isUngrouped) return 1
+      if (b.identity.isUngrouped) return -1
+      return (a.identity.name || '').localeCompare(b.identity.name || '', undefined, { sensitivity: 'base' })
     })
   }, [tasks])
 
@@ -1039,17 +1044,17 @@ export function TaskBoardPanel() {
       {/* Kanban Board */}
       {groupByProject && groupedTaskSummary.length > 0 && (
         <div className="flex flex-wrap gap-2 px-4 pt-3" aria-label={t('projectGroupSummary')}>
-          {groupedTaskSummary.map(([group, count]) => (
+          {groupedTaskSummary.map(({ identity, count }) => (
             <button
-              key={group}
+              key={identity.key}
               type="button"
               onClick={() => {
-                setProjectGroupFilter(group === UNGROUPED_PROJECT_GROUP ? UNGROUPED_FILTER_VALUE : encodeProjectGroupFilter(group))
+                setProjectGroupFilter(identity.isUngrouped ? UNGROUPED_FILTER_VALUE : encodeProjectGroupFilter(identity.name || ''))
                 setProjectFilter('all')
               }}
               className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-surface-1 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50"
             >
-              <span>{group === UNGROUPED_PROJECT_GROUP ? t('ungroupedProjects') : group}</span>
+              <span>{identity.isUngrouped ? t('ungroupedProjects') : identity.name}</span>
               <span className="font-mono text-[10px] text-muted-foreground/70">{count}</span>
             </button>
           ))}
@@ -1079,12 +1084,12 @@ export function TaskBoardPanel() {
             <div className="flex-1 p-2.5 space-y-2.5 min-h-32 h-full overflow-y-auto">
               {(groupByProject
                 ? groupedTasksByStatus[column.key] || []
-                : [[null, tasksByStatus[column.key] || []] as [string | null, Task[]]])
-                .map(([groupName, groupTasks]) => (
-                <div key={groupName || 'all-tasks'} className="space-y-2.5">
-                  {groupName && (
+                : [[null, tasksByStatus[column.key] || []] as [ReturnType<typeof projectGroupIdentity> | null, Task[]]])
+                .map(([groupIdentity, groupTasks]) => (
+                <div key={groupIdentity?.key || 'all-tasks'} className="space-y-2.5">
+                  {groupIdentity && (
                     <div className="flex items-center justify-between px-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                      <span>{groupName === UNGROUPED_PROJECT_GROUP ? t('ungroupedProjects') : groupName}</span>
+                      <span>{groupIdentity.isUngrouped ? t('ungroupedProjects') : groupIdentity.name}</span>
                       <span>{groupTasks.length}</span>
                     </div>
                   )}

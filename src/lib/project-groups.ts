@@ -6,6 +6,20 @@ export interface GroupableProject {
 /** Query value used by task filters for projects without a group. */
 export const UNGROUPED_PROJECT_GROUP = '__ungrouped__'
 
+export interface ProjectGroupIdentity {
+  key: string
+  name: string | null
+  isUngrouped: boolean
+}
+
+/** Stable UI identity; a real group named like the API sentinel remains distinct. */
+export function projectGroupIdentity(groupName?: string | null): ProjectGroupIdentity {
+  const name = normalizedProjectGroup(groupName)
+  return name
+    ? { key: `group:${name}`, name, isUngrouped: false }
+    : { key: UNGROUPED_PROJECT_GROUP, name: null, isUngrouped: true }
+}
+
 export interface ProjectGroup<T> {
   name: string
   projects: T[]
