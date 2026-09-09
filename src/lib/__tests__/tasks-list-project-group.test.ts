@@ -30,11 +30,12 @@ describe('GET /api/tasks project group filtering', () => {
   })
 
   it.each([
-    ['Platform', 'AND TRIM(p.group_name) = ?', ['Platform']],
-    ['__ungrouped__', 'AND (p.group_name IS NULL OR TRIM(p.group_name) = \'\')', []],
-  ])('filters by %s and keeps the count query in sync', async (group, predicate, groupParams) => {
+    ['Platform', 'project_group=Platform', 'AND TRIM(p.group_name) = ?', ['Platform']],
+    ['__ungrouped__', 'project_group=__ungrouped__', 'AND TRIM(p.group_name) = ?', ['__ungrouped__']],
+    ['missing', 'project_group_ungrouped=1', 'AND (p.group_name IS NULL OR TRIM(p.group_name) = \'\')', []],
+  ])('filters by %s and keeps the count query in sync', async (_label, query, predicate, groupParams) => {
     const { GET } = await import('@/app/api/tasks/route')
-    const response = await GET(new NextRequest(`http://localhost/api/tasks?project_group=${encodeURIComponent(group)}`))
+    const response = await GET(new NextRequest(`http://localhost/api/tasks?${query}`))
 
     expect(response.status).toBe(200)
     const statements = prepareMock.mock.calls.map(([sql]) => String(sql))

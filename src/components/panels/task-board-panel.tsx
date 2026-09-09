@@ -21,6 +21,11 @@ import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } fr
 
 const log = createClientLogger('TaskBoard')
 
+const UNGROUPED_FILTER_VALUE = 'ungrouped'
+function encodeProjectGroupFilter(group: string): string {
+  return `group:${encodeURIComponent(group)}`
+}
+
 interface Task {
   id: number
   title: string
@@ -461,8 +466,10 @@ export function TaskBoardPanel() {
       if (projectFilter !== 'all') {
         tasksQuery.set('project_id', projectFilter)
       }
-      if (projectGroupFilter !== 'all') {
-        tasksQuery.set('project_group', projectGroupFilter)
+      if (projectGroupFilter === UNGROUPED_FILTER_VALUE) {
+        tasksQuery.set('project_group_ungrouped', '1')
+      } else if (projectGroupFilter !== 'all') {
+        tasksQuery.set('project_group', decodeURIComponent(projectGroupFilter.slice('group:'.length)))
       }
       const tasksUrl = tasksQuery.toString() ? `/api/tasks?${tasksQuery.toString()}` : '/api/tasks'
 
@@ -893,8 +900,8 @@ export function TaskBoardPanel() {
               className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/50"
             >
               <option value="all">{t('allProjectGroups')}</option>
-              {projectGroups.map((group) => <option key={group} value={group}>{group}</option>)}
-              <option value={UNGROUPED_PROJECT_GROUP}>{t('ungroupedProjects')}</option>
+              {projectGroups.map((group) => <option key={group} value={encodeProjectGroupFilter(group)}>{group}</option>)}
+              <option value={UNGROUPED_FILTER_VALUE}>{t('ungroupedProjects')}</option>
             </select>
             <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 6l4 4 4-4" />
@@ -1037,7 +1044,7 @@ export function TaskBoardPanel() {
               key={group}
               type="button"
               onClick={() => {
-                setProjectGroupFilter(group)
+                setProjectGroupFilter(group === UNGROUPED_PROJECT_GROUP ? UNGROUPED_FILTER_VALUE : encodeProjectGroupFilter(group))
                 setProjectFilter('all')
               }}
               className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-surface-1 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50"
