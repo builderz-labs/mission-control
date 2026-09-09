@@ -77,7 +77,11 @@ export async function POST(request: NextRequest) {
   try {
     const validated = await validateBody(request, qualityReviewSchema)
     if ('error' in validated) return validated.error
-    const { taskId, reviewer, status, notes } = validated.data
+    const { taskId, status, notes } = validated.data
+    const reviewer = (auth.user.agent_name || auth.user.username || '').trim()
+    if (!reviewer) {
+      return NextResponse.json({ error: 'Reviewer identity is required' }, { status: 400 })
+    }
 
     const db = getDatabase()
     const workspaceId = auth.user.workspace_id ?? 1;
@@ -104,8 +108,9 @@ export async function POST(request: NextRequest) {
       workspaceId
     )
 
-    // Auto-advance task based on review outcome
-    if (status === 'approved') {
+    // Auto-advance to done only for the dedicated Aegis reviewer identity.
+    // Client-supplied reviewer names are ignored so an operator key cannot spoof it.
+    if (status === 'approved' && reviewer === 'aegis') {
       db.prepare('UPDATE tasks SET status = ?, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
         .run('done', taskId, workspaceId)
       eventBus.broadcast('task.status_changed', {
