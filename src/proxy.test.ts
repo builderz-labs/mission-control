@@ -250,4 +250,39 @@ describe('proxy host matching', () => {
     const response = proxy(request)
     expect(response.status).not.toBe(403)
   })
+
+  it('ignores client X-Forwarded-Host unless MC_TRUST_FORWARDED_HOSTS is set', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'local-box' },
+      hostname: () => 'local-box',
+    }))
+
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({
+        host: 'evil.example.com',
+        'x-forwarded-host': 'localhost',
+      }),
+      nextUrl: { host: 'evil.example.com', hostname: 'evil.example.com', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    delete process.env.MC_ALLOWED_HOSTS
+    delete process.env.MC_ALLOW_ANY_HOST
+    delete process.env.MC_TRUST_FORWARDED_HOSTS
+
+    expect(proxy(request).status).toBe(403)
+
+    process.env.MC_TRUST_FORWARDED_HOSTS = '1'
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'local-box' },
+      hostname: () => 'local-box',
+    }))
+    const { proxy: trustedProxy } = await import('./proxy')
+    expect(trustedProxy(request).status).not.toBe(403)
+  })
 })
