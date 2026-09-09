@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { lookup } from 'node:dns/promises'
+import http from 'node:http'
+import https from 'node:https'
 import { isIP } from 'node:net'
 import { eventBelongsToWorkspace, eventBus, type ServerEvent } from './event-bus'
 import { logger } from './logger'
@@ -81,13 +83,65 @@ export function isBlockedWebhookUrl(urlStr: string): boolean {
   }
 }
 
-async function assertSafeWebhookDestination(urlStr: string): Promise<void> {
-  if (isBlockedWebhookUrl(urlStr)) throw new Error('Webhook URL resolves to a blocked destination')
-  const hostname = new URL(urlStr).hostname.replace(/^\[|\]$/g, '')
-  const addresses = await lookup(hostname, { all: true, verbatim: true })
-  if (addresses.length === 0 || addresses.some(({ address }) => isPrivateAddress(address))) {
+export function selectPublicWebhookAddress(addresses: string[]): string {
+  if (addresses.length === 0 || addresses.some((address) => isPrivateAddress(address))) {
     throw new Error('Webhook URL resolves to a private or internal address')
   }
+  return addresses[0]
+}
+
+export function pinWebhookUrl(urlStr: string, address: string): { href: string; host: string } {
+  const url = new URL(urlStr)
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  url.hostname = address
+  return { href: url.href, host }
+}
+
+async function pinSafeWebhookDestination(urlStr: string): Promise<{ href: string; host: string; servername: string | null }> {
+  if (isBlockedWebhookUrl(urlStr)) throw new Error('Webhook URL resolves to a blocked destination')
+  const url = new URL(urlStr)
+  const hostname = url.hostname.replace(/^\[|\]$/g, '')
+  if (isIP(hostname) !== 0) {
+    if (isPrivateAddress(hostname)) throw new Error('Webhook URL resolves to a private or internal address')
+    return { href: urlStr, host: hostname, servername: null }
+  }
+  const records = await lookup(hostname, { all: true, verbatim: true })
+  const pinned = pinWebhookUrl(urlStr, selectPublicWebhookAddress(records.map((record) => record.address)))
+  return { ...pinned, servername: hostname }
+}
+
+function requestPinnedWebhook(
+  pin: { href: string; host: string; servername: string | null },
+  init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal },
+): Promise<{ status: number; text: string }> {
+  const url = new URL(pin.href)
+  const transport = url.protocol === 'https:' ? https : http
+  const hostname = url.hostname.replace(/^\[|\]$/g, '')
+  return new Promise((resolve, reject) => {
+    const req = transport.request({
+      protocol: url.protocol,
+      hostname,
+      port: url.port || undefined,
+      path: `${url.pathname}${url.search}`,
+      method: init.method,
+      headers: { ...init.headers, Host: pin.host },
+      servername: pin.servername || undefined,
+      signal: init.signal,
+    }, (res) => {
+      const status = res.statusCode || 0
+      if (status >= 300 && status < 400) {
+        res.resume()
+        reject(new Error('Webhook redirect rejected'))
+        return
+      }
+      const chunks: Buffer[] = []
+      res.on('data', (chunk) => chunks.push(chunk as Buffer))
+      res.on('end', () => resolve({ status, text: Buffer.concat(chunks).toString('utf8') }))
+    })
+    req.on('error', reject)
+    req.write(init.body)
+    req.end()
+  })
 }
 
 // Map event bus events to webhook event types
@@ -264,21 +318,21 @@ async function deliverWebhook(
   let error: string | null = null
 
   try {
-    await assertSafeWebhookDestination(webhook.url)
+    const pin = await pinSafeWebhookDestination(webhook.url)
+    headers.Host = pin.host
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000)
 
-    const res = await fetch(webhook.url, {
+    const res = await requestPinnedWebhook(pin, {
       method: 'POST',
       headers,
       body,
       signal: controller.signal,
-      redirect: 'error',
     })
 
     clearTimeout(timeout)
     statusCode = res.status
-    responseBody = await res.text().catch(() => null)
+    responseBody = res.text
     if (responseBody && responseBody.length > 1000) {
       responseBody = responseBody.slice(0, 1000) + '...'
     }
