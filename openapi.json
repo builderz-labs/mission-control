@@ -7489,6 +7489,14 @@
               "type": "integer",
               "default": 0
             }
+          },
+          {
+            "name": "project_group",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
           }
         ],
         "responses": {
@@ -11980,6 +11988,16 @@
           },
           "assigned_to": {
             "type": "string"
+          },
+          "project_id": {
+            "type": "integer"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "project_group": {
+            "type": ["string", "null"],
+            "maxLength": 64
           },
           "created_by": {
             "type": "string"

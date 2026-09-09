@@ -62,7 +62,7 @@ function hasAegisApproval(db: ReturnType<typeof getDatabase>, taskId: number, wo
 
 /**
  * GET /api/tasks - List all tasks with optional filtering
- * Query params: status, assigned_to, priority, project_id, limit, offset
+ * Query params: status, assigned_to, priority, project_id, project_group, limit, offset
  */
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer');
@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
     const assigned_to = searchParams.get('assigned_to');
     const priority = searchParams.get('priority');
     const projectIdParam = Number.parseInt(searchParams.get('project_id') || '', 10);
+    const projectGroup = searchParams.get('project_group')?.trim() || null;
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
 
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
     
     // Build dynamic query
     let query = `
-      SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix,
+      SELECT t.*, p.name as project_name, p.group_name as project_group, p.ticket_prefix as project_prefix,
         (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id AND c.workspace_id = t.workspace_id) as comment_count
       FROM tasks t
       LEFT JOIN projects p
@@ -127,6 +128,11 @@ export async function GET(request: NextRequest) {
       query += ' AND t.project_id = ?';
       params.push(projectIdParam);
     }
+
+    if (projectGroup) {
+      query += ' AND p.group_name = ?';
+      params.push(projectGroup);
+    }
     
     query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
@@ -138,26 +144,33 @@ export async function GET(request: NextRequest) {
     const tasksWithParsedData = tasks.map(mapTaskRow);
     
     // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM tasks WHERE workspace_id = ?';
+    let countQuery = `SELECT COUNT(*) as total
+      FROM tasks t
+      LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+      WHERE t.workspace_id = ?`;
     const countParams: any[] = [workspaceId];
     if (status) {
-      countQuery += ' AND status = ?';
+      countQuery += ' AND t.status = ?';
       countParams.push(status);
     }
     if (agentScope) {
-      countQuery += ' AND assigned_to = ?';
+      countQuery += ' AND t.assigned_to = ?';
       countParams.push(agentScope);
     } else if (assigned_to) {
-      countQuery += ' AND assigned_to = ?';
+      countQuery += ' AND t.assigned_to = ?';
       countParams.push(assigned_to);
     }
     if (priority) {
-      countQuery += ' AND priority = ?';
+      countQuery += ' AND t.priority = ?';
       countParams.push(priority);
     }
     if (Number.isFinite(projectIdParam)) {
-      countQuery += ' AND project_id = ?';
+      countQuery += ' AND t.project_id = ?';
       countParams.push(projectIdParam);
+    }
+    if (projectGroup) {
+      countQuery += ' AND p.group_name = ?';
+      countParams.push(projectGroup);
     }
     const countRow = db.prepare(countQuery).get(...countParams) as { total: number };
 
@@ -325,7 +338,7 @@ export async function POST(request: NextRequest) {
     
     // Fetch the created task
     const createdTask = db.prepare(`
-      SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix
+      SELECT t.*, p.name as project_name, p.group_name as project_group, p.ticket_prefix as project_prefix
       FROM tasks t
       LEFT JOIN projects p
         ON p.id = t.project_id AND p.workspace_id = t.workspace_id

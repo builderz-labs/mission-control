@@ -53,7 +53,7 @@ export async function GET(
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
     const tasks = db.prepare(`
-      SELECT t.*, p.name as project_name, p.ticket_prefix as project_prefix
+      SELECT t.*, p.name as project_name, p.group_name as project_group, p.ticket_prefix as project_prefix
       FROM tasks t
       LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
       WHERE t.workspace_id = ? AND t.project_id = ?
