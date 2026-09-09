@@ -3,6 +3,9 @@ export interface GroupableProject {
   group_name?: string | null
 }
 
+/** Query value used by task filters for projects without a group. */
+export const UNGROUPED_PROJECT_GROUP = '__ungrouped__'
+
 export interface ProjectGroup<T> {
   name: string
   projects: T[]
@@ -10,6 +13,11 @@ export interface ProjectGroup<T> {
 
 function compareNames(a: string, b: string): number {
   return a.localeCompare(b, undefined, { sensitivity: 'base' })
+}
+
+export function normalizedProjectGroup(groupName?: string | null): string | null {
+  const normalized = groupName?.trim()
+  return normalized || null
 }
 
 export function groupProjects<T extends GroupableProject>(projects: T[]): {

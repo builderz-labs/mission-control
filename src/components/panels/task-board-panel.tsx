@@ -7,6 +7,7 @@ import { useMissionControl } from '@/store'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { apiFetch, ApiError } from '@/lib/api-client'
 import { countCommentsDeep } from '@/lib/comment-utils'
+import { normalizedProjectGroup, UNGROUPED_PROJECT_GROUP } from '@/lib/project-groups'
 
 import { createClientLogger } from '@/lib/client-logger'
 
@@ -41,6 +42,7 @@ interface Task {
   project_id?: number
   project_ticket_no?: number
   project_name?: string
+  project_group?: string | null
   project_prefix?: string
   ticket_ref?: string
   github_issue_number?: number
@@ -82,6 +84,7 @@ interface Project {
   slug: string
   ticket_prefix: string
   status: 'active' | 'archived'
+  group_name?: string | null
 }
 
 interface MentionOption {
@@ -404,6 +407,8 @@ export function TaskBoardPanel() {
   const [projectFilter, setProjectFilter] = useState<string>(
     activeProject ? String(activeProject.id) : 'all'
   )
+  const [projectGroupFilter, setProjectGroupFilter] = useState<string>('all')
+  const [groupByProject, setGroupByProject] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [aegisMap, setAegisMap] = useState<Record<number, boolean>>({})
@@ -456,6 +461,9 @@ export function TaskBoardPanel() {
       if (projectFilter !== 'all') {
         tasksQuery.set('project_id', projectFilter)
       }
+      if (projectGroupFilter !== 'all') {
+        tasksQuery.set('project_group', projectGroupFilter)
+      }
       const tasksUrl = tasksQuery.toString() ? `/api/tasks?${tasksQuery.toString()}` : '/api/tasks'
 
       let tasksData: { tasks?: Task[] }
@@ -505,7 +513,7 @@ export function TaskBoardPanel() {
     } finally {
       setLoading(false)
     }
-  }, [projectFilter, storeSetTasks])
+  }, [projectFilter, projectGroupFilter, storeSetTasks])
 
   useEffect(() => {
     fetchData()
@@ -531,6 +539,7 @@ export function TaskBoardPanel() {
   useEffect(() => {
     const newFilter = activeProject ? String(activeProject.id) : 'all'
     setProjectFilter(newFilter)
+    setProjectGroupFilter('all')
   }, [activeProject])
 
   useEffect(() => {
@@ -556,14 +565,61 @@ export function TaskBoardPanel() {
   // Poll as SSE fallback — pauses when SSE is delivering events
   useSmartPoll(fetchData, 30000, { pauseWhenSseConnected: true })
 
+  const sortedProjects = useMemo(() => [...projects].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })), [projects])
+  const projectGroups = useMemo(() => {
+    const groups = new Set<string>()
+    projects.forEach((project) => {
+      const group = normalizedProjectGroup(project.group_name)
+      if (group) groups.add(group)
+    })
+    return [...groups].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  }, [projects])
+
   // Group tasks by status, overriding for awaiting_owner detection
   const tasksByStatus = statusColumns.reduce((acc, column) => {
     acc[column.key] = tasks.filter(task => {
       const effectiveStatus = detectAwaitingOwner(task) ? 'awaiting_owner' : task.status
       return effectiveStatus === column.key
+    }).sort((a, b) => {
+      if (groupByProject) {
+        const groupCompare = (normalizedProjectGroup(a.project_group) || '').localeCompare(normalizedProjectGroup(b.project_group) || '', undefined, { sensitivity: 'base' })
+        if (groupCompare !== 0) return groupCompare
+      }
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) || a.id - b.id
     })
     return acc
   }, {} as Record<string, Task[]>)
+
+  const groupedTasksByStatus = useMemo(() => {
+    return Object.fromEntries(Object.entries(tasksByStatus).map(([status, statusTasks]) => {
+      const grouped = new Map<string, Task[]>()
+      for (const task of statusTasks) {
+        const group = normalizedProjectGroup(task.project_group) || UNGROUPED_PROJECT_GROUP
+        const current = grouped.get(group) || []
+        current.push(task)
+        grouped.set(group, current)
+      }
+      const groups = Array.from(grouped.entries()).sort(([a], [b]) => {
+        if (a === UNGROUPED_PROJECT_GROUP) return -1
+        if (b === UNGROUPED_PROJECT_GROUP) return 1
+        return a.localeCompare(b, undefined, { sensitivity: 'base' })
+      })
+      return [status, groups]
+    })) as Record<string, Array<[string, Task[]]>>
+  }, [tasksByStatus])
+
+  const groupedTaskSummary = useMemo(() => {
+    const counts = new Map<string, number>()
+    tasks.forEach((task) => {
+      const group = normalizedProjectGroup(task.project_group) || UNGROUPED_PROJECT_GROUP
+      counts.set(group, (counts.get(group) || 0) + 1)
+    })
+    return [...counts.entries()].sort(([a], [b]) => {
+      if (a === UNGROUPED_PROJECT_GROUP) return 1
+      if (b === UNGROUPED_PROJECT_GROUP) return -1
+      return a.localeCompare(b, undefined, { sensitivity: 'base' })
+    })
+  }, [tasks])
 
   // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, task: Task) => {
@@ -808,15 +864,51 @@ export function TaskBoardPanel() {
           <div className="relative">
             <select
               value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
+              onChange={(e) => {
+                setProjectFilter(e.target.value)
+                setProjectGroupFilter('all')
+              }}
+              aria-label={t('projectFilter')}
               className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/50"
             >
               <option value="all">{t('allProjects')}</option>
-              {projects.map((project) => (
+              {sortedProjects.map((project) => (
                 <option key={project.id} value={String(project.id)}>
                   {project.name} ({project.ticket_prefix})
                 </option>
               ))}
+            </select>
+            <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 6l4 4 4-4" />
+            </svg>
+          </div>
+          <div className="relative">
+            <select
+              value={projectGroupFilter}
+              onChange={(e) => {
+                setProjectGroupFilter(e.target.value)
+                setProjectFilter('all')
+              }}
+              aria-label={t('projectGroupFilter')}
+              className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="all">{t('allProjectGroups')}</option>
+              {projectGroups.map((group) => <option key={group} value={group}>{group}</option>)}
+              <option value={UNGROUPED_PROJECT_GROUP}>{t('ungroupedProjects')}</option>
+            </select>
+            <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 6l4 4 4-4" />
+            </svg>
+          </div>
+          <div className="relative">
+            <select
+              value={groupByProject ? 'project_group' : 'status'}
+              onChange={(e) => setGroupByProject(e.target.value === 'project_group')}
+              aria-label={t('groupBy')}
+              className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="status">{t('groupByStatus')}</option>
+              <option value="project_group">{t('groupByProjectGroup')}</option>
             </select>
             <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 6l4 4 4-4" />
@@ -938,6 +1030,24 @@ export function TaskBoardPanel() {
       )}
 
       {/* Kanban Board */}
+      {groupByProject && groupedTaskSummary.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-4 pt-3" aria-label={t('projectGroupSummary')}>
+          {groupedTaskSummary.map(([group, count]) => (
+            <button
+              key={group}
+              type="button"
+              onClick={() => {
+                setProjectGroupFilter(group)
+                setProjectFilter('all')
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-surface-1 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50"
+            >
+              <span>{group === UNGROUPED_PROJECT_GROUP ? t('ungroupedProjects') : group}</span>
+              <span className="font-mono text-[10px] text-muted-foreground/70">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-x-auto" role="region" aria-label={t('taskBoard')}>
         {statusColumns.map(column => (
           <div
@@ -960,7 +1070,18 @@ export function TaskBoardPanel() {
 
             {/* Column Body */}
             <div className="flex-1 p-2.5 space-y-2.5 min-h-32 h-full overflow-y-auto">
-              {tasksByStatus[column.key]?.map(task => (
+              {(groupByProject
+                ? groupedTasksByStatus[column.key] || []
+                : [[null, tasksByStatus[column.key] || []] as [string | null, Task[]]])
+                .map(([groupName, groupTasks]) => (
+                <div key={groupName || 'all-tasks'} className="space-y-2.5">
+                  {groupName && (
+                    <div className="flex items-center justify-between px-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      <span>{groupName === UNGROUPED_PROJECT_GROUP ? t('ungroupedProjects') : groupName}</span>
+                      <span>{groupTasks.length}</span>
+                    </div>
+                  )}
+                {groupTasks.map(task => (
                 <div
                   key={task.id}
                   draggable
@@ -997,6 +1118,11 @@ export function TaskBoardPanel() {
                           {task.title}
                         </h4>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {groupByProject && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-muted-foreground max-w-28 truncate" title={task.project_group || t('ungroupedProjects')}>
+                              {normalizedProjectGroup(task.project_group) || t('ungroupedProjects')}
+                            </span>
+                          )}
                           {task.metadata?.recurrence?.enabled && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono" title={task.metadata.recurrence.natural_text || task.metadata.recurrence.cron_expr}>
                               {t('recurring')}
@@ -1126,6 +1252,8 @@ export function TaskBoardPanel() {
                       </span>
                     </div>
                   )}
+                </div>
+                ))}
                 </div>
               ))}
 

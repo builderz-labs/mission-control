@@ -12,6 +12,7 @@ import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
 import { requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
+import { UNGROUPED_PROJECT_GROUP } from '@/lib/project-groups';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -81,6 +82,9 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority');
     const projectIdParam = Number.parseInt(searchParams.get('project_id') || '', 10);
     const projectGroup = searchParams.get('project_group')?.trim() || null;
+    if (projectGroup && projectGroup !== UNGROUPED_PROJECT_GROUP && projectGroup.length > 64) {
+      return NextResponse.json({ error: 'Project group must be 64 characters or fewer' }, { status: 400 });
+    }
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
     const offset = parseInt(searchParams.get('offset') || '0');
 
@@ -129,8 +133,10 @@ export async function GET(request: NextRequest) {
       params.push(projectIdParam);
     }
 
-    if (projectGroup) {
-      query += ' AND p.group_name = ?';
+    if (projectGroup === UNGROUPED_PROJECT_GROUP) {
+      query += " AND (p.group_name IS NULL OR TRIM(p.group_name) = '')";
+    } else if (projectGroup) {
+      query += ' AND TRIM(p.group_name) = ?';
       params.push(projectGroup);
     }
     
@@ -168,8 +174,10 @@ export async function GET(request: NextRequest) {
       countQuery += ' AND t.project_id = ?';
       countParams.push(projectIdParam);
     }
-    if (projectGroup) {
-      countQuery += ' AND p.group_name = ?';
+    if (projectGroup === UNGROUPED_PROJECT_GROUP) {
+      countQuery += " AND (p.group_name IS NULL OR TRIM(p.group_name) = '')";
+    } else if (projectGroup) {
+      countQuery += ' AND TRIM(p.group_name) = ?';
       countParams.push(projectGroup);
     }
     const countRow = db.prepare(countQuery).get(...countParams) as { total: number };

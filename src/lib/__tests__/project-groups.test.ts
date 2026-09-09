@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupProjects } from '@/lib/project-groups'
+import { groupProjects, normalizedProjectGroup, UNGROUPED_PROJECT_GROUP } from '@/lib/project-groups'
 
 describe('groupProjects', () => {
   it('keeps ungrouped projects visible and sorts named groups', () => {
@@ -19,5 +19,11 @@ describe('groupProjects', () => {
     const result = groupProjects([{ name: 'Legacy', group_name: '   ' }])
     expect(result.ungrouped).toHaveLength(1)
     expect(result.groups).toHaveLength(0)
+  })
+
+  it('normalizes task group labels and exposes the ungrouped filter value', () => {
+    expect(normalizedProjectGroup('  Platform  ')).toBe('Platform')
+    expect(normalizedProjectGroup('   ')).toBeNull()
+    expect(UNGROUPED_PROJECT_GROUP).toBe('__ungrouped__')
   })
 })
