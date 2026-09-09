@@ -138,7 +138,7 @@ export async function PATCH(
     }
     if (body.group_name !== undefined) {
       updates.push('group_name = ?')
-      paramsList.push(body.group_name)
+      paramsList.push(typeof body.group_name === 'string' ? body.group_name.trim() || null : null)
     }
     if (body.ticket_prefix !== undefined || body.ticketPrefix !== undefined) {
       const raw = String(body.ticket_prefix ?? body.ticketPrefix)
