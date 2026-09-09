@@ -156,6 +156,7 @@ const booleanFlagSchema = z.union([z.boolean(), z.literal(0), z.literal(1)])
 
 export const updateProjectSchema = z.object({
   name: z.string().trim().min(1, 'Project name cannot be empty').max(200).optional(),
+  group_name: z.string().trim().min(1, 'Project group cannot be empty').max(64).nullable().optional(),
   description: z.string().max(5000).nullable().optional(),
   ticket_prefix: z.string().max(64).optional(),
   ticketPrefix: z.string().max(64).optional(),

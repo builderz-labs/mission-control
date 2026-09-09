@@ -335,6 +335,7 @@ export interface Project {
   id: number
   name: string
   slug: string
+  group_name?: string | null
   description?: string
   ticket_prefix: string
   status: string
