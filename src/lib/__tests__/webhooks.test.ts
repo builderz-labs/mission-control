@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createHmac } from 'crypto'
-import { isBlockedWebhookUrl, verifyWebhookSignature, nextRetryDelay } from '../webhooks'
+import { isBlockedWebhookUrl, verifyWebhookSignature, nextRetryDelay, pinWebhookUrl, selectPublicWebhookAddress } from '../webhooks'
 
 describe('isBlockedWebhookUrl', () => {
   it.each([
@@ -23,6 +23,19 @@ describe('isBlockedWebhookUrl', () => {
   it('allows public HTTP and HTTPS destinations', () => {
     expect(isBlockedWebhookUrl('https://hooks.example.com/events')).toBe(false)
     expect(isBlockedWebhookUrl('http://203.0.113.10/events')).toBe(false)
+  })
+})
+
+describe('webhook DNS pin', () => {
+  it('rejects mixed public and private resolutions', () => {
+    expect(() => selectPublicWebhookAddress(['203.0.113.10', '127.0.0.1'])).toThrow(/private or internal/)
+    expect(() => selectPublicWebhookAddress([])).toThrow(/private or internal/)
+  })
+
+  it('rewrites the URL to the resolved address and keeps the original Host', () => {
+    const pinned = pinWebhookUrl('https://hooks.example.com/events?x=1', '203.0.113.10')
+    expect(pinned.host).toBe('hooks.example.com')
+    expect(pinned.href).toBe('https://203.0.113.10/events?x=1')
   })
 })
 
