@@ -1833,13 +1833,6 @@
                   "name": {
                     "type": "string"
                   },
-                  "group_name": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "maxLength": 64
-                  },
                   "description": {
                     "type": "string"
                   },
@@ -5135,13 +5128,6 @@
                   "name": {
                     "type": "string"
                   },
-                  "group_name": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "maxLength": 64
-                  },
                   "description": {
                     "type": "string"
                   },
@@ -5515,6 +5501,13 @@
                   "name": {
                     "type": "string"
                   },
+                  "group_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64
+                  },
                   "description": {
                     "type": "string"
                   }
@@ -5577,6 +5570,13 @@
                 "properties": {
                   "name": {
                     "type": "string"
+                  },
+                  "group_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64
                   },
                   "description": {
                     "type": "string"
@@ -12116,13 +12116,6 @@
           "name": {
             "type": "string"
           },
-          "group_name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 64
-          },
           "description": {
             "type": "string"
           },
@@ -12181,6 +12174,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "group_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
           },
           "description": {
             "type": "string"
