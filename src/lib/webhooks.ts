@@ -5,6 +5,7 @@ import https from 'node:https'
 import { isIP } from 'node:net'
 import { eventBelongsToWorkspace, eventBus, type ServerEvent } from './event-bus'
 import { logger } from './logger'
+import { readLimitedHttpBody } from './webhook-response'
 
 interface Webhook {
   id: number
@@ -134,9 +135,7 @@ function requestPinnedWebhook(
         reject(new Error('Webhook redirect rejected'))
         return
       }
-      const chunks: Buffer[] = []
-      res.on('data', (chunk) => chunks.push(chunk as Buffer))
-      res.on('end', () => resolve({ status, text: Buffer.concat(chunks).toString('utf8') }))
+      readLimitedHttpBody(res).then((text) => resolve({ status, text }), reject)
     })
     req.on('error', reject)
     req.write(init.body)
@@ -333,9 +332,6 @@ async function deliverWebhook(
     clearTimeout(timeout)
     statusCode = res.status
     responseBody = res.text
-    if (responseBody && responseBody.length > 1000) {
-      responseBody = responseBody.slice(0, 1000) + '...'
-    }
   } catch (err: any) {
     error = err.name === 'AbortError' ? 'Timeout (10s)' : err.message
   }
