@@ -1,14 +1,9 @@
+import type Database from 'better-sqlite3'
+
 const TABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-interface SqliteDatabase {
-  prepare: (sql: string) => {
-    all: (...args: unknown[]) => unknown
-    run: (...args: unknown[]) => { changes?: number }
-  }
-}
-
 export function reassignWorkspaceRows(
-  db: SqliteDatabase,
+  db: Database.Database,
   fromWorkspaceId: number,
   toWorkspaceId: number,
   now = Math.floor(Date.now() / 1000),

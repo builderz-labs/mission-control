@@ -1,3 +1,5 @@
+import type Database from 'better-sqlite3'
+
 export const WEBHOOK_RETRY_LEASE_SECONDS = 120
 export const WEBHOOK_RETRY_BATCH_LIMIT = 50
 
@@ -18,14 +20,6 @@ export interface DueWebhookRetry {
   leaseUntil: number
 }
 
-interface SqliteDb {
-  prepare: (sql: string) => {
-    get: (...args: unknown[]) => unknown
-    run: (...args: unknown[]) => { changes: number }
-  }
-  transaction: <T>(fn: () => T) => { immediate: () => T }
-}
-
 const SELECT_DUE = `
   SELECT wd.id, wd.webhook_id, wd.event_type, wd.payload, wd.attempt,
          w.id as w_id, w.name as w_name, w.url as w_url, w.secret as w_secret,
@@ -38,7 +32,7 @@ const SELECT_DUE = `
   LIMIT 1
 `
 
-export function claimDueWebhookRetry(db: SqliteDb, now: number): DueWebhookRetry | null {
+export function claimDueWebhookRetry(db: Database.Database, now: number): DueWebhookRetry | null {
   const leaseUntil = now + WEBHOOK_RETRY_LEASE_SECONDS
   return db.transaction(() => {
     const row = db.prepare(SELECT_DUE).get(now) as Omit<DueWebhookRetry, 'leaseUntil'> | undefined
@@ -53,7 +47,7 @@ export function claimDueWebhookRetry(db: SqliteDb, now: number): DueWebhookRetry
 }
 
 export function releaseWebhookRetryClaim(
-  db: SqliteDb,
+  db: Database.Database,
   claimed: Pick<DueWebhookRetry, 'id' | 'wd_workspace_id' | 'leaseUntil'>,
 ): void {
   db.prepare(
