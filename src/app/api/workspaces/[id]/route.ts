@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { validateBody, updateWorkspaceSchema } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { reassignWorkspaceRows } from '@/lib/workspace-reassign'
 
 /**
  * GET /api/workspaces/[id] - Get a single workspace
@@ -141,22 +142,7 @@ export async function DELETE(
     const fallbackId = defaultWs?.id ?? 1
 
     db.transaction(() => {
-      // Reassign agents to default workspace
-      const moved = db.prepare(
-        'UPDATE agents SET workspace_id = ?, updated_at = ? WHERE workspace_id = ?'
-      ).run(fallbackId, Math.floor(Date.now() / 1000), workspaceId)
-
-      // Reassign users to default workspace
-      db.prepare(
-        'UPDATE users SET workspace_id = ?, updated_at = ? WHERE workspace_id = ?'
-      ).run(fallbackId, Math.floor(Date.now() / 1000), workspaceId)
-
-      // Reassign projects to default workspace
-      db.prepare(
-        'UPDATE projects SET workspace_id = ?, updated_at = ? WHERE workspace_id = ?'
-      ).run(fallbackId, Math.floor(Date.now() / 1000), workspaceId)
-
-      // Delete workspace
+      const rowsMoved = reassignWorkspaceRows(db, workspaceId, fallbackId)
       db.prepare('DELETE FROM workspaces WHERE id = ?').run(workspaceId)
 
       logAuditEvent({
@@ -168,7 +154,7 @@ export async function DELETE(
         detail: {
           name: existing.name,
           slug: existing.slug,
-          agents_moved: (moved as any).changes,
+          rows_moved: rowsMoved,
           moved_to_workspace: fallbackId,
         },
       })

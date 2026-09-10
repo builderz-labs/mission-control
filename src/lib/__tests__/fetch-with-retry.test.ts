@@ -35,4 +35,28 @@ describe('fetchWithRetry', () => {
 
     expect(fetchImpl).toHaveBeenCalledOnce()
   })
+
+  it('does not retry non-idempotent POST responses', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('created', { status: 503 }))
+
+    const response = await fetchWithRetry(
+      'https://api.anthropic.com/v1/messages',
+      { method: 'POST', body: '{}' },
+      { fetchImpl, attempts: 3, timeoutMs: 100 },
+    )
+
+    expect(response.status).toBe(503)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry non-idempotent POST network errors', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('reset'))
+
+    await expect(fetchWithRetry(
+      'https://api.anthropic.com/v1/messages',
+      { method: 'POST', body: '{}' },
+      { fetchImpl, attempts: 3, timeoutMs: 100 },
+    )).rejects.toThrow('reset')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
 })

@@ -4,9 +4,19 @@ interface FetchRetryPolicy {
   attempts?: number
   timeoutMs?: number
   fetchImpl?: typeof fetch
+  retryNonIdempotent?: boolean
 }
 
 const DEFAULT_TIMEOUT_MS = 5_000
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE'])
+
+function requestMethod(init: RequestInit): string {
+  return String(init.method || 'GET').toUpperCase()
+}
+
+function canRetryMethod(method: string, retryNonIdempotent: boolean): boolean {
+  return retryNonIdempotent || IDEMPOTENT_METHODS.has(method)
+}
 
 function requestSignal(
   existing: AbortSignal | null | undefined,
@@ -31,6 +41,7 @@ export async function fetchWithRetry(
     ? undefined
     : Math.max(1, policy.timeoutMs)
   const fetchImpl = policy.fetchImpl ?? fetch
+  const retryable = canRetryMethod(requestMethod(init), policy.retryNonIdempotent === true)
   let lastError: unknown
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -39,12 +50,12 @@ export async function fetchWithRetry(
         ...init,
         signal: requestSignal(init.signal, timeoutMs),
       })
-      if (!shouldRetry(response) || attempt === attempts - 1) return response
+      if (!shouldRetry(response) || attempt === attempts - 1 || !retryable) return response
       await response.body?.cancel().catch(() => undefined)
       lastError = new Error(`Remote service returned ${response.status}`)
     } catch (error) {
       lastError = error
-      if (attempt === attempts - 1) throw error
+      if (attempt === attempts - 1 || !retryable) throw error
     }
   }
 

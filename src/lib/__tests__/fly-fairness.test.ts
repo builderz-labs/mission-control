@@ -97,4 +97,5 @@ it('keeps memory headroom for a dependency install even without a test check', a
   expect(recommendFlyWorkerSize({ requiresDependencies: true }, []).size).toBe('core-standard')
   expect(pricedFlyJob({ setup: 'none', checks: ['smoke'], timeout_seconds: 60 }).spec.size).toBe('core-small')
   expect(pricedFlyJob({ setup: 'pnpm-ci', checks: ['smoke'], timeout_seconds: 60 }).spec.size).toBe('core-standard')
+  expect(pricedFlyJob({ setup: 'pnpm-ci', checks: ['build'], timeout_seconds: 900 }).spec.size).toBe('core-xlarge')
 })

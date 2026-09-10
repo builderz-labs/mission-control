@@ -21,6 +21,8 @@ describe('Fly worker policy', () => {
     expect(recommendFlyWorkerSize({ requiresBrowser: true }, [{ cpuPercent: 90, memoryMb: 5000, runtimeSeconds: 1, costUsd: 0 }]).size)
       .toBe('browser-large')
     expect(recommendFlyWorkerSize({ requiresTesting: true }, []).size).toBe('core-performance')
+    expect(recommendFlyWorkerSize({ requiresBuild: true }, []).size).toBe('core-xlarge')
+    expect(recommendFlyWorkerSize({ estimatedMemoryMb: 6144 }, []).size).toBe('core-xlarge')
   })
 
   it('reads a CPU sample as a share of the machine that produced it, not as an absolute', () => {

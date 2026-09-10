@@ -4,9 +4,18 @@ import { isFlyWorkerImageRef } from './fly-orchestrator'
 
 export function pricedFlyJob(input: Pick<FlySubmission, 'setup' | 'checks' | 'timeout_seconds'>, history: FlyUsageSample[] = []) {
   const browser = input.setup.endsWith('-playwright')
-  const spec = recommendFlyWorkerSize({ requiresBrowser: browser, requiresDependencies: input.setup !== 'none',
-    requiresTesting: input.checks.some(check => check !== 'smoke') }, history)
-  const rawRate = Number(process.env[`MC_FLY_${spec.size.replaceAll('-', '_').toUpperCase()}_HOURLY_USD`])
+  const spec = recommendFlyWorkerSize({
+    requiresBrowser: browser,
+    requiresDependencies: input.setup !== 'none',
+    requiresTesting: input.checks.some(check => check !== 'smoke'),
+    requiresBuild: input.checks.includes('build'),
+    estimatedMemoryMb: input.checks.includes('build') ? 6144 : undefined,
+  }, history)
+  const envRate = Number(process.env[`MC_FLY_${spec.size.replaceAll('-', '_').toUpperCase()}_HOURLY_USD`])
+  const fallbackRate = spec.size === 'core-xlarge'
+    ? Number(process.env.MC_FLY_CORE_PERFORMANCE_HOURLY_USD) * 2
+    : 0
+  const rawRate = Number.isFinite(envRate) && envRate > 0 ? envRate : fallbackRate
   const rate = Number.isFinite(rawRate) && rawRate > 0 ? rawRate : 0
   const image = browser ? process.env.MC_FLY_BROWSER_IMAGE : process.env.MC_FLY_CORE_IMAGE
   const ttl = input.timeout_seconds + 300

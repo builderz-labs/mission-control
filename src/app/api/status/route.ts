@@ -18,12 +18,16 @@ import { registerMcAsDashboard } from '@/lib/gateway-runtime'
 import { getWorkspaceIsolation } from '@/lib/workspace-isolation'
 import { getDiskHealth } from '@/lib/disk-health'
 
+function healthHttpStatus(status: string): number {
+  return status === 'unhealthy' || status === 'degraded' ? 503 : 200
+}
+
 export async function GET(request: NextRequest) {
   // Docker/Kubernetes health probes must work without auth/cookies.
   const preAction = new URL(request.url).searchParams.get('action') || 'overview'
   if (preAction === 'health') {
     const health = await performHealthCheck()
-    return NextResponse.json(health)
+    return NextResponse.json(health, { status: healthHttpStatus(health.status) })
   }
 
   const auth = requireRole(request, 'viewer')
@@ -60,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     if (action === 'health') {
       const health = await performHealthCheck()
-      return NextResponse.json(health)
+      return NextResponse.json(health, { status: healthHttpStatus(health.status) })
     }
 
     if (action === 'capabilities') {
