@@ -56,6 +56,8 @@ export async function githubFetch(
     headers['Content-Type'] = 'application/json'
   }
 
+  const method = String(options.method || 'GET').toUpperCase()
+  const retryable = method === 'GET' || method === 'HEAD'
   let lastError: unknown
   for (let attempt = 0; attempt < 2; attempt++) {
     const controller = new AbortController()
@@ -66,14 +68,15 @@ export async function githubFetch(
         headers,
         signal: controller.signal,
       })
-      if (res.status >= 500 && attempt === 0) {
+      if (retryable && res.status >= 500 && attempt === 0) {
         lastError = new Error(`GitHub API ${res.status}`)
+        await res.body?.cancel().catch(() => undefined)
         continue
       }
       return res
     } catch (err) {
       lastError = err
-      if (attempt === 0) continue
+      if (attempt === 0 && retryable) continue
       throw err
     } finally {
       clearTimeout(timeout)
