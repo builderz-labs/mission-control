@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     const includeArchived = new URL(request.url).searchParams.get('includeArchived') === '1'
 
     const rows = db.prepare(`
-      SELECT p.id, p.workspace_id, p.name, p.slug, p.description, p.ticket_prefix, p.ticket_counter, p.status,
+      SELECT p.id, p.workspace_id, p.name, p.slug, p.group_name, p.description, p.ticket_prefix, p.ticket_counter, p.status,
              p.github_repo, p.deadline, p.color, p.github_sync_enabled, p.github_labels_initialized, p.github_default_branch, p.created_at, p.updated_at,
              (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) as task_count,
              (SELECT GROUP_CONCAT(paa.agent_name) FROM project_agent_assignments paa WHERE paa.project_id = p.id) as assigned_agents_csv
@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     const name = String(body?.name || '').trim()
+    const groupName = typeof body?.group_name === 'string' ? body.group_name.trim() || null : null
     const description = typeof body?.description === 'string' ? body.description.trim() : ''
     const prefixInput = String(body?.ticket_prefix || body?.ticketPrefix || '').trim()
     const slugInput = String(body?.slug || '').trim()
@@ -98,6 +99,12 @@ export async function POST(request: NextRequest) {
     const color = typeof body?.color === 'string' ? body.color.trim() || null : null
 
     if (!name) return NextResponse.json({ error: 'Project name is required' }, { status: 400 })
+    if (body?.group_name !== undefined && body?.group_name !== null && typeof body.group_name !== 'string') {
+      return NextResponse.json({ error: 'Project group must be a string or null' }, { status: 400 })
+    }
+    if (groupName && groupName.length > 64) {
+      return NextResponse.json({ error: 'Project group must be 64 characters or fewer' }, { status: 400 })
+    }
 
     const slug = slugInput ? slugify(slugInput) : slugify(name)
     const ticketPrefix = normalizePrefix(prefixInput || name.slice(0, 5))
@@ -114,12 +121,12 @@ export async function POST(request: NextRequest) {
     }
 
     const result = db.prepare(`
-      INSERT INTO projects (workspace_id, name, slug, description, ticket_prefix, github_repo, deadline, color, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', unixepoch(), unixepoch())
-    `).run(workspaceId, name, slug, description || null, ticketPrefix, githubRepo, deadline, color)
+      INSERT INTO projects (workspace_id, name, slug, group_name, description, ticket_prefix, github_repo, deadline, color, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', unixepoch(), unixepoch())
+    `).run(workspaceId, name, slug, groupName, description || null, ticketPrefix, githubRepo, deadline, color)
 
     const project = db.prepare(`
-      SELECT id, workspace_id, name, slug, description, ticket_prefix, ticket_counter, status,
+      SELECT id, workspace_id, name, slug, group_name, description, ticket_prefix, ticket_counter, status,
              github_repo, deadline, color, github_sync_enabled, github_labels_initialized, github_default_branch, created_at, updated_at
       FROM projects
       WHERE id = ?

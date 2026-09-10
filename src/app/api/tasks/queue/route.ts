@@ -82,10 +82,11 @@ export async function GET(request: NextRequest) {
     const now = Math.floor(Date.now() / 1000)
 
     const currentTask = db.prepare(`
-      SELECT *
-      FROM tasks
-      WHERE workspace_id = ? AND assigned_to = ? AND status = 'in_progress'
-      ORDER BY updated_at DESC
+      SELECT t.*, p.name as project_name, p.group_name as project_group, p.ticket_prefix as project_prefix
+      FROM tasks t
+      LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+      WHERE t.workspace_id = ? AND t.assigned_to = ? AND t.status = 'in_progress'
+      ORDER BY t.updated_at DESC
       LIMIT 1
     `).get(workspaceId, agent) as any | undefined
 
@@ -129,8 +130,14 @@ export async function GET(request: NextRequest) {
     `).get(agent, now, workspaceId, agent) as any | undefined
 
     if (claimed) {
+      const claimedWithProject = db.prepare(`
+        SELECT t.*, p.name as project_name, p.group_name as project_group, p.ticket_prefix as project_prefix
+        FROM tasks t
+        LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
+        WHERE t.id = ? AND t.workspace_id = ?
+      `).get(claimed.id, workspaceId) as any
       return NextResponse.json({
-        task: mapTaskRow(claimed),
+        task: mapTaskRow(claimedWithProject),
         reason: 'assigned' as QueueReason,
         agent,
         timestamp: now,
