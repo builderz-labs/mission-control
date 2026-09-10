@@ -1,6 +1,6 @@
 export type FlyWorkerClass = 'core' | 'browser'
 export type FlyCpuKind = 'shared' | 'performance'
-export type FlyWorkerSize = 'core-small' | 'core-standard' | 'core-performance' | 'browser-standard' | 'browser-large'
+export type FlyWorkerSize = 'core-small' | 'core-standard' | 'core-performance' | 'core-xlarge' | 'browser-standard' | 'browser-large'
 
 export interface FlyMachineSpec {
   size: FlyWorkerSize
@@ -15,6 +15,7 @@ export const FLY_WORKER_SPECS: Record<FlyWorkerSize, FlyMachineSpec> = {
   'core-small': { size: 'core-small', workerClass: 'core', cpuKind: 'shared', cpus: 1, memoryMb: 1024, hourlyCostUsd: 0 },
   'core-standard': { size: 'core-standard', workerClass: 'core', cpuKind: 'shared', cpus: 1, memoryMb: 2048, hourlyCostUsd: 0 },
   'core-performance': { size: 'core-performance', workerClass: 'core', cpuKind: 'performance', cpus: 2, memoryMb: 4096, hourlyCostUsd: 0 },
+  'core-xlarge': { size: 'core-xlarge', workerClass: 'core', cpuKind: 'performance', cpus: 4, memoryMb: 8192, hourlyCostUsd: 0 },
   'browser-standard': { size: 'browser-standard', workerClass: 'browser', cpuKind: 'performance', cpus: 2, memoryMb: 4096, hourlyCostUsd: 0 },
   'browser-large': { size: 'browser-large', workerClass: 'browser', cpuKind: 'performance', cpus: 4, memoryMb: 8192, hourlyCostUsd: 0 },
 }
@@ -23,6 +24,7 @@ export interface FlyJobProfile {
   macOnly?: boolean
   requiresBrowser?: boolean
   requiresTesting?: boolean
+  requiresBuild?: boolean
   requiresDependencies?: boolean
   estimatedCpuSeconds?: number
   estimatedMemoryMb?: number
@@ -68,6 +70,7 @@ export function recommendFlyWorkerSize(profile: FlyJobProfile, history: FlyUsage
     return memory > 4096 || vcpu > FLY_WORKER_SPECS['browser-standard'].cpus
       ? FLY_WORKER_SPECS['browser-large'] : FLY_WORKER_SPECS['browser-standard']
   }
+  if (profile.requiresBuild || memory > 4096) return FLY_WORKER_SPECS['core-xlarge']
   if (memory > 2048 || vcpu > FLY_WORKER_SPECS['core-standard'].cpus || profile.requiresTesting) return FLY_WORKER_SPECS['core-performance']
   // A dependency install measured a 596 MiB peak against a 1 GiB class; keep headroom.
   if (memory > 1024 || vcpu > 0.5 || profile.requiresDependencies) return FLY_WORKER_SPECS['core-standard']

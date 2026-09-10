@@ -13,7 +13,7 @@
     "desktop:start": "pnpm --filter mission-control-desktop start",
     "test:desktop": "pnpm --filter mission-control-desktop test",
     "dev": "pnpm run verify:node && next dev --hostname 127.0.0.1 --port ${PORT:-3000}",
-    "build": "pnpm run verify:node && next build --webpack && pnpm artifact:prepare",
+    "build": "pnpm run verify:node && NODE_OPTIONS=--max-old-space-size=6144 next build --webpack && pnpm artifact:prepare",
     "artifact:prepare": "node scripts/prepare-standalone-artifact.mjs",
     "artifact:check": "node scripts/check-standalone-artifact.mjs",
     "start": "pnpm run verify:node && next start --hostname 127.0.0.1 --port ${PORT:-3000}",
