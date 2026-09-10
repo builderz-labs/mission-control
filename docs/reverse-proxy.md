@@ -1,11 +1,13 @@
 # Reverse proxy deployment
 
 Set the canonical URL and the address of the proxy that connects to Mission
-Control. Forwarded headers are ignored unless the nearest proxy appears as the
-right-most `X-Forwarded-For` hop.
+Control. `MC_TRUSTED_PROXY_HEADERS=1` is optional and should only be enabled
+when the backend is private and the runtime supplies a verified transport peer
+IP. An X-Forwarded-For value alone never proves proxy trust.
 
 ```env
 MC_PUBLIC_URL=https://mc.example.com
+MC_TRUSTED_PROXY_HEADERS=1
 MC_TRUSTED_PROXY_IPS=127.0.0.1
 MC_ALLOWED_HOSTS=mc.example.com,localhost,127.0.0.1
 MC_COOKIE_SECURE=1

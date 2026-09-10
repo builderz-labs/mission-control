@@ -23,7 +23,14 @@ function envFlag(name: string): boolean {
 }
 
 function normalizeHostname(raw: string): string {
-  return raw.trim().replace(/^\[|\]$/g, '').split(':')[0].replace(/\.$/, '').toLowerCase()
+  const value = raw.trim().toLowerCase().replace(/\.$/, '')
+  // Preserve IPv6 literals; only strip a port from bracketed or simple hosts.
+  if (value.startsWith('[')) {
+    const closingBracket = value.indexOf(']')
+    return closingBracket > 0 ? value.slice(1, closingBracket) : value
+  }
+  if ((value.match(/:/g) || []).length > 1) return value
+  return value.split(':')[0]
 }
 
 function getRequestHostCandidates(request: NextRequest): string[] {

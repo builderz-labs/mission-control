@@ -357,6 +357,7 @@ See `.env.example` for the full list. Key variables:
 | `MC_ALLOWED_HOSTS` | No | `localhost,127.0.0.1` | Allowed hosts in production |
 | `MC_PUBLIC_URL` | No | request URL | Canonical browser URL behind HTTPS termination (for example `https://mc.example.com`) |
 | `MC_TRUSTED_PROXY_IPS` | No | unset | Proxy IPs permitted to provide Forwarded/X-Forwarded origin headers |
+| `MC_TRUSTED_PROXY_HEADERS` | No | unset | Explicitly opt in to forwarded origins; requires private backend and verified transport peer IP |
 | `MC_PORT` | No | `3000` | Host-side port that the bundled `docker-compose.yml` publishes the container's `PORT` on. The bundled `Makefile` expects `7012`. |
 | `ANTHROPIC_API_KEY` | No (Yes for direct dispatch) | - | Used when `dispatchModel` matches `claude-*` / `anthropic/*` and no gateway is available. |
 | `OPENAI_API_KEY` | No | - | Used when `dispatchModel` matches `gpt-*` / `o1-*` / `o3-*` / `openai/*`. |
