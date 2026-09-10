@@ -24,5 +24,5 @@ export function flyJobsComplete(jobs: SessionFlyJob[]): boolean {
 }
 
 function sessionMatchesFly(sessionId: string, flySessionId: string): boolean {
-  return sessionId === flySessionId || sessionId.includes(flySessionId) || flySessionId.includes(sessionId)
+  return sessionId === flySessionId || sessionId.endsWith(`:${flySessionId}`)
 }

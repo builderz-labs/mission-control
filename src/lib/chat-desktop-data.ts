@@ -2,7 +2,7 @@ import type { Conversation } from '@/store'
 import type { ChatPullRequest } from './github-pulls'
 import type { ChatSessionItem, SidebarRow } from './group-sessions'
 import { toActivityMs } from './chat-display'
-import { isTreeKind, projectSlugOf, sessionTitle, sessionsForProject } from './chat-session-identity'
+import { isPlaceholderSessionTitle, isTreeKind, projectSlugOf, sessionTitle, sessionsForProject } from './chat-session-identity'
 import type { TreeKind } from './chat-session-identity'
 import type { TranscriptMessage } from './session-transcript-types'
 
@@ -33,7 +33,10 @@ export function conversationsToItems(
   pulls: ChatPullRequest[],
 ): ChatSessionItem[] {
   return sortNewestFirst(
-    conversations.filter((conv) => conv.source === 'session').map((conv) => toSessionItem(conv, pulls)),
+    conversations
+      .filter((conv) => conv.source === 'session')
+      .map((conv) => toSessionItem(conv, pulls))
+      .filter((item) => item.active || !isPlaceholderSessionTitle(item.name)),
   )
 }
 
@@ -46,6 +49,7 @@ export function gitLensByProject(
     map[row.key] = sortNewestFirst(
       sessionsForProject(items, row.key)
         .filter((item): item is ChatSessionItem & { kind: TreeKind } => isTreeKind(item.kind))
+        .filter((item) => item.active || !isPlaceholderSessionTitle(item.name))
         .map(toGitLensRow),
     )
   }
@@ -53,7 +57,9 @@ export function gitLensByProject(
 }
 
 export function toHomeSessions(items: ChatSessionItem[]): HomeSessionRow[] {
-  return sortNewestFirst(items.filter((item) => isTreeKind(item.kind))).slice(0, 8).map((item) => ({
+  return sortNewestFirst(
+    items.filter((item) => isTreeKind(item.kind) && (item.active || !isPlaceholderSessionTitle(item.name))),
+  ).slice(0, 8).map((item) => ({
     id: item.id,
     title: item.name,
     subtitle: item.agent,
