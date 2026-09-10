@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   inferTreeKind,
+  isPlaceholderSessionTitle,
   looksLikeSlugTitle,
   projectSlugOf,
   sessionTitle,
@@ -83,6 +84,14 @@ describe('sessionsForProject', () => {
 describe('projectSlugOf', () => {
   it('uses the working-dir leaf', () => {
     expect(projectSlugOf('/Users/tylerdevries/Dev/stillpoint-builders')).toBe('stillpoint-builders')
+  })
+})
+
+describe('isPlaceholderSessionTitle', () => {
+  it('detects engine-plus-id fallbacks from every desktop app', () => {
+    expect(isPlaceholderSessionTitle('Codex · 01a08c1f')).toBe(true)
+    expect(isPlaceholderSessionTitle('Claude e4deed8c-857')).toBe(true)
+    expect(isPlaceholderSessionTitle('Worktree audit and consolidation')).toBe(false)
   })
 })
 

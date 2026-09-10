@@ -81,7 +81,11 @@ export function ChatProjectFolder({
         >
           +
         </button>
-        <EngineLogoSet kinds={sessions.map((session) => session.kind)} size={14} />
+        {!open ? (
+          <span data-testid="project-engine-logos">
+            <EngineLogoSet kinds={sessions.map((session) => session.kind)} size={14} decorative />
+          </span>
+        ) : null}
         <button
           type="button"
           className="ml-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-[var(--chat-muted)] hover:text-[var(--chat-text)]"

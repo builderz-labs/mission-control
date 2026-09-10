@@ -103,6 +103,33 @@ describe('gitLensByProject', () => {
     })
     expect(map['folder:stillpoint-builders'].map((row) => row.title)).toEqual(['New chat', 'Old chat'])
   })
+
+  it('hides unnamed engine-id sessions unless they are live', () => {
+    const items = conversationsToItems([
+      conv({
+        id: 'session:codex-cli:01a08c1f',
+        kind: 'codex-cli',
+        name: 'Codex · 01a08c1f',
+        session: {
+          sessionId: '01a08c1f',
+          sessionKind: 'codex-cli',
+          workingDir: '/Users/tylerdevries/Dev/stillpoint-builders',
+          active: false,
+        },
+      }),
+      conv({
+        id: 'session:claude-code:named',
+        session: {
+          sessionId: 'named',
+          sessionKind: 'claude-code',
+          customTitle: 'Worktree audit and consolidation',
+          workingDir: '/Users/tylerdevries/Dev/stillpoint-builders',
+          active: false,
+        },
+      }),
+    ], [])
+    expect(items.map((item) => item.name)).toEqual(['Worktree audit and consolidation'])
+  })
 })
 
 describe('toHomeSessions', () => {

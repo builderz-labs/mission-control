@@ -58,6 +58,10 @@ export function looksLikeEngineIdTitle(value: string): boolean {
   return /^(Claude|Codex|Grok|Kimi)(?:\s+| · )[a-z0-9._:-]+$/i.test(value.trim())
 }
 
+export function isPlaceholderSessionTitle(value: string): boolean {
+  return looksLikeEngineIdTitle(value)
+}
+
 function cleanTitle(value?: string | null): string | null {
   const text = (value || '').replace(/\s+/g, ' ').trim()
   if (!text || looksLikeNoisePrompt(text) || looksLikeSlugTitle(text)) return null

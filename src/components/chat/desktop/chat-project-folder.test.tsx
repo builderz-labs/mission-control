@@ -52,6 +52,7 @@ describe('ChatProjectFolder', () => {
     expect(screen.getByRole('status', { name: 'Idle' })).toBeTruthy()
     expect(screen.getByText('Live chat')).toBeTruthy()
     expect(screen.getByText('Idle chat')).toBeTruthy()
+    expect(screen.queryByTestId('project-engine-logos')).toBeNull()
   })
 
   it('keeps live project chats visible even when the folder is not selected', () => {
@@ -98,6 +99,7 @@ describe('ChatProjectFolder', () => {
     ))
     expect(screen.queryByText('Idle chat')).toBeNull()
     expect(screen.getByRole('status', { name: 'Idle' })).toBeTruthy()
+    expect(screen.getByTestId('project-engine-logos')).toBeTruthy()
   })
 
   it('expands and collapses the project dropdown from the chevron', () => {

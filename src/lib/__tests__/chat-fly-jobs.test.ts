@@ -29,6 +29,7 @@ describe('jobsForSession', () => {
     expect(jobsForSession(jobs, 'session:grok:grok-mc-audit')).toEqual([
       { id: 'a', title: 'lint', state: 'succeeded' },
     ])
+    expect(jobsForSession(jobs, 'session:codex-cli:01a08c1f-c13')).toEqual([])
   })
 
   it('treats a nest as complete only when every worker finished', () => {
