@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/db'
+import { standaloneReleaseIntact } from '@/lib/standalone-assets'
 
 /**
  * Public, unauthenticated health endpoint for upstream watchdogs (deploy
@@ -16,12 +17,16 @@ import { getDatabase } from '@/lib/db'
  */
 export async function GET() {
   const ts = new Date().toISOString()
+  const assets = standaloneReleaseIntact() ? 'ok' : 'error'
   try {
     const db = getDatabase()
     db.prepare('SELECT 1').get()
-    return NextResponse.json({ status: 'ok', db: 'ok', ts })
+    if (assets !== 'ok') {
+      return NextResponse.json({ status: 'degraded', db: 'ok', assets, ts }, { status: 503 })
+    }
+    return NextResponse.json({ status: 'ok', db: 'ok', assets, ts })
   } catch {
     // Deliberately no error detail in the response body.
-    return NextResponse.json({ status: 'degraded', db: 'error', ts }, { status: 503 })
+    return NextResponse.json({ status: 'degraded', db: 'error', assets, ts }, { status: 503 })
   }
 }

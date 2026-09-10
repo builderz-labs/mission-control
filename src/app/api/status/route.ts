@@ -17,6 +17,7 @@ import { isHermesInstalled, scanHermesSessions } from '@/lib/hermes-sessions'
 import { registerMcAsDashboard } from '@/lib/gateway-runtime'
 import { getWorkspaceIsolation } from '@/lib/workspace-isolation'
 import { getDiskHealth } from '@/lib/disk-health'
+import { standaloneReleaseIntact } from '@/lib/standalone-assets'
 
 function healthHttpStatus(status: string): number {
   return status === 'unhealthy' || status === 'degraded' ? 503 : 200
@@ -494,6 +495,15 @@ async function performHealthCheck() {
     checks: [],
     timestamp: Date.now()
   }
+
+  const assetsIntact = standaloneReleaseIntact()
+  health.checks.push({
+    name: 'Release assets',
+    status: assetsIntact ? 'healthy' : 'unhealthy',
+    message: assetsIntact
+      ? 'Standalone public brand assets are present'
+      : 'Standalone public brand assets are missing',
+  })
 
   // Check DB connectivity
   try {
