@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 const getDatabaseMock = vi.fn()
-const standaloneReleaseIntactMock = vi.fn(() => true)
+const standaloneReleaseIntactMock = vi.fn<() => boolean>(() => true)
 
 vi.mock('@/lib/auth', () => ({
   requireRole: vi.fn(() => ({ user: { role: 'viewer', workspace_id: 1 } })),
@@ -27,7 +27,7 @@ vi.mock('@/lib/disk-health', () => ({
 }))
 vi.mock('@/lib/version', () => ({ APP_VERSION: 'test' }))
 vi.mock('@/lib/standalone-assets', () => ({
-  standaloneReleaseIntact: (...args: unknown[]) => standaloneReleaseIntactMock(...args),
+  standaloneReleaseIntact: () => standaloneReleaseIntactMock(),
 }))
 
 describe('GET /api/status?action=health aggregation', () => {

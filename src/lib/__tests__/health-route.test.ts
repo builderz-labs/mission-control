@@ -2,14 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getDatabaseMock, standaloneReleaseIntactMock } = vi.hoisted(() => ({
   getDatabaseMock: vi.fn(),
-  standaloneReleaseIntactMock: vi.fn(() => true),
+  standaloneReleaseIntactMock: vi.fn<() => boolean>(() => true),
 }))
 
 vi.mock('@/lib/db', () => ({
   getDatabase: getDatabaseMock,
 }))
 vi.mock('@/lib/standalone-assets', () => ({
-  standaloneReleaseIntact: (...args: unknown[]) => standaloneReleaseIntactMock(...args),
+  standaloneReleaseIntact: () => standaloneReleaseIntactMock(),
 }))
 
 import { GET } from '@/app/api/health/route'
