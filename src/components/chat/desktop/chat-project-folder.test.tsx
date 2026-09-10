@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { NextIntlClientProvider } from 'next-intl'
 import { ChatProjectFolder } from './chat-project-folder'
 import type { SidebarRow } from '@/lib/group-sessions'
@@ -98,5 +98,31 @@ describe('ChatProjectFolder', () => {
     ))
     expect(screen.queryByText('Idle chat')).toBeNull()
     expect(screen.getByRole('status', { name: 'Idle' })).toBeTruthy()
+  })
+
+  it('expands and collapses the project dropdown from the chevron', () => {
+    render(wrap(
+      <ChatProjectFolder
+        row={{ ...row, hasActive: false }}
+        selected={false}
+        showPr={false}
+        sessions={[
+          { id: 'session:kimi:2', kind: 'kimi', title: 'Idle chat', updatedAt: 10, active: false },
+        ]}
+        activeSessionId={null}
+        pinned={false}
+        dragging={false}
+        onSelect={() => undefined}
+        onNewInGroup={() => undefined}
+        onTogglePin={() => undefined}
+        onSelectSession={() => undefined}
+        folderProps={folderProps}
+      />,
+    ))
+    expect(screen.queryByText('Idle chat')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand stillpoint-builders' }))
+    expect(screen.getByText('Idle chat')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse stillpoint-builders' }))
+    expect(screen.queryByText('Idle chat')).toBeNull()
   })
 })

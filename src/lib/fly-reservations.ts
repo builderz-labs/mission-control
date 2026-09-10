@@ -7,6 +7,7 @@ import type { SubmissionRow } from './fly-admission'
 import { priceFromFlyHistory } from './fly-sizing-history'
 import { flyBudgetPeriods, flyCommittedSpend } from './fly-budget'
 import { flyQueueIsContended, flyRepositoryDailyCap, flyRepositorySpendToday } from './fly-fairness'
+import { eventBus } from './event-bus'
 
 export type ReservedJob = {
   id: string; task_id: number; workspace_id: number; submission_id: string; state: string;
@@ -48,6 +49,8 @@ export function reserveFlyJob(db: Database.Database, row: SubmissionRow, input: 
       VALUES (?,?,?,'creating',?,'fly',?,?,?,?,?,?,?,?,?,'poll',?)`)
       .run(id,row.task_id,row.workspace_id,spec.workerClass,spec.size,branch,input.repository,'',reserve,now+ttl,row.id,rate,name,app)
     db.prepare("UPDATE fly_submissions SET state='running',attempts=attempts+1,reason=NULL,updated_at=? WHERE id=?").run(now,row.id)
+    db.prepare("UPDATE tasks SET status='in_progress', updated_at=? WHERE id=? AND workspace_id=?").run(now, row.task_id, row.workspace_id)
+    eventBus.broadcast('task.status_changed', { id: row.task_id, status: 'in_progress', updated_at: now, workspace_id: row.workspace_id })
     const payload = { ...input, id, branch_name: branch, expires_at: now + ttl }
     return { id, name, app, config: { image, auto_destroy: true, restart: { policy: 'no' },
       guest: { cpu_kind: spec.cpuKind, cpus: spec.cpus, memory_mb: spec.memoryMb },

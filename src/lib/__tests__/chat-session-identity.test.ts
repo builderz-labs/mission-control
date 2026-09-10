@@ -23,7 +23,7 @@ describe('sessionTitle', () => {
       prefName: 'chat-desktop-parity • chat-desktop-parity',
       kind: 'claude-code',
       id: 'session:claude-code:deadbeef',
-    })).toBe('Claude deadbeef')
+    })).toBe('Claude · deadbeef')
   })
 
   it('skips notification-shaped prompts', () => {
@@ -32,7 +32,7 @@ describe('sessionTitle', () => {
       prefName: null,
       kind: 'claude-code',
       id: 'session:claude-code:deadbeefcafebabe',
-    })).toBe('Claude deadbeefcafe')
+    })).toBe('Claude · deadbeef')
   })
 
   it('uses Claude desktop customTitle over noise and engine-id prefs', () => {

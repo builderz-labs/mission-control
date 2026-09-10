@@ -43,10 +43,9 @@ export function recordPolledResult(db: Database.Database, job: ReservedJob, text
 /** Release ownership only after the Machine is confirmed absent. */
 export function settleFlyJob(db: Database.Database, job: ReservedJob, fallbackReason = 'Worker disappeared before result delivery') {
   const now = Math.floor(Date.now() / 1000)
-  db.transaction(() => {
+  const taskStatus = db.transaction(() => {
     const current = db.prepare("SELECT * FROM fly_worker_jobs WHERE id=? AND state IN ('creating','running','cleaning')").get(job.id) as ReservedJob | undefined
-    if (!current) return
-    // A saved heartbeat is historical evidence after an outage, not a live sample.
+    if (!current) return null
     const outcome = current.outcome_json ? parseResult(current.outcome_json, current, false) : null
     const state = outcome?.state === 'succeeded' ? 'succeeded' : 'failed'
     const runtime = Math.max(0, now - (current.started_at || current.created_at))
@@ -56,9 +55,16 @@ export function settleFlyJob(db: Database.Database, job: ReservedJob, fallbackRe
     const retry = state === 'failed' && (!outcome || outcome.state === 'running') && submission.attempts < 2
     db.prepare('UPDATE fly_submissions SET state=?,reason=?,next_attempt_at=?,updated_at=? WHERE id=?')
       .run(retry ? 'queued' : state, state === 'failed' ? outcome?.error_message || fallbackReason : null,now+30,now,job.submission_id)
+    const status = retry ? 'in_progress' : state === 'succeeded' ? 'review' : 'failed'
     db.prepare('UPDATE tasks SET status=?,resolution=?,error_message=?,updated_at=? WHERE id=? AND workspace_id=?')
-      .run(retry ? 'in_progress' : state === 'succeeded' ? 'review' : 'failed', outcome?.resolution || null,
+      .run(status, outcome?.resolution || null,
         state === 'failed' ? outcome?.error_message || fallbackReason : null,now,job.task_id,job.workspace_id)
+    return status
   }).immediate()
   eventBus.broadcast('fly.worker.updated', { workspace_id: job.workspace_id, job_id: job.id, state: 'settled' })
+  if (taskStatus) {
+    eventBus.broadcast('task.status_changed', {
+      id: job.task_id, workspace_id: job.workspace_id, status: taskStatus, updated_at: now,
+    })
+  }
 }

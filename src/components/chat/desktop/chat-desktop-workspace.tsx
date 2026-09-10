@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMissionControl } from '@/store'
 import { projectSlugOf } from '@/lib/chat-session-identity'
 import { conversationsToItems, gitLensByProject, toHomeSessions, withOptimisticUser } from '@/lib/chat-desktop-data'
+import { withSessionFlyJobs } from '@/lib/chat-fly-jobs'
+import { useChatFlyJobs } from '../use-chat-fly-jobs'
 import { buildSidebarRows, type SidebarRow } from '@/lib/group-sessions'
 import { extractPlanMarkdown } from '@/lib/session-plan'
 import { useNavigateToPanel } from '@/lib/navigation'
@@ -60,6 +62,7 @@ export function ChatDesktopWorkspace() {
     if (pendingUser && withOptimisticUser(transcript.messages, pendingUser) === transcript.messages) setPendingUser(null)
   }, [transcript.messages, pendingUser])
 
+  const flyJobs = useChatFlyJobs()
   const items = useMemo(() => conversationsToItems(conversations, pulls), [conversations, pulls])
   const rows = useMemo(() => buildSidebarRows(
     items,
@@ -68,7 +71,11 @@ export function ChatDesktopWorkspace() {
     prefs.pins,
     folders.folderOrder,
   ), [items, projects, prefs.filters, prefs.pins, folders.folderOrder])
-  const sessionsByProject = useMemo(() => gitLensByProject(items, rows), [items, rows])
+  const sessionsByProject = useMemo(() => {
+    const map = gitLensByProject(items, rows)
+    for (const key of Object.keys(map)) map[key] = withSessionFlyJobs(map[key], flyJobs)
+    return map
+  }, [items, rows, flyJobs])
   const homeSessions = useMemo(() => toHomeSessions(items), [items])
   const selectedSlug = selectedKey?.slice((selectedKey.indexOf(':') + 1)) || ''
   const selectedProject = projects.find((p) => p.slug === selectedSlug || p.name === selectedSlug) || null
