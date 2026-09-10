@@ -6,6 +6,11 @@ import { isIP } from 'node:net'
 import { eventBelongsToWorkspace, eventBus, type ServerEvent } from './event-bus'
 import { logger } from './logger'
 import { readLimitedHttpBody } from './webhook-response'
+import {
+  WEBHOOK_RETRY_BATCH_LIMIT,
+  claimDueWebhookRetry,
+  releaseWebhookRetryClaim,
+} from './webhook-retry-lease'
 
 interface Webhook {
   id: number
@@ -432,37 +437,15 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
     const { getDatabase } = await import('./db')
     const db = getDatabase()
     const now = Math.floor(Date.now() / 1000)
-
-    // Find deliveries ready for retry (limit batch to 50)
-    const pendingRetries = db.prepare(`
-      SELECT wd.id, wd.webhook_id, wd.event_type, wd.payload, wd.attempt,
-             w.id as w_id, w.name as w_name, w.url as w_url, w.secret as w_secret,
-             w.events as w_events, w.enabled as w_enabled, w.consecutive_failures as w_consecutive_failures,
-             wd.workspace_id as wd_workspace_id
-      FROM webhook_deliveries wd
-      JOIN webhooks w ON w.id = wd.webhook_id AND w.workspace_id = wd.workspace_id AND w.enabled = 1
-      WHERE wd.next_retry_at IS NOT NULL AND wd.next_retry_at <= ?
-      LIMIT 50
-    `).all(now) as Array<{
-      id: number; webhook_id: number; event_type: string; payload: string; attempt: number
-      w_id: number; w_name: string; w_url: string; w_secret: string | null
-      w_events: string; w_enabled: number; w_consecutive_failures: number; wd_workspace_id: number
-    }>
-
-    if (pendingRetries.length === 0) {
-      return { ok: true, message: 'No pending retries' }
-    }
-
-    // Clear next_retry_at immediately to prevent double-processing
-    const clearStmt = db.prepare(`UPDATE webhook_deliveries SET next_retry_at = NULL WHERE id = ? AND workspace_id = ?`)
-    for (const row of pendingRetries) {
-      clearStmt.run(row.id, row.wd_workspace_id)
-    }
-
-    // Re-deliver each
     let succeeded = 0
     let failed = 0
-    for (const row of pendingRetries) {
+    let processed = 0
+
+    while (processed < WEBHOOK_RETRY_BATCH_LIMIT) {
+      const row = claimDueWebhookRetry(db, now)
+      if (!row) break
+      processed += 1
+
       const webhook: Webhook = {
         id: row.w_id,
         name: row.w_name,
@@ -474,7 +457,6 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
         workspace_id: row.wd_workspace_id,
       }
 
-      // Parse the original payload from the stored JSON body
       let parsedPayload: Record<string, any>
       try {
         const parsed = JSON.parse(row.payload)
@@ -483,17 +465,24 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
         parsedPayload = {}
       }
 
-      const result = await deliverWebhook(webhook, row.event_type, parsedPayload, {
-        attempt: row.attempt + 1,
-        parentDeliveryId: row.id,
-        allowRetry: true,
-      })
-
-      if (result.success) succeeded++
-      else failed++
+      try {
+        const result = await deliverWebhook(webhook, row.event_type, parsedPayload, {
+          attempt: row.attempt + 1,
+          parentDeliveryId: row.id,
+          allowRetry: true,
+        })
+        if (result.success) succeeded += 1
+        else failed += 1
+      } finally {
+        releaseWebhookRetryClaim(db, row)
+      }
     }
 
-    return { ok: true, message: `Processed ${pendingRetries.length} retries (${succeeded} ok, ${failed} failed)` }
+    if (processed === 0) {
+      return { ok: true, message: 'No pending retries' }
+    }
+
+    return { ok: true, message: `Processed ${processed} retries (${succeeded} ok, ${failed} failed)` }
   } catch (err: any) {
     return { ok: false, message: `Webhook retry failed: ${err.message}` }
   }
