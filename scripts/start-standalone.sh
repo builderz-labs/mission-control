@@ -29,6 +29,10 @@ if [[ -d "$SOURCE_PUBLIC_DIR" ]]; then
   rm -rf "$STANDALONE_PUBLIC_DIR"
   cp -R "$SOURCE_PUBLIC_DIR" "$STANDALONE_PUBLIC_DIR"
 fi
+if [[ ! -s "$STANDALONE_PUBLIC_DIR/brand/mc-logo-128.png" ]]; then
+  echo "error: standalone public brand assets missing at $STANDALONE_PUBLIC_DIR/brand/mc-logo-128.png" >&2
+  exit 1
+fi
 
 cd "$STANDALONE_DIR"
 

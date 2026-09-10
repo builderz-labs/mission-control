@@ -306,6 +306,7 @@ export default function LoginPage() {
               height={48}
               className="h-full w-full object-cover"
               priority
+              unoptimized
             />
           </div>
           <h1 className="text-xl font-semibold text-foreground">{t('missionControl')}</h1>

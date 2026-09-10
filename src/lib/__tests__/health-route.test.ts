@@ -1,14 +1,24 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getDatabaseMock } = vi.hoisted(() => ({ getDatabaseMock: vi.fn() }))
+const { getDatabaseMock, standaloneReleaseIntactMock } = vi.hoisted(() => ({
+  getDatabaseMock: vi.fn(),
+  standaloneReleaseIntactMock: vi.fn(() => true),
+}))
 
 vi.mock('@/lib/db', () => ({
   getDatabase: getDatabaseMock,
+}))
+vi.mock('@/lib/standalone-assets', () => ({
+  standaloneReleaseIntact: (...args: unknown[]) => standaloneReleaseIntactMock(...args),
 }))
 
 import { GET } from '@/app/api/health/route'
 
 describe('GET /api/health — public, minimal-disclosure health probe (#698)', () => {
+  beforeEach(() => {
+    standaloneReleaseIntactMock.mockReturnValue(true)
+  })
+
   afterEach(() => {
     vi.clearAllMocks()
   })
@@ -20,6 +30,17 @@ describe('GET /api/health — public, minimal-disclosure health probe (#698)', (
     const body = await res.json()
     expect(body.status).toBe('ok')
     expect(body.db).toBe('ok')
+  })
+
+  it('returns 503 + status degraded when standalone public assets are missing', async () => {
+    getDatabaseMock.mockReturnValue({ prepare: () => ({ get: () => ({ 1: 1 }) }) })
+    standaloneReleaseIntactMock.mockReturnValue(false)
+    const res = await GET()
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.status).toBe('degraded')
+    expect(body.db).toBe('ok')
+    expect(body.assets).toBe('error')
   })
 
   it('returns 503 + status degraded when the DB throws', async () => {

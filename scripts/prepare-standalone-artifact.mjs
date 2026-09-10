@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, rm } from 'node:fs/promises'
+import { access, cp, mkdir, readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 
 const root = path.resolve('.next/standalone')
@@ -44,5 +44,6 @@ for (const entry of await readdir(path.join(root, 'ops', 'templates'))) {
   }
 }
 await mkdir(path.dirname(schemaPath), { recursive: true })
+await cp(path.resolve('public'), path.join(root, 'public'), { recursive: true })
 
 console.log('Prepared standalone artifact with release-only repository files')
