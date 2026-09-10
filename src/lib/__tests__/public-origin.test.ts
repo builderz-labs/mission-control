@@ -27,7 +27,8 @@ describe('public origin and proxy trust', () => {
     const request = new Request('http://internal:3000', { headers: { 'x-forwarded-proto': 'http', 'x-forwarded-host': 'evil.test' } })
     expect(configuredPublicOrigin()?.origin).toBe('https://control.example.test')
     expect(resolvePublicOrigin(request).origin).toBe('https://control.example.test')
-    expect(publicOriginHostCandidates(request)).toContain('control.example.test')
+    expect(publicOriginHostCandidates(request)).toEqual(['internal:3000'])
+    expect(publicOriginHostCandidates(request)).not.toContain('control.example.test')
   })
 
   it('does not treat the configured public URL as the observed host', () => {
