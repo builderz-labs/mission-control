@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
 import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
+import { publicOriginHostCandidates } from '@/lib/public-origin'
 
 /** Constant-time string comparison using Node.js crypto. */
 function safeCompare(a: string, b: string): boolean {
@@ -25,22 +26,11 @@ function normalizeHostname(raw: string): string {
   return raw.trim().replace(/^\[|\]$/g, '').split(':')[0].replace(/\.$/, '').toLowerCase()
 }
 
-function parseForwardedHost(forwarded: string | null): string[] {
-  if (!forwarded) return []
-  const hosts: string[] = []
-  for (const part of forwarded.split(',')) {
-    const match = /(?:^|;)\s*host="?([^";]+)"?/i.exec(part)
-    if (match?.[1]) hosts.push(match[1])
-  }
-  return hosts
-}
-
 function getRequestHostCandidates(request: NextRequest): string[] {
+  // Forwarded values enter this list only after public-origin has verified an
+  // explicitly trusted proxy chain. Direct Host remains a valid candidate.
   const rawCandidates = [
-    ...(request.headers.get('x-forwarded-host') || '').split(','),
-    ...(request.headers.get('x-original-host') || '').split(','),
-    ...(request.headers.get('x-forwarded-server') || '').split(','),
-    ...parseForwardedHost(request.headers.get('forwarded')),
+    ...publicOriginHostCandidates(request),
     request.headers.get('host') || '',
     request.nextUrl.host || '',
     request.nextUrl.hostname || '',

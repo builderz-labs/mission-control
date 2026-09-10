@@ -333,6 +333,9 @@ This adds: JSON logging, strict hostname allowlist, secure cookies, HSTS, intern
 
 ## Environment Variables
 
+For a complete HTTPS reverse proxy setup, including Nginx, Caddy, Traefik and
+Tailscale Serve examples, see [Reverse proxy deployment](reverse-proxy.md).
+
 See `.env.example` for the full list. Key variables:
 
 | Variable | Required | Default | Description |
@@ -352,6 +355,8 @@ See `.env.example` for the full list. Key variables:
 | `OPENCLAW_SECURITY_SANDBOX_ALL` | No | `1` | Force `agents.defaults.sandbox.mode="all"` when set (env-driven) |
 | `MISSION_CONTROL_DATA_DIR` | No | `.data/` | Directory for all Mission Control data files (DB, tokens, etc.). Use an absolute path with the standalone server to survive rebuilds. |
 | `MC_ALLOWED_HOSTS` | No | `localhost,127.0.0.1` | Allowed hosts in production |
+| `MC_PUBLIC_URL` | No | request URL | Canonical browser URL behind HTTPS termination (for example `https://mc.example.com`) |
+| `MC_TRUSTED_PROXY_IPS` | No | unset | Proxy IPs permitted to provide Forwarded/X-Forwarded origin headers |
 | `MC_PORT` | No | `3000` | Host-side port that the bundled `docker-compose.yml` publishes the container's `PORT` on. The bundled `Makefile` expects `7012`. |
 | `ANTHROPIC_API_KEY` | No (Yes for direct dispatch) | - | Used when `dispatchModel` matches `claude-*` / `anthropic/*` and no gateway is available. |
 | `OPENAI_API_KEY` | No | - | Used when `dispatchModel` matches `gpt-*` / `o1-*` / `o3-*` / `openai/*`. |
