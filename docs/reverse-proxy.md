@@ -3,7 +3,10 @@
 Set the canonical URL and the address of the proxy that connects to Mission
 Control. `MC_TRUSTED_PROXY_HEADERS=1` is optional and should only be enabled
 when the backend is private and the proxy overwrites
-`X-Mission-Control-Proxy-Secret` with the matching server-side secret. A
+`X-Mission-Control-Proxy-Secret` with the matching server-side secret. The
+example below shows this only for Nginx; other proxies should use
+`MC_PUBLIC_URL` without header trust unless their secret injection is
+configured explicitly. A
 transport verified peer IP plus `MC_TRUSTED_PROXY_IPS` is also supported where
 the runtime provides it. An X-Forwarded-For value alone never proves trust.
 
@@ -22,12 +25,17 @@ responses. The gateway WebSocket can be on `/gateway-ws`; set
 ## Nginx
 
 ```nginx
+# Put this in the main Nginx context. Do not use $http_x_mission_control_proxy_secret:
+# that would forward a client-supplied value.
+env MC_PROXY_HEADER_SECRET;
+
 location / {
   proxy_pass http://127.0.0.1:3000;
   proxy_set_header Host $host;
   proxy_set_header X-Forwarded-For $remote_addr;
   proxy_set_header X-Forwarded-Proto $scheme;
   proxy_set_header X-Forwarded-Port $server_port;
+  proxy_set_header X-Mission-Control-Proxy-Secret $MC_PROXY_HEADER_SECRET;
   proxy_buffering off;
 }
 location /gateway-ws {
@@ -57,9 +65,10 @@ mc.example.com {
 ## Traefik
 
 Use a secure entrypoint on `websecure`, a router for `mc.example.com`, and a
-second service for the gateway path. Enable the `headers` middleware with
-`customRequestHeaders` for `X-Forwarded-For`, `X-Forwarded-Proto`, and
-`X-Forwarded-Port`, replacing client supplied values at the edge.
+second service for the gateway path. Use `MC_PUBLIC_URL` without enabling
+forwarded-header trust. If dynamic origins are required, configure a secret
+middleware that overwrites `X-Mission-Control-Proxy-Secret` from a server-side
+secret store; never copy the incoming client header.
 
 ## Tailscale Serve
 

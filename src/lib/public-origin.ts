@@ -139,12 +139,12 @@ export function isRequestSecureWithTrust(request: Request): boolean {
 export function publicOriginHostCandidates(request: Request): string[] {
   const result = new Set<string>()
   const direct = parseOrigin(request?.url)
-  // Do not expose the localhost fallback as a host candidate when a malformed
-  // test adapter or framework wrapper has no usable request URL.
-  if (direct) result.add(normalizeHost(resolvePublicOrigin(request).host))
-  else {
-    const configured = configuredPublicOrigin()
-    if (configured) result.add(normalizeHost(configured.host))
+  // The configured public URL is deliberately not an observed host. Otherwise
+  // a direct request for evil.example would pass an allowlist for mc.example.
+  if (direct) result.add(normalizeHost(direct.host))
+  if (trustedForwardedRequest(request)) {
+    const forwarded = normalizeHost(forwardedHost(request))
+    if (forwarded) result.add(forwarded)
   }
   return [...result].filter(Boolean)
 }

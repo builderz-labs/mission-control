@@ -30,6 +30,18 @@ describe('public origin and proxy trust', () => {
     expect(publicOriginHostCandidates(request)).toContain('control.example.test')
   })
 
+  it('does not treat the configured public URL as the observed host', () => {
+    process.env.MC_PUBLIC_URL = 'https://mc.example.test'
+    const request = new Request('https://evil.example.test/login')
+    expect(publicOriginHostCandidates(request)).toEqual(['evil.example.test'])
+  })
+
+  it('accepts a direct request whose observed host matches the public URL', () => {
+    process.env.MC_PUBLIC_URL = 'https://mc.example.test'
+    const request = new Request('https://mc.example.test/login')
+    expect(publicOriginHostCandidates(request)).toEqual(['mc.example.test'])
+  })
+
   it('accepts standardized and X-Forwarded values only for a trusted nearest proxy', () => {
     process.env.MC_TRUSTED_PROXY_HEADERS = '1'
     process.env.MC_TRUSTED_PROXY_IPS = '10.0.0.2'
@@ -112,6 +124,7 @@ describe('public origin and proxy trust', () => {
       headers: { 'x-mission-control-proxy-secret': 'correct-secret', 'x-forwarded-host': 'control.test', 'x-forwarded-proto': 'https' },
     })
     expect(resolvePublicOrigin(request).origin).toBe('https://control.test')
+    expect(publicOriginHostCandidates(request)).toContain('control.test')
   })
 
   it('rejects missing or incorrect proxy secrets', () => {
