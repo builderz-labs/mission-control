@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { EngineLogoSet } from '@/components/brand/engine-logo'
 import type { SidebarRow } from '@/lib/group-sessions'
@@ -42,7 +43,8 @@ export function ChatProjectFolder({
 }) {
   const t = useTranslations('chatDesktop')
   const slug = row.key.slice(row.key.indexOf(':') + 1)
-  const open = selected || row.hasActive
+  const [userOpen, setUserOpen] = useState<boolean | null>(null)
+  const open = userOpen ?? (selected || row.hasActive)
   const children = open ? sessions : []
   return (
     <div
@@ -80,7 +82,15 @@ export function ChatProjectFolder({
           +
         </button>
         <EngineLogoSet kinds={sessions.map((session) => session.kind)} size={14} />
-        <IconChevron className={`ml-1 opacity-50 ${open ? 'rotate-90' : ''}`} />
+        <button
+          type="button"
+          className="ml-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-[var(--chat-muted)] hover:text-[var(--chat-text)]"
+          aria-expanded={open}
+          aria-label={open ? `Collapse ${row.label}` : `Expand ${row.label}`}
+          onClick={() => setUserOpen(!open)}
+        >
+          <IconChevron className={`opacity-50 ${open ? 'rotate-90' : ''}`} />
+        </button>
       </div>
       {children.map((session) => (
         <ChatSessionRow

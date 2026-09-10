@@ -44,7 +44,7 @@ describe('mapProviderSessions', () => {
     )
     expect(mapped[0].id).toBe('session:codex-cli:new')
     expect(mapped[0].session?.sessionKind).toBe('codex-cli')
-    expect(mapped[1].name).toBe('Claude old')
+    expect(mapped[1].name).toBe('Claude · old')
     expect(mapped[1].session?.workingDir).toContain('actz-may')
   })
 })

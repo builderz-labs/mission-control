@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } from '@/components/chat/session-message'
 import { EngineLogo } from '@/components/brand/engine-logo'
+import { TaskBoardFlyStrip } from '@/components/panels/task-board-fly-strip'
 
 const log = createClientLogger('TaskBoard')
 
@@ -453,11 +454,11 @@ export function TaskBoardPanel() {
     try {
       setError(null)
 
-      const tasksQuery = new URLSearchParams()
+      const tasksQuery = new URLSearchParams({ limit: '200' })
       if (projectFilter !== 'all') {
         tasksQuery.set('project_id', projectFilter)
       }
-      const tasksUrl = tasksQuery.toString() ? `/api/tasks?${tasksQuery.toString()}` : '/api/tasks'
+      const tasksUrl = `/api/tasks?${tasksQuery.toString()}`
 
       let tasksData: { tasks?: Task[] }
       let agentsData: { agents?: Agent[] }
@@ -556,6 +557,11 @@ export function TaskBoardPanel() {
 
   // Poll as SSE fallback — pauses when SSE is delivering events
   useSmartPoll(fetchData, 30000, { pauseWhenSseConnected: true })
+  useEffect(() => {
+    const onFly = () => { void fetchData() }
+    window.addEventListener('mission-control:fly-worker-updated', onFly)
+    return () => window.removeEventListener('mission-control:fly-worker-updated', onFly)
+  }, [fetchData])
 
   // Group tasks by status, overriding for awaiting_owner detection
   const tasksByStatus = statusColumns.reduce((acc, column) => {
@@ -958,6 +964,8 @@ export function TaskBoardPanel() {
           </Button>
         </div>
       )}
+
+      <TaskBoardFlyStrip onOpenTask={(taskId) => updateTaskUrl(taskId)} />
 
       {/* Kanban Board */}
       <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-x-auto" role="region" aria-label={t('taskBoard')}>

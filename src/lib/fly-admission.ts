@@ -27,13 +27,18 @@ export function submitFlyLeaf(db: Database.Database, input: FlySubmission, works
     const depth = db.prepare("SELECT COUNT(*) AS n FROM fly_submissions WHERE state IN ('queued','running')").get() as { n: number }
     if (depth.n >= 1000) return { route: 'local', accepted: false, safe_local_fallback: true, reason: 'Admission queue is full' }
     const id = randomUUID().replaceAll('-', '')
+    const metadata = JSON.stringify({ fly_submission_id: id, execution_target: 'fly', review_required: true })
     const task = db.prepare(`INSERT INTO tasks (title, description, status, priority, created_by, workspace_id, metadata)
-      VALUES (?, ?, 'in_progress', ?, ?, ?, ?)`).run(input.title, input.description, input.priority, actor, workspace,
-      JSON.stringify({ fly_submission_id: id, execution_target: 'fly', review_required: true }))
+      VALUES (?, ?, 'inbox', ?, ?, ?, ?)`).run(input.title, input.description, input.priority, actor, workspace, metadata)
+    const taskId = Number(task.lastInsertRowid)
     db.prepare(`INSERT INTO fly_submissions (id, workspace_id, request_key, payload_hash, payload, task_id, session_id, swarm_id, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, workspace, requestKey, hash, payload, task.lastInsertRowid, input.session_id || null, input.swarm_id || null, actor)
-    eventBus.broadcast('fly.worker.updated', { workspace_id: workspace, submission_id: id, state: 'queued' })
-    return { route: 'fly', accepted: true, safe_local_fallback: false, submission_id: id, task_id: Number(task.lastInsertRowid), state: 'queued' }
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, workspace, requestKey, hash, payload, taskId, input.session_id || null, input.swarm_id || null, actor)
+    eventBus.broadcast('task.created', {
+      id: taskId, title: input.title, description: input.description, status: 'inbox',
+      priority: input.priority, created_by: actor, workspace_id: workspace, metadata: JSON.parse(metadata),
+    })
+    eventBus.broadcast('fly.worker.updated', { workspace_id: workspace, submission_id: id, state: 'queued', task_id: taskId })
+    return { route: 'fly', accepted: true, safe_local_fallback: false, submission_id: id, task_id: taskId, state: 'queued' }
   }).immediate()
 }
 

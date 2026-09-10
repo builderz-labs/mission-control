@@ -45,8 +45,8 @@ export function sessionTitle(input: {
   const pref = cleanTitle(input.prefName)
   if (pref && !looksLikeEngineIdTitle(pref)) return pref
   const kind = isTreeKind(input.kind) ? ENGINE_LABELS[input.kind] : input.kind
-  const shortId = input.id.replace(/^.*:/, '').slice(0, 12)
-  return `${kind} ${shortId}`
+  const shortId = input.id.replace(/^.*:/, '').replace(/[^a-z0-9]/gi, '').slice(0, 8)
+  return `${kind} · ${shortId}`
 }
 
 export function looksLikeNoisePrompt(value: string): boolean {
@@ -55,7 +55,7 @@ export function looksLikeNoisePrompt(value: string): boolean {
 }
 
 export function looksLikeEngineIdTitle(value: string): boolean {
-  return /^(Claude|Codex|Grok|Kimi)\s+[a-z0-9._:-]+$/i.test(value.trim())
+  return /^(Claude|Codex|Grok|Kimi)(?:\s+| · )[a-z0-9._:-]+$/i.test(value.trim())
 }
 
 function cleanTitle(value?: string | null): string | null {

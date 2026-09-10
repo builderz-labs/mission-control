@@ -76,9 +76,9 @@ export function SessionTerminalCell({
           aria-hidden="true"
           className={`h-1.5 w-1.5 shrink-0 rounded-full ${session.active ? 'bg-emerald-400' : 'bg-muted-foreground/40'}`}
         />
-        <EngineLogoForText text={normalizeCliKind(session.kind)} size={12} decorative />
         <span className="min-w-0 flex-1 truncate text-2xs text-foreground">{terminalCellTitle(session)}</span>
         {dir && <span className="hidden shrink-0 font-mono-tight text-2xs text-muted-foreground lg:inline">{dir}</span>}
+        <EngineLogoForText text={normalizeCliKind(session.kind)} size={12} decorative />
         <button
           type="button"
           onClick={onOpen}

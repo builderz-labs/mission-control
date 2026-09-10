@@ -37,6 +37,7 @@ describe('durable Fly admission and ownership', () => {
     expect(first).toMatchObject({ accepted: true, state: 'queued', safe_local_fallback: false })
     expect(submitFlyLeaf(db,input(),1,'tester')).toEqual(first)
     expect(db.prepare('SELECT COUNT(*) AS n FROM tasks').get()).toEqual({ n: 1 })
+    expect(db.prepare('SELECT status FROM tasks').get()).toEqual({ status: 'inbox' })
   })
   it('declines unavailable or unsupported runtime work without claiming it', () => {
     vi.stubEnv('MC_FLY_ENABLED','false')
@@ -52,6 +53,7 @@ describe('durable Fly admission and ownership', () => {
   })
   it('reserves the entire deadline, persists the rate, and isolates branch/payload', () => {
     submitFlyLeaf(db,input(),1,'tester'); const reservation = reserveFlyJob(db,row(),input())!
+    expect(db.prepare('SELECT status FROM tasks').get()).toEqual({ status: 'in_progress' })
     expect(job().hourly_rate_usd).toBe(0.1)
     expect(db.prepare('SELECT estimated_cost_usd AS cost FROM fly_worker_jobs').get()).toEqual({ cost:0.01 })
     const payload=JSON.parse(Buffer.from(reservation.config.files[0].raw_value,'base64').toString())
