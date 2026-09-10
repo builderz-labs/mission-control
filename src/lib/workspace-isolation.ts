@@ -14,6 +14,7 @@ export type UnscopedWorkspaceResource =
   | 'runtime_tasks'
   | 'session_transcripts'
   | 'session_preferences'
+  | 'chat_layout'
   | 'terminal_sessions'
   | 'runtime_memory'
 

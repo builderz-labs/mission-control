@@ -119,6 +119,8 @@ function getLocalAgentRoots(): string[] {
     join(home, '.agents'),
     join(home, '.codex', 'agents'),
     join(home, '.claude', 'agents'),
+    join(home, '.grok', 'agents'),
+    join(home, '.kimi-code', 'agents'),
     join(home, '.hermes', 'skills'),
   ]
 }
@@ -153,7 +155,9 @@ function scanLocalAgents(): DiskAgent[] {
       }
 
       // --- Flat .md agent files (Claude Code format) ---
+      // ~/.agents/*.md are fleet docs (openclaw-fleet.md, FLEET.md), not agents.
       if (stat.isFile() && entry.endsWith('.md') && entry !== 'CLAUDE.md' && entry !== 'AGENTS.md') {
+        if (root === join(homedir(), '.agents')) continue
         try {
           const content = readRegularFile(fullPath)
           if (content === null) continue
@@ -255,7 +259,6 @@ export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ 
       diskMap.set(a.name, a)
     }
 
-    // Fetch DB agents with source='local'
     const dbRows = db.prepare(
       `SELECT id, name, role, soul_content, status, source, content_hash, workspace_path, config FROM agents WHERE source = 'local' AND workspace_id = ?`
     ).all(workspaceId) as AgentRow[]
@@ -280,6 +283,9 @@ export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ 
     const markRemovedStmt = db.prepare(`
       UPDATE agents SET status = 'offline', updated_at = ? WHERE id = ? AND workspace_id = ?
     `)
+    const findIdentityOwnerStmt = db.prepare(
+      `SELECT id FROM agents WHERE name = ? AND workspace_id = ?`,
+    )
 
     db.transaction(() => {
       // Disk → DB: additions and changes
@@ -288,6 +294,10 @@ export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ 
         const configJson = disk.configContent ? disk.configContent : null
 
         if (!existing) {
+          // Gateway and local discovery may describe the same agent. The schema
+          // intentionally allows one row per name/workspace, so keep the existing
+          // identity instead of turning a routine sync into a UNIQUE violation.
+          if (findIdentityOwnerStmt.get(name, workspaceId)) continue
           insertStmt.run(name, disk.role, disk.soulContent, disk.contentHash, disk.dir, configJson, now, now, workspaceId)
           created++
         } else if (existing.content_hash !== disk.contentHash) {
@@ -296,8 +306,8 @@ export async function syncLocalAgents(requestedWorkspaceId?: number): Promise<{ 
         }
       }
 
-      // Agents that vanished from disk — mark offline but don't delete
       for (const [name, row] of dbMap) {
+        if (row.source !== 'local') continue
         if (!diskMap.has(name) && row.status !== 'offline') {
           markRemovedStmt.run(now, row.id, workspaceId)
           removed++

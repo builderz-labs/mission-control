@@ -1,3 +1,4 @@
+import { FLY_RECONCILE_INTERVAL_MS } from './fly-capacity'
 import { getDatabase, logAuditEvent } from './db'
 import { syncAgentsFromConfig } from './agent-sync'
 import { config, ensureDirExists } from './config'
@@ -6,6 +7,7 @@ import { readdirSync, statSync, unlinkSync } from 'fs'
 import { logger } from './logger'
 import { processWebhookRetries } from './webhooks'
 import { syncClaudeSessions } from './claude-sessions'
+import { syncRuntimeHistory } from './runtime-history'
 import { pruneGatewaySessionsOlderThan, getAgentLiveStatuses } from './sessions'
 import { eventBus } from './event-bus'
 import { syncSkillsFromDisk } from './skill-sync'
@@ -13,6 +15,10 @@ import { syncLocalAgents } from './local-agent-sync'
 import { dispatchAssignedTasks, runAegisReviews, requeueStaleTasks, autoRouteInboxTasks, reconcileDeferredTaskCompletions } from './task-dispatch'
 import { spawnRecurringTasks } from './recurring-tasks'
 import { resolveSharedRuntimeWorkspaceId } from './workspace-isolation'
+import { evaluateAllRules } from './alert-evaluate'
+import { runMacCleanupWatch } from './mac-cleanup/watch'
+import { reconcileFlyWorkers } from './fly-reconciler'
+import { startFlyReconcileLoop } from './fly-scheduler'
 
 const BACKUP_DIR = join(dirname(config.dbPath), 'backups')
 
@@ -182,9 +188,9 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
 
     // Find agents that are not offline but haven't been seen recently
     const staleAgents = db.prepare(`
-      SELECT id, name, status, last_seen, workspace_id FROM agents
+       SELECT id, name, status, last_seen, workspace_id, runtime_type FROM agents
       WHERE status != 'offline' AND (last_seen IS NULL OR last_seen < ?)
-    `).all(threshold) as Array<{ id: number; name: string; status: string; last_seen: number | null; workspace_id: number }>
+    `).all(threshold) as Array<{ id: number; name: string; status: string; last_seen: number | null; workspace_id: number; runtime_type: string | null }>
 
     if (staleAgents.length === 0) {
       return { ok: true, message: 'All agents healthy' }
@@ -192,6 +198,8 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
 
     // Mark stale agents as offline
     const markOffline = db.prepare('UPDATE agents SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+    const keepLocal = db.prepare('UPDATE agents SET last_seen = ?, status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+    const localRuntimes = new Set(['claude', 'codex', 'grok', 'kimi', 'custom'])
     const logActivity = db.prepare(`
       INSERT INTO activities (type, entity_type, entity_id, actor, description, workspace_id)
       VALUES ('agent_status_change', 'agent', ?, 'heartbeat', ?, ?)
@@ -200,6 +208,10 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
     const names: string[] = []
     db.transaction(() => {
       for (const agent of staleAgents) {
+        if (localRuntimes.has(String(agent.runtime_type || '').toLowerCase())) {
+          keepLocal.run(now, agent.status === 'offline' ? 'idle' : agent.status, now, agent.id, agent.workspace_id)
+          continue
+        }
         markOffline.run('offline', now, agent.id, agent.workspace_id)
         logActivity.run(agent.id, `Agent "${agent.name}" marked offline (no heartbeat for ${timeoutMinutes}m)`, agent.workspace_id)
         names.push(agent.name)
@@ -225,7 +237,10 @@ async function runHeartbeatCheck(): Promise<{ ok: boolean; message: string }> {
       detail: { marked_offline_count: names.length },
     })
 
-    return { ok: true, message: `Marked ${staleAgents.length} agent(s) offline: ${names.join(', ')}` }
+    if (names.length === 0) {
+      return { ok: true, message: 'Local CLI agents kept idle' }
+    }
+    return { ok: true, message: `Marked ${names.length} agent(s) offline: ${names.join(', ')}` }
   } catch (err: any) {
     return { ok: false, message: `Heartbeat check failed: ${err.message}` }
   }
@@ -295,7 +310,7 @@ async function syncAgentLiveStatuses(requestedWorkspaceId?: number): Promise<num
 
 const DAILY_MS = 24 * 60 * 60 * 1000
 const FIVE_MINUTES_MS = 5 * 60 * 1000
-const TICK_MS = 60 * 1000 // Check every minute
+const TICK_MS = 60 * 1000 // Preserve the normal scan/dispatch/cleanup cadence.
 
 /** Initialize the scheduler */
 export function initScheduler() {
@@ -424,8 +439,37 @@ export function initScheduler() {
     running: false,
   })
 
+  tasks.set('alert_evaluate', {
+    name: 'Alert Evaluate',
+    intervalMs: TICK_MS,
+    lastRun: null,
+    nextRun: now + 35_000,
+    enabled: true,
+    running: false,
+  })
+
+  tasks.set('mac_cleanup_watch', {
+    name: 'Mac Cleanup Watch',
+    intervalMs: TICK_MS,
+    lastRun: null,
+    nextRun: now + 40_000,
+    enabled: true,
+    running: false,
+  })
+
+  tasks.set('fly_worker_reconcile', {
+    name: 'Fly Worker Reconcile',
+    intervalMs: FLY_RECONCILE_INTERVAL_MS,
+    lastRun: null,
+    nextRun: now + FLY_RECONCILE_INTERVAL_MS,
+    enabled: true,
+    running: false,
+  })
+
   // Start the tick loop
   tickInterval = setInterval(tick, TICK_MS)
+  const flyTask = tasks.get('fly_worker_reconcile')
+  if (flyTask) startFlyReconcileLoop(flyTask, () => reconcileFlyWorkers(getDatabase(), undefined, isSettingEnabled('fly.enabled', true)))
   logger.info('Scheduler initialized - backup at ~3AM, cleanup at ~4AM, heartbeat every 5m, webhook/claude/skill/local-agent/gateway-agent sync every 60s')
 }
 
@@ -445,6 +489,7 @@ async function tick() {
   const now = Date.now()
 
   for (const [id, task] of tasks) {
+    if (id === 'fly_worker_reconcile') continue // Its independent loop also drains while admission is disabled.
     if (task.running || now < task.nextRun) continue
 
     // Check if this task is enabled in settings (heartbeat is always enabled)
@@ -459,8 +504,11 @@ async function tick() {
       : id === 'aegis_review' ? 'general.aegis_review'
       : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
+      : id === 'alert_evaluate' ? 'general.alert_evaluate'
+      : id === 'mac_cleanup_watch' ? 'general.mac_cleanup_watch'
+      : id === 'fly_worker_reconcile' ? 'fly.enabled'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'alert_evaluate' || id === 'mac_cleanup_watch' || id === 'fly_worker_reconcile'
     if (!isSettingEnabled(settingKey, defaultEnabled)) continue
 
     task.running = true
@@ -468,7 +516,7 @@ async function tick() {
       const result = id === 'auto_backup' ? await runBackup()
         : id === 'agent_heartbeat' ? await runHeartbeatCheck()
         : id === 'webhook_retry' ? await processWebhookRetries()
-        : id === 'claude_session_scan' ? await syncClaudeSessions()
+        : id === 'claude_session_scan' ? await syncRuntimeHistory(syncClaudeSessions)
         : id === 'skill_sync' ? await syncSkillsFromDisk()
         : id === 'local_agent_sync' ? await syncLocalAgents()
         : id === 'gateway_agent_sync' ? await syncAgentsFromConfig('scheduled').then(async r => {
@@ -485,6 +533,13 @@ async function tick() {
         : id === 'aegis_review' ? await runAegisReviews()
         : id === 'recurring_task_spawn' ? await spawnRecurringTasks()
         : id === 'stale_task_requeue' ? await requeueStaleTasks()
+        : id === 'alert_evaluate' ? (() => {
+            const workspaceId = resolveSharedRuntimeWorkspaceId() ?? 1
+            const result = evaluateAllRules(getDatabase(), workspaceId)
+            return { ok: true, message: `Alerts: ${result.triggered}/${result.evaluated} triggered, seeded ${result.seeded}` }
+          })()
+        : id === 'mac_cleanup_watch' ? await runMacCleanupWatch()
+        : id === 'fly_worker_reconcile' ? await reconcileFlyWorkers(getDatabase())
         : await runCleanup()
       task.lastResult = { ...result, timestamp: now }
     } catch (err: any) {
@@ -521,8 +576,11 @@ export function getSchedulerStatus() {
       : id === 'aegis_review' ? 'general.aegis_review'
       : id === 'recurring_task_spawn' ? 'general.recurring_task_spawn'
       : id === 'stale_task_requeue' ? 'general.stale_task_requeue'
+      : id === 'alert_evaluate' ? 'general.alert_evaluate'
+      : id === 'mac_cleanup_watch' ? 'general.mac_cleanup_watch'
+      : id === 'fly_worker_reconcile' ? 'fly.enabled'
       : 'general.agent_heartbeat'
-    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue'
+    const defaultEnabled = id === 'agent_heartbeat' || id === 'webhook_retry' || id === 'claude_session_scan' || id === 'skill_sync' || id === 'local_agent_sync' || id === 'gateway_agent_sync' || id === 'task_dispatch' || id === 'aegis_review' || id === 'recurring_task_spawn' || id === 'stale_task_requeue' || id === 'alert_evaluate' || id === 'mac_cleanup_watch' || id === 'fly_worker_reconcile'
     result.push({
       id,
       name: task.name,
@@ -543,7 +601,7 @@ export async function triggerTask(taskId: string, workspaceId?: number): Promise
   if (taskId === 'auto_cleanup') return runCleanup()
   if (taskId === 'agent_heartbeat') return runHeartbeatCheck()
   if (taskId === 'webhook_retry') return processWebhookRetries()
-  if (taskId === 'claude_session_scan') return syncClaudeSessions()
+  if (taskId === 'claude_session_scan') return syncRuntimeHistory(syncClaudeSessions, true)
   if (taskId === 'skill_sync') return syncSkillsFromDisk()
   if (taskId === 'local_agent_sync') return syncLocalAgents(workspaceId)
   if (taskId === 'gateway_agent_sync') return syncAgentsFromConfig('manual', workspaceId).then(r => ({ ok: !r.error, message: r.error || `Gateway sync: ${r.created} created, ${r.updated} updated, ${r.synced} total` }))
@@ -551,6 +609,13 @@ export async function triggerTask(taskId: string, workspaceId?: number): Promise
   if (taskId === 'aegis_review') return runAegisReviews()
   if (taskId === 'recurring_task_spawn') return spawnRecurringTasks()
   if (taskId === 'stale_task_requeue') return requeueStaleTasks()
+  if (taskId === 'alert_evaluate') {
+    const resolved = workspaceId ?? resolveSharedRuntimeWorkspaceId() ?? 1
+    const result = evaluateAllRules(getDatabase(), resolved)
+    return { ok: true, message: `Alerts: ${result.triggered}/${result.evaluated} triggered, seeded ${result.seeded}` }
+  }
+  if (taskId === 'mac_cleanup_watch') return runMacCleanupWatch()
+  if (taskId === 'fly_worker_reconcile') return reconcileFlyWorkers(getDatabase(), undefined, isSettingEnabled('fly.enabled', true))
   return { ok: false, message: `Unknown task: ${taskId}` }
 }
 

@@ -2,6 +2,21 @@ import fs from 'node:fs'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
 import { acquireFileLockSync, atomicReplaceFileSync } from '@/lib/atomic-file'
+import { cachedGatewayToken, isUsableGatewayToken, resolveGatewayCredential } from '@/lib/gateway-token'
+
+export { isUsableGatewayToken } from '@/lib/gateway-token'
+
+export function dashboardOriginAliases(mcUrl: string): string[] {
+  const parsed = new URL(mcUrl)
+  const hosts = new Set([parsed.hostname])
+  if (parsed.hostname === 'localhost') hosts.add('127.0.0.1')
+  if (parsed.hostname === '127.0.0.1') hosts.add('localhost')
+  return [...hosts].map((hostname) => {
+    const alias = new URL(parsed.href)
+    alias.hostname = hostname
+    return alias.origin
+  })
+}
 
 interface OpenClawGatewayConfig {
   gateway?: {
@@ -44,22 +59,20 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
     if (!parsed.gateway) parsed.gateway = {}
     if (!parsed.gateway.controlUi) parsed.gateway.controlUi = {}
 
-    const origin = new URL(mcUrl).origin
+    const aliases = dashboardOriginAliases(mcUrl)
     const origins: string[] = parsed.gateway.controlUi.allowedOrigins || []
-    const alreadyInOrigins = origins.includes(origin)
+    const missing = aliases.filter((origin) => !origins.includes(origin))
 
-    if (alreadyInOrigins) {
+    if (missing.length === 0) {
       return { registered: false, alreadySet: true }
     }
 
-    // Add MC origin to allowedOrigins only — do NOT touch dangerouslyDisableDeviceAuth.
-    // MC authenticates via gateway token, but forcing device auth off is a security
-    // downgrade that the operator should control, not Mission Control.
-    origins.push(origin)
+    // Add MC origin aliases only — do NOT touch dangerouslyDisableDeviceAuth.
+    origins.push(...missing)
     parsed.gateway.controlUi.allowedOrigins = origins
 
     atomicReplaceFileSync(configPath, JSON.stringify(parsed, null, 2) + '\n')
-    logger.info({ origin }, 'Registered MC origin in gateway config')
+    logger.info({ origins: missing }, 'Registered MC origin in gateway config')
     return { registered: true, alreadySet: false }
   } catch (err: any) {
     // Read-only filesystem (e.g. Docker read_only: true, or intentional mount) —
@@ -86,23 +99,24 @@ export function registerMcAsDashboard(mcUrl: string): { registered: boolean; alr
  * From config: uses gateway.auth.token when mode is "token", gateway.auth.password when mode is "password".
  */
 export function getDetectedGatewayToken(): string {
-  const envToken = (process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_TOKEN || '').trim()
-  if (envToken) return envToken
-  
-  const envPassword = (process.env.OPENCLAW_GATEWAY_PASSWORD || process.env.GATEWAY_PASSWORD || '').trim()
-  if (envPassword) return envPassword
+  return cachedGatewayToken(() => {
+    const envToken = (process.env.OPENCLAW_GATEWAY_TOKEN || process.env.GATEWAY_TOKEN || '').trim()
+    if (isUsableGatewayToken(envToken)) return envToken
 
-  const parsed = readOpenClawConfig()
-  const auth = parsed?.gateway?.auth
-  const mode = auth?.mode === 'password' ? 'password' : 'token'
-  const credential =
-    mode === 'password'
-      ? String(auth?.password ?? '').trim()
-      : String(auth?.token ?? '').trim()
-  if (credential) {
-    logger.debug('Gateway token loaded from openclaw.json (set OPENCLAW_GATEWAY_TOKEN env var to override)')
-  }
-  return credential
+    const envPassword = (process.env.OPENCLAW_GATEWAY_PASSWORD || process.env.GATEWAY_PASSWORD || '').trim()
+    if (isUsableGatewayToken(envPassword)) return envPassword
+
+    const parsed = readOpenClawConfig()
+    const auth = parsed?.gateway?.auth
+    const mode = auth?.mode === 'password' ? 'password' : 'token'
+    const credential = resolveGatewayCredential(
+      mode === 'password' ? auth?.password : auth?.token,
+    )
+    if (credential) {
+      logger.debug('Gateway token loaded from OpenClaw secret ref')
+    }
+    return credential
+  })
 }
 
 export function getDetectedGatewayPort(): number | null {

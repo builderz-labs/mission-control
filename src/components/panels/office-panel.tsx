@@ -1016,8 +1016,13 @@ export function OfficePanel() {
 
   const rosterRows = useMemo(() => {
     return gameWorkers.map(({ agent }) => {
-      const minutesIdle = agent.last_seen ? Math.floor((Date.now() / 1000 - agent.last_seen) / 60) : Number.POSITIVE_INFINITY
-      const needsAttention = isLocalMode && agent.status === 'idle' && minutesIdle >= 15
+      const minutesIdle = agent.last_seen
+        ? Math.max(0, Math.floor((Date.now() / 1000 - agent.last_seen) / 60))
+        : null
+      const needsAttention = isLocalMode
+        && agent.status === 'idle'
+        && minutesIdle !== null
+        && minutesIdle >= 15
       return {
         agent,
         minutesIdle,
@@ -1554,15 +1559,15 @@ export function OfficePanel() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4 p-4 md:p-6">
       <div className="border-b border-border pb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3 text-xs text-muted-foreground mr-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="mr-0 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:mr-4">
               {counts.busy > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-amber" />{t('activeCount', { count: counts.busy })}</span>}
               {counts.idle > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-mint" />{t('standbyCount', { count: counts.idle })}</span>}
               {counts.error > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-void-crimson" />{t('alertCount', { count: counts.error })}</span>}
@@ -1608,7 +1613,9 @@ export function OfficePanel() {
           <div className="void-panel text-foreground p-3 h-fit">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-semibold font-mono tracking-wider text-void-cyan">{t('crewHeader')}</div>
-              <div className="text-[10px] text-muted-foreground">{t('onlineCount', { count: visibleDisplayAgents.length })}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {t('onlineCount', { count: counts.busy + counts.idle + counts.error })}
+              </div>
             </div>
             <div className="mb-2 flex flex-wrap gap-1.5">
               {([
@@ -1690,7 +1697,11 @@ export function OfficePanel() {
                   <span className="flex flex-col items-end gap-1">
                     <span className={`w-2 h-2 rounded-full ${statusDot[agent.status]}`} />
                     <span className={`text-[9px] ${needsAttention ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
-                      {agent.status === 'busy' ? t('activeStatus') : t('idleMinutes', { minutes: minutesIdle })}
+                      {agent.status === 'busy'
+                        ? t('activeStatus')
+                        : minutesIdle === null
+                          ? t('neverSeen')
+                          : t('idleMinutes', { minutes: minutesIdle })}
                     </span>
                   </span>
                 </Button>

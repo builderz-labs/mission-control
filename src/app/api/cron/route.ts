@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
@@ -88,6 +88,7 @@ async function saveCronFile(data: OpenClawCronFile): Promise<boolean> {
   const filePath = getCronFilePath()
   if (!filePath) return false
   try {
+    await mkdir(path.dirname(filePath), { recursive: true })
     await writeFile(filePath, JSON.stringify(data, null, 2))
     return true
   } catch (err) {
@@ -140,7 +141,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const action = searchParams.get('action')
+    const action = searchParams.get('action') || 'list'
 
     if (action === 'list') {
       const cronFile = await loadCronFile()
@@ -369,7 +370,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'add') {
-      const { schedule, command, model, description, staggerSeconds } = body
+      const { schedule, command, model, description, staggerSeconds, agentId } = body
       const name = jobName || body.name
       if (!schedule || !command || !name) {
         return NextResponse.json(
@@ -385,7 +386,12 @@ export async function POST(request: NextRequest) {
 
       const newJob: OpenClawCronJob = {
         id: `mc-${Date.now().toString(36)}`,
-        agentId: String(process.env.MC_CRON_AGENT_ID || process.env.MC_COORDINATOR_AGENT || 'system'),
+        agentId: String(
+          (typeof agentId === 'string' && agentId.trim())
+            || process.env.MC_CRON_AGENT_ID
+            || process.env.MC_COORDINATOR_AGENT
+            || 'system',
+        ),
         name,
         enabled: true,
         createdAtMs: Date.now(),

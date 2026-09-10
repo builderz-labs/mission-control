@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'fs'
+import { closeSync, openSync, readSync, readdirSync, statSync } from 'fs'
 import { basename, join } from 'path'
 import { config } from './config'
 import { logger } from './logger'
@@ -19,6 +19,7 @@ export interface CodexSessionStats {
   totalTokens: number
   firstMessageAt: string | null
   lastMessageAt: string | null
+  lastUserPrompt: string | null
   isActive: boolean
 }
 
@@ -93,10 +94,21 @@ function clampTimestamp(ms: number): number {
   return ms
 }
 
+function readHead(filePath: string, maxBytes = 48_000): string {
+  const fd = openSync(filePath, 'r')
+  try {
+    const buf = Buffer.alloc(maxBytes)
+    const n = readSync(fd, buf, 0, maxBytes, 0)
+    return buf.subarray(0, n).toString('utf8')
+  } finally {
+    closeSync(fd)
+  }
+}
+
 function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSessionStats | null {
   let content: string
   try {
-    content = readFileSync(filePath, 'utf-8')
+    content = readHead(filePath)
   } catch {
     return null
   }
@@ -114,6 +126,7 @@ function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSess
   let totalTokens = 0
   let firstMessageAt: string | null = null
   let lastMessageAt: string | null = null
+  let lastUserPrompt: string | null = null
 
   for (const line of lines) {
     let parsed: unknown
@@ -150,10 +163,19 @@ function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSess
       continue
     }
 
+    if (entryType === 'turn_context' && payload) {
+      const cwd = asString(payload.cwd)
+      if (cwd) projectPath = cwd
+    }
+
     if (entryType === 'response_item' && payload) {
       const payloadType = asString(payload.type)
       const role = asString(payload.role)
-      if (payloadType === 'message' && role === 'user') userMessages++
+      if (payloadType === 'message' && role === 'user') {
+        userMessages++
+        const text = extractCodexUserText(payload)
+        if (text && !lastUserPrompt) lastUserPrompt = text.slice(0, 200)
+      }
       if (payloadType === 'message' && role === 'assistant') assistantMessages++
       continue
     }
@@ -204,8 +226,22 @@ function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSess
     totalTokens,
     firstMessageAt: effectiveFirstMs ? new Date(effectiveFirstMs).toISOString() : null,
     lastMessageAt: effectiveLastMs ? new Date(effectiveLastMs).toISOString() : null,
+    lastUserPrompt,
     isActive,
   }
+}
+
+function extractCodexUserText(payload: Record<string, unknown>): string | null {
+  const direct = asString(payload.content)
+  if (direct) return direct
+  const content = payload.content
+  if (!Array.isArray(content)) return null
+  const parts = content.flatMap((item) => {
+    const rec = asObject(item)
+    return rec ? [asString(rec.text) || asString(rec.input_text)] : []
+  })
+  const text = parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+  return text || null
 }
 
 export function scanCodexSessions(limit = DEFAULT_FILE_SCAN_LIMIT): CodexSessionStats[] {

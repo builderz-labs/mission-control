@@ -216,7 +216,7 @@ export function LogViewerPanel() {
   log.debug(`Store has ${logs.length} logs, filtered to ${filteredLogs.length}`)
 
   return (
-    <div className="flex flex-col h-full p-6 space-y-4">
+    <div className="flex h-full flex-col space-y-4 p-4 md:p-6">
       <div className="border-b border-border pb-4">
         <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
         <p className="text-muted-foreground mt-2">
@@ -229,13 +229,14 @@ export function LogViewerPanel() {
 
       {/* Filters and Controls */}
       <div className="bg-card border border-border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
           {/* Level Filter */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
               {t('filterLevel')}
             </label>
             <select
+              aria-label={t('filterLevel')}
               value={logFilters.level || ''}
               onChange={(e) => handleFilterChange({ level: e.target.value || undefined })}
               className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
@@ -254,6 +255,7 @@ export function LogViewerPanel() {
               {t('filterSource')}
             </label>
             <select
+              aria-label={t('filterSource')}
               value={logFilters.source || ''}
               onChange={(e) => handleFilterChange({ source: e.target.value || undefined })}
               className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
@@ -271,6 +273,7 @@ export function LogViewerPanel() {
               {t('filterSession')}
             </label>
             <input
+              aria-label={t('filterSession')}
               type="text"
               value={logFilters.session || ''}
               onChange={(e) => handleFilterChange({ session: e.target.value || undefined })}
@@ -285,6 +288,7 @@ export function LogViewerPanel() {
               {t('filterSearch')}
             </label>
             <input
+              aria-label={t('filterSearch')}
               type="text"
               value={logFilters.search || ''}
               onChange={(e) => handleFilterChange({ search: e.target.value || undefined })}

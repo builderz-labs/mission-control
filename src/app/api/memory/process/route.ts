@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { reflectPass, reweavePass, generateMOCs, gapDetectPass, consolidatePass } from '@/lib/memory-utils'
+import { consolidateFleet, gapDetectFleet } from '@/lib/memory-fleet-pass'
 import { logger } from '@/lib/logger'
 import { resolveWorkspaceMemoryAccess } from '@/lib/workspace-isolation'
 
@@ -51,12 +52,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'gap-detect') {
-      const result = await gapDetectPass(memoryAccess.root)
+      const result = memoryAccess.isolation === 'shared'
+        ? await gapDetectFleet()
+        : await gapDetectPass(memoryAccess.root)
       return NextResponse.json(result)
     }
 
     if (action === 'consolidate') {
-      const result = await consolidatePass(memoryAccess.root)
+      const result = memoryAccess.isolation === 'shared'
+        ? await consolidateFleet()
+        : await consolidatePass(memoryAccess.root)
       return NextResponse.json(result)
     }
 

@@ -10,6 +10,8 @@ import { apiFetch, ApiError } from '@/lib/api-client'
 const log = createClientLogger('CronManagement')
 import { buildDayKey, getCronOccurrences } from '@/lib/cron-occurrences'
 import { describeCronFrequency } from '@/lib/cron-utils'
+import { FLEET_AGENT_NAMES } from '@/lib/fleet-agents'
+import { EngineLogo } from '@/components/brand/engine-logo'
 
 interface DayJobSummary {
   job: CronJob
@@ -59,6 +61,7 @@ interface NewJobForm {
   description: string
   model: string
   staggerSeconds: string
+  agentId: string
 }
 
 interface FormErrors {
@@ -152,6 +155,7 @@ export function CronManagementPanel() {
     description: '',
     model: '',
     staggerSeconds: '',
+    agentId: 'claude-1',
   })
 
   const formatRelativeTime = (timestamp: string | number, future = false) => {
@@ -464,6 +468,7 @@ export function CronManagementPanel() {
           command: newJob.command,
           ...(newJob.model.trim() ? { model: newJob.model.trim() } : {}),
           ...(staggerVal && staggerVal > 0 ? { staggerSeconds: staggerVal } : {}),
+          agentId: newJob.agentId,
         })
       })
 
@@ -474,6 +479,7 @@ export function CronManagementPanel() {
         description: '',
         model: '',
         staggerSeconds: '',
+        agentId: 'claude-1',
       })
       setFormErrors({})
       setShowAddForm(false)
@@ -715,16 +721,16 @@ export function CronManagementPanel() {
         : calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       <div className="border-b border-border pb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               onClick={loadCronJobs}
               disabled={isLoading}
@@ -743,7 +749,7 @@ export function CronManagementPanel() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Calendar View - Phase A (read-only) */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-lg p-6">
+        <div className="rounded-lg border border-border bg-card p-4 md:p-6 lg:col-span-2">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -795,12 +801,14 @@ export function CronManagementPanel() {
 
             <div className="grid md:grid-cols-3 gap-3">
               <input
+                aria-label={t('searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('searchPlaceholder')}
                 className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
               />
               <select
+                aria-label={t('allAgents')}
                 value={agentFilter}
                 onChange={(e) => setAgentFilter(e.target.value)}
                 className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
@@ -813,6 +821,7 @@ export function CronManagementPanel() {
                 ))}
               </select>
               <select
+                aria-label={t('allStates')}
                 value={stateFilter}
                 onChange={(e) => setStateFilter(e.target.value as 'all' | 'enabled' | 'disabled')}
                 className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
@@ -837,6 +846,7 @@ export function CronManagementPanel() {
                 ))}
               </div>
               <select
+                aria-label="Sort scheduled jobs"
                 value={sortField}
                 onChange={(e) => setSortField(e.target.value as SortField)}
                 className="px-3 py-2 border border-border rounded-md bg-background text-foreground text-sm"
@@ -1457,6 +1467,19 @@ export function CronManagementPanel() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Agent</label>
+                <select
+                  value={newJob.agentId}
+                  onChange={(e) => setNewJob(prev => ({ ...prev, agentId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+                >
+                  {FLEET_AGENT_NAMES.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-foreground mb-2">{t('fieldSchedule')}</label>
                 <div className="flex space-x-2">
                   <input
@@ -1599,6 +1622,7 @@ function ClaudeCodeTeamsSection() {
         className="w-full flex items-center justify-between px-6 py-4 hover:bg-secondary/50 transition-colors text-left"
       >
         <div className="flex items-center gap-3">
+          <EngineLogo engine="claude" size={20} decorative />
           <h2 className="text-lg font-semibold text-foreground">{t('claudeCodeTeams')}</h2>
           {data.teams.length > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">{t('teamsCount', { count: data.teams.length })}</span>

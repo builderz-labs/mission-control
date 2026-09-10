@@ -29,10 +29,16 @@ export async function POST(
     }
 
     if (!agent.session_key) {
-      return NextResponse.json(
-        { error: 'Agent has no session key configured' },
-        { status: 400 }
-      )
+      const now = Math.floor(Date.now() / 1000)
+      db.prepare(
+        'UPDATE agents SET status = ?, last_seen = ?, last_activity = ?, updated_at = ? WHERE id = ? AND workspace_id = ?'
+      ).run('idle', now, 'Local wake (no gateway session)', now, agent.id, workspaceId)
+      db_helpers.updateAgentStatus(agent.name, 'idle', 'Local wake', workspaceId)
+      return NextResponse.json({
+        success: true,
+        local: true,
+        message: 'Agent marked idle locally; no OpenClaw session key is configured',
+      })
     }
 
     const message =

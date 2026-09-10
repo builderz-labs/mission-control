@@ -117,4 +117,41 @@ describe('removeAgentFromConfig', () => {
     })
     expect(parsed.agents.list[0].fallbacks).toBeUndefined()
   })
+
+  it('writes into agents.entries without creating agents.list', async () => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-agent-sync-'))
+    const configPath = path.join(tempDir, 'openclaw.json')
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        agents: {
+          ownership: 'explicit',
+          entries: { grok: { name: 'grok' } },
+        },
+      }) + '\n',
+      'utf-8',
+    )
+    process.env.OPENCLAW_CONFIG_PATH = configPath
+    process.env.OPENCLAW_STATE_DIR = tempDir
+
+    const { writeAgentToConfig } = await import('@/lib/agent-sync')
+    await writeAgentToConfig({ id: 'grok', identity: { theme: 'researcher' } })
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf-8'))
+    expect(parsed.agents.list).toBeUndefined()
+    expect(parsed.agents.entries.grok.identity.theme).toBe('researcher')
+    expect(parsed.agents.entries.grok.name).toBe('grok')
+  })
+
+  it('treats a missing openclaw.json as an empty agent list', async () => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-agent-sync-'))
+    process.env.OPENCLAW_CONFIG_PATH = path.join(tempDir, 'openclaw.json')
+    process.env.OPENCLAW_STATE_DIR = tempDir
+
+    const { syncAgentsFromConfig } = await import('@/lib/agent-sync')
+    const result = await syncAgentsFromConfig('test')
+    expect(result.error).toBeUndefined()
+    expect(result.synced).toBe(0)
+    expect(result.agents).toEqual([])
+  })
 })

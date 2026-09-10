@@ -15,6 +15,7 @@ import {
   type GitHubIssue,
 } from '@/lib/github'
 import { initializeLabels, pullFromGitHub } from '@/lib/github-sync-engine'
+import { handleGitHubPulls } from '@/lib/github-pulls-api'
 
 /**
  * GET /api/github?action=issues&repo=owner/repo&state=open&labels=bug
@@ -32,8 +33,12 @@ export async function GET(request: NextRequest) {
       return await handleGitHubStats()
     }
 
+    if (action === 'pulls') {
+      return await handleGitHubPulls(auth.user.workspace_id ?? 1)
+    }
+
     if (action !== 'issues') {
-      return NextResponse.json({ error: 'Unknown action. Use ?action=issues or ?action=stats' }, { status: 400 })
+      return NextResponse.json({ error: 'Unknown action. Use ?action=issues, ?action=stats, or ?action=pulls' }, { status: 400 })
     }
 
     const repo = searchParams.get('repo') || process.env.GITHUB_DEFAULT_REPO

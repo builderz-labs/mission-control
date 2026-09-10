@@ -5,6 +5,26 @@ function setNodeEnv(value: string) {
 }
 
 describe('proxy host matching', () => {
+  it('adds browser security policy and HSTS to HTTPS responses', async () => {
+    vi.resetModules()
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({ host: 'localhost:3000', 'x-forwarded-proto': 'https' }),
+      nextUrl: {
+        host: 'localhost:3000', hostname: 'localhost', pathname: '/login', protocol: 'https:',
+        clone: () => ({ pathname: '/login' }),
+      },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    const response = proxy(request)
+    expect(response.headers.get('permissions-policy')).toContain('camera=()')
+    expect(response.headers.get('cross-origin-opener-policy')).toBe('same-origin-allow-popups')
+    expect(response.headers.get('strict-transport-security')).toContain('max-age=31536000')
+  })
+
   it('allows the system hostname implicitly', async () => {
     vi.resetModules()
     vi.doMock('node:os', () => ({
@@ -78,6 +98,19 @@ describe('proxy host matching', () => {
 
     const response = proxy(request)
     expect(response.status).not.toBe(401)
+  })
+
+  it('keeps host validation for a Fly private health probe', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({ default: { hostname: () => 'control' }, hostname: () => 'control' }))
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({ host: '[fdaa:75:746e:a7b:7d4:8b00:8857:2]:3000' }),
+      nextUrl: { host: '[fdaa:75:746e:a7b:7d4:8b00:8857:2]:3000', hostname: 'fdaa:75:746e:a7b:7d4:8b00:8857:2', pathname: '/api/health', searchParams: new URLSearchParams(), clone: () => ({ pathname: '/api/health' }) },
+      method: 'GET', cookies: { get: () => undefined },
+    } as any
+    setNodeEnv('production'); process.env.MC_ALLOWED_HOSTS = 'mission-control-control-tyler.fly.dev'; delete process.env.MC_ALLOW_ANY_HOST
+    expect(proxy(request).status).toBe(403)
   })
 
   it('still blocks unauthenticated non-health status API calls', async () => {
@@ -216,5 +249,40 @@ describe('proxy host matching', () => {
 
     const response = proxy(request)
     expect(response.status).not.toBe(403)
+  })
+
+  it('ignores client X-Forwarded-Host unless MC_TRUST_FORWARDED_HOSTS is set', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'local-box' },
+      hostname: () => 'local-box',
+    }))
+
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({
+        host: 'evil.example.com',
+        'x-forwarded-host': 'localhost',
+      }),
+      nextUrl: { host: 'evil.example.com', hostname: 'evil.example.com', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    delete process.env.MC_ALLOWED_HOSTS
+    delete process.env.MC_ALLOW_ANY_HOST
+    delete process.env.MC_TRUST_FORWARDED_HOSTS
+
+    expect(proxy(request).status).toBe(403)
+
+    process.env.MC_TRUST_FORWARDED_HOSTS = '1'
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'local-box' },
+      hostname: () => 'local-box',
+    }))
+    const { proxy: trustedProxy } = await import('./proxy')
+    expect(trustedProxy(request).status).not.toBe(403)
   })
 })

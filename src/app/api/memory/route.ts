@@ -8,6 +8,7 @@ import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateSchema, extractWikiLinks } from '@/lib/memory-utils'
 import { MEMORY_PATH, MEMORY_ALLOWED_PREFIXES, canonicalizeMemoryRelativePath, isPathAllowed, resolveSafeMemoryPath } from '@/lib/memory-path'
+import { fleetMemoryRoots, isSharedMemoryWritePath, resolveSharedMemoryTarget } from '@/lib/memory-roots'
 import { searchMemory, indexFile, removeFromIndex } from '@/lib/memory-search'
 import { resolveWorkspaceMemoryAccess } from '@/lib/workspace-isolation'
 import { atomicReplaceFileSync } from '@/lib/atomic-file'
@@ -97,11 +98,57 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const path = searchParams.get('path')
-    const action = searchParams.get('action')
+    const action = searchParams.get('action') || 'tree'
     const depthParam = Number.parseInt(searchParams.get('depth') || '', 10)
     const maxDepth = Number.isFinite(depthParam) ? Math.max(0, Math.min(depthParam, 8)) : Number.POSITIVE_INFINITY
 
     if (action === 'tree') {
+      if (memoryAccess?.isolation === 'shared') {
+        const roots = fleetMemoryRoots()
+        if (path) {
+          const target = await resolveSharedMemoryTarget(path)
+          if (!target) return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
+          const stats = await stat(target.abs).catch(() => null)
+          if (!stats?.isDirectory()) {
+            return NextResponse.json({ error: 'Directory not found' }, { status: 404 })
+          }
+          if (!target.rest && target.root.prefixes.length) {
+            const tree: MemoryFile[] = []
+            for (const prefix of target.root.prefixes) {
+              const fullPath = join(target.root.root, prefix)
+              if (!existsSync(fullPath)) continue
+              const prefixStats = await stat(fullPath).catch(() => null)
+              if (!prefixStats?.isDirectory()) continue
+              tree.push({
+                path: `${target.root.id}/${prefix}`,
+                name: prefix,
+                type: 'directory',
+                modified: prefixStats.mtime.getTime(),
+                children: await buildFileTree(fullPath, `${target.root.id}/${prefix}`, maxDepth),
+              })
+            }
+            return NextResponse.json({ tree })
+          }
+          return NextResponse.json({
+            tree: await buildFileTree(target.abs, canonicalizeMemoryRelativePath(path), maxDepth),
+          })
+        }
+        const tree: MemoryFile[] = []
+        for (const root of roots) {
+          const stats = await stat(root.root).catch(() => null)
+          if (!stats?.isDirectory()) continue
+          tree.push({
+            path: root.id,
+            name: root.id,
+            type: 'directory',
+            modified: stats.mtime.getTime(),
+            children: root.prefixes.length
+              ? undefined
+              : await buildFileTree(root.root, root.id, Math.min(maxDepth, 2)),
+          })
+        }
+        return NextResponse.json({ tree })
+      }
       // Return the file tree
       if (!memoryPath || !existsSync(memoryPath)) {
         return NextResponse.json({ tree: [] })
@@ -146,6 +193,25 @@ export async function GET(request: NextRequest) {
     }
 
     if (action === 'content' && path) {
+      if (memoryAccess?.isolation === 'shared') {
+        const target = await resolveSharedMemoryTarget(path)
+        if (!target?.rest) return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
+        try {
+          const content = await readFile(target.abs, 'utf-8')
+          const stats = await stat(target.abs)
+          const isMarkdown = target.rest.endsWith('.md')
+          return NextResponse.json({
+            content,
+            size: stats.size,
+            modified: stats.mtime.getTime(),
+            path: canonicalizeMemoryRelativePath(path),
+            wikiLinks: isMarkdown ? extractWikiLinks(content) : [],
+            schema: isMarkdown ? validateSchema(content) : null,
+          })
+        } catch {
+          return NextResponse.json({ error: 'File not found' }, { status: 404 })
+        }
+      }
       // Return file content
       if (!isPathAllowed(path)) {
         return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
@@ -216,7 +282,10 @@ export async function POST(request: NextRequest) {
     if (!path) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 })
     }
-    if (!isPathAllowed(path)) {
+    if (memoryAccess?.isolation === 'shared' && !isSharedMemoryWritePath(path)) {
+      return NextResponse.json({ error: 'Shared vault and skills memory is read-only' }, { status: 403 })
+    }
+    if (!isPathAllowed(path) && memoryAccess?.isolation !== 'shared') {
       return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
     }
 
@@ -224,8 +293,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
     }
     const canonicalPath = canonicalizeMemoryRelativePath(path)
-    await mkdir(memoryPath, { recursive: true })
-    const fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
+    let fullPath: string
+    if (memoryAccess?.isolation === 'shared') {
+      const target = await resolveSharedMemoryTarget(canonicalPath)
+      if (!target?.rest || target.root.id !== 'openclaw') {
+        return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
+      }
+      fullPath = target.abs
+    } else {
+      await mkdir(memoryPath, { recursive: true })
+      fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
+    }
 
     if (action === 'save') {
       // Save file content
@@ -301,7 +379,10 @@ export async function DELETE(request: NextRequest) {
     if (!path) {
       return NextResponse.json({ error: 'Path is required' }, { status: 400 })
     }
-    if (!isPathAllowed(path)) {
+    if (memoryAccess?.isolation === 'shared' && !isSharedMemoryWritePath(path)) {
+      return NextResponse.json({ error: 'Shared vault and skills memory is read-only' }, { status: 403 })
+    }
+    if (!isPathAllowed(path) && memoryAccess?.isolation !== 'shared') {
       return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
     }
 
@@ -309,7 +390,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Memory directory not configured' }, { status: 500 })
     }
     const canonicalPath = canonicalizeMemoryRelativePath(path)
-    const fullPath = await resolveSafeMemoryPath(memoryPath, canonicalPath)
+    const fullPath = memoryAccess?.isolation === 'shared'
+      ? (await resolveSharedMemoryTarget(canonicalPath))?.abs || ''
+      : await resolveSafeMemoryPath(memoryPath, canonicalPath)
+    if (!fullPath) {
+      return NextResponse.json({ error: 'Path not allowed' }, { status: 403 })
+    }
 
     if (action === 'delete') {
       // Check if file exists

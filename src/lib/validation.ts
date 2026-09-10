@@ -116,7 +116,7 @@ export const createAgentSchema = z.object({
   write_to_gateway: z.boolean().optional(),
   provision_openclaw_workspace: z.boolean().optional(),
   openclaw_workspace_path: z.string().min(1).max(500).optional(),
-  runtime_type: z.enum(['hermes', 'openclaw', 'claude', 'codex', 'custom']).optional(),
+  runtime_type: z.enum(['hermes', 'openclaw', 'claude', 'codex', 'grok', 'kimi', 'custom']).optional(),
 })
 
 // Workspace fields (issue #677 slice 1). The `isolation` CHECK cannot live in
@@ -194,7 +194,7 @@ export const createAlertSchema = z.object({
   description: z.string().max(1000).optional(),
   entity_type: z.enum(['agent', 'task', 'session', 'activity']),
   condition_field: z.string().min(1).max(100),
-  condition_operator: z.enum(['equals', 'not_equals', 'greater_than', 'less_than', 'contains', 'count_above', 'count_below', 'age_minutes_above']),
+  condition_operator: z.enum(['equals', 'not_equals', 'greater_than', 'less_than', 'contains', 'count_above', 'count_below', 'age_minutes_above', 'agent_offline']),
   condition_value: z.string().min(1).max(500),
   action_type: z.string().max(100).optional(),
   action_config: z.record(z.string(), z.unknown()).optional(),
@@ -270,7 +270,7 @@ export const gatewayControlSchema = z.object({
 
 export const qualityReviewSchema = z.object({
   taskId: z.number(),
-  reviewer: z.string().default('aegis'),
+  reviewer: z.string().max(200).optional(),
   status: z.enum(['approved', 'rejected']),
   notes: z.string().min(1, 'Notes are required for quality reviews'),
 })
@@ -315,6 +315,11 @@ export const createOsUserSchema = z.object({
 
 export const installTmuxSchema = z.object({
   confirmation: z.literal('install_tmux'),
+}).strict()
+
+export const macCleanupTriggerSchema = z.object({
+  id: z.enum(['safe-reclaim', 'resource-guardian', 'storage-maintenance']),
+  mode: z.enum(['audit', 'dry-run', 'auto']),
 }).strict()
 
 export const releaseUpdateSchema = z.object({

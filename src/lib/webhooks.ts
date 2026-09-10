@@ -1,8 +1,16 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { lookup } from 'node:dns/promises'
+import http from 'node:http'
+import https from 'node:https'
 import { isIP } from 'node:net'
 import { eventBelongsToWorkspace, eventBus, type ServerEvent } from './event-bus'
 import { logger } from './logger'
+import { readLimitedHttpBody } from './webhook-response'
+import {
+  WEBHOOK_RETRY_BATCH_LIMIT,
+  claimDueWebhookRetry,
+  releaseWebhookRetryClaim,
+} from './webhook-retry-lease'
 
 interface Webhook {
   id: number
@@ -39,11 +47,25 @@ const WEBHOOK_BLOCKED_HOSTNAMES = new Set([
   'localhost', '0.0.0.0', 'metadata.google.internal', 'metadata.internal', 'instance-data',
 ])
 
+function ipv4FromEmbedded(address: string): string | null {
+  if (isIP(address) === 4) return address
+  const mappedDotted = address.startsWith('::ffff:') ? address.slice(7) : null
+  if (mappedDotted && isIP(mappedDotted) === 4) return mappedDotted
+  const hex = address.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i)
+    ?? address.match(/^::([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i)
+  if (!hex) return null
+  const hi = Number.parseInt(hex[1], 16)
+  const lo = Number.parseInt(hex[2], 16)
+  if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null
+  return `${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`
+}
+
 function isPrivateAddress(address: string): boolean {
   const normalized = address.toLowerCase().split('%')[0]
   if (normalized === '::1' || normalized === '::') return true
   if (normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe8') || normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb')) return true
-  if (normalized.startsWith('::ffff:')) return isPrivateAddress(normalized.slice(7))
+  const embedded = ipv4FromEmbedded(normalized)
+  if (embedded && embedded !== normalized) return isPrivateAddress(embedded)
   if (isIP(normalized) !== 4) return false
 
   const [a, b] = normalized.split('.').map(Number)
@@ -67,13 +89,63 @@ export function isBlockedWebhookUrl(urlStr: string): boolean {
   }
 }
 
-async function assertSafeWebhookDestination(urlStr: string): Promise<void> {
-  if (isBlockedWebhookUrl(urlStr)) throw new Error('Webhook URL resolves to a blocked destination')
-  const hostname = new URL(urlStr).hostname.replace(/^\[|\]$/g, '')
-  const addresses = await lookup(hostname, { all: true, verbatim: true })
-  if (addresses.length === 0 || addresses.some(({ address }) => isPrivateAddress(address))) {
+export function selectPublicWebhookAddress(addresses: string[]): string {
+  if (addresses.length === 0 || addresses.some((address) => isPrivateAddress(address))) {
     throw new Error('Webhook URL resolves to a private or internal address')
   }
+  return addresses[0]
+}
+
+export function pinWebhookUrl(urlStr: string, address: string): { href: string; host: string } {
+  const url = new URL(urlStr)
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  url.hostname = address
+  return { href: url.href, host }
+}
+
+async function pinSafeWebhookDestination(urlStr: string): Promise<{ href: string; host: string; servername: string | null }> {
+  if (isBlockedWebhookUrl(urlStr)) throw new Error('Webhook URL resolves to a blocked destination')
+  const url = new URL(urlStr)
+  const hostname = url.hostname.replace(/^\[|\]$/g, '')
+  if (isIP(hostname) !== 0) {
+    if (isPrivateAddress(hostname)) throw new Error('Webhook URL resolves to a private or internal address')
+    return { href: urlStr, host: hostname, servername: null }
+  }
+  const records = await lookup(hostname, { all: true, verbatim: true })
+  const pinned = pinWebhookUrl(urlStr, selectPublicWebhookAddress(records.map((record) => record.address)))
+  return { ...pinned, servername: hostname }
+}
+
+function requestPinnedWebhook(
+  pin: { href: string; host: string; servername: string | null },
+  init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal },
+): Promise<{ status: number; text: string }> {
+  const url = new URL(pin.href)
+  const transport = url.protocol === 'https:' ? https : http
+  const hostname = url.hostname.replace(/^\[|\]$/g, '')
+  return new Promise((resolve, reject) => {
+    const req = transport.request({
+      protocol: url.protocol,
+      hostname,
+      port: url.port || undefined,
+      path: `${url.pathname}${url.search}`,
+      method: init.method,
+      headers: { ...init.headers, Host: pin.host },
+      servername: pin.servername || undefined,
+      signal: init.signal,
+    }, (res) => {
+      const status = res.statusCode || 0
+      if (status >= 300 && status < 400) {
+        res.resume()
+        reject(new Error('Webhook redirect rejected'))
+        return
+      }
+      readLimitedHttpBody(res).then((text) => resolve({ status, text }), reject)
+    })
+    req.on('error', reject)
+    req.write(init.body)
+    req.end()
+  })
 }
 
 // Map event bus events to webhook event types
@@ -250,24 +322,21 @@ async function deliverWebhook(
   let error: string | null = null
 
   try {
-    await assertSafeWebhookDestination(webhook.url)
+    const pin = await pinSafeWebhookDestination(webhook.url)
+    headers.Host = pin.host
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000)
 
-    const res = await fetch(webhook.url, {
+    const res = await requestPinnedWebhook(pin, {
       method: 'POST',
       headers,
       body,
       signal: controller.signal,
-      redirect: 'error',
     })
 
     clearTimeout(timeout)
     statusCode = res.status
-    responseBody = await res.text().catch(() => null)
-    if (responseBody && responseBody.length > 1000) {
-      responseBody = responseBody.slice(0, 1000) + '...'
-    }
+    responseBody = res.text
   } catch (err: any) {
     error = err.name === 'AbortError' ? 'Timeout (10s)' : err.message
   }
@@ -368,37 +437,15 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
     const { getDatabase } = await import('./db')
     const db = getDatabase()
     const now = Math.floor(Date.now() / 1000)
-
-    // Find deliveries ready for retry (limit batch to 50)
-    const pendingRetries = db.prepare(`
-      SELECT wd.id, wd.webhook_id, wd.event_type, wd.payload, wd.attempt,
-             w.id as w_id, w.name as w_name, w.url as w_url, w.secret as w_secret,
-             w.events as w_events, w.enabled as w_enabled, w.consecutive_failures as w_consecutive_failures,
-             wd.workspace_id as wd_workspace_id
-      FROM webhook_deliveries wd
-      JOIN webhooks w ON w.id = wd.webhook_id AND w.workspace_id = wd.workspace_id AND w.enabled = 1
-      WHERE wd.next_retry_at IS NOT NULL AND wd.next_retry_at <= ?
-      LIMIT 50
-    `).all(now) as Array<{
-      id: number; webhook_id: number; event_type: string; payload: string; attempt: number
-      w_id: number; w_name: string; w_url: string; w_secret: string | null
-      w_events: string; w_enabled: number; w_consecutive_failures: number; wd_workspace_id: number
-    }>
-
-    if (pendingRetries.length === 0) {
-      return { ok: true, message: 'No pending retries' }
-    }
-
-    // Clear next_retry_at immediately to prevent double-processing
-    const clearStmt = db.prepare(`UPDATE webhook_deliveries SET next_retry_at = NULL WHERE id = ? AND workspace_id = ?`)
-    for (const row of pendingRetries) {
-      clearStmt.run(row.id, row.wd_workspace_id)
-    }
-
-    // Re-deliver each
     let succeeded = 0
     let failed = 0
-    for (const row of pendingRetries) {
+    let processed = 0
+
+    while (processed < WEBHOOK_RETRY_BATCH_LIMIT) {
+      const row = claimDueWebhookRetry(db, now)
+      if (!row) break
+      processed += 1
+
       const webhook: Webhook = {
         id: row.w_id,
         name: row.w_name,
@@ -410,7 +457,6 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
         workspace_id: row.wd_workspace_id,
       }
 
-      // Parse the original payload from the stored JSON body
       let parsedPayload: Record<string, any>
       try {
         const parsed = JSON.parse(row.payload)
@@ -419,17 +465,24 @@ export async function processWebhookRetries(): Promise<{ ok: boolean; message: s
         parsedPayload = {}
       }
 
-      const result = await deliverWebhook(webhook, row.event_type, parsedPayload, {
-        attempt: row.attempt + 1,
-        parentDeliveryId: row.id,
-        allowRetry: true,
-      })
-
-      if (result.success) succeeded++
-      else failed++
+      try {
+        const result = await deliverWebhook(webhook, row.event_type, parsedPayload, {
+          attempt: row.attempt + 1,
+          parentDeliveryId: row.id,
+          allowRetry: true,
+        })
+        if (result.success) succeeded += 1
+        else failed += 1
+      } finally {
+        releaseWebhookRetryClaim(db, row)
+      }
     }
 
-    return { ok: true, message: `Processed ${pendingRetries.length} retries (${succeeded} ok, ${failed} failed)` }
+    if (processed === 0) {
+      return { ok: true, message: 'No pending retries' }
+    }
+
+    return { ok: true, message: `Processed ${processed} retries (${succeeded} ok, ${failed} failed)` }
   } catch (err: any) {
     return { ok: false, message: `Webhook retry failed: ${err.message}` }
   }

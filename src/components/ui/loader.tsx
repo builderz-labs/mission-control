@@ -1,8 +1,8 @@
 'use client'
 
-import Image from 'next/image'
 import { useEffect } from 'react'
 import { useTranslations } from 'next-intl'
+import Image from 'next/image'
 import { APP_VERSION } from '@/lib/version'
 
 interface InitStep {
@@ -101,6 +101,9 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
   return (
     <div
       className="flex items-center justify-center min-h-screen bg-background void-bg"
+      role="status"
+      aria-live="polite"
+      aria-label={activeStep?.label || (allDone ? 'Mission Control ready' : 'Loading Mission Control')}
     >
       <div className="flex flex-col items-center gap-8 w-64">
         {/* Animated logo sequence: OpenClaw + Claude converge → morph into MC mark */}
@@ -121,7 +124,6 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
                       alt={agent.name}
                       width={36}
                       height={36}
-                      priority
                       className="w-9 h-9 rounded-lg border border-border/60 bg-card/90 shadow-[0_0_24px_rgba(14,165,233,0.12)]"
                     />
                     <span className={`${agent.labelClass} rounded-full border border-border/50 bg-background/85 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-[0.18em] text-muted-foreground shadow-xs`}>
@@ -142,8 +144,6 @@ function PageLoader({ steps }: { steps?: InitStep[] }) {
                 alt="Mission Control"
                 width={56}
                 height={56}
-                priority
-                fetchPriority="high"
                 className="w-14 h-14"
               />
             </div>
@@ -222,7 +222,7 @@ export function Loader({ variant = 'panel', label, steps }: LoaderProps) {
 
   if (variant === 'inline') {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" role="status" aria-live="polite">
         <LoaderDots size="sm" />
         {label && <span className="text-sm text-muted-foreground">{label}</span>}
       </div>
@@ -231,7 +231,7 @@ export function Loader({ variant = 'panel', label, steps }: LoaderProps) {
 
   // panel (default)
   return (
-    <div className="flex items-center justify-center py-12">
+    <div className="flex items-center justify-center py-12" role="status" aria-live="polite" aria-label={label || 'Loading'}>
       <div className="flex flex-col items-center gap-3">
         <LoaderDots />
         {label && <span className="text-sm text-muted-foreground">{label}</span>}

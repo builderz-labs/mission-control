@@ -144,7 +144,7 @@ export function AgentSquadPanel() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-gray-700">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-white">{t('title')}</h2>
+          <h1 className="text-xl font-bold text-white">{t('title')}</h1>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
@@ -433,6 +433,7 @@ function AgentDetailModal({
               <label className="block text-sm font-medium text-gray-400 mb-1">{t('runtimeType')}</label>
               {editing ? (
                 <select
+                  aria-label={t('runtimeType')}
                   value={formData.runtime_type}
                   onChange={(e) => setFormData(prev => ({ ...prev, runtime_type: e.target.value }))}
                   className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
@@ -442,6 +443,8 @@ function AgentDetailModal({
                   <option value="openclaw">OpenClaw</option>
                   <option value="claude">Claude Code</option>
                   <option value="codex">Codex CLI</option>
+                  <option value="grok">Grok CLI</option>
+                  <option value="kimi">Kimi Code</option>
                   <option value="custom">{t('runtimeTypeCustom')}</option>
                 </select>
               ) : (
@@ -604,6 +607,7 @@ function CreateAgentModal({
             <div>
               <label className="block text-sm text-gray-400 mb-1">{t('runtimeType')}</label>
               <select
+                aria-label={t('runtimeType')}
                 value={formData.runtime_type}
                 onChange={(e) => setFormData(prev => ({ ...prev, runtime_type: e.target.value }))}
                 className="w-full bg-gray-700 text-white rounded px-3 py-2 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
@@ -613,6 +617,8 @@ function CreateAgentModal({
                 <option value="openclaw">OpenClaw</option>
                 <option value="claude">Claude Code</option>
                 <option value="codex">Codex CLI</option>
+                <option value="grok">Grok CLI</option>
+                <option value="kimi">Kimi Code</option>
                 <option value="custom">{t('runtimeTypeCustom')}</option>
               </select>
             </div>

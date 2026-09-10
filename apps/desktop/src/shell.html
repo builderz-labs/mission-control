@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'" />
+  <title>Mission Control</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #09090b;
+      color: #fafafa;
+      font: 14px ui-sans-serif, system-ui, sans-serif;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .mark {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: #fafafa;
+      color: #09090b;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <div class="col">
+    <div class="mark">MC</div>
+    <div>Mission Control</div>
+  </div>
+</body>
+</html>

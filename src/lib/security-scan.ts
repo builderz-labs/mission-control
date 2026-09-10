@@ -5,6 +5,14 @@ import os from 'node:os'
 import { config } from '@/lib/config'
 import { getDatabase, resolveSeedAuthPassword } from '@/lib/db'
 import { getSchedulerStatus } from '@/lib/scheduler'
+import {
+  darwinAutoUpdatesCheck,
+  darwinFirewallCheck,
+  darwinListenPortsCheck,
+  darwinNtpCheck,
+  darwinRemoteLoginCheck,
+  darwinStealthCheck,
+} from '@/lib/security-os-darwin'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -785,17 +793,7 @@ function scanOS(): Category {
       platform: 'linux',
     })
   } else if (isDarwin) {
-    const ntpStatus = cachedExec('ntp_sync', 'systemsetup -getusingnetworktime 2>/dev/null')
-    const ntpActive = ntpStatus?.toLowerCase().includes('on')
-    checks.push({
-      id: 'ntp_sync',
-      name: 'Time synchronization',
-      status: ntpActive ? 'pass' : 'warn',
-      detail: ntpActive ? 'Network time is enabled' : 'Network time may be disabled',
-      fix: !ntpActive ? 'Enable: sudo systemsetup -setusingnetworktime on' : '',
-      severity: 'low',
-      platform: 'darwin',
-    })
+    checks.push(darwinNtpCheck(tryExec))
   }
 
   // -- Firewall --
@@ -817,26 +815,13 @@ function scanOS(): Category {
       platform: 'linux',
     })
   } else if (isDarwin) {
-    const pfStatus = tryExec('/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null')
-    const fwEnabled = pfStatus?.includes('enabled')
-    checks.push({
-      id: 'firewall',
-      name: 'Firewall active',
-      status: fwEnabled ? 'pass' : 'warn',
-      detail: fwEnabled ? 'macOS application firewall is enabled' : 'macOS firewall is disabled',
-      fix: !fwEnabled ? 'Enable firewall: System Settings > Network > Firewall' : '',
-      severity: 'critical',
-      platform: 'darwin',
-    })
+    checks.push(darwinFirewallCheck(tryExec))
   }
 
   // -- Open ports --
 
-  if (isLinux || isDarwin) {
-    const portCmd = isLinux
-      ? 'ss -tlnp 2>/dev/null | tail -n +2 | wc -l'
-      : 'netstat -an 2>/dev/null | grep LISTEN | wc -l'
-    const portCount = tryExec(portCmd)
+  if (isLinux) {
+    const portCount = tryExec('ss -tlnp 2>/dev/null | tail -n +2 | wc -l')
     const count = portCount ? parseInt(portCount.trim(), 10) : 0
     checks.push({
       id: 'open_ports',
@@ -845,8 +830,10 @@ function scanOS(): Category {
       detail: `${count} listening port${count !== 1 ? 's' : ''} detected`,
       fix: count > 10 ? 'Review open ports and close unnecessary services' : '',
       severity: 'medium',
-      platform: isLinux ? 'linux' : 'darwin',
+      platform: 'linux',
     })
+  } else if (isDarwin) {
+    checks.push(darwinListenPortsCheck(tryExec))
   }
 
   // -- SSH hardening (Linux) --
@@ -897,16 +884,7 @@ function scanOS(): Category {
       platform: 'linux',
     })
   } else if (isDarwin) {
-    const autoUpdate = tryExec('defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled 2>/dev/null')
-    checks.push({
-      id: 'auto_updates',
-      name: 'Automatic software updates',
-      status: autoUpdate === '1' ? 'pass' : 'warn',
-      detail: autoUpdate === '1' ? 'Automatic update checks enabled' : 'Automatic update status unknown',
-      fix: autoUpdate !== '1' ? 'Enable in System Settings > General > Software Update' : '',
-      severity: 'medium',
-      platform: 'darwin',
-    })
+    checks.push(darwinAutoUpdatesCheck(tryExec))
   }
 
   // -- Disk encryption --
@@ -1075,31 +1053,8 @@ function scanOS(): Category {
       platform: 'darwin',
     })
 
-    const stealthStatus = cachedExec('stealth', '/usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode 2>/dev/null')
-    const stealthEnabled = stealthStatus?.includes('enabled')
-    checks.push({
-      id: 'macos_stealth_mode',
-      name: 'Firewall stealth mode',
-      status: stealthEnabled ? 'pass' : 'warn',
-      detail: stealthEnabled ? 'Stealth mode is enabled' : 'Stealth mode is disabled',
-      fix: !stealthEnabled ? 'Enable: sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on' : '',
-      severity: 'medium',
-      fixSafety: 'manual-only',
-      platform: 'darwin',
-    })
-
-    const remoteLogin = cachedExec('remote_login', 'systemsetup -getremotelogin 2>/dev/null')
-    const remoteOff = remoteLogin?.toLowerCase().includes('off')
-    checks.push({
-      id: 'macos_remote_login',
-      name: 'Remote login disabled',
-      status: remoteOff ? 'pass' : 'warn',
-      detail: remoteOff ? 'Remote login (SSH) is disabled' : 'Remote login (SSH) is enabled',
-      fix: !remoteOff ? 'Disable if not needed: sudo systemsetup -setremotelogin off' : '',
-      severity: 'medium',
-      fixSafety: 'manual-only',
-      platform: 'darwin',
-    })
+    checks.push(darwinStealthCheck(tryExec))
+    checks.push(darwinRemoteLoginCheck(tryExec))
 
     const guestAccount = cachedExec('guest', 'defaults read /Library/Preferences/com.apple.loginwindow GuestEnabled 2>/dev/null')
     const guestDisabled = guestAccount === '0'

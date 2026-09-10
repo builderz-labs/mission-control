@@ -313,7 +313,7 @@ export function ActivityFeedPanel() {
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+          <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
           <div
             className={`w-2.5 h-2.5 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'}`}
           />
@@ -381,6 +381,7 @@ export function ActivityFeedPanel() {
           <div>
             <label className="block text-xs text-muted-foreground mb-1">{t('filterType')}</label>
             <select
+              aria-label={t('filterType')}
               value={filter.type}
               onChange={(e) => setFilter((prev) => ({ ...prev, type: e.target.value }))}
               className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-hidden focus:ring-1 focus:ring-primary/50 border border-border"
@@ -398,6 +399,7 @@ export function ActivityFeedPanel() {
           <div>
             <label className="block text-xs text-muted-foreground mb-1">{t('filterLimit')}</label>
             <select
+              aria-label={t('filterLimit')}
               value={filter.limit}
               onChange={(e) => setFilter((prev) => ({ ...prev, limit: parseInt(e.target.value) }))}
               className="bg-surface-2 text-foreground text-sm rounded-md px-3 py-1.5 focus:outline-hidden focus:ring-1 focus:ring-primary/50 border border-border"

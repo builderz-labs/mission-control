@@ -4,6 +4,7 @@ import { getDatabase } from '@/lib/db'
 import { calculateTokenCost } from '@/lib/token-pricing'
 import { getProviderSubscriptionFlags } from '@/lib/provider-subscriptions'
 import { logger } from '@/lib/logger'
+import { TOKEN_AGENT_KEY_SQL } from '@/lib/token-agent-key'
 
 interface AgentBreakdownRow {
   agent_key: string
@@ -56,10 +57,7 @@ export async function GET(request: NextRequest) {
     // Query per-agent totals with per-model breakdown embedded as JSON
     const rows = db.prepare(`
       SELECT
-        CASE
-          WHEN INSTR(session_id, ':') > 0 THEN SUBSTR(session_id, 1, INSTR(session_id, ':') - 1)
-          ELSE session_id
-        END AS agent_key,
+        ${TOKEN_AGENT_KEY_SQL} AS agent_key,
         SUM(input_tokens)  AS total_input_tokens,
         SUM(output_tokens) AS total_output_tokens,
         COUNT(DISTINCT session_id) AS session_count,
@@ -76,10 +74,7 @@ export async function GET(request: NextRequest) {
     // For accurate per-model cost we need a second pass grouping by agent+model
     const modelRows = db.prepare(`
       SELECT
-        CASE
-          WHEN INSTR(session_id, ':') > 0 THEN SUBSTR(session_id, 1, INSTR(session_id, ':') - 1)
-          ELSE session_id
-        END AS agent_key,
+        ${TOKEN_AGENT_KEY_SQL} AS agent_key,
         model,
         SUM(input_tokens)  AS input_tokens,
         SUM(output_tokens) AS output_tokens,

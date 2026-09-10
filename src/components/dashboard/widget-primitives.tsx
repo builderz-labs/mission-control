@@ -1,6 +1,9 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import type { CliFleet, DashboardSession } from '@/lib/dashboard-cli-fleets'
+import type { Agent, LogEntry, Task } from '@/store'
+import type { DashboardGitHubStats, DashboardSystemStats } from './dashboard-response-types'
 
 export interface DbStats {
   tasks: { total: number; byStatus: Record<string, number> }
@@ -33,32 +36,26 @@ export type LogLike = {
 
 export interface DashboardData {
   isLocal: boolean
-  systemStats: any
+  systemStats: DashboardSystemStats | null
   dbStats: DbStats | null
   claudeStats: ClaudeStats | null
-  githubStats: any
+  githubStats: DashboardGitHubStats | null
   loading: { system: boolean; sessions: boolean; claude: boolean; github: boolean }
-  sessions: any[]
-  logs: any[]
-  agents: any[]
-  tasks: any[]
+  sessions: DashboardSession[]
+  logs: LogEntry[]
+  agents: Agent[]
+  tasks: Task[]
   connection: { isConnected: boolean; url: string; reconnectAttempts: number; latency?: number; sseConnected?: boolean }
   subscription: { type: string; provider?: string; rateLimitTier?: string } | null
   navigateToPanel: (tab: string) => void
-  openSession: (session: any) => void
-  // Pre-computed values
+  openSession: (session: DashboardSession) => void
   memPct: number | null
   diskPct: number
   systemLoad: number
   activeSessions: number
   errorCount: number
   onlineAgents: number
-  claudeActive: number
-  codexActive: number
-  hermesActive: number
-  claudeLocalSessions: any[]
-  codexLocalSessions: any[]
-  hermesLocalSessions: any[]
+  cliFleets: CliFleet[]
   runningTasks: number
   inboxCount: number
   assignedCount: number
@@ -67,11 +64,7 @@ export interface DashboardData {
   backlogCount: number
   mergedRecentLogs: LogLike[]
   recentErrorLogs: number
-  // Health statuses
   localOsStatus: { value: string; status: 'good' | 'warn' | 'bad' }
-  claudeHealth: { value: string; status: 'good' | 'warn' | 'bad' }
-  codexHealth: { value: string; status: 'good' | 'warn' | 'bad' }
-  hermesHealth: { value: string; status: 'good' | 'warn' | 'bad' }
   mcHealth: { value: string; status: 'good' | 'warn' | 'bad' }
   gatewayHealthStatus: 'good' | 'bad'
   // Loading states
@@ -92,7 +85,7 @@ export function MetricCard({ label, value, total, subtitle, icon, color }: {
   label: string
   value: number | string
   total?: number
-  subtitle?: string
+  subtitle?: React.ReactNode
   icon: React.ReactNode
   color: 'blue' | 'green' | 'purple' | 'red'
 }) {
@@ -107,7 +100,7 @@ export function MetricCard({ label, value, total, subtitle, icon, color }: {
     <div className={`rounded-lg border p-3.5 ${colorMap[color]}`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium opacity-80">{label}</span>
-        <div className="w-5 h-5 opacity-60">{icon}</div>
+        <div className="flex h-5 w-5 items-center justify-center">{icon}</div>
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-2xl font-bold font-mono-tight">{value}</span>
@@ -199,7 +192,7 @@ export function LogRow({ log }: { log: LogLike }) {
 
 export function QuickAction({ label, desc, tab, icon, onNavigate }: {
   label: string
-  desc: string
+  desc: React.ReactNode
   tab: string
   icon: React.ReactNode
   onNavigate: (tab: string) => void
@@ -258,7 +251,7 @@ export function getLocalOsStatus(memPct: number | null, diskPct: number | null):
   return { value: 'Healthy', status: 'good' }
 }
 
-export function getMcHealth(systemStats: any, dbStats: DbStats | null, errorCount: number): { value: string; status: 'good' | 'warn' | 'bad' } {
+export function getMcHealth(systemStats: DashboardSystemStats | null, dbStats: DbStats | null, errorCount: number): { value: string; status: 'good' | 'warn' | 'bad' } {
   if (!systemStats || !dbStats) return { value: 'Unavailable', status: 'bad' }
   if (errorCount > 0) return { value: `${errorCount} errors`, status: 'warn' }
   return { value: 'Healthy', status: 'good' }

@@ -72,7 +72,7 @@ function findNestedString(root: unknown, keys: string[]): string | null {
   return null
 }
 
-function detectAnthropicFromFile(): ProviderSubscription | null {
+function detectAnthropicFromFile(allowCli = true): ProviderSubscription | null {
   // Try credentials file first (legacy Claude Code 1.x)
   const credsPath = path.join(config.claudeHome, '.credentials.json')
   const creds = parseJsonFile(credsPath) as Record<string, unknown> | null
@@ -84,11 +84,13 @@ function detectAnthropicFromFile(): ProviderSubscription | null {
     }
   }
 
+  if (!allowCli) return null
+
   // Fallback: Claude Code 2.x stores OAuth in keychain — use CLI to query
   try {
     const raw = execFileSync('claude', ['auth', 'status'], {
       encoding: 'utf-8',
-      timeout: 5000,
+      timeout: 500,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, HOME: os.homedir() },
     })
@@ -179,7 +181,7 @@ function detectFromEnv(): Record<string, ProviderSubscription> {
   return active
 }
 
-export function detectProviderSubscriptions(forceRefresh = false): SubscriptionDetectionResult {
+export function detectProviderSubscriptions(forceRefresh = false, allowCli = true): SubscriptionDetectionResult {
   const now = Date.now()
   if (!forceRefresh && detectionCache && (now - detectionCache.ts) < CACHE_TTL_MS) {
     return detectionCache.value
@@ -187,14 +189,16 @@ export function detectProviderSubscriptions(forceRefresh = false): SubscriptionD
 
   const active = detectFromEnv()
 
-  const anthropic = detectAnthropicFromFile()
+  const anthropic = detectAnthropicFromFile(allowCli)
   if (anthropic) active.anthropic = anthropic
 
   const openai = detectOpenAIFromFile()
   if (openai) active.openai = openai
 
   const value = { active }
-  detectionCache = { ts: now, value }
+  if (allowCli) {
+    detectionCache = { ts: now, value }
+  }
   return value
 }
 

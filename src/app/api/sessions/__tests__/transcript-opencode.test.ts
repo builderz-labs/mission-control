@@ -19,6 +19,9 @@ vi.mock('@/lib/config', () => ({
 vi.mock('@/lib/auth', () => ({
   requireRole: vi.fn(() => ({ user: { role: 'viewer' } })),
 }))
+vi.mock('@/lib/rate-limit', () => ({
+  readLimiter: vi.fn(() => null),
+}))
 
 vi.mock('better-sqlite3', () => ({
   // vitest 4: mocks invoked with `new` need a constructible (non-arrow) implementation
@@ -81,7 +84,7 @@ describe('OpenCode transcript helper', () => {
     expect(messages[0].role).toBe('user')
     expect(messages[0].parts[0]).toMatchObject({ type: 'text', text: 'hello from opencode' })
     expect(messages[1].role).toBe('assistant')
-    expect(messages[1].parts.some((part: any) => part.type === 'text' && part.text.includes('world from opencode'))).toBe(true)
+    expect(messages[1].parts.some((part) => part.type === 'text' && part.text.includes('world from opencode'))).toBe(true)
   })
 
   it('returns the newest transcript window for long OpenCode sessions', async () => {
@@ -131,7 +134,7 @@ describe('OpenCode transcript helper', () => {
     expect(messages[0].role).toBe('user')
     expect(messages[0].parts[0]).toMatchObject({ type: 'text', text: 'hello from part table' })
     expect(messages[1].role).toBe('assistant')
-    expect(messages[1].parts.some((part: any) => part.type === 'text' && part.text.includes('response from part table'))).toBe(true)
-    expect(messages[1].parts.some((part: any) => part.type === 'text' && part.text.includes('[Tool: bash]'))).toBe(true)
+    expect(messages[1].parts.some((part) => part.type === 'text' && part.text.includes('response from part table'))).toBe(true)
+    expect(messages[1].parts.some((part) => part.type === 'text' && part.text.includes('[Tool: bash]'))).toBe(true)
   })
 })

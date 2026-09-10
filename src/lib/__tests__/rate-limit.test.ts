@@ -4,9 +4,11 @@ import { createKeyedRateLimiter, createRateLimiter } from '@/lib/rate-limit'
 describe('createRateLimiter', () => {
   const originalDisableRateLimit = process.env.MC_DISABLE_RATE_LIMIT
   const originalTestMode = process.env.MISSION_CONTROL_TEST_MODE
+  const originalTrustedProxies = process.env.MC_TRUSTED_PROXIES
 
   beforeEach(() => {
     vi.useFakeTimers()
+    process.env.MC_TRUSTED_PROXIES = '127.0.0.1'
   })
 
   afterEach(() => {
@@ -15,6 +17,8 @@ describe('createRateLimiter', () => {
     else process.env.MC_DISABLE_RATE_LIMIT = originalDisableRateLimit
     if (originalTestMode === undefined) delete process.env.MISSION_CONTROL_TEST_MODE
     else process.env.MISSION_CONTROL_TEST_MODE = originalTestMode
+    if (originalTrustedProxies === undefined) delete process.env.MC_TRUSTED_PROXIES
+    else process.env.MC_TRUSTED_PROXIES = originalTrustedProxies
   })
 
   it('tracks authenticated identities independently with a keyed limiter', () => {

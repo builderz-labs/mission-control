@@ -22,6 +22,8 @@ describe('agent sync workspace ownership', () => {
     const sync = source('src/lib/local-agent-sync.ts')
 
     expect(sync).toContain("WHERE source = 'local' AND workspace_id = ?")
+    expect(sync).toContain('SELECT id FROM agents WHERE name = ? AND workspace_id = ?')
+    expect(sync).toContain('findIdentityOwnerStmt.get(name, workspaceId)')
     expect(sync).toContain('updated_at, workspace_id)')
     expect(sync).toContain('WHERE id = ? AND workspace_id = ?')
     expect(sync).toContain('existing.id, workspaceId)')

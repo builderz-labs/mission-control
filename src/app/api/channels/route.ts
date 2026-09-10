@@ -15,38 +15,29 @@ function gatewayHeaders(): Record<string, string> {
   return headers
 }
 
-type GatewayData = unknown
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
 
-async function loadChannelsViaRpc(probe = false): Promise<ChannelsSnapshot> {
-  const payload = await callOpenClawGateway<GatewayData>(
-    'channels.status',
-    { probe, timeoutMs: 8000 },
-    probe ? 20000 : 15000,
-  )
-  return {
-    ...transformGatewayChannels(payload),
-    connected: true,
-  }
+function commandStdout(error: unknown): string | null {
+  if (!error || typeof error !== 'object' || !('stdout' in error)) return null
+  const stdout = (error as { stdout?: unknown }).stdout
+  return typeof stdout === 'string' && stdout.trim() ? stdout : null
 }
 
 async function loadChannelsViaCli(probe = false): Promise<ChannelsSnapshot> {
-  const payload = await callOpenClawGateway<GatewayData>(
-    'channels.status',
-    { probe, timeoutMs: 8000 },
-    probe ? 20000 : 15000,
-  ).catch(() => null)
-
-  if (payload) {
-    return {
-      ...transformGatewayChannels(payload),
-      connected: true,
-    }
-  }
-
   const { runOpenClaw } = await import('@/lib/command')
-  const args = ['channels', 'status', '--json', '--timeout', '5000']
+  const args = ['channels', 'status', '--json', '--timeout', probe ? '5000' : '2000']
   if (probe) args.push('--probe')
-  const { stdout } = await runOpenClaw(args, { timeoutMs: probe ? 20000 : 15000 })
+  let stdout: string
+  try {
+    const result = await runOpenClaw(args, { timeoutMs: probe ? 12000 : 3500 })
+    stdout = result.stdout
+  } catch (error) {
+    const partialOutput = commandStdout(error)
+    if (!partialOutput) throw error
+    stdout = partialOutput
+  }
   return {
     ...transformGatewayChannels(JSON.parse(stdout)),
     connected: true,
@@ -56,7 +47,7 @@ async function loadChannelsViaCli(probe = false): Promise<ChannelsSnapshot> {
 async function isGatewayReachable(): Promise<boolean> {
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 2000)
+    const timeout = setTimeout(() => controller.abort(), 1000)
     const res = await fetch(`${gatewayInternalUrl}/health`, {
       headers: gatewayHeaders(),
       signal: controller.signal,
@@ -99,8 +90,8 @@ export async function GET(request: NextRequest) {
       clearTimeout(timeout)
 
       if (!res.ok) {
-        if (res.status === 404) {
-          return NextResponse.json(await loadChannelsViaRpc(true).catch(() => loadChannelsViaCli(true)))
+        if (res.status === 404 || res.status === 401) {
+          return NextResponse.json(await loadChannelsViaCli(true))
         }
         throw new Error(`Gateway channel probe failed with status ${res.status}`)
       }
@@ -109,9 +100,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(data)
     } catch (err) {
       try {
-        return NextResponse.json(await loadChannelsViaRpc(true).catch(() => loadChannelsViaCli(true)))
+        return NextResponse.json(await loadChannelsViaCli(true))
       } catch (cliErr) {
-        logger.warn({ err, cliErr, channel }, 'Channel probe failed')
+        logger.warn({
+          channel,
+          gatewayError: errorMessage(err),
+          cliError: errorMessage(cliErr),
+        }, 'Channel probe failed')
         return NextResponse.json(
           { ok: false, error: 'Gateway unreachable' },
           { status: 502 },
@@ -123,7 +118,7 @@ export async function GET(request: NextRequest) {
   // Default: fetch all channel statuses
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
+    const timeout = setTimeout(() => controller.abort(), 1800)
 
     const res = await fetch(`${gatewayInternalUrl}/api/channels/status`, {
       headers: gatewayHeaders(),
@@ -132,8 +127,8 @@ export async function GET(request: NextRequest) {
     clearTimeout(timeout)
 
     if (!res.ok) {
-      if (res.status === 404) {
-        return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
+      if (res.status === 404 || res.status === 401) {
+        return NextResponse.json(await loadChannelsViaCli(false))
       }
       throw new Error(`Gateway channel status failed with status ${res.status}`)
     }
@@ -142,9 +137,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(transformGatewayChannels(data))
   } catch (err) {
     try {
-      return NextResponse.json(await loadChannelsViaRpc(false).catch(() => loadChannelsViaCli(false)))
+      return NextResponse.json(await loadChannelsViaCli(false))
     } catch (cliErr) {
-      logger.warn({ err, cliErr }, 'Gateway unreachable for channel status')
+      logger.warn({
+        gatewayError: errorMessage(err),
+        cliError: errorMessage(cliErr),
+      }, 'Gateway unreachable for channel status')
       const reachable = await isGatewayReachable()
       return NextResponse.json({
         channels: {},
@@ -298,7 +296,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
     }
   } catch (err) {
-    logger.warn({ err, action }, 'Channel action failed')
+    logger.warn({ action, error: errorMessage(err) }, 'Channel action failed')
     return NextResponse.json(
       { ok: false, error: 'Gateway unreachable' },
       { status: 502 },

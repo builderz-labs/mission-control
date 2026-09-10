@@ -28,6 +28,11 @@ export async function POST(request: NextRequest) {
     const result = await syncAgentsFromConfig(auth.user.username, auth.user.workspace_id)
 
     if (result.error) {
+      const missing = /ENOENT|not configured/i.test(result.error)
+      if (missing) {
+        const local = await syncLocalAgents(auth.user.workspace_id)
+        return NextResponse.json({ ...local, fallback: 'local', gatewayError: result.error })
+      }
       return NextResponse.json({ error: result.error }, { status: 500 })
     }
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { buildFlyTelemetry } from '@/lib/fly-telemetry';
+import { getHostMetrics } from '@/lib/host-metrics';
 
 /**
  * GET /api/workload - Real-Time Workload Signals
@@ -36,6 +38,7 @@ export async function GET(request: NextRequest) {
 
     // --- Agent availability ---
     const agents = buildAgentMetrics(db, workspaceId, now);
+    const fly = buildFlyTelemetry(db, workspaceId, await getHostMetrics());
 
     // --- Recommendation ---
     const recommendation = computeRecommendation(capacity, queue, agents);
@@ -46,6 +49,7 @@ export async function GET(request: NextRequest) {
       capacity,
       queue,
       agents,
+      fly,
       recommendation,
       thresholds: THRESHOLDS,
     });

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { GraphCanvas, GraphCanvasRef, type Theme, type GraphNode as ReagraphNode, type GraphEdge as ReagraphEdge, type InternalGraphNode } from 'reagraph'
 import { useMissionControl } from '@/store'
 import { apiFetch } from '@/lib/api-client'
+import { brandFromAgent } from '@/lib/agent-brand'
 
 // --- Data interfaces (match API response) ---
 
@@ -44,10 +45,24 @@ const AGENT_COLORS = [
   '#cba6f7', // mauve2
 ]
 
+const BRAND_FILL: Record<string, string> = {
+  claude: '#D97757',
+  codex: '#E8B931',
+  grok: '#FF6B2C',
+  kimi: '#C4B5FD',
+  hermes: '#22D3EE',
+}
+
+function hubFill(name: string, fallback: string): string {
+  return BRAND_FILL[brandFromAgent(name)] || fallback
+}
+
 function getFileColor(filePath: string): string {
   if (filePath.startsWith('sessions/') || filePath.includes('/sessions/')) return '#89dceb'
   if (filePath.startsWith('memory/') || filePath.includes('/memory/')) return '#94e2d5'
   if (filePath.startsWith('knowledge') || filePath.includes('/knowledge')) return '#b4befe'
+  if (filePath.startsWith('Wiki/') || filePath.includes('/Wiki/')) return '#f9e2af'
+  if (filePath.startsWith('skills/')) return '#cba6f7'
   if (filePath.endsWith('.md')) return '#f9e2af'
   if (filePath.endsWith('.json') || filePath.endsWith('.jsonl')) return '#cba6f7'
   return '#89b4fa'
@@ -166,11 +181,11 @@ export function MemoryGraph() {
         nodes.push({
           id: `hub-${agent.name}`,
           label: agent.name,
-          fill: color,
+          fill: hubFill(agent.name, color),
           size: hubSize,
         })
 
-        const maxFiles = 25
+        const maxFiles = 80
         const files = agent.files.slice(0, maxFiles)
         files.forEach((file, fi) => {
           const fileSize = Math.max(1.5, Math.min(5, 1 + Math.sqrt(file.chunks) * 0.6))
@@ -204,7 +219,7 @@ export function MemoryGraph() {
       nodes.push({
         id: `hub-${agent.name}`,
         label: agent.name,
-        fill: color,
+        fill: hubFill(agent.name, color),
         size: hubSize,
       })
 

@@ -217,13 +217,16 @@ async function getGpuSnapshot(): Promise<Array<{
   if (process.platform === 'darwin') {
     try {
       const { stdout } = await runCommand('system_profiler', ['SPDisplaysDataType', '-json'], { timeoutMs: 5000 })
-      const data = JSON.parse(stdout)
+      const data = JSON.parse(stdout) as {
+        SPDisplaysDataType?: Array<Record<string, unknown>>
+      }
       const displays = data?.SPDisplaysDataType
       if (Array.isArray(displays)) {
-        const gpus = displays.map((gpu: any) => {
-          const name = gpu.sppci_model || 'Unknown GPU'
+        const gpus = displays.map((gpu) => {
+          const name = typeof gpu.sppci_model === 'string' ? gpu.sppci_model : 'Unknown GPU'
           // VRAM string like "8 GB" or "16384 MB"
-          const vramStr: string = gpu.spdisplays_vram || gpu.spdisplays_vram_shared || ''
+          const vramValue = gpu.spdisplays_vram ?? gpu.spdisplays_vram_shared
+          const vramStr = typeof vramValue === 'string' ? vramValue : ''
           let memoryTotalMB = 0
           const gbMatch = vramStr.match(/([\d.]+)\s*GB/i)
           const mbMatch = vramStr.match(/([\d.]+)\s*MB/i)
@@ -236,7 +239,7 @@ async function getGpuSnapshot(): Promise<Array<{
             memoryUsedMB: 0, // macOS doesn't expose live GPU memory usage easily
             usagePercent: 0,
           }
-        }).filter((g: any) => g.memoryTotalMB > 0)
+        }).filter((gpu) => gpu.memoryTotalMB > 0)
 
         if (gpus.length > 0) return gpus
       }
@@ -377,25 +380,16 @@ async function getProcessSnapshot(): Promise<Array<{
   }
 
   try {
-    // Linux ps supports --sort
-    const { stdout } = await runCommand('ps', [
-      'axo', 'pid,pcpu,pmem,rss,comm',
-      '--sort=-pcpu',
-    ], { timeoutMs: 3000 })
-
-    return parsePsOutput(stdout).slice(0, MAX_PROCESSES)
-  } catch {
-    // macOS ps doesn't support --sort, sort manually
-    try {
-      const { stdout } = await runCommand('ps', [
-        'axo', 'pid,pcpu,pmem,rss,comm',
-      ], { timeoutMs: 3000 })
-
-      const parsed = parsePsOutput(stdout)
+    const args = process.platform === 'linux'
+      ? ['axo', 'pid,pcpu,pmem,rss,comm', '--sort=-pcpu']
+      : ['axo', 'pid,pcpu,pmem,rss,comm']
+    const { stdout } = await runCommand('ps', args, { timeoutMs: 3000 })
+    const parsed = parsePsOutput(stdout)
+    if (process.platform !== 'linux') {
       parsed.sort((a, b) => b.cpuPercent - a.cpuPercent)
-      return parsed.slice(0, MAX_PROCESSES)
-    } catch {
-      return []
     }
+    return parsed.slice(0, MAX_PROCESSES)
+  } catch {
+    return []
   }
 }

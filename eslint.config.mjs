@@ -10,6 +10,11 @@ const config = [
       'playwright-report/**',
       '.tmp/**',
       '.playwright-mcp/**',
+      // Build rollback snapshots and agent worktrees hold full copies of the
+      // tree; linting them re-lints the repository once per copy.
+      '.next.rollback-*/**',
+      '.claude/**',
+      '.adaptive-context/**',
     ],
   },
   // The React 19/ESLint ecosystem is still settling. These rules are valuable,

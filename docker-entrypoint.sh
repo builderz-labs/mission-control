@@ -18,16 +18,25 @@ generate_secret() {
   fi
 }
 
-SECRETS_FILE="/app/.data/.generated-secrets"
+DATA_DIR="${MISSION_CONTROL_DATA_DIR:-/app/.data}"
+SECRETS_FILE="${DATA_DIR}/.generated-secrets"
+
+# The Fly control plane mounts its durable SQLite data directory at /data.
+# Fail before generating credentials if that mount is absent or read-only;
+# starting with transient credentials would silently split the control plane.
+if ! mkdir -p "$DATA_DIR" || ! touch "$SECRETS_FILE"; then
+  printf '[entrypoint] Persistent data directory is not writable: %s\n' "$DATA_DIR" >&2
+  exit 1
+fi
+if [ "$(id -u)" = "0" ]; then
+  chown -R nextjs:nodejs "$DATA_DIR"
+fi
+chmod 600 "$SECRETS_FILE"
 
 # Ensure secrets file has restrictive permissions if it exists
-if [ -f "$SECRETS_FILE" ]; then
-  chmod 600 "$SECRETS_FILE"
-fi
-
 # Load previously generated secrets if they exist
 if [ -f "$SECRETS_FILE" ]; then
-  printf '[entrypoint] Loading persisted secrets from .data\n'
+  printf '[entrypoint] Loading persisted secrets\n'
   load_env_file "$SECRETS_FILE"
 fi
 
@@ -48,4 +57,7 @@ if [ -z "$API_KEY" ] || [ "$API_KEY" = "generate-a-random-key" ]; then
 fi
 
 printf '[entrypoint] Starting server\n'
+if [ "$(id -u)" = "0" ]; then
+  exec gosu nextjs node server.js
+fi
 exec node server.js

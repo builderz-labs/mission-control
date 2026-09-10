@@ -7,6 +7,7 @@ import { Loader } from '@/components/ui/loader'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { createClientLogger } from '@/lib/client-logger'
 import { AgentAvatar } from '@/components/ui/agent-avatar'
+import { LlmLabel } from '@/components/brand/engine-logo'
 import {
   OverviewTab,
   SoulTab,
@@ -21,6 +22,7 @@ import {
   ModelsTab,
   CreateAgentModal
 } from './agent-detail-tabs'
+import { ConnectorsTab } from './agent-detail/connectors-tab'
 import { formatModelName, buildTaskStatParts } from '@/lib/agent-card-helpers'
 import { apiFetch, ApiError } from '@/lib/api-client'
 import { useMissionControl, type Agent } from '@/store'
@@ -145,7 +147,7 @@ export function AgentSquadPanelPhase3() {
       }
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Sync failed')
-      if (source === 'local') {
+      if (source === 'local' || data.fallback === 'local') {
         setSyncToast(data.message || 'Local agent sync complete')
       } else {
         setSyncToast(`Synced ${data.synced} agents (${data.created} new, ${data.updated} updated)`)
@@ -363,15 +365,20 @@ export function AgentSquadPanelPhase3() {
   }, {} as Record<string, number>)
 
   if (loading && agents.length === 0) {
-    return <Loader variant="panel" label="Loading agents" />
+    return (
+      <div className="h-full">
+        <h1 className="sr-only">{t('title')}</h1>
+        <Loader variant="panel" label="Loading agents" />
+      </div>
+    )
   }
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-3 sm:gap-4">
+          <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
           
           {/* Status Summary */}
           <div className="flex gap-2 text-sm">
@@ -392,7 +399,7 @@ export function AgentSquadPanelPhase3() {
           </div>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <Button
             onClick={() => setAutoRefresh(!autoRefresh)}
             variant={autoRefresh ? 'success' : 'secondary'}
@@ -478,7 +485,7 @@ export function AgentSquadPanelPhase3() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {agents.map(agent => {
+            {agents.filter((agent) => agent?.id && agent?.name).map(agent => {
               const modelName = formatModelName(agent.config)
               const taskStatsLine = buildTaskStatParts(agent.taskStats)
 
@@ -510,8 +517,9 @@ export function AgentSquadPanelPhase3() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {agent.role}{modelName && <> · <span className="font-mono text-muted-foreground/80">{modelName}</span></>}
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+                          <span>{agent.role}</span>
+                          {modelName && <><span>·</span><LlmLabel text={modelName} size={12} textClassName="truncate font-mono text-muted-foreground/80" /></>}
                         </p>
                       </div>
                     </div>
@@ -565,7 +573,6 @@ export function AgentSquadPanelPhase3() {
                             e.stopPropagation()
                             updateAgentStatus(agent.name, 'idle', 'Manually activated')
                           }}
-                          disabled={agent.status === 'idle'}
                           size="xs"
                           variant="ghost"
                           className="h-6 px-2 text-xs"
@@ -657,7 +664,7 @@ function AgentDetailModalPhase3({
   onDelete: (agentId: number, removeWorkspace: boolean) => Promise<void>
 }) {
   const [agentState, setAgentState] = useState<Agent & { config?: any; working_memory?: string }>(agent as Agent & { config?: any; working_memory?: string })
-  const [activeTab, setActiveTab] = useState<'overview' | 'soul' | 'memory' | 'config' | 'tasks' | 'activity' | 'files' | 'tools' | 'channels' | 'cron' | 'models'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'soul' | 'memory' | 'config' | 'tasks' | 'activity' | 'files' | 'tools' | 'channels' | 'cron' | 'models' | 'connectors'>('overview')
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({
     role: agent.role,
@@ -678,6 +685,7 @@ function AgentDetailModalPhase3({
   const [showDeleteMenu, setShowDeleteMenu] = useState(false)
   const [saveBusy, setSaveBusy] = useState(false)
   const deleteMenuRef = useRef<HTMLDivElement>(null)
+  const { dashboardMode } = useMissionControl()
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -810,6 +818,7 @@ function AgentDetailModalPhase3({
       if (response.ok) {
         const data = await response.json()
         setHeartbeatData(data)
+        onUpdate()
       }
     } catch (error) {
       log.error('Failed to perform heartbeat:', error)
@@ -931,8 +940,9 @@ function AgentDetailModalPhase3({
     { id: 'memory', label: 'Memory', icon: 'M' },
     { id: 'tasks', label: 'Tasks', icon: 'T' },
     { id: 'config', label: 'Config', icon: 'C' },
+    { id: 'connectors', label: 'Connectors', icon: 'N' },
     { id: 'activity', label: 'Activity', icon: 'A' }
-  ]
+  ].filter((tab) => dashboardMode === 'full' || tab.id !== 'channels')
 
   const handleDelete = async (removeWorkspace: boolean) => {
     const scope = removeWorkspace ? 'agent and workspace' : 'agent'
@@ -964,7 +974,7 @@ function AgentDetailModalPhase3({
         <div className="px-5 pt-5 pb-0 border-b border-border">
           <div className="flex justify-between items-center gap-4 mb-4">
             <div className="flex items-center gap-3 min-w-0">
-              <AgentAvatar name={agent.name} size="md" />
+              <AgentAvatar name={agent.name} size="lg" />
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-semibold text-foreground leading-tight truncate">{agentState.name}</h3>
@@ -1139,6 +1149,10 @@ function AgentDetailModalPhase3({
             <ModelsTab agent={agentState} />
           )}
 
+          {activeTab === 'connectors' && (
+            <ConnectorsTab agent={agentState} />
+          )}
+
           {activeTab === 'activity' && (
             <ActivityTab agent={agentState} />
           )}
@@ -1220,14 +1234,23 @@ function QuickSpawnModal({
       if (response.ok) {
         setSpawnResult(result)
         onSpawned()
-
-        // Auto-close after 2 seconds if successful
-        setTimeout(() => {
-          onClose()
-        }, 2000)
-      } else {
-        alert(result.error || 'Failed to spawn agent')
+        setTimeout(() => onClose(), 2000)
+        return
       }
+      const taskRes = await apiFetch<{ task?: { id: number } }>('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: spawnData.task,
+          assigned_to: agent.name,
+          created_by: agent.name,
+          status: 'assigned',
+          priority: 'medium',
+        }),
+        redirectOnUnauthenticated: false,
+      })
+      setSpawnResult({ fallback: 'task', task: taskRes.task })
+      onSpawned()
+      setTimeout(() => onClose(), 2000)
     } catch (error) {
       log.error('Spawn failed:', error)
       alert('Network error occurred')
@@ -1254,7 +1277,7 @@ function QuickSpawnModal({
             <div className="text-sm text-foreground/80">
               <p><strong>Agent ID:</strong> {spawnResult.agentId}</p>
               <p><strong>Session:</strong> {spawnResult.sessionId}</p>
-              <p><strong>Model:</strong> {spawnResult.model}</p>
+              <p className="flex items-center gap-1.5"><strong>Model:</strong> <LlmLabel text={String(spawnResult.model || '')} size={14} /></p>
             </div>
           </div>
         ) : (
@@ -1274,10 +1297,12 @@ function QuickSpawnModal({
 
             {/* Model Selection */}
             <div>
-              <label className="block text-sm font-medium text-foreground/80 mb-2">
-                Model
-              </label>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label htmlFor="quick-spawn-model" className="text-sm font-medium text-foreground/80">Model</label>
+                <LlmLabel text={models.find(model => model.id === spawnData.model)?.name || spawnData.model} size={14} className="text-xs text-muted-foreground" />
+              </div>
               <select
+                id="quick-spawn-model"
                 value={spawnData.model}
                 onChange={(e) => setSpawnData(prev => ({ ...prev, model: e.target.value }))}
                 className="w-full px-3 py-2 bg-surface-1 border border-border rounded text-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/50"

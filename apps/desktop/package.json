@@ -1,0 +1,21 @@
+{
+  "name": "mission-control-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native window for the local Mission Control dashboard",
+  "type": "module",
+  "main": "src/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "build": "node scripts/build-app.mjs",
+    "configure-auth": "node scripts/configure-desktop-auth.mjs",
+    "test": "node --test src/*.test.mjs tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "electron": "44.2.0"
+  },
+  "packageManager": "pnpm@10.29.3"
+}

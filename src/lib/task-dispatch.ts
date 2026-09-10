@@ -16,6 +16,10 @@ import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from '
 import { syncTaskOutbound } from './github-sync-engine'
 import { classifyModelProvider, getDispatchModelId, getModelByAlias } from './models'
 import { getMiniMaxApiKey, resolveMiniMaxEndpoint } from './minimax'
+import { claudeConfigDirForAgent } from './claude-config-dir'
+import { resolveGrokCliPath, resolveKimiCliPath, runGrokPrompt, runKimiPrompt } from './fleet-cli-dispatch'
+import { dispatchToFly } from './fly-orchestrator'
+import { fetchWithRetry } from './fetch-with-retry'
 import type Database from 'better-sqlite3'
 
 const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
@@ -51,6 +55,7 @@ interface DispatchableTask {
   ticket_prefix: string | null
   project_ticket_no: number | null
   project_id: number | null
+  estimated_hours?: number | null
   tags?: string[]
   /** Raw tasks.metadata JSON — carries optional per-task sandbox overrides. */
   metadata?: string | null
@@ -62,6 +67,7 @@ interface DispatchTokenUsage {
   inputTokens: number
   outputTokens: number
   workspaceId: number
+  agentName?: string | null
 }
 
 /** Keep dispatch accounting aligned with the token_usage migration schema. */
@@ -71,8 +77,8 @@ export function insertDispatchTokenUsage(
   createdAt = Math.floor(Date.now() / 1000),
 ): void {
   db.prepare(`
-    INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, cost_usd, created_at, workspace_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, cost_usd, created_at, workspace_id, agent_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     usage.model,
     usage.sessionId,
@@ -81,6 +87,7 @@ export function insertDispatchTokenUsage(
     0,
     createdAt,
     usage.workspaceId,
+    usage.agentName || null,
   )
 }
 
@@ -521,7 +528,7 @@ export async function reconcileDeferredTaskCompletions(options: {
   const params: unknown[] = [workspaceId]
   let query = `
     SELECT t.id, t.title, t.assigned_to, t.metadata, t.workspace_id,
-           p.ticket_prefix, t.project_ticket_no
+           p.ticket_prefix, p.github_repo as project_repository, t.project_ticket_no
     FROM tasks t
     JOIN workspaces w ON w.id = t.workspace_id
     LEFT JOIN projects p ON p.id = t.project_id AND p.workspace_id = t.workspace_id
@@ -767,7 +774,7 @@ async function callClaudeDirectly(
 
   logger.info({ taskId: task.id, model, agent: task.agent_name }, 'Dispatching task via direct Claude API')
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetchWithRetry('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -775,7 +782,7 @@ async function callClaudeDirectly(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify(body),
-  })
+  }, { timeoutMs: 120_000 })
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '')
@@ -800,6 +807,7 @@ async function callClaudeDirectly(
       inputTokens: data.usage.input_tokens || 0,
       outputTokens: data.usage.output_tokens || 0,
       workspaceId: task.workspace_id,
+      agentName: task.assigned_to,
     })
   }
 
@@ -821,7 +829,7 @@ async function callClaudeDirectly(
 //   anything else (incl. "claude-*")                      → Anthropic
 // ---------------------------------------------------------------------------
 
-export type DirectProvider = 'anthropic' | 'openai' | 'local' | 'minimax'
+export type DirectProvider = 'anthropic' | 'openai' | 'local' | 'minimax' | 'xai' | 'moonshot'
 
 function getOpenAIApiKey(): string | null {
   return (process.env.OPENAI_API_KEY || '').trim() || null
@@ -851,18 +859,23 @@ export function pickProvider(model: string): DirectProvider {
   if (catalogProvider === 'openai') return 'openai'
   if (catalogProvider === 'ollama') return 'local'
   if (catalogProvider === 'minimax') return 'minimax'
+  if (catalogProvider === 'xai') return 'xai'
+  if (catalogProvider === 'moonshot') return 'moonshot'
 
   // Prefix-match fallback for models not in the catalog — behavior for
-  // unknown IDs is unchanged (default remains 'anthropic').
+  // unknown IDs is unchanged (default remains 'anthropic') except Grok/Kimi,
+  // which must never silently bill Anthropic.
   const m = model.toLowerCase()
   if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
   if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
   if (m.startsWith('minimax/')) return 'minimax'
+  if (m.startsWith('xai/') || m.startsWith('grok-')) return 'xai'
+  if (m.startsWith('moonshot/') || m.startsWith('kimi')) return 'moonshot'
   return 'anthropic'
 }
 
 function stripProviderPrefix(model: string): string {
-  return model.replace(/^(openai|local|ollama|lmstudio|litellm|anthropic|minimax)\//i, '')
+  return model.replace(/^(openai|local|ollama|lmstudio|litellm|anthropic|minimax|xai|moonshot)\//i, '')
 }
 
 /**
@@ -969,8 +982,11 @@ function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
   if (provider === 'openai') return !!getOpenAIApiKey() || isCodexCliAvailable()
   if (provider === 'local') return !!getLocalEndpoint()
   if (provider === 'minimax') return !!getMiniMaxApiKey()
+  if (provider === 'xai') return resolveGrokCliPath() !== null
+  if (provider === 'moonshot') return resolveKimiCliPath() !== null
   return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint()
     || !!getMiniMaxApiKey() || isClaudeCliAvailable() || isCodexCliAvailable()
+    || resolveGrokCliPath() !== null || resolveKimiCliPath() !== null
 }
 
 /**
@@ -1027,7 +1043,13 @@ async function callClaudeViaCli(
     }
     const proc = spawn(claudePath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, CI: '1' },
+      env: {
+        ...process.env,
+        CI: '1',
+        ...(claudeConfigDirForAgent(task.agent_name)
+          ? { CLAUDE_CONFIG_DIR: claudeConfigDirForAgent(task.agent_name) as string }
+          : {}),
+      },
       ...(sandbox.cwd ? { cwd: sandbox.cwd } : {}),
     })
     let stdout = ''
@@ -1076,6 +1098,7 @@ async function callClaudeViaCli(
             inputTokens: parsed.usage.input_tokens || 0,
             outputTokens: parsed.usage.output_tokens || 0,
             workspaceId: task.workspace_id,
+            agentName: task.assigned_to,
           })
         }
 
@@ -1175,11 +1198,11 @@ async function callOpenAICompatible(
   logger.info({ taskId: task.id, model, agent: task.agent_name, provider: providerLabel },
     `Dispatching task via direct ${providerLabel} API`)
 
-  const res = await fetch(`${endpoint.replace(/\/$/, '')}/chat/completions`, {
+  const res = await fetchWithRetry(`${endpoint.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-  })
+  }, { timeoutMs: 120_000 })
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '')
@@ -1199,6 +1222,7 @@ async function callOpenAICompatible(
       inputTokens: data.usage.prompt_tokens || 0,
       outputTokens: data.usage.completion_tokens || 0,
       workspaceId: task.workspace_id,
+      agentName: task.assigned_to,
     })
   }
 
@@ -1224,7 +1248,7 @@ async function callMiniMaxAnthropicCompatible(
     'Dispatching task via direct MiniMax API',
   )
 
-  const res = await fetch(endpoint.replace(/\/$/, '') + '/v1/messages', {
+  const res = await fetchWithRetry(endpoint.replace(/\/$/, '') + '/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1232,7 +1256,7 @@ async function callMiniMaxAnthropicCompatible(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify(body),
-  })
+  }, { timeoutMs: 120_000 })
 
   if (!res.ok) {
     const errorBody = await res.text().catch(() => '')
@@ -1255,6 +1279,7 @@ async function callMiniMaxAnthropicCompatible(
       inputTokens: data.usage.input_tokens || 0,
       outputTokens: data.usage.output_tokens || 0,
       workspaceId: task.workspace_id,
+      agentName: task.assigned_to,
     })
   }
 
@@ -1369,9 +1394,12 @@ async function callLocalDirectly(task: DispatchableTask, prompt: string, model: 
 async function callDirectly(task: DispatchableTask, prompt: string): Promise<AgentResponseParsed> {
   const model = classifyDirectModel(task)
   const provider = pickProvider(model)
+  const cwd = resolveCliSandboxOptions(task).cwd
   if (provider === 'minimax') return callMiniMaxDirectly(task, prompt, model)
   if (provider === 'openai') return callOpenAIDirectly(task, prompt, model)
   if (provider === 'local') return callLocalDirectly(task, prompt, model)
+  if (provider === 'xai') return runGrokPrompt(prompt, { model: stripProviderPrefix(model), cwd })
+  if (provider === 'moonshot') return runKimiPrompt(prompt, { model: stripProviderPrefix(model), cwd })
   // Anthropic: prefer the host Claude Code CLI when available — it uses the
   // operator's existing login, no API key needed. Fall back to the API key
   // path only if the CLI isn't installed.
@@ -1466,6 +1494,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
     LEFT JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
     WHERE t.status = 'review'
       AND w.isolation = 'shared'
+      AND NOT EXISTS (SELECT 1 FROM fly_submissions fs WHERE fs.task_id=t.id AND fs.workspace_id=t.workspace_id)
     ORDER BY t.updated_at ASC
     LIMIT 3
   `).all() as ReviewableTask[]
@@ -1650,6 +1679,7 @@ export async function requeueStaleTasks(): Promise<{ ok: boolean; message: strin
     LEFT JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
     WHERE t.status = 'in_progress'
       AND t.updated_at < ?
+      AND NOT EXISTS (SELECT 1 FROM fly_submissions fs WHERE fs.task_id=t.id AND fs.workspace_id=t.workspace_id)
   `).all(staleThreshold) as Array<{
     id: number; title: string; assigned_to: string | null; dispatch_attempts: number
     workspace_id: number; agent_status: string | null; agent_last_seen: number | null
@@ -1731,7 +1761,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
   const tasks = db.prepare(`
     SELECT t.*, a.name as agent_name, a.id as agent_id, a.config as agent_config,
            a.runtime_type as agent_runtime_type,
-           p.ticket_prefix, t.project_ticket_no
+           p.ticket_prefix, p.github_repo as project_repository, t.project_ticket_no
     FROM tasks t
     JOIN agents a ON a.name = t.assigned_to AND a.workspace_id = t.workspace_id
     JOIN workspaces w ON w.id = t.workspace_id
@@ -1791,6 +1821,22 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
       task.workspace_id
     )
 
+    const flyResult = await dispatchToFly(db, task)
+    if (flyResult.deferred) {
+      db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND workspace_id = ?')
+        .run('assigned', Math.floor(Date.now() / 1000), task.id, task.workspace_id)
+      eventBus.broadcast('task.status_changed', {
+        id: task.id, status: 'assigned', previous_status: 'in_progress', reason: flyResult.reason, workspace_id: task.workspace_id,
+      })
+      results.push({ id: task.id, success: true })
+      continue
+    }
+    if (flyResult.handled) {
+      db_helpers.logActivity('fly_worker_dispatched', 'task', task.id, 'scheduler', `Offloaded task to Fly: ${flyResult.reason}`, {}, task.workspace_id)
+      results.push({ id: task.id, success: true })
+      continue
+    }
+
     try {
       // Check for previous Aegis rejection feedback
       const rejectionRow = db.prepare(`
@@ -1816,13 +1862,22 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
 
       let agentResponse: AgentResponseParsed
       const useDirectApi = !isGatewayAvailable() && isDirectDispatchAvailable()
+      const runtimeType = String(task.agent_runtime_type || '').toLowerCase()
+      const dispatchCwd = resolveCliSandboxOptions(task).cwd
+      const dispatchModel = stripProviderPrefix(classifyDirectModel(task))
 
-      if (String(task.agent_runtime_type || '').toLowerCase() === 'claude') {
+      if (runtimeType === 'claude') {
         // #602: explicit opt-in per-agent Claude Code session dispatch. This
         // branch deliberately outranks gateway availability, target_session,
         // and callDirectly — a claude-runtime agent never falls back to a
         // less restrictive provider; failures surface as dispatch failures.
         agentResponse = await dispatchViaClaudeSession(task, prompt)
+      } else if (runtimeType === 'grok') {
+        agentResponse = await runGrokPrompt(prompt, { model: dispatchModel, cwd: dispatchCwd })
+      } else if (runtimeType === 'kimi') {
+        agentResponse = await runKimiPrompt(prompt, { model: dispatchModel, cwd: dispatchCwd })
+      } else if (runtimeType === 'codex') {
+        agentResponse = await callCodexViaCli(task, prompt, dispatchModel)
       } else if (useDirectApi && !targetSession) {
         // Direct API dispatch — provider chosen by `dispatchModel`. No gateway needed.
         agentResponse = await callDirectly(task, prompt)
@@ -2156,6 +2211,7 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
     SELECT id, title, description, priority, tags, workspace_id
     FROM tasks
     WHERE status = 'inbox' AND assigned_to IS NULL
+      AND NOT EXISTS (SELECT 1 FROM fly_submissions f WHERE f.task_id=tasks.id AND f.workspace_id=tasks.workspace_id)
     ORDER BY
       CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC,
       created_at ASC

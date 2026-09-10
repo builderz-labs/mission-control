@@ -43,6 +43,18 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  experimental: {
+    webpackMemoryOptimizations: true,
+    cpus: 1,
+  },
+  webpack: (config) => {
+    config.parallelism = 1
+    return config
+  },
+  // `ws` conditionally loads native acceleration. Bundling replaces the
+  // optional `bufferutil` module with an empty shim, then crashes on `mask()`.
+  // Keep `ws` external so standalone Node resolves its complete runtime copy.
+  serverExternalPackages: ['ws'],
   // Transpile ESM-only packages so they resolve correctly in all environments
   transpilePackages: ['react-markdown', 'remark-gfm'],
   

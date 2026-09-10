@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { createPortal } from 'react-dom'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -13,6 +13,7 @@ import { clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
 // StepAgentRuntimes removed — runtime management moved to Settings page
 import { clearOnboardingReplayFromStart, markOnboardingDismissedThisSession, readOnboardingReplayFromStart } from '@/lib/onboarding-session'
+import { LlmLabel } from '@/components/brand/engine-logo'
 
 interface StepInfo {
   id: string
@@ -354,9 +355,11 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
                             : 'bg-surface-2'
                       }`} />
                       <div className="text-left">
-                        <span className={`text-sm font-medium ${rt.installed ? 'text-foreground' : 'text-muted-foreground/60'}`}>
-                          {rt.name}
-                        </span>
+                        <LlmLabel
+                          text={rt.name}
+                          size={15}
+                          className={`text-sm font-medium ${rt.installed ? 'text-foreground' : 'text-muted-foreground/60'}`}
+                        />
                         {rt.version && (
                           <span className="text-2xs text-muted-foreground/50 ml-1.5">v{rt.version}</span>
                         )}
@@ -401,9 +404,16 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
         <div className="flex flex-wrap items-center justify-center gap-2">
           <StatusChip
             ok={capabilities.claudeSessions > 0}
-            label={capabilities.claudeSessions > 0
-              ? t('activeSessionsDetected', { count: capabilities.claudeSessions })
-              : t('noActiveSessions')}
+            label={(
+              <LlmLabel
+                text={capabilities.claudeSessions > 0 ? 'Claude active sessions' : t('noActiveSessions')}
+                size={13}
+              >
+                {capabilities.claudeSessions > 0
+                  ? t('activeSessionsDetected', { count: capabilities.claudeSessions })
+                  : t('noActiveSessions')}
+              </LlmLabel>
+            )}
           />
           <StatusChip
             ok={capabilities.gatewayConnected}
@@ -429,7 +439,7 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
   )
 }
 
-function StatusChip({ ok, label }: { ok: boolean; label: string }) {
+function StatusChip({ ok, label }: { ok: boolean; label: ReactNode }) {
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-1 border border-border/30">
       <span className={`w-2 h-2 rounded-full ${ok ? 'bg-green-400' : 'bg-surface-2'}`} />

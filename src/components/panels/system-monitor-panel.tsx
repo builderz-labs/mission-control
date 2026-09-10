@@ -3,7 +3,9 @@
 import { useState, useCallback, useRef } from 'react'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { apiFetch } from '@/lib/api-client'
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, ReferenceLine } from 'recharts'
+import { MacCleanupMonitor } from './mac-cleanup-monitor'
+import { Button } from '@/components/ui/button'
 
 interface CpuData {
   usagePercent: number
@@ -165,8 +167,20 @@ export function SystemMonitorPanel() {
 
   if (!latest) {
     return (
-      <div className="p-5 flex items-center justify-center h-64 text-muted-foreground">
-        {error ? `Error: ${error}` : 'Loading system metrics...'}
+      <div className="p-5 space-y-4">
+        <h1 className="text-lg font-semibold text-foreground">System Monitor</h1>
+        {error ? (
+          <div className="flex min-h-52 flex-col items-center justify-center gap-3 text-center" role="alert">
+            <p className="text-sm text-red-400">Unable to load system metrics: {error}</p>
+            <Button variant="outline" size="sm" onClick={() => void fetchData()}>
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className="flex min-h-52 items-center justify-center text-sm text-muted-foreground" role="status" aria-live="polite">
+            Loading system metrics…
+          </div>
+        )}
       </div>
     )
   }
@@ -174,8 +188,13 @@ export function SystemMonitorPanel() {
   return (
     <div className="p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">System Monitor</h2>
-        {error && <span className="text-xs text-red-500">{error}</span>}
+        <h1 className="text-lg font-semibold">System Monitor</h1>
+        {error && (
+          <div className="flex items-center gap-2" role="alert">
+            <span className="text-xs text-red-500">Metrics refresh failed: {error}</span>
+            <Button variant="outline" size="xs" onClick={() => void fetchData()}>Retry</Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -183,7 +202,7 @@ export function SystemMonitorPanel() {
         <section className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium">CPU</h3>
-            <span className="text-2xl font-mono font-bold tabular-nums">{latest.cpu.usagePercent}%</span>
+            <span className={`text-2xl font-mono font-bold tabular-nums ${latest.cpu.usagePercent >= 85 ? 'text-red-400' : latest.cpu.usagePercent >= 70 ? 'text-amber-400' : ''}`}>{latest.cpu.usagePercent}%</span>
           </div>
           <div className="text-xs text-muted-foreground mb-2">
             {latest.cpu.cores} cores &middot; Load: {latest.cpu.loadAvg.map(l => l.toFixed(2)).join(', ')}
@@ -194,6 +213,7 @@ export function SystemMonitorPanel() {
                 <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
                 <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={30} tickFormatter={v => `${v}%`} />
+                <ReferenceLine y={85} stroke="#f59e0b" strokeDasharray="4 4" />
                 <Tooltip
                   contentStyle={{ fontSize: 12, background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
                   formatter={(v) => [`${Number(v ?? 0)}%`, 'CPU']}
@@ -216,12 +236,14 @@ export function SystemMonitorPanel() {
         <section className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium">Memory</h3>
-            <span className="text-2xl font-mono font-bold tabular-nums">{latest.memory.usagePercent}%</span>
+            <span className={`text-2xl font-mono font-bold tabular-nums ${latest.memory.usagePercent >= 85 ? 'text-red-400' : latest.memory.usagePercent >= 70 ? 'text-amber-400' : ''}`}>{latest.memory.usagePercent}%</span>
           </div>
           <div className="text-xs text-muted-foreground mb-2">
             {formatBytes(latest.memory.usedBytes)} / {formatBytes(latest.memory.totalBytes)}
             {latest.memory.swapTotalBytes > 0 && (
-              <> &middot; Swap: {formatBytes(latest.memory.swapUsedBytes)} / {formatBytes(latest.memory.swapTotalBytes)}</>
+              <span className={latest.memory.swapUsedBytes / latest.memory.swapTotalBytes >= 0.8 ? 'text-red-400' : ''}>
+                {' '}&middot; Swap: {formatBytes(latest.memory.swapUsedBytes)} / {formatBytes(latest.memory.swapTotalBytes)}
+              </span>
             )}
           </div>
           <div className="h-40">
@@ -230,6 +252,7 @@ export function SystemMonitorPanel() {
                 <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
                 <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} width={30} tickFormatter={v => `${v}%`} />
+                <ReferenceLine y={85} stroke="#f59e0b" strokeDasharray="4 4" />
                 <Tooltip
                   contentStyle={{ fontSize: 12, background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
                   formatter={(v) => [`${Number(v ?? 0)}%`, 'Memory']}
@@ -426,6 +449,8 @@ export function SystemMonitorPanel() {
           )}
         </section>
       </div>
+
+      <MacCleanupMonitor />
     </div>
   )
 }

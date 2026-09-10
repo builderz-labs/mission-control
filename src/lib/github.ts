@@ -1,9 +1,10 @@
 /**
  * GitHub API client for Mission Control issue sync.
- * Resolves GITHUB_TOKEN from the OpenClaw integration env file first,
- * then falls back to process.env for deployments that export it directly.
+ * Token resolution lives in github-token.ts (env, then `gh auth token`).
  */
-import { getEffectiveEnvValue } from '@/lib/runtime-env'
+import { getGitHubToken } from '@/lib/github-token'
+
+export { getGitHubToken }
 
 export interface GitHubLabel {
   name: string
@@ -25,10 +26,6 @@ export interface GitHubIssue {
   html_url: string
   created_at: string
   updated_at: string
-}
-
-export async function getGitHubToken(): Promise<string | null> {
-  return await getEffectiveEnvValue('GITHUB_TOKEN') || null
 }
 
 /**
@@ -59,19 +56,33 @@ export async function githubFetch(
     headers['Content-Type'] = 'application/json'
   }
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15000)
-
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers,
-      signal: controller.signal,
-    })
-    return res
-  } finally {
-    clearTimeout(timeout)
+  const method = String(options.method || 'GET').toUpperCase()
+  const retryable = method === 'GET' || method === 'HEAD'
+  let lastError: unknown
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    try {
+      const res = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      })
+      if (retryable && res.status >= 500 && attempt === 0) {
+        lastError = new Error(`GitHub API ${res.status}`)
+        await res.body?.cancel().catch(() => undefined)
+        continue
+      }
+      return res
+    } catch (err) {
+      lastError = err
+      if (attempt === 0 && retryable) continue
+      throw err
+    } finally {
+      clearTimeout(timeout)
+    }
   }
+  throw lastError instanceof Error ? lastError : new Error('GitHub API request failed')
 }
 
 /**

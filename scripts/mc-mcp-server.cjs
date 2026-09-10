@@ -59,11 +59,11 @@ async function api(method, route, body) {
   const timer = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const res = await fetch(url, { method, headers, body: payload, signal: controller.signal });
-    clearTimeout(timer);
+    const res = await fetch(url, { method, headers, body: payload, signal: controller.signal, redirect: 'error' });
     const text = await res.text();
+    clearTimeout(timer);
     let data;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    try { data = JSON.parse(text); } catch { throw new Error('Mission Control API returned non-JSON; check server version and configured URL'); }
     if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}: ${text.slice(0, 200)}`);
     return data;
   } catch (err) {
@@ -353,6 +353,7 @@ const TOOLS = [
     },
     handler: async (args) => api('POST', '/api/tasks', args),
   },
+  ...require('./mc-fly-tools.cjs').createFlyTools(api),
   {
     name: 'mc_update_task',
     description: 'Update an existing task (status, priority, assigned_to, title, description, etc.)',
@@ -849,4 +850,5 @@ async function main() {
   process.stdin.resume();
 }
 
-main();
+if (require.main === module) main();
+module.exports = { handleMessage };

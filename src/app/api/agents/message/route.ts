@@ -49,10 +49,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Recipient agent not found' }, { status: 404 })
     }
     if (!agent.session_key) {
-      return NextResponse.json(
-        { error: 'Recipient agent has no session key configured' },
-        { status: 400 }
+      const { writeAgentInbox } = await import('@/lib/agent-inbox')
+      const inboxPath = writeAgentInbox(agent.name, from, message)
+      const now = Math.floor(Date.now() / 1000)
+      db.prepare(
+        `INSERT INTO messages (conversation_id, from_agent, to_agent, content, message_type, metadata, workspace_id, created_at)
+         VALUES (?, ?, ?, ?, 'text', ?, ?, ?)`,
+      ).run(
+        `inbox:${agent.name}`,
+        from,
+        agent.name,
+        message,
+        JSON.stringify({ inbox: inboxPath, local: true }),
+        workspaceId,
+        now,
       )
+      db_helpers.createNotification(
+        to,
+        'message',
+        'Direct Message',
+        `${from}: ${message.substring(0, 200)}${message.length > 200 ? '...' : ''}`,
+        'agent',
+        agent.id,
+        workspaceId,
+      )
+      db_helpers.logActivity(
+        'agent_message',
+        'agent',
+        agent.id,
+        from,
+        `Queued inbox message for ${to}`,
+        { to, inbox: inboxPath },
+        workspaceId,
+      )
+      return NextResponse.json({
+        success: true,
+        local: true,
+        inbox: inboxPath,
+        message: 'Delivered to local inbox; no OpenClaw session key is configured',
+      }, { status: 202 })
     }
 
     await runOpenClaw(

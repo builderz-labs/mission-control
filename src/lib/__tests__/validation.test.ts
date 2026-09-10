@@ -14,6 +14,7 @@ import {
   updateProjectSchema,
   createOsUserSchema,
   installTmuxSchema,
+  macCleanupTriggerSchema,
   releaseUpdateSchema,
   openClawUpdateSchema,
   openClawDoctorFixSchema,
@@ -453,5 +454,15 @@ describe('updateProjectSchema', () => {
     { assigned_agents: Array.from({ length: 101 }, (_, index) => `agent-${index}`) },
   ])('rejects unsafe project update input %#', (input) => {
     expect(updateProjectSchema.safeParse(input).success).toBe(false)
+  })
+})
+
+describe('macCleanupTriggerSchema', () => {
+  it('accepts safe-reclaim', () => {
+    expect(macCleanupTriggerSchema.safeParse({ id: 'safe-reclaim', mode: 'auto' }).success).toBe(true)
+  })
+
+  it('rejects jobs that are not allowlisted', () => {
+    expect(macCleanupTriggerSchema.safeParse({ id: 'safe-disk-maintenance', mode: 'auto' }).success).toBe(false)
   })
 })

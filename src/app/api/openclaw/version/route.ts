@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { runOpenClaw } from '@/lib/command'
+import { fetchWithRetry } from '@/lib/fetch-with-retry'
 
 const GITHUB_RELEASES_URL =
   'https://api.github.com/repos/openclaw/openclaw/releases/latest'
@@ -41,10 +42,10 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(GITHUB_RELEASES_URL, {
+    const res = await fetchWithRetry(GITHUB_RELEASES_URL, {
       headers: { Accept: 'application/vnd.github+json' },
       next: { revalidate: 3600 },
-    })
+    }, { timeoutMs: 5_000 })
 
     if (!res.ok) {
       return NextResponse.json(
@@ -53,7 +54,7 @@ export async function GET() {
       )
     }
 
-    const release = await res.json()
+    const release = await res.json() as { tag_name?: string; html_url?: string; body?: string }
     const latest = (release.tag_name ?? '').replace(/^v/, '')
     const updateAvailable = compareSemver(latest, installed) > 0
 

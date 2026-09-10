@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const workspaceId = auth.user.workspace_id ?? 1;
     
     // Parse query parameters
-    const recipient = searchParams.get('recipient');
+    const recipient = searchParams.get('recipient') || auth.user.username || 'system';
     const unread_only = searchParams.get('unread_only') === 'true';
     const type = searchParams.get('type');
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 500);

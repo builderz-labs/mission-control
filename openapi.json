@@ -9084,6 +9084,361 @@
         }
       }
     },
+    "/api/fly/submit": {
+      "post": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Admit a bounded clean-revision Fly command leaf",
+        "operationId": "submitFlyLeaf",
+        "description": "Operator only. Returns durable remote ownership, explicit local release, or conflict. Remote model runtimes are not commissioned.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "title",
+                  "description",
+                  "repository",
+                  "base_sha"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 12000
+                  },
+                  "repository": {
+                    "type": "string",
+                    "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git$"
+                  },
+                  "base_sha": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{40}$"
+                  },
+                  "runtime": {
+                    "type": "string",
+                    "enum": [
+                      "command",
+                      "claude",
+                      "codex"
+                    ],
+                    "default": "command"
+                  },
+                  "setup": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "npm-ci",
+                      "pnpm-ci",
+                      "npm-ci-playwright",
+                      "pnpm-ci-playwright"
+                    ],
+                    "default": "none"
+                  },
+                  "checks": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 6,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "smoke",
+                        "test",
+                        "lint",
+                        "typecheck",
+                        "build",
+                        "test:e2e"
+                      ]
+                    }
+                  },
+                  "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 1800,
+                    "default": 900
+                  },
+                  "estimated_minutes": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "critical"
+                    ],
+                    "default": "medium"
+                  },
+                  "request_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{8,100}$"
+                  },
+                  "session_id": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "swarm_id": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Not admitted; explicit safe_local_fallback flag"
+          },
+          "202": {
+            "description": "Durably accepted; never execute a duplicate locally"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Operator/shared runtime access required"
+          },
+          "409": {
+            "description": "Idempotency conflict"
+          },
+          "413": {
+            "description": "Payload exceeds 20 KB"
+          },
+          "429": {
+            "description": "Workspace admission limit reached"
+          },
+          "503": {
+            "description": "Unknown outcome; retry same request ID"
+          }
+        }
+      }
+    },
+    "/api/fly/status": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Read Fly configuration readiness and workspace/session activity",
+        "operationId": "getFlyStatus",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Polled protocol readiness, controller-global command capacity (max_workers, active_workers, available_slots, launch_batch_size), scoped submissions and activity; native host slots are separate. Estimated compute, not an invoice"
+          },
+          "400": {
+            "description": "Invalid filter"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "503": {
+            "description": "Status unavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Idempotently cancel a queued, unowned submission",
+        "operationId": "cancelFlySubmission",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release confirmed; host policy still governs fallback"
+          },
+          "400": {
+            "description": "Invalid ID"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Operator role required"
+          },
+          "409": {
+            "description": "Active, unknown or inaccessible submission; ownership retained"
+          },
+          "429": {
+            "description": "Mutation limit reached"
+          },
+          "503": {
+            "description": "Cancellation unconfirmed"
+          }
+        }
+      }
+    },
+    "/api/fly/telemetry": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Get Fly worker fleet telemetry",
+        "operationId": "getFlyTelemetry",
+        "responses": {
+          "200": {
+            "description": "Fleet, queue, Mac pressure, cost, and bottleneck snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "queue",
+                    "fleet",
+                    "cost",
+                    "mac",
+                    "bottlenecks"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/agents/{id}/inventory": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get agent inventory",
+        "operationId": "getAgentInventory",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent inventory"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/models/access": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get model access",
+        "operationId": "getModelAccess",
+        "responses": {
+          "200": {
+            "description": "Available model access"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/artifact": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Get a session artifact",
+        "operationId": "getSessionArtifact",
+        "responses": {
+          "200": {
+            "description": "Session artifact"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/archive": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Archive a session",
+        "operationId": "archiveSession",
+        "responses": {
+          "200": {
+            "description": "Session archived"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/handoff": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Hand off a session",
+        "operationId": "handoffSession",
+        "responses": {
+          "200": {
+            "description": "Session handoff created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/api/workload": {
       "get": {
         "tags": [
@@ -9649,6 +10004,93 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/chat/folder-order": {
+      "get": {
+        "tags": ["API"],
+        "summary": "Get shared chat folder order",
+        "operationId": "get_api_chat_folder_order",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
+        }
+      },
+      "put": {
+        "tags": ["API"],
+        "summary": "Replace shared chat folder order",
+        "operationId": "put_api_chat_folder_order",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/permission-mode": {
+      "get": {
+        "tags": ["API"],
+        "summary": "Get chat permission mode",
+        "operationId": "get_api_chat_permission_mode",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
+        }
+      },
+      "put": {
+        "tags": ["API"],
+        "summary": "Set chat permission mode",
+        "operationId": "put_api_chat_permission_mode",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/usage": {
+      "get": {
+        "tags": ["API"],
+        "summary": "Get live chat usage tracker",
+        "operationId": "get_api_chat_usage",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
         }
       }
     },
@@ -11700,6 +12142,49 @@
           "403": { "$ref": "#/components/responses/Forbidden" },
           "409": { "description": "User already exists" },
           "429": { "description": "Provisioning rate limit exceeded" }
+        }
+      }
+    },
+    "/api/system-monitor/automations": {
+      "get": {
+        "tags": ["Monitoring"],
+        "summary": "Mac cleanup automation status, live metrics, and thresholds",
+        "operationId": "getMacCleanupAutomations",
+        "responses": {
+          "200": {
+            "description": "Automation snapshot",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Monitoring"],
+        "summary": "Safely trigger a Mac cleanup automation",
+        "operationId": "triggerMacCleanupAutomation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "mode"],
+                "properties": {
+                  "id": { "type": "string", "enum": ["safe-reclaim", "resource-guardian", "storage-maintenance"] },
+                  "mode": { "type": "string", "enum": ["audit", "dry-run", "auto"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Trigger result" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     },

@@ -68,6 +68,7 @@ export function AlertRulesPanel() {
   const t = useTranslations('alertRules')
   const [rules, setRules] = useState<AlertRule[]>([])
   const [loading, setLoading] = useState(true)
+  const [requestError, setRequestError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [evalResults, setEvalResults] = useState<EvalResult[] | null>(null)
   const [evaluating, setEvaluating] = useState(false)
@@ -76,8 +77,12 @@ export function AlertRulesPanel() {
     try {
       const data = await apiFetch<AlertRulesData>('/api/alerts')
       setRules(data.rules || [])
-    } catch { /* ignore */ }
-    setLoading(false)
+      setRequestError(null)
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : 'Unable to load alert rules')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchRules() }, [fetchRules])
@@ -88,7 +93,9 @@ export function AlertRulesPanel() {
         method: 'PUT',
         body: JSON.stringify({ id: rule.id, enabled: rule.enabled ? 0 : 1 }),
       })
-    } catch { /* refresh the authoritative state below */ }
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : 'Unable to update alert rule')
+    }
     finally { fetchRules() }
   }
 
@@ -98,7 +105,9 @@ export function AlertRulesPanel() {
         method: 'DELETE',
         body: JSON.stringify({ id }),
       })
-    } catch { /* refresh the authoritative state below */ }
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : 'Unable to delete alert rule')
+    }
     finally { fetchRules() }
   }
 
@@ -110,7 +119,9 @@ export function AlertRulesPanel() {
         body: JSON.stringify({ action: 'evaluate' }),
       })
       setEvalResults(data.results || [])
-    } catch { /* ignore */ }
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : 'Unable to evaluate alert rules')
+    }
     finally {
       setEvaluating(false)
       fetchRules() // refresh trigger counts
@@ -125,7 +136,7 @@ export function AlertRulesPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
+          <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('description')}
           </p>
@@ -158,6 +169,15 @@ export function AlertRulesPanel() {
           </Button>
         </div>
       </div>
+
+      {requestError && (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300" role="alert">
+          <span>{requestError}</span>
+          <Button variant="outline" size="sm" onClick={() => { setLoading(true); void fetchRules() }}>
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -209,7 +229,7 @@ export function AlertRulesPanel() {
 
       {/* Rules List */}
       {loading ? (
-        <div className="text-center text-xs text-muted-foreground py-8">{t('loadingRules')}</div>
+        <div className="text-center text-xs text-muted-foreground py-8" role="status" aria-live="polite">{t('loadingRules')}</div>
       ) : rules.length === 0 ? (
         <div className="text-center py-12 bg-card border border-border rounded-lg">
           <div className="text-3xl mb-2 opacity-30">&#9888;</div>
@@ -369,6 +389,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
         <div>
           <label className="block text-2xs text-muted-foreground mb-1">{t('entity')}</label>
           <select
+            aria-label={t('entity')}
             value={form.entity_type}
             onChange={e => setForm({ ...form, entity_type: e.target.value, condition_field: ENTITY_FIELDS[e.target.value]?.[0] || 'status' })}
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
@@ -382,6 +403,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
         <div>
           <label className="block text-2xs text-muted-foreground mb-1">{t('field')}</label>
           <select
+            aria-label={t('field')}
             value={form.condition_field}
             onChange={e => setForm({ ...form, condition_field: e.target.value })}
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
@@ -392,6 +414,7 @@ function CreateRuleForm({ onCreated, onCancel }: { onCreated: () => void; onCanc
         <div>
           <label className="block text-2xs text-muted-foreground mb-1">{t('operator')}</label>
           <select
+            aria-label={t('operator')}
             value={form.condition_operator}
             onChange={e => setForm({ ...form, condition_operator: e.target.value })}
             className="w-full h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"

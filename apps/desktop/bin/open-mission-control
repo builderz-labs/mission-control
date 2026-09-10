@@ -1,0 +1,4 @@
+#!/bin/bash
+set -euo pipefail
+DESKTOP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec pnpm --dir "${DESKTOP_ROOT}" start "$@"

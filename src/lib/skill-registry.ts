@@ -8,10 +8,11 @@
 import { createHash } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { homedir } from 'node:os'
 import { resolveWithin } from './paths'
+import { skillTargetDir } from './skill-roots'
 import { logger } from './logger'
 import { atomicReplaceFileSync } from './atomic-file'
+import { fetchWithRetry } from './fetch-with-retry'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -241,14 +242,7 @@ async function fetchAwesomeIndex(): Promise<RegistrySkill[]> {
     return awesomeCache.skills
   }
   try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 15_000)
-    let res: Response
-    try {
-      res = await fetch(AWESOME_OPENCLAW_README, { signal: controller.signal })
-    } finally {
-      clearTimeout(timer)
-    }
+    const res = await fetchWithRetry(AWESOME_OPENCLAW_README, {}, { timeoutMs: 15_000 })
     if (!res.ok) throw new Error(`GitHub fetch failed (${res.status})`)
     const markdown = await res.text()
     const skills = parseAwesomeReadme(markdown)
@@ -281,13 +275,7 @@ async function fetchAwesomeOpenclawSkill(slug: string): Promise<{ content: strin
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
-  try {
-    return await fetch(url, { ...options, signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
-  }
+  return fetchWithRetry(url, options, { timeoutMs: FETCH_TIMEOUT })
 }
 
 async function searchClawdHub(query: string): Promise<RegistrySearchResult> {
@@ -395,19 +383,7 @@ function skillNameFromSlug(slug: string): string {
 }
 
 function getTargetDir(targetRoot: string): string {
-  const home = homedir()
-  const cwd = process.cwd()
-  const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  const rootMap: Record<string, string> = {
-    'user-agents': process.env.MC_SKILLS_USER_AGENTS_DIR || join(home, '.agents', 'skills'),
-    'user-codex': process.env.MC_SKILLS_USER_CODEX_DIR || join(home, '.codex', 'skills'),
-    'project-agents': process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills'),
-    'project-codex': process.env.MC_SKILLS_PROJECT_CODEX_DIR || join(cwd, '.codex', 'skills'),
-    'openclaw': process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills'),
-  }
-  const dir = rootMap[targetRoot]
-  if (!dir) throw new Error(`Invalid target root: ${targetRoot}`)
-  return dir
+  return skillTargetDir(targetRoot)
 }
 
 async function fetchClawdHubSkill(slug: string): Promise<{ content: unknown; hash?: string }> {

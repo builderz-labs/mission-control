@@ -579,7 +579,7 @@ export function SuperAdminPanel() {
   if (currentUser?.role !== 'admin') {
     return (
       <div className="p-8 text-center">
-        <div className="text-lg font-semibold text-foreground mb-2">{t('accessDenied')}</div>
+        <h1 className="text-lg font-semibold text-foreground mb-2">{t('accessDenied')}</h1>
         <p className="text-sm text-muted-foreground">{t('accessDeniedDesc')}</p>
       </div>
     )
@@ -588,6 +588,7 @@ export function SuperAdminPanel() {
   if (loading) {
     return (
       <div className="p-8 text-center">
+        <h1 className="sr-only">{t('title')}</h1>
         <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse mx-auto mb-2" />
         <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
@@ -598,7 +599,7 @@ export function SuperAdminPanel() {
     <div className="p-6 max-w-7xl mx-auto space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
+          <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
           <p className="text-sm text-muted-foreground">
             {isLocal ? t('subtitleLocal') : t('subtitleMultiTenant')}
           </p>
@@ -698,6 +699,7 @@ export function SuperAdminPanel() {
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
               />
               <select
+                aria-label="Owner gateway"
                 value={form.owner_gateway}
                 onChange={(e) => setForm((f) => ({ ...f, owner_gateway: e.target.value }))}
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
@@ -713,6 +715,7 @@ export function SuperAdminPanel() {
                 )}
               </select>
               <select
+                aria-label="Plan tier"
                 value={form.plan_tier}
                 onChange={(e) => setForm((f) => ({ ...f, plan_tier: e.target.value }))}
                 className="h-9 px-3 rounded-md bg-secondary border border-border text-sm text-foreground"
@@ -781,6 +784,7 @@ export function SuperAdminPanel() {
                     className="h-8 flex-1 px-3 rounded-md bg-secondary border border-border text-xs text-foreground"
                   />
                   <select
+                    aria-label={`${ws.name} isolation`}
                     value={draft.isolation}
                     onChange={(e) =>
                       setWorkspaceDrafts((d) => ({
@@ -838,6 +842,7 @@ export function SuperAdminPanel() {
                   className="h-8 w-56 px-3 rounded-md bg-secondary border border-border text-xs text-foreground"
                 />
                 <select
+                  aria-label="Organization status"
                   value={tenantStatusFilter}
                   onChange={(e) => setTenantStatusFilter(e.target.value)}
                   className="h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground"
@@ -971,6 +976,7 @@ export function SuperAdminPanel() {
                   className="h-8 w-56 px-3 rounded-md bg-secondary border border-border text-xs text-foreground"
                 />
                 <select
+                  aria-label="Job status"
                   value={jobStatusFilter}
                   onChange={(e) => setJobStatusFilter(e.target.value)}
                   className="h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground"
@@ -980,6 +986,7 @@ export function SuperAdminPanel() {
                   ))}
                 </select>
                 <select
+                  aria-label="Job type"
                   value={jobTypeFilter}
                   onChange={(e) => setJobTypeFilter(e.target.value)}
                   className="h-8 px-2 rounded-md bg-secondary border border-border text-xs text-foreground"

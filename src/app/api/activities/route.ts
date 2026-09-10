@@ -39,6 +39,7 @@ async function handleActivitiesRequest(request: NextRequest, workspaceId: number
     // Parse query parameters
     const type = searchParams.get('type');
     const actor = searchParams.get('actor');
+    const entity_id = searchParams.get('entity_id');
     const entity_type = searchParams.get('entity_type');
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 500);
     const offset = parseInt(searchParams.get('offset') || '0');
@@ -59,7 +60,10 @@ async function handleActivitiesRequest(request: NextRequest, workspaceId: number
       }
     }
     
-    if (actor) {
+    if (actor && entity_id) {
+      query += " AND (actor = ? OR (entity_type = 'agent' AND entity_id = ?))";
+      params.push(actor, Number(entity_id) || entity_id);
+    } else if (actor) {
       query += ' AND actor = ?';
       params.push(actor);
     }

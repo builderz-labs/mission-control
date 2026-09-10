@@ -359,6 +359,7 @@ export function HeaderBar() {
             onClick={openCommandPalette}
             className="md:hidden"
             title="Search"
+            aria-label="Search Mission Control"
           >
             <SearchIcon />
           </Button>
@@ -370,6 +371,9 @@ export function HeaderBar() {
             onMouseEnter={() => prefetchPanel('notifications')}
             onFocus={() => prefetchPanel('notifications')}
             className="relative"
+            aria-label={unreadNotificationCount > 0
+              ? `Notifications, ${unreadNotificationCount} unread`
+              : 'Notifications'}
           >
             <BellIcon />
             {unreadNotificationCount > 0 && (
