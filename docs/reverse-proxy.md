@@ -2,13 +2,15 @@
 
 Set the canonical URL and the address of the proxy that connects to Mission
 Control. `MC_TRUSTED_PROXY_HEADERS=1` is optional and should only be enabled
-when the backend is private and the runtime supplies a verified transport peer
-IP. An X-Forwarded-For value alone never proves proxy trust.
+when the backend is private and the proxy overwrites
+`X-Mission-Control-Proxy-Secret` with the matching server-side secret. A
+transport verified peer IP plus `MC_TRUSTED_PROXY_IPS` is also supported where
+the runtime provides it. An X-Forwarded-For value alone never proves trust.
 
 ```env
 MC_PUBLIC_URL=https://mc.example.com
 MC_TRUSTED_PROXY_HEADERS=1
-MC_TRUSTED_PROXY_IPS=127.0.0.1
+MC_PROXY_HEADER_SECRET=generate-a-long-random-secret
 MC_ALLOWED_HOSTS=mc.example.com,localhost,127.0.0.1
 MC_COOKIE_SECURE=1
 ```

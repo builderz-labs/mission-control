@@ -18,14 +18,14 @@ function envList(...names: string[]): string[] {
   return []
 }
 
-function normalizeHost(value: string): string {
-  return value.trim().replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase()
+function normalizeHost(value: unknown): string {
+  return String(value || '').trim().replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase()
 }
 
 const MAX_HEADER_LENGTH = 4096
 
-function validHeader(value: string): boolean {
-  return value.length <= MAX_HEADER_LENGTH && !/[\u0000-\u001f\u007f]/.test(value)
+function validHeader(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= MAX_HEADER_LENGTH && !/[\u0000-\u001f\u007f]/.test(value)
 }
 
 function matchesTrusted(value: string, trusted: string[]): boolean {
@@ -41,17 +41,29 @@ function matchesTrusted(value: string, trusted: string[]): boolean {
 function trustedForwardedRequest(request: Request): boolean {
   if (String(process.env.MC_TRUSTED_PROXY_HEADERS || '').trim().toLowerCase() !== '1') return false
   const trusted = envList('MC_TRUSTED_PROXY_IPS', 'MC_PROXY_TRUSTED_IPS')
-  if (!trusted.length) return false
+  const secret = String(process.env.MC_PROXY_HEADER_SECRET || '')
+  const suppliedSecret = request.headers?.get?.('x-mission-control-proxy-secret') || ''
+  const secretTrusted = Boolean(secret && constantTimeEqual(suppliedSecret, secret))
+  if (!trusted.length && !secretTrusted) return false
   // NextRequest may expose the actual peer address. When available, require
   // it to be trusted; this prevents a direct client from forging the XFF chain.
   const peerIp = (request as Request & { ip?: string }).ip?.trim()
-  if (!peerIp || !matchesTrusted(peerIp, trusted)) return false
+  if (!secretTrusted && (!peerIp || !matchesTrusted(peerIp, trusted))) return false
   const xff = request.headers.get('x-forwarded-for') || ''
   if (!validHeader(xff)) return false
   const hops = xff.split(',').map((item) => item.trim()).filter(Boolean)
   // The nearest proxy is the right-most XFF hop. A configured proxy must be
   // present there before any forwarded origin data is used.
-  return hops.length > 0 && matchesTrusted(hops[hops.length - 1], trusted)
+  return secretTrusted || (hops.length > 0 && matchesTrusted(hops[hops.length - 1], trusted))
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const left = new TextEncoder().encode(a)
+  const right = new TextEncoder().encode(b)
+  let diff = left.length ^ right.length
+  const length = Math.max(left.length, right.length)
+  for (let i = 0; i < length; i++) diff |= (left[i % (left.length || 1)] || 0) ^ (right[i % (right.length || 1)] || 0)
+  return diff === 0
 }
 
 function firstForwardedValue(value: string | null): string {
@@ -100,13 +112,13 @@ export function resolvePublicOrigin(request: Request): PublicOrigin {
     const forwardedHeader = request.headers.get('forwarded') || ''
     const forwardedHostHeader = request.headers.get('x-forwarded-host') || ''
     if (!validHeader(forwardedHeader) || !validHeader(forwardedHostHeader)) {
-      const direct = parseOrigin(request.url)
+      const direct = parseOrigin(request?.url)
       return direct || { protocol: 'http:', host: 'localhost', origin: 'http://localhost' }
     }
     const host = forwardedHost(request)
     const forwardedProto = request.headers.get('x-forwarded-proto') || ''
     const forwardedPort = request.headers.get('x-forwarded-port') || ''
-    if (!validHeader(forwardedProto) || !validHeader(forwardedPort)) return parseOrigin(request.url) || { protocol: 'http:', host: 'localhost', origin: 'http://localhost' }
+    if (!validHeader(forwardedProto) || !validHeader(forwardedPort)) return parseOrigin(request?.url) || { protocol: 'http:', host: 'localhost', origin: 'http://localhost' }
     const protocol = (forwardedParameter(request, 'proto') || nearestForwardedValue(forwardedProto)).toLowerCase()
     if (host && (protocol === 'http' || protocol === 'https')) {
       const port = forwardedParameter(request, 'port') || nearestForwardedValue(forwardedPort)
@@ -116,7 +128,7 @@ export function resolvePublicOrigin(request: Request): PublicOrigin {
     }
   }
 
-  const direct = parseOrigin(request.url)
+  const direct = parseOrigin(request?.url)
   return direct || { protocol: 'http:', host: 'localhost', origin: 'http://localhost' }
 }
 
@@ -126,7 +138,7 @@ export function isRequestSecureWithTrust(request: Request): boolean {
 
 export function publicOriginHostCandidates(request: Request): string[] {
   const result = new Set<string>()
-  const direct = parseOrigin(request.url)
+  const direct = parseOrigin(request?.url)
   // Do not expose the localhost fallback as a host candidate when a malformed
   // test adapter or framework wrapper has no usable request URL.
   if (direct) result.add(normalizeHost(resolvePublicOrigin(request).host))

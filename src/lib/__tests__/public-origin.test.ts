@@ -104,4 +104,24 @@ describe('public origin and proxy trust', () => {
     expect(isTrustedForwardedRequest(request)).toBe(false)
     expect(resolvePublicOrigin(request).origin).toBe('http://internal:3000')
   })
+
+  it('accepts dynamic forwarded origin with the explicit proxy secret', () => {
+    process.env.MC_TRUSTED_PROXY_HEADERS = '1'
+    process.env.MC_PROXY_HEADER_SECRET = 'correct-secret'
+    const request = new Request('http://internal:3000', {
+      headers: { 'x-mission-control-proxy-secret': 'correct-secret', 'x-forwarded-host': 'control.test', 'x-forwarded-proto': 'https' },
+    })
+    expect(resolvePublicOrigin(request).origin).toBe('https://control.test')
+  })
+
+  it('rejects missing or incorrect proxy secrets', () => {
+    process.env.MC_TRUSTED_PROXY_HEADERS = '1'
+    process.env.MC_PROXY_HEADER_SECRET = 'correct-secret'
+    for (const value of ['', 'wrong-secret']) {
+      const request = new Request('http://internal:3000', {
+        headers: { 'x-mission-control-proxy-secret': value, 'x-forwarded-host': 'evil.test', 'x-forwarded-proto': 'https' },
+      })
+      expect(resolvePublicOrigin(request).origin).toBe('http://internal:3000')
+    }
+  })
 })
