@@ -42,7 +42,7 @@ describe('GET /api/status?action=health aggregation', () => {
     })
     const { GET } = await import('@/app/api/status/route')
     const response = await GET(new NextRequest('http://localhost/api/status?action=health'))
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(503)
     const body = await response.json() as { status: string, checks: Array<{ name: string, status: string }> }
     expect(body.checks.some((check) => check.name === 'Database' && check.status === 'unhealthy')).toBe(true)
     expect(body.status).toBe('unhealthy')
