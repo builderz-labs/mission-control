@@ -14,7 +14,6 @@ dist/
 *.pem
 
 # Environment variables - ignore all .env* variants by default
-.env*
 
 # Re-allow intentionally committed sample/test files
 !.env.example
@@ -54,3 +53,4 @@ docs/_*.png
 
 # IDE state
 .vs/
+config.bat
