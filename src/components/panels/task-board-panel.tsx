@@ -1618,6 +1618,17 @@ function TaskDetailModal({
                 {task.assigned_to && <AgentAvatar name={task.assigned_to} size="xs" />}
               </div>
 
+              {task.resolution && (
+                <div className="rounded-lg border border-primary/25 bg-primary/5 p-4">
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-primary/80">
+                    Result
+                  </div>
+                  <div className="mt-2 text-sm leading-relaxed text-foreground/90 prose prose-invert prose-sm max-w-none">
+                    <MarkdownRenderer content={task.resolution} />
+                  </div>
+                </div>
+              )}
+
               {task.status === 'failed' && task.error_message && (
                 <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3">
                   <div className="text-[10px] font-medium uppercase tracking-wider text-red-400/80">
