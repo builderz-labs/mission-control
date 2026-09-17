@@ -56,3 +56,10 @@ describe('claude runtime dispatch routing (#602)', () => {
     expect(fn).toContain('output exceeded')
   })
 })
+
+describe('custom runtime dispatch routing', () => {
+  it('leaves assigned tasks for custom agents to claim themselves', () => {
+    const dispatchLoop = sliceBetween('export async function dispatchAssignedTasks()', '// Auto-routing:')
+    expect(dispatchLoop).toContain("COALESCE(a.runtime_type, '') <> 'custom'")
+  })
+})

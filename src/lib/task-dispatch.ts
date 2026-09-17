@@ -1739,6 +1739,7 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
     WHERE t.status = 'assigned'
       AND w.isolation = 'shared'
       AND t.assigned_to IS NOT NULL
+      AND COALESCE(a.runtime_type, '') <> 'custom'
     ORDER BY
       CASE t.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC,
       t.created_at ASC
