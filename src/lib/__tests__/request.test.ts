@@ -50,12 +50,12 @@ describe('extractClientIpFromTrusted', () => {
     expect(extractClientIpFromTrusted(req, trusted, '')).toBe('')
   })
 
-  it('ignores XFF when trusted set is empty', () => {
+  it('ignores all forwarded identity headers when trusted set is empty', () => {
     const req = makeRequest({
       'x-forwarded-for': '203.0.113.50, 10.0.0.1',
       'x-real-ip': '172.16.0.1',
     })
-    expect(extractClientIpFromTrusted(req, new Set(), '')).toBe('172.16.0.1')
+    expect(extractClientIpFromTrusted(req, new Set(), '')).toBe('')
   })
 
   it('trims whitespace from XFF entries', () => {

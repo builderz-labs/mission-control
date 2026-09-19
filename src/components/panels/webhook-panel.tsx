@@ -256,7 +256,7 @@ export function WebhookPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-foreground">{t('title')}</h2>
+          <h1 className="text-base font-semibold text-foreground">{t('title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('configured', { count: webhooks.length })}
           </p>

@@ -4,6 +4,7 @@ import {
   readErrorDetailCode,
   isNonRetryableErrorCode,
   calculateBackoff,
+  calculateReconnectDelay,
   detectSequenceGap,
   NON_RETRYABLE_ERROR_CODES,
   shouldRetryWithoutDeviceIdentity,
@@ -86,6 +87,7 @@ describe('isNonRetryableErrorCode', () => {
       'AUTH_TOKEN_MISSING',
       'AUTH_PASSWORD_MISSING',
       'AUTH_PASSWORD_MISMATCH',
+      'AUTH_TOKEN_MISMATCH',
       'AUTH_RATE_LIMITED',
       'ORIGIN_NOT_ALLOWED',
       'DEVICE_SIGNATURE_INVALID',
@@ -95,8 +97,8 @@ describe('isNonRetryableErrorCode', () => {
     }
   })
 
-  it('returns false for AUTH_TOKEN_MISMATCH (retryable)', () => {
-    expect(isNonRetryableErrorCode('AUTH_TOKEN_MISMATCH')).toBe(false)
+  it('treats AUTH_TOKEN_MISMATCH as non-retryable', () => {
+    expect(isNonRetryableErrorCode('AUTH_TOKEN_MISMATCH')).toBe(true)
   })
 
   it('returns false for unknown codes', () => {
@@ -125,6 +127,17 @@ describe('calculateBackoff', () => {
     expect(calculateBackoff(10)).toBe(15000)
     expect(calculateBackoff(20)).toBe(15000)
     expect(calculateBackoff(100)).toBe(15000)
+  })
+})
+
+describe('calculateReconnectDelay', () => {
+  it('retries immediately on the first attempt', () => {
+    expect(calculateReconnectDelay(0)).toBe(0)
+  })
+
+  it('uses backoff after the first retry', () => {
+    expect(calculateReconnectDelay(1)).toBe(1000)
+    expect(calculateReconnectDelay(2)).toBeCloseTo(1700, 0)
   })
 })
 
@@ -238,7 +251,7 @@ describe('ConnectErrorDetailCodes', () => {
     }
   })
 
-  it('NON_RETRYABLE_ERROR_CODES does not include AUTH_TOKEN_MISMATCH', () => {
-    expect(NON_RETRYABLE_ERROR_CODES.has('AUTH_TOKEN_MISMATCH')).toBe(false)
+  it('NON_RETRYABLE_ERROR_CODES includes AUTH_TOKEN_MISMATCH', () => {
+    expect(NON_RETRYABLE_ERROR_CODES.has('AUTH_TOKEN_MISMATCH')).toBe(true)
   })
 })

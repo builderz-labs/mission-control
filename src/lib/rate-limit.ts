@@ -33,9 +33,11 @@ function evictOldest(store: Map<string, RateLimitEntry>) {
 }
 
 // Trusted proxy IPs (comma-separated). Only parse XFF when behind known proxies.
-const TRUSTED_PROXIES = new Set(
-  (process.env.MC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean)
-)
+function trustedProxies(): Set<string> {
+  return new Set(
+    (process.env.MC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean)
+  )
+}
 
 // Re-export for external consumers
 export { extractClientIpFromTrusted } from './request'
@@ -44,7 +46,7 @@ export { extractClientIpFromTrusted } from './request'
  * Extract client IP using the global MC_TRUSTED_PROXIES set.
  */
 export function extractClientIp(request: Request): string {
-  return extractClientIpFromTrusted(request, TRUSTED_PROXIES)
+  return extractClientIpFromTrusted(request, trustedProxies())
 }
 
 export function createRateLimiter(options: RateLimiterOptions) {

@@ -14,6 +14,13 @@ import { resolveWithin } from './paths'
 import { logger } from './logger'
 import { parseJsonRelaxed } from './json-relaxed'
 import { resolveSharedRuntimeWorkspaceId } from './workspace-isolation'
+import { canonicalFleetAgentName, FLEET_AGENT_ALIASES, FLEET_AGENT_NAMES } from './fleet-agents'
+import {
+  findOpenClawAgent,
+  listOpenClawAgents,
+  removeOpenClawAgent,
+  upsertOpenClawAgent,
+} from './openclaw-agents'
 
 interface OpenClawAgent {
   id: string
@@ -160,7 +167,10 @@ function readWorkspaceFile(workspace: string | undefined, filename: string): str
       closeSync(descriptor)
     }
   } catch (err) {
-    logger.warn({ err, workspace, filename }, 'Failed to read workspace file')
+    const code = (err as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT') {
+      logger.warn({ code, workspace, filename }, 'Failed to read workspace file')
+    }
   }
   return null
 }
@@ -195,9 +205,14 @@ async function readOpenClawAgents(): Promise<OpenClawAgent[]> {
   if (!configPath) throw new Error('OPENCLAW_CONFIG_PATH not configured')
 
   const { readFile } = require('fs/promises')
-  const raw = await readFile(configPath, 'utf-8')
-  const parsed = parseJsonRelaxed<any>(raw)
-  return parsed?.agents?.list || []
+  try {
+    const raw = await readFile(configPath, 'utf-8')
+    const parsed = parseJsonRelaxed<any>(raw)
+    return listOpenClawAgents(parsed, config.openclawStateDir)
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return []
+    throw err
+  }
 }
 
 /** Extract MC-friendly fields from an OpenClaw agent config */
@@ -207,13 +222,16 @@ function mapAgentToMC(agent: OpenClawAgent): {
   config: any
   soul_content: string | null
 } {
-  const name = agent.identity?.name || agent.name || agent.id
+  const name = canonicalFleetAgentName(agent.identity?.name || agent.name || agent.id)
   const role = agent.identity?.theme || 'agent'
-  // Store the full config minus systemPrompt/soul (which can be large)
+  const identity = {
+    ...(agent.identity && typeof agent.identity === 'object' ? agent.identity : {}),
+    name,
+  }
   const configData = enrichAgentConfigFromWorkspace({
-    openclawId: agent.id,
+    openclawId: name,
     model: agent.model,
-    identity: agent.identity,
+    identity,
     sandbox: agent.sandbox,
     tools: agent.tools,
     subagents: agent.subagents,
@@ -270,6 +288,7 @@ export async function syncAgentsFromConfig(actor: string = 'system', requestedWo
 
   db.transaction(() => {
     for (const agent of agents) {
+      if (agent.id in FLEET_AGENT_ALIASES) continue
       const mapped = mapAgentToMC(agent)
       const configJson = JSON.stringify(mapped.config)
       const existing = findByName.get(mapped.name, workspaceId) as any
@@ -297,6 +316,10 @@ export async function syncAgentsFromConfig(actor: string = 'system', requestedWo
       }
     }
   })()
+
+  db.prepare(
+    `UPDATE agents SET hidden = CASE WHEN name IN (${FLEET_AGENT_NAMES.map(() => '?').join(',')}) THEN 0 ELSE 1 END WHERE workspace_id = ?`,
+  ).run(...FLEET_AGENT_NAMES, workspaceId)
 
   const synced = agents.length
 
@@ -340,6 +363,7 @@ export async function previewSyncDiff(requestedWorkspaceId?: number): Promise<Sy
   const configNames = new Set<string>()
 
   for (const agent of agents) {
+    if (agent.id in FLEET_AGENT_ALIASES) continue
     const mapped = mapAgentToMC(agent)
     configNames.add(mapped.name)
 
@@ -377,20 +401,13 @@ export async function writeAgentToConfig(agentConfig: any): Promise<void> {
   const parsed = parseJsonRelaxed<any>(raw)
 
   if (!parsed.agents) parsed.agents = {}
-  if (!parsed.agents.list) parsed.agents.list = []
 
   const normalizedAgentConfig = normalizeAgentConfigForOpenClaw(agentConfig)
-
-  // Find existing by id
-  const idx = parsed.agents.list.findIndex((a: any) => a.id === normalizedAgentConfig.id)
-  if (idx >= 0) {
-    // Deep merge: preserve fields not in update
-    parsed.agents.list[idx] = normalizeAgentConfigForOpenClaw(
-      deepMerge(parsed.agents.list[idx], normalizedAgentConfig),
-    )
-  } else {
-    parsed.agents.list.push(normalizedAgentConfig)
-  }
+  const existing = findOpenClawAgent(parsed, normalizedAgentConfig.id)
+  const merged = existing
+    ? normalizeAgentConfigForOpenClaw(deepMerge(existing, normalizedAgentConfig))
+    : normalizedAgentConfig
+  upsertOpenClawAgent(parsed, merged)
 
   await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
 }
@@ -411,24 +428,9 @@ export async function removeAgentFromConfig(match: {
   const { readFile, writeFile } = require('fs/promises')
   const raw = await readFile(configPath, 'utf-8')
   const parsed = parseJsonRelaxed<any>(raw)
-  const existingList = Array.isArray(parsed?.agents?.list) ? parsed.agents.list : []
-
-  const nextList = existingList.filter((agent: any) => {
-    const agentId = String(agent?.id || '').trim()
-    const agentName = String(agent?.name || '').trim()
-    const identityName = String(agent?.identity?.name || '').trim()
-
-    if (id && agentId === id) return false
-    if (name && (agentName === name || identityName === name)) return false
-    return true
-  })
-
-  if (nextList.length === existingList.length) {
-    return { removed: false }
-  }
-
   if (!parsed.agents) parsed.agents = {}
-  parsed.agents.list = nextList
+  const removed = removeOpenClawAgent(parsed, { id, name })
+  if (!removed) return { removed: false }
   await writeFile(configPath, JSON.stringify(parsed, null, 2) + '\n')
   return { removed: true }
 }

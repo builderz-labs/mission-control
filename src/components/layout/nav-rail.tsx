@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { useMissionControl } from '@/store'
 import { useNavigateToPanel, usePrefetchPanel } from '@/lib/navigation'
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { APP_VERSION } from '@/lib/version'
 import { getPluginNavItems } from '@/lib/plugins'
 import { apiFetch } from '@/lib/api-client'
+import { EngineLogoSet, LlmLabel } from '@/components/brand/engine-logo'
 
 interface NavItem {
   id: string
@@ -50,6 +51,7 @@ const navGroups: NavGroup[] = [
       { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
       { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
       { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
+      { id: 'fly', label: 'Fly Fleet', icon: <MonitorIcon />, priority: false },
     ],
   },
   {
@@ -121,7 +123,7 @@ const groupTranslationKeys: Record<string, string> = {
 }
 
 const gatewayOnlyPanels = new Set([
-  'gateways', 'gateway-config', 'channels', 'nodes', 'exec-approvals',
+  'gateway-config', 'channels', 'nodes', 'exec-approvals',
   ...getPluginNavItems().filter(pi => pi.gatewayOnly).map(pi => pi.id),
 ])
 const adminOnlyPanels = new Set<string>([])
@@ -340,9 +342,13 @@ export function NavRail() {
                           <div className="flex items-center w-full">
                             <Button
                               variant="ghost"
-                              onClick={() => { navigateToPanel(item.id); if (!isParentExpanded) toggleParent(item.id) }}
-                              onMouseEnter={() => { prefetchPanel(item.id); item.children?.forEach(child => prefetchPanel(child.id)) }}
+                              onClick={() => {
+                                navigateToPanel(item.children![0].id)
+                                if (!isParentExpanded) toggleParent(item.id)
+                              }}
+                              onMouseEnter={() => item.children?.forEach(child => prefetchPanel(child.id))}
                               onFocus={() => item.children?.forEach(child => prefetchPanel(child.id))}
+                              aria-current={childActive ? 'page' : undefined}
                               className={`flex-1 flex items-center gap-2 px-2 py-1.5 h-auto rounded-lg rounded-r-none text-left justify-start relative ${
                                 activeTab === item.id
                                   ? 'bg-primary/15 text-primary hover:bg-primary/20'
@@ -358,8 +364,12 @@ export function NavRail() {
                               <span className="text-sm truncate flex-1">{item.label}</span>
                             </Button>
                             <button
+                              type="button"
                               onClick={(e) => { e.stopPropagation(); toggleParent(item.id) }}
                               className="px-1.5 py-1.5 rounded-r-lg hover:bg-secondary/50 transition-colors"
+                              aria-label={`${isParentExpanded ? 'Collapse' : 'Expand'} ${item.label} navigation`}
+                              aria-expanded={isParentExpanded}
+                              aria-controls={`nav-children-${item.id}`}
                             >
                               <svg
                                 viewBox="0 0 16 16"
@@ -377,6 +387,7 @@ export function NavRail() {
                             </button>
                           </div>
                           <div
+                            id={`nav-children-${item.id}`}
                             className={`overflow-hidden transition-all duration-150 ease-in-out ${
                               isParentExpanded ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'
                             }`}
@@ -402,7 +413,7 @@ export function NavRail() {
                       <NavButton
                         key={item.id}
                         item={item}
-                        active={activeTab === item.id}
+                        active={activeTab === item.id || (item.id === 'memory' && activeTab === 'knowledge-graph')}
                         expanded={sidebarExpanded}
                         onClick={() => navigateToPanel(item.id)}
                         onPrefetch={() => prefetchPanel(item.id)}
@@ -414,36 +425,6 @@ export function NavRail() {
             </div>
           ))}
         </div>
-
-        {/* Promo banners */}
-        {sidebarExpanded && (
-          <div className="px-2 pb-2 space-y-2 shrink-0">
-            <a
-              href="https://x.com/nykdotdev/status/2022996371922649192?s=20"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg border border-border/50 bg-surface-1 hover:bg-surface-2 hover:border-primary/30 transition-all duration-200 p-2 group"
-            >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-2xs font-semibold text-foreground group-hover:text-primary transition-colors">xint</span>
-                <span className="text-[9px] px-1 py-px rounded bg-primary/15 text-primary font-mono">CLI</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">X power tools for agents.</p>
-            </a>
-            <a
-              href="https://builderz.dev"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg border border-void-cyan/20 bg-linear-to-br from-void-cyan/5 to-transparent hover:from-void-cyan/10 hover:border-void-cyan/40 transition-all duration-200 p-2 group"
-            >
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="text-2xs font-bold text-foreground group-hover:text-void-cyan transition-colors">builderz</span>
-                <span className="text-[9px] px-1 py-px rounded bg-void-cyan/15 text-void-cyan">.dev</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">AI-native dev shop · Solana experts.</p>
-            </a>
-          </div>
-        )}
 
         {/* Attribution */}
         {sidebarExpanded && (
@@ -556,6 +537,7 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
 }) {
   const tn = useTranslations('nav')
   const [sheetOpen, setSheetOpen] = useState(false)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
   const priorityItems = items.filter(i => i.priority)
   const nonPriorityIds = new Set(items.filter(i => !i.priority).map(i => i.id))
   const moreIsActive = nonPriorityIds.has(activeTab)
@@ -581,8 +563,12 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
           ))}
           {/* More button */}
           <Button
+            ref={moreButtonRef}
             variant="ghost"
             onClick={() => setSheetOpen(true)}
+            aria-expanded={sheetOpen}
+            aria-controls="mobile-navigation-sheet"
+            aria-haspopup="dialog"
             className={`flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg min-w-[48px] min-h-[48px] h-auto relative ${
               moreIsActive ? 'text-primary hover:text-primary' : ''
             }`}
@@ -605,7 +591,10 @@ function MobileBottomBar({ activeTab, navigateToPanel, groups, items }: {
       {/* Bottom sheet */}
       <MobileBottomSheet
         open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
+        onClose={() => {
+          setSheetOpen(false)
+          moreButtonRef.current?.focus()
+        }}
         activeTab={activeTab}
         navigateToPanel={navigateToPanel}
         groups={groups}
@@ -623,13 +612,18 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
 }) {
   // Track mount state for animation
   const [visible, setVisible] = useState(false)
+  const sheetRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (open) {
       // Mount first, then animate in on next frame
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setVisible(true))
+      const firstFrame = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setVisible(true)
+          sheetRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+        })
       })
+      return () => cancelAnimationFrame(firstFrame)
     } else {
       setVisible(false)
     }
@@ -641,12 +635,35 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
     setTimeout(onClose, 200) // match transition duration
   }
 
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      handleClose()
+      return
+    }
+    if (event.key !== 'Tab' || !sheetRef.current) return
+    const controls = [...sheetRef.current.querySelectorAll<HTMLElement>('button, a[href], [tabindex]:not([tabindex="-1"])')]
+      .filter((control) => !control.hasAttribute('disabled'))
+    const first = controls[0]
+    const last = controls.at(-1)
+    if (!first || !last) return
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
   if (!open) return null
 
   return (
     <div className="md:hidden fixed inset-0 z-60">
       {/* Backdrop */}
-      <div
+      <button
+        type="button"
+        aria-label="Close navigation"
         className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
           visible ? 'opacity-100' : 'opacity-0'
         }`}
@@ -655,6 +672,12 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
 
       {/* Sheet */}
       <div
+        ref={sheetRef}
+        id="mobile-navigation-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-navigation-title"
+        onKeyDown={handleKeyDown}
         className={`absolute bottom-0 left-0 right-0 bg-card rounded-t-lg max-h-[70vh] overflow-y-auto safe-area-bottom transition-transform duration-200 ease-out ${
           visible ? 'translate-y-0' : 'translate-y-full'
         }`}
@@ -663,6 +686,7 @@ function MobileBottomSheet({ open, onClose, activeTab, navigateToPanel, groups }
         <div className="flex justify-center pt-3 pb-2">
           <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
         </div>
+        <h2 id="mobile-navigation-title" className="sr-only">Navigation</h2>
 
         {/* Grouped navigation */}
         <div className="px-4 pb-6">
@@ -1091,7 +1115,10 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                           {osUser.username[0]?.toUpperCase() || '?'}
                         </div>
                         <span className="truncate">{osUser.username}</span>
-                        <span className={`ml-auto text-[10px] shrink-0 ${disabled ? 'text-muted-foreground/20' : 'text-muted-foreground/30'}`}>{statusLabel}</span>
+                        <span className={`ml-auto inline-flex shrink-0 items-center gap-1 text-[10px] ${disabled ? 'text-muted-foreground/20' : 'text-muted-foreground/30'}`}>
+                          {tools.length > 0 && <EngineLogoSet kinds={tools.map(String)} size={11} decorative />}
+                          {statusLabel}
+                        </span>
                       </Button>
                     )
                   })}
@@ -1156,7 +1183,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                                 disabled={createForm.install_openclaw}
                                 className="w-3 h-3 rounded accent-primary"
                               />
-                              <span className="text-[10px] text-foreground">claude</span>
+                              <LlmLabel text="claude" size={11} className="text-[10px] text-foreground" />
                               {createForm.install_openclaw && <span className="text-[9px] text-muted-foreground/50 italic">included</span>}
                             </label>
                             <label className={`flex items-center gap-1 ${createForm.install_openclaw ? 'opacity-50' : ''} cursor-pointer`}>
@@ -1167,7 +1194,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                                 disabled={createForm.install_openclaw}
                                 className="w-3 h-3 rounded accent-primary"
                               />
-                              <span className="text-[10px] text-foreground">codex</span>
+                              <LlmLabel text="codex" size={11} className="text-[10px] text-foreground" />
                               {createForm.install_openclaw && <span className="text-[9px] text-muted-foreground/50 italic">included</span>}
                             </label>
                           </div>

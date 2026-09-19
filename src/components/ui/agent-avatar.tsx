@@ -1,17 +1,20 @@
 'use client'
 
+import Image from 'next/image'
+import { EngineLogo } from '@/components/brand/engine-logo'
+import { inferEngineFromText } from '@/lib/chat-model-groups'
+import { brandFromAgent, brandLogo } from '@/lib/agent-brand'
+import { fleetAgentLogo } from '@/lib/fleet-agents'
+
 interface AgentAvatarProps {
   name?: string | null
-  size?: 'xs' | 'sm' | 'md'
+  runtimeType?: string | null
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   className?: string
 }
 
 function getInitials(name: string): string {
-  const parts = (name ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return '?'
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
   return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase()
@@ -38,22 +41,71 @@ const sizeClasses: Record<NonNullable<AgentAvatarProps['size']>, string> = {
   xs: 'w-5 h-5 text-[10px]',
   sm: 'w-6 h-6 text-[10px]',
   md: 'w-8 h-8 text-xs',
+  lg: 'w-10 h-10 text-sm',
 }
 
-export function AgentAvatar({ name, size = 'sm', className = '' }: AgentAvatarProps) {
+const logoSize: Record<NonNullable<AgentAvatarProps['size']>, number> = {
+  xs: 20,
+  sm: 24,
+  md: 32,
+  lg: 40,
+}
+
+export function AgentAvatar({
+  name,
+  runtimeType,
+  size = 'sm',
+  className = '',
+}: AgentAvatarProps) {
   const safeName = name ?? ''
-  const initials = getInitials(safeName)
-  const colors = getAvatarColors(safeName)
+  // Ahead of the engine lookup: 'claude-2' infers the claude engine like every
+  // other Claude name, so a fleet slot with its own mark has to win first.
+  const fleetLogo = fleetAgentLogo(safeName)
+  if (fleetLogo) {
+    return (
+      <div
+        className={`rounded-full flex items-center justify-center shrink-0 overflow-hidden border border-border/50 bg-surface-2 ${sizeClasses[size]} ${className}`}
+        title={safeName}
+        aria-label={safeName || fleetLogo.alt}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={fleetLogo.src} alt={fleetLogo.alt} className={`w-full h-full ${fleetLogo.contain ? 'object-contain p-0.5' : 'object-cover'}`} />
+      </div>
+    )
+  }
+
+  const engine = inferEngineFromText(safeName) || inferEngineFromText(runtimeType || '')
+  if (engine) {
+    return (
+      <span
+        className={`inline-flex shrink-0 overflow-hidden rounded-[6px] ${sizeClasses[size]} ${className}`}
+        title={safeName}
+        aria-label={safeName || 'Agent'}
+      >
+        <EngineLogo engine={engine} size={logoSize[size]} className="h-full w-full rounded-[6px]" />
+      </span>
+    )
+  }
+
+  const logo = brandLogo(brandFromAgent(safeName, runtimeType))
+  const box = `rounded-full flex items-center justify-center font-semibold shrink-0 overflow-hidden border border-border/50 ${sizeClasses[size]} ${className}`
+  if (logo) {
+    return (
+      <div className={`${box} bg-surface-2`} title={safeName} aria-label={safeName || logo.alt}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={logo.src} alt={logo.alt} className="w-full h-full object-cover" />
+      </div>
+    )
+  }
 
   return (
     <div
-      className={`rounded-full flex items-center justify-center font-semibold shrink-0 ${sizeClasses[size]} ${className}`}
-      style={colors}
+      className={box}
+      style={getAvatarColors(safeName)}
       title={safeName}
       aria-label={safeName || 'Agent'}
     >
-      {initials}
+      {getInitials(safeName)}
     </div>
   )
 }
-

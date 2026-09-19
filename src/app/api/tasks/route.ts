@@ -11,7 +11,7 @@ import { reconcileDeferredTaskCompletions } from '@/lib/task-dispatch';
 import { pushTaskToGitHub, syncTaskOutbound } from '@/lib/github-sync-engine';
 import { pushTaskToGnap } from '@/lib/gnap-sync';
 import { config } from '@/lib/config';
-import { requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
+import { requireAgentTaskAccess, requireWorkspaceId } from '@/lib/enforcement/workspace-scope';
 
 function formatTicketRef(prefix?: string | null, num?: number | null): string | undefined {
   if (!prefix || typeof num !== 'number' || !Number.isFinite(num) || num <= 0) return undefined
@@ -401,6 +401,11 @@ export async function PUT(request: NextRequest) {
         const oldTask = db.prepare('SELECT * FROM tasks WHERE id = ? AND workspace_id = ?').get(task.id, workspaceId) as Task;
         if (!oldTask) continue;
 
+        const taskDeny = requireAgentTaskAccess(auth.user, oldTask.assigned_to ?? null);
+        if (taskDeny) {
+          throw new Error('Access denied: agent key may only access its own tasks.');
+        }
+
         if (task.status === 'done' && !hasAegisApproval(db, task.id, workspaceId)) {
           throw new Error(`Aegis approval required for task ${task.id}`)
         }
@@ -448,7 +453,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     logger.error({ err: error }, 'PUT /api/tasks error');
     const message = error instanceof Error ? error.message : 'Failed to update tasks'
-    if (message.includes('Aegis approval required')) {
+    if (message.includes('Aegis approval required') || message.includes('agent key may only access its own tasks')) {
       return NextResponse.json({ error: message }, { status: 403 });
     }
     return NextResponse.json({ error: 'Failed to update tasks' }, { status: 500 });

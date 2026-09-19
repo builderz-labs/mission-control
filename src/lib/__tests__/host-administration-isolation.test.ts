@@ -41,5 +41,7 @@ describe('deployment host administration isolation', () => {
     expectGuardBefore('src/app/api/logs/route.ts', 'GET', 'readLimiter(request)')
     expectGuardBefore('src/app/api/logs/route.ts', 'POST', 'mutationLimiter(request)')
     expectGuardBefore('src/app/api/system-monitor/route.ts', 'GET', 'Promise.all([')
+    expectGuardBefore('src/app/api/system-monitor/automations/route.ts', 'GET', 'buildMacCleanupSnapshot()')
+    expectGuardBefore('src/app/api/system-monitor/automations/route.ts', 'POST', 'heavyLimiter(request)')
   })
 })

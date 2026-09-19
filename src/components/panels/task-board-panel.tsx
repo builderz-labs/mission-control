@@ -17,6 +17,8 @@ import { MarkdownRenderer } from '@/components/markdown-renderer'
 import { Button } from '@/components/ui/button'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { SessionMessage, shouldShowTimestamp, type SessionTranscriptMessage } from '@/components/chat/session-message'
+import { EngineLogo } from '@/components/brand/engine-logo'
+import { TaskBoardFlyStrip } from '@/components/panels/task-board-fly-strip'
 
 const log = createClientLogger('TaskBoard')
 
@@ -452,11 +454,11 @@ export function TaskBoardPanel() {
     try {
       setError(null)
 
-      const tasksQuery = new URLSearchParams()
+      const tasksQuery = new URLSearchParams({ limit: '200' })
       if (projectFilter !== 'all') {
         tasksQuery.set('project_id', projectFilter)
       }
-      const tasksUrl = tasksQuery.toString() ? `/api/tasks?${tasksQuery.toString()}` : '/api/tasks'
+      const tasksUrl = `/api/tasks?${tasksQuery.toString()}`
 
       let tasksData: { tasks?: Task[] }
       let agentsData: { agents?: Agent[] }
@@ -555,6 +557,11 @@ export function TaskBoardPanel() {
 
   // Poll as SSE fallback — pauses when SSE is delivering events
   useSmartPoll(fetchData, 30000, { pauseWhenSseConnected: true })
+  useEffect(() => {
+    const onFly = () => { void fetchData() }
+    window.addEventListener('mission-control:fly-worker-updated', onFly)
+    return () => window.removeEventListener('mission-control:fly-worker-updated', onFly)
+  }, [fetchData])
 
   // Group tasks by status, overriding for awaiting_owner detection
   const tasksByStatus = statusColumns.reduce((acc, column) => {
@@ -699,10 +706,28 @@ export function TaskBoardPanel() {
         setSpawnFormData({ task: '', model: 'sonnet', label: '', timeoutSeconds: 300 })
         setShowSpawnForm(false)
       } else {
-        updateSpawnRequest(spawnId, {
-          status: 'failed',
-          error: result.error || 'Unknown error'
-        })
+        const taskRes = await apiFetch<{ task?: { id: number } }>('/api/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: spawnFormData.task,
+            assigned_to: spawnFormData.label || undefined,
+            status: spawnFormData.label ? 'assigned' : 'inbox',
+            priority: 'medium',
+          }),
+        }).catch(() => null)
+        if (taskRes?.task?.id) {
+          updateSpawnRequest(spawnId, {
+            status: 'running',
+            result: `Queued as task ${taskRes.task.id}`,
+          })
+          setSpawnFormData({ task: '', model: 'sonnet', label: '', timeoutSeconds: 300 })
+          setShowSpawnForm(false)
+        } else {
+          updateSpawnRequest(spawnId, {
+            status: 'failed',
+            error: result.error || 'Unknown error'
+          })
+        }
       }
     } catch (error) {
       log.error('Spawn error:', error)
@@ -744,6 +769,7 @@ export function TaskBoardPanel() {
   if (loading) {
     return (
       <div className="h-full flex flex-col" role="status" aria-live="polite">
+        <h1 className="sr-only">{t('title')}</h1>
         <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-7 w-28 bg-surface-1 rounded-md animate-pulse" />
@@ -784,9 +810,9 @@ export function TaskBoardPanel() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
           {gnapStatus?.enabled && (
             <button
               onClick={handleGnapSync}
@@ -807,6 +833,7 @@ export function TaskBoardPanel() {
           )}
           <div className="relative">
             <select
+              aria-label="Filter tasks by project"
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
               className="h-9 px-3 pr-8 bg-surface-1 text-foreground border border-border rounded-md text-sm appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/50"
@@ -823,7 +850,7 @@ export function TaskBoardPanel() {
             </svg>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <Button variant="outline" onClick={() => setShowProjectManager(true)}>
             {t('projects')}
           </Button>
@@ -866,6 +893,7 @@ export function TaskBoardPanel() {
                   disabled={isSpawning}
                 />
                 <select
+                  aria-label="Agent model"
                   value={spawnFormData.model}
                   onChange={(e) => setSpawnFormData(prev => ({ ...prev, model: e.target.value }))}
                   className="px-3 py-1.5 border border-border rounded-md bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/50"
@@ -936,6 +964,8 @@ export function TaskBoardPanel() {
           </Button>
         </div>
       )}
+
+      <TaskBoardFlyStrip onOpenTask={(taskId) => updateTaskUrl(taskId)} />
 
       {/* Kanban Board */}
       <div className="flex-1 min-h-0 flex gap-4 p-4 overflow-x-auto" role="region" aria-label={t('taskBoard')}>
@@ -1592,6 +1622,7 @@ function TaskDetailModal({
               <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 border border-border/30">
                 <span className="text-xs text-muted-foreground shrink-0">{t('assignedTo')}</span>
                 <select
+                  aria-label={t('assignedTo')}
                   className="flex-1 text-xs bg-card border border-border rounded-md px-2 py-1.5 text-foreground cursor-pointer focus:ring-1 focus:ring-primary/50 focus:border-primary/50 outline-hidden transition-colors"
                   value={task.assigned_to || ''}
                   onChange={async (e) => {
@@ -1818,6 +1849,7 @@ function TaskDetailModal({
                     placeholder={t('reviewerPlaceholder')}
                   />
                   <select
+                    aria-label="Review decision"
                     value={reviewStatus}
                     onChange={(e) => setReviewStatus(e.target.value as 'approved' | 'rejected')}
                     className="bg-surface-1 text-foreground border border-border rounded-md px-2 py-1 text-xs"
@@ -1981,6 +2013,7 @@ function ClaudeCodeTasksSection() {
         className="w-full flex items-center justify-between px-4 py-3 bg-card hover:bg-secondary/50 transition-colors text-left"
       >
         <div className="flex items-center gap-2">
+          <EngineLogo engine="claude" size={16} decorative />
           <span className="text-sm font-medium text-foreground">{t('claudeCodeTasks')}</span>
           {data.tasks.length > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">{data.tasks.length}</span>

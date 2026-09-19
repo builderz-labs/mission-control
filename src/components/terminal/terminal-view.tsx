@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/api-client'
 
 interface TerminalViewProps {
   sessionId: string
-  sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+  sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'grok' | 'kimi' | 'gateway'
   mode: 'readonly' | 'interactive'
   onExit?: (code: number) => void
   onError?: (error: string) => void

@@ -345,26 +345,27 @@ export function SecurityAuditPanel() {
   })
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       {/* Header */}
       <div className="border-b border-border pb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-2">
               {t('subtitle')}
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             {isLoading && (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
             )}
-            <div className="flex space-x-2">
+            <div aria-label="Security audit timeframe" className="grid min-w-0 flex-1 grid-cols-4 gap-1 sm:flex-none sm:gap-2">
               {(['hour', 'day', 'week', 'month'] as const).map((tf) => (
                 <Button
                   key={tf}
                   onClick={() => setSelectedTimeframe(tf)}
                   variant={selectedTimeframe === tf ? 'default' : 'secondary'}
+                  size="sm"
                 >
                   {t(`timeframe${tf.charAt(0).toUpperCase() + tf.slice(1)}` as 'timeframeHour' | 'timeframeDay' | 'timeframeWeek' | 'timeframeMonth')}
                 </Button>

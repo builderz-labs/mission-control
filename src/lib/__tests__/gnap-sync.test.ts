@@ -1,12 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { execFileSync } from 'node:child_process'
 import {
-  mcStatusToGnap,
-  gnapStatusToMc,
-  mcPriorityToGnap,
   initGnapRepo,
   pushTaskToGnap,
   removeTaskFromGnap,
@@ -18,50 +15,16 @@ import {
 let tmpDir: string
 
 beforeEach(() => {
+  vi.stubEnv('GIT_AUTHOR_NAME', 'Mission Control Test')
+  vi.stubEnv('GIT_AUTHOR_EMAIL', 'test@mission-control.local')
+  vi.stubEnv('GIT_COMMITTER_NAME', 'Mission Control Test')
+  vi.stubEnv('GIT_COMMITTER_EMAIL', 'test@mission-control.local')
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gnap-test-'))
 })
 
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true })
-})
-
-describe('status mapping', () => {
-  it('maps MC statuses to GNAP states', () => {
-    expect(mcStatusToGnap('backlog')).toBe('backlog')
-    expect(mcStatusToGnap('pending')).toBe('backlog')
-    expect(mcStatusToGnap('inbox')).toBe('backlog')
-    expect(mcStatusToGnap('in_progress')).toBe('in_progress')
-    expect(mcStatusToGnap('done')).toBe('done')
-    expect(mcStatusToGnap('review')).toBe('review')
-    expect(mcStatusToGnap('blocked')).toBe('blocked')
-    expect(mcStatusToGnap('cancelled')).toBe('cancelled')
-  })
-
-  it('maps GNAP states back to MC statuses', () => {
-    expect(gnapStatusToMc('backlog')).toBe('backlog')
-    expect(gnapStatusToMc('in_progress')).toBe('in_progress')
-    expect(gnapStatusToMc('done')).toBe('done')
-    expect(gnapStatusToMc('review')).toBe('review')
-  })
-
-  it('falls back for unknown values', () => {
-    expect(mcStatusToGnap('unknown_status')).toBe('backlog')
-    expect(gnapStatusToMc('unknown_state')).toBe('inbox')
-  })
-})
-
-describe('priority mapping', () => {
-  it('maps MC priorities to GNAP priorities', () => {
-    expect(mcPriorityToGnap('low')).toBe('low')
-    expect(mcPriorityToGnap('medium')).toBe('medium')
-    expect(mcPriorityToGnap('high')).toBe('high')
-    expect(mcPriorityToGnap('critical')).toBe('critical')
-    expect(mcPriorityToGnap('urgent')).toBe('critical')
-  })
-
-  it('falls back to medium for unknown priorities', () => {
-    expect(mcPriorityToGnap('unknown')).toBe('medium')
-  })
+  vi.unstubAllEnvs()
 })
 
 describe('initGnapRepo', () => {

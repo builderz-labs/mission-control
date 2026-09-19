@@ -27,6 +27,7 @@ export function DebugPanel() {
 
   return (
     <div className="m-4">
+      <h1 className="mb-3 text-lg font-semibold text-foreground">Debug</h1>
       <div className="flex gap-1 mb-4 border-b border-border pb-2">
         {(['status', 'health', 'models', 'apicall'] as const).map((tab) => (
           <Button

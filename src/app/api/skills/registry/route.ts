@@ -7,9 +7,10 @@ import {
   checkSkillSecurity,
   type RegistrySource,
 } from '@/lib/skill-registry'
+import { SKILL_INSTALL_TARGETS } from '@/lib/skill-roots'
 
 const VALID_SOURCES: RegistrySource[] = ['clawhub', 'skills-sh', 'awesome-openclaw']
-const VALID_TARGETS = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw', 'workspace']
+const VALID_TARGETS: string[] = [...SKILL_INSTALL_TARGETS]
 
 /**
  * GET /api/skills/registry?source=clawhub&q=terraform

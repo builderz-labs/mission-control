@@ -46,6 +46,24 @@ pnpm dev
 
 Windows users can run `./install.ps1 -Mode local` in PowerShell.
 
+### Native macOS window
+
+The native app lives in `apps/desktop` in this repository. It uses the same local
+backend and data as the browser; it does not bundle or start a second server.
+Use the Node version in `.nvmrc` and install dependencies with pnpm.
+
+```bash
+pnpm desktop:build
+pnpm desktop:start
+pnpm test:desktop
+```
+
+Keep the production backend running at `http://127.0.0.1:3000` (for example with
+`pnpm build` followed by `pnpm start:standalone`). On this machine, the existing
+Mission Control LaunchAgent owns that service. See
+[the desktop consolidation guide](docs/desktop-consolidation.md) for history,
+local integration, and runtime ownership.
+
 ### Start with Docker
 
 ```bash

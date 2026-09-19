@@ -13,7 +13,8 @@ describe('insertDispatchTokenUsage', () => {
         output_tokens INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         workspace_id INTEGER NOT NULL,
-        cost_usd REAL
+        cost_usd REAL,
+        agent_name TEXT
       )
     `)
 
@@ -23,6 +24,7 @@ describe('insertDispatchTokenUsage', () => {
       inputTokens: 120,
       outputTokens: 30,
       workspaceId: 7,
+      agentName: 'codex',
     }, 1_700_000_000)
 
     expect(db.prepare('SELECT * FROM token_usage').get()).toEqual({
@@ -33,6 +35,7 @@ describe('insertDispatchTokenUsage', () => {
       created_at: 1_700_000_000,
       workspace_id: 7,
       cost_usd: 0,
+      agent_name: 'codex',
     })
     db.close()
   })

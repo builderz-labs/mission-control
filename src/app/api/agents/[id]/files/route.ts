@@ -9,6 +9,8 @@ import { getAgentWorkspaceCandidates, readAgentWorkspaceFile } from '@/lib/agent
 import { logger } from '@/lib/logger'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { atomicReplaceFileSync } from '@/lib/atomic-file'
+import { isFleetAgentName } from '@/lib/fleet-agents'
+import { ensureWorkspaceGeneratedFiles } from '@/lib/workspace-sync'
 
 const ALLOWED_FILES = new Set([
   'agent.md',
@@ -72,6 +74,9 @@ export async function GET(
       return NextResponse.json({ error: 'Agent workspace is not configured' }, { status: 400 })
     }
     const safeWorkspace = candidates[0]
+    if (isFleetAgentName(agent.name)) {
+      ensureWorkspaceGeneratedFiles(safeWorkspace, agent.name)
+    }
     const requested = (new URL(request.url).searchParams.get('file') || '').trim()
     const files = requested
       ? [requested]

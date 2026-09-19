@@ -8,11 +8,14 @@ import { existsSync } from 'fs'
 import os from 'os'
 import { execFileSync } from 'child_process'
 import { validateBody, integrationActionSchema } from '@/lib/validation'
-import { mutationLimiter } from '@/lib/rate-limit'
+import { extractClientIp, mutationLimiter } from '@/lib/rate-limit'
 import { detectProviderSubscriptions } from '@/lib/provider-subscriptions'
+import { claudeFleetPlanByIntegrationId } from '@/lib/claude-fleet-plans'
+import { detectClaudeFleetPlans } from '@/lib/claude-fleet-plan-status'
 import { getPluginIntegrations, getPluginCategories } from '@/lib/plugins'
 import type { PluginIntegrationDef } from '@/lib/plugins'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
+import { fetchWithRetry } from '@/lib/fetch-with-retry'
 
 // ---------------------------------------------------------------------------
 // Integration registry
@@ -43,7 +46,23 @@ const INTEGRATION_PROBE_TTL_MS = 5000
 
 const INTEGRATIONS: IntegrationDef[] = [
   // AI Providers
-  { id: 'anthropic', name: 'Anthropic', category: 'ai', envVars: ['ANTHROPIC_API_KEY'], vaultItem: 'openclaw-anthropic-api-key', testable: true },
+  { id: 'anthropic', name: 'Anthropic API', category: 'ai', envVars: ['ANTHROPIC_API_KEY'], vaultItem: 'openclaw-anthropic-api-key', testable: true },
+  {
+    id: 'claude-max-20x',
+    name: 'Claude Max 20x',
+    category: 'ai',
+    envVars: [],
+    testable: true,
+    recommendation: 'Personal Max 20x (claude-1). Concurrent dispatch needs a one-time `CLAUDE_CONFIG_DIR=~/.claude-account1 claude auth login`. Heal will not create that directory or copy oauthAccount.',
+  },
+  {
+    id: 'claude-max-5x',
+    name: 'Claude Max 5x',
+    category: 'ai',
+    envVars: [],
+    testable: true,
+    recommendation: 'Stillpoint (claude-2). Concurrent dispatch needs a one-time `CLAUDE_CONFIG_DIR=~/.claude-account2 claude auth login`. Heal will not create that directory or copy oauthAccount.',
+  },
   { id: 'openai', name: 'OpenAI', category: 'ai', envVars: ['OPENAI_API_KEY'], vaultItem: 'openclaw-openai-api-key', testable: true },
   { id: 'openrouter', name: 'OpenRouter', category: 'ai', envVars: ['OPENROUTER_API_KEY'], vaultItem: 'openclaw-openrouter-api-key', testable: true },
   { id: 'venice', name: 'Venice AI', category: 'ai', envVars: ['VENICE_API_KEY'], vaultItem: 'openclaw-venice-api-key', testable: true },
@@ -120,6 +139,22 @@ interface EnvLine {
   value?: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (!isRecord(error)) return undefined
+  return typeof error.code === 'string' ? error.code : undefined
+}
+
+function errorStderr(error: unknown): string {
+  if (!isRecord(error) || error.stderr === undefined) return ''
+  return Buffer.isBuffer(error.stderr)
+    ? error.stderr.toString('utf8')
+    : String(error.stderr)
+}
+
 function parseEnv(content: string): EnvLine[] {
   const lines: EnvLine[] = []
   for (const raw of content.split('\n')) {
@@ -160,9 +195,9 @@ async function readEnvFile(): Promise<{ lines: EnvLine[]; raw: string } | null> 
   try {
     const raw = await readFile(envPath, 'utf-8')
     return { lines: parseEnv(raw), raw }
-  } catch (err: any) {
-    if (err.code === 'ENOENT') return { lines: [], raw: '' }
-    throw err
+  } catch (error: unknown) {
+    if (errorCode(error) === 'ENOENT') return { lines: [], raw: '' }
+    throw error
   }
 }
 
@@ -249,7 +284,7 @@ function resolveOllamaBaseUrl(): string {
 async function checkOllamaReachable(): Promise<boolean> {
   try {
     const base = resolveOllamaBaseUrl().replace(/\/+$/, '')
-    const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(1200) })
+    const res = await fetchWithRetry(`${base}/api/tags`, { signal: AbortSignal.timeout(1200) })
     return res.ok
   } catch {
     return false
@@ -330,6 +365,7 @@ export async function GET(request: NextRequest) {
   const probe = await getIntegrationProbeSnapshot()
   const { opAvailable, xint, ollamaInstalled, ollamaReachable, gwsInstalled } = probe
   const providerSubscriptions = detectProviderSubscriptions()
+  const claudeFleetPlans = detectClaudeFleetPlans()
 
   // Merge plugin integrations and categories
   const pluginIntegrations = getPluginIntegrations()
@@ -387,8 +423,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Support OAuth/subscription-based auth for providers that may not expose API keys.
-    if ((def.id === 'anthropic' || def.id === 'openai') && !anySet) {
+    // OpenAI ChatGPT subscription can stand in for an API key. Claude Max plans
+    // are separate integrations so Anthropic is not collapsed to one "max".
+    if (def.id === 'openai' && !anySet) {
       const sub = providerSubscriptions.active[def.id]
       if (sub) {
         const primaryVar = def.envVars[0]
@@ -399,6 +436,19 @@ export async function GET(request: NextRequest) {
         allSet = true
         anySet = true
       }
+    }
+
+    const fleetPlan = claudeFleetPlanByIntegrationId(def.id)
+    if (fleetPlan) {
+      const live = claudeFleetPlans.find((plan) => plan.identity === fleetPlan.identity)
+      vars.CLAUDE_CONFIG_DIR = {
+        redacted: live?.isolatedHomeExists
+          ? live.isolatedHome
+          : `${live?.isolatedHome ?? `~/${fleetPlan.homeName}`} (needs login)`,
+        set: Boolean(live?.isolatedHomeExists),
+      }
+      anySet = true
+      allSet = Boolean(live?.isolatedHomeExists)
     }
 
     // Local Ollama can be available without API key-based auth.
@@ -514,7 +564,7 @@ export async function PUT(request: NextRequest) {
 
   await writeEnvFile(lines)
 
-  const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+  const ipAddress = extractClientIp(request)
   logAuditEvent({
     action: 'integrations_update',
     actor: auth.user.username,
@@ -536,19 +586,31 @@ export async function DELETE(request: NextRequest) {
   const isolationDeny = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_configuration', new URL(request.url).pathname)
   if (isolationDeny) return isolationDeny
 
-  let body: any
+  let body: unknown
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Request body required' }, { status: 400 }) }
-  const keysParam = Array.isArray(body.keys) ? body.keys.join(',') : body.keys
-  if (!keysParam) {
+  if (!isRecord(body)) {
+    return NextResponse.json({ error: 'Request body must be an object' }, { status: 400 })
+  }
+
+  const rawKeys = body.keys
+  const keyValues = typeof rawKeys === 'string'
+    ? [rawKeys]
+    : Array.isArray(rawKeys) && rawKeys.every((key): key is string => typeof key === 'string')
+      ? rawKeys
+      : []
+  if (keyValues.length === 0) {
     return NextResponse.json({ error: 'keys parameter required (comma-separated string or array)' }, { status: 400 })
   }
 
-  const keysToRemove = new Set<string>(keysParam.split(',').map((k: string) => k.trim()).filter(Boolean))
+  const keysToRemove = new Set(keyValues.flatMap(value => value.split(',')).map(key => key.trim()).filter(Boolean))
   if (keysToRemove.size === 0) {
     return NextResponse.json({ error: 'At least one key required' }, { status: 400 })
   }
 
   for (const key of keysToRemove) {
+    if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
+      return NextResponse.json({ error: `Invalid environment variable name: ${key}` }, { status: 400 })
+    }
     if (isVarBlocked(key)) {
       return NextResponse.json({ error: `Cannot remove protected variable: ${key}` }, { status: 403 })
     }
@@ -572,7 +634,7 @@ export async function DELETE(request: NextRequest) {
     await writeEnvFile(newLines)
   }
 
-  const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+  const ipAddress = extractClientIp(request)
   logAuditEvent({
     action: 'integrations_remove',
     actor: auth.user.username,
@@ -673,7 +735,7 @@ async function handleTest(
       case 'telegram': {
         const token = getEffectiveEnvValue(envMap, integration.envVars[0])
         if (!token) return NextResponse.json({ ok: false, detail: 'Token not set' })
-        const res = await fetch(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(5000) })
+        const res = await fetchWithRetry(`https://api.telegram.org/bot${token}/getMe`, { signal: AbortSignal.timeout(5000) })
         const data = await res.json()
         result = data.ok
           ? { ok: true, detail: `Bot: @${data.result.username}` }
@@ -684,7 +746,7 @@ async function handleTest(
       case 'github': {
         const token = getEffectiveEnvValue(envMap, 'GITHUB_TOKEN')
         if (!token) return NextResponse.json({ ok: false, detail: 'Token not set' })
-        const res = await fetch('https://api.github.com/user', {
+        const res = await fetchWithRetry('https://api.github.com/user', {
           headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'MissionControl/1.0' },
           signal: AbortSignal.timeout(5000),
         })
@@ -697,14 +759,26 @@ async function handleTest(
         break
       }
 
+      case 'claude-max-20x':
+      case 'claude-max-5x': {
+        const plan = detectClaudeFleetPlans().find((item) => item.integrationId === integration.id)
+        if (plan?.isolatedHomeExists) {
+          result = { ok: true, detail: `${plan.label} isolated home ready at ${plan.isolatedHome}` }
+          break
+        }
+        result = {
+          ok: false,
+          detail: `${plan?.label ?? integration.name} needs one-time CLAUDE_CONFIG_DIR=${plan?.isolatedHome ?? ''} claude auth login`,
+        }
+        break
+      }
+
       case 'anthropic': {
         const key = getEffectiveEnvValue(envMap, 'ANTHROPIC_API_KEY')
         if (!key) {
-          const sub = providerSubscriptions.active.anthropic
-          if (sub) return NextResponse.json({ ok: true, detail: `OAuth/subscription detected: ${sub.type}` })
           return NextResponse.json({ ok: false, detail: 'API key not set' })
         }
-        const res = await fetch('https://api.anthropic.com/v1/models', {
+        const res = await fetchWithRetry('https://api.anthropic.com/v1/models', {
           method: 'GET',
           headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
           signal: AbortSignal.timeout(5000),
@@ -722,7 +796,7 @@ async function handleTest(
           if (sub) return NextResponse.json({ ok: true, detail: `OAuth/subscription detected: ${sub.type}` })
           return NextResponse.json({ ok: false, detail: 'API key not set' })
         }
-        const res = await fetch('https://api.openai.com/v1/models', {
+        const res = await fetchWithRetry('https://api.openai.com/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(5000),
         })
@@ -735,7 +809,7 @@ async function handleTest(
       case 'openrouter': {
         const key = getEffectiveEnvValue(envMap, 'OPENROUTER_API_KEY')
         if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
-        const res = await fetch('https://openrouter.ai/api/v1/models', {
+        const res = await fetchWithRetry('https://openrouter.ai/api/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(5000),
         })
@@ -748,7 +822,7 @@ async function handleTest(
       case 'venice': {
         const key = getEffectiveEnvValue(envMap, 'VENICE_API_KEY')
         if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
-        const res = await fetch('https://api.venice.ai/api/v1/models', {
+        const res = await fetchWithRetry('https://api.venice.ai/api/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(5000),
         })
@@ -761,7 +835,7 @@ async function handleTest(
       case 'hyperbrowser': {
         const key = getEffectiveEnvValue(envMap, 'HYPERBROWSER_API_KEY')
         if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
-        const res = await fetch('https://app.hyperbrowser.ai/api/v2/sessions', {
+        const res = await fetchWithRetry('https://app.hyperbrowser.ai/api/v2/sessions', {
           headers: { 'x-api-key': key },
           signal: AbortSignal.timeout(5000),
         })
@@ -787,8 +861,8 @@ async function handleTest(
             env,
           })
           result = { ok: true, detail: 'Authenticated' }
-        } catch (err: any) {
-          const stderr = err.stderr?.toString() || ''
+        } catch (error: unknown) {
+          const stderr = errorStderr(error)
           result = { ok: false, detail: stderr.slice(0, 120) || 'Not authenticated — run `gws auth login`' }
         }
         break
@@ -813,7 +887,7 @@ async function handleTest(
         }
         const url = baseUrls[integration.id]
         if (url) {
-          const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) })
+          const res = await fetchWithRetry(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) })
           result = res.ok || res.status < 500
             ? { ok: true, detail: `Reachable (HTTP ${res.status})` }
             : { ok: false, detail: `Unreachable (HTTP ${res.status})` }
@@ -824,7 +898,7 @@ async function handleTest(
       }
     }
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     logAuditEvent({
       action: 'integration_test',
       actor: user.username,
@@ -834,8 +908,8 @@ async function handleTest(
     })
 
     return NextResponse.json(result)
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, detail: err.message || 'Connection failed' })
+  } catch {
+    return NextResponse.json({ ok: false, detail: 'Connection failed' })
   }
 }
 
@@ -903,7 +977,7 @@ async function handlePull(
 
     await writeEnvFile(lines)
 
-    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const ipAddress = extractClientIp(request)
     logAuditEvent({
       action: 'integration_pull_1password',
       actor: user.username,
@@ -917,10 +991,8 @@ async function handlePull(
       detail: `Pulled ${envVar} from 1Password`,
       redacted: redactValue(value),
     })
-  } catch (err: any) {
-    return NextResponse.json({
-      error: `1Password pull failed: ${err.message}`,
-    }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: '1Password pull failed' }, { status: 500 })
   }
 }
 
@@ -995,8 +1067,8 @@ async function handlePullAll(
       }
 
       results.push({ id: integration.id, envVar, ok: true, detail: `Pulled ${envVar}` })
-    } catch (err: any) {
-      results.push({ id: integration.id, envVar, ok: false, detail: err.message || 'Failed' })
+    } catch {
+      results.push({ id: integration.id, envVar, ok: false, detail: 'Failed' })
     }
   }
 
@@ -1006,7 +1078,7 @@ async function handlePullAll(
     await writeEnvFile(lines)
   }
 
-  const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+  const ipAddress = extractClientIp(request)
   logAuditEvent({
     action: 'integration_pull_all_1password',
     actor: user.username,

@@ -292,7 +292,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <main className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="absolute top-4 right-4">
         <LanguageSwitcherSelect />
       </div>
@@ -306,6 +306,7 @@ export default function LoginPage() {
               height={48}
               className="h-full w-full object-cover"
               priority
+              unoptimized
             />
           </div>
           <h1 className="text-xl font-semibold text-foreground">{t('missionControl')}</h1>
@@ -543,6 +544,6 @@ export default function LoginPage() {
 
         <p className="text-center text-xs text-muted-foreground mt-6">{t('orchestrationTagline')}</p>
       </div>
-    </div>
+    </main>
   )
 }

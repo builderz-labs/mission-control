@@ -4,7 +4,7 @@ import { API_KEY_HEADER } from './helpers'
 test.describe('Docs Knowledge API', () => {
   test('tree/search/content flows for markdown knowledge docs', async ({ request }) => {
     const stamp = Date.now()
-    const path = `knowledge-base/e2e-kb-${stamp}.md`
+    const path = `openclaw/e2e-kb-${stamp}.md`
     const content = `# E2E Knowledge ${stamp}\n\nDeployment runbook token: kb-search-${stamp}`
 
     const create = await request.post('/api/memory', {

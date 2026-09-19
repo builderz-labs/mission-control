@@ -7,6 +7,7 @@ import { Loader } from '@/components/ui/loader'
 import { createClientLogger } from '@/lib/client-logger'
 import { apiFetch, ApiError } from '@/lib/api-client'
 import Link from 'next/link'
+import { EngineLogoForText, LlmLabel } from '@/components/brand/engine-logo'
 
 const log = createClientLogger('AgentDetailTabs')
 
@@ -20,6 +21,13 @@ const log = createClientLogger('AgentDetailTabs')
  * `payload.error` to preserve the original user-facing message, then fall back
  * to the ApiError message, then any other thrown Error message.
  */
+function formatUnixDate(value?: number | null): string {
+  if (!value || !Number.isFinite(value)) return '—'
+  const ms = value > 1e12 ? value : value * 1000
+  const date = new Date(ms)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString()
+}
+
 function extractApiErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     const payload = err.payload
@@ -272,11 +280,11 @@ export function OverviewTab({
 
             <div className="grid grid-cols-[100px_1fr] gap-2 items-center text-sm">
               <span className="text-muted-foreground">{t('created')}</span>
-              <span className="text-xs text-muted-foreground">{new Date(agent.created_at * 1000).toLocaleDateString()}</span>
+              <span className="text-xs text-muted-foreground">{formatUnixDate(agent.created_at)}</span>
             </div>
             <div className="grid grid-cols-[100px_1fr] gap-2 items-center text-sm">
               <span className="text-muted-foreground">{t('updated')}</span>
-              <span className="text-xs text-muted-foreground">{new Date(agent.updated_at * 1000).toLocaleDateString()}</span>
+              <span className="text-xs text-muted-foreground">{formatUnixDate(agent.updated_at)}</span>
             </div>
           </div>
 
@@ -568,7 +576,11 @@ export function MemoryTab({
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-300">
         <strong className="text-blue-200">{t('memoryBannerTitle')}</strong>{' '}
         {t('memoryBannerDesc')}{' '}
-        <Link href="/memory" className="text-blue-400 underline hover:text-blue-300">{t('memoryBrowserLink')}</Link> {t('memoryBannerPage')}
+        <Link href="/knowledge-graph" className="text-blue-400 underline hover:text-blue-300">knowledge graph</Link>
+        {' · '}
+        <Link href="/memory" className="text-blue-400 underline hover:text-blue-300">{t('memoryBrowserLink')}</Link>
+        {' · '}
+        MEMORY.md is on the Files tab. This field is SQLite working memory only.
       </div>
 
       {/* Memory Content */}
@@ -663,7 +675,7 @@ export function TasksTab({ agent }: { agent: Agent }) {
     }
 
     fetchTasks()
-  }, [agent.name])
+  }, [agent.id, agent.name])
 
   if (loading) {
     return (
@@ -747,7 +759,12 @@ export function ActivityTab({ agent }: { agent: Agent }) {
   useEffect(() => {
     const fetchActivities = async () => {
       try {
-        const data = await apiFetch<{ activities?: any[] }>(`/api/activities?actor=${agent.name}&limit=50`)
+        const params = new URLSearchParams({
+          actor: agent.name,
+          entity_id: String(agent.id),
+          limit: '50',
+        })
+        const data = await apiFetch<{ activities?: any[] }>(`/api/activities?${params.toString()}`)
         setActivities(data.activities || [])
       } catch (error) {
         log.error('Failed to fetch activities:', error)
@@ -757,7 +774,7 @@ export function ActivityTab({ agent }: { agent: Agent }) {
     }
 
     fetchActivities()
-  }, [agent.name])
+  }, [agent.id, agent.name])
 
   if (loading) {
     return (
@@ -1172,14 +1189,17 @@ export function CreateAgentModal({
                         formData.modelTier === tier ? MODEL_TIER_COLORS[tier] : ''
                       }`}
                     >
-                      {MODEL_TIER_LABELS[tier]}
+                      <LlmLabel text={MODEL_TIER_LABELS[tier]} size={14} />
                     </Button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm text-muted-foreground mb-1">{t('primaryModel')}</label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="text-sm text-muted-foreground">{t('primaryModel')}</label>
+                  <LlmLabel text={formData.modelPrimary} size={13} className="text-xs text-muted-foreground" textClassName="max-w-64 truncate font-mono" />
+                </div>
                 <input
                   type="text"
                   value={formData.modelPrimary}
@@ -1302,7 +1322,10 @@ export function CreateAgentModal({
                       <div><span className="text-muted-foreground">{t('templateLabel')}:</span> <span className="text-foreground">{selectedTemplateData?.label || t('custom')}</span></div>
                       <div><span className="text-muted-foreground">{t('model')}:</span> <span className={`px-2 py-0.5 rounded text-xs ${MODEL_TIER_COLORS[formData.modelTier]}`}>{MODEL_TIER_LABELS[formData.modelTier]}</span></div>
                       <div><span className="text-muted-foreground">{t('toolsLabel')}:</span> <span className="text-foreground">{selectedTemplateData?.toolCount || t('custom')}</span></div>
-                      <div className="col-span-2"><span className="text-muted-foreground">{t('primaryModel')}:</span> <span className="text-foreground font-mono">{formData.modelPrimary || DEFAULT_MODEL_BY_TIER[formData.modelTier]}</span></div>
+                      <div className="col-span-2 flex items-center gap-1.5">
+                        <span className="text-muted-foreground">{t('primaryModel')}:</span>
+                        <LlmLabel text={formData.modelPrimary || DEFAULT_MODEL_BY_TIER[formData.modelTier]} size={14} textClassName="font-mono text-foreground" />
+                      </div>
                       <div><span className="text-muted-foreground">{t('workspace')}:</span> <span className="text-foreground">{formData.workspaceAccess}</span></div>
                       <div><span className="text-muted-foreground">{t('sandbox')}:</span> <span className="text-foreground">{formData.sandboxMode}</span></div>
                       <div><span className="text-muted-foreground">{t('network')}:</span> <span className="text-foreground">{formData.dockerNetwork}</span></div>
@@ -1679,7 +1702,10 @@ export function ConfigTab({
             {editing ? (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">{t('primaryModel')}</label>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <label className="text-xs text-muted-foreground">{t('primaryModel')}</label>
+                    <LlmLabel text={modelPrimary} size={12} className="text-2xs text-muted-foreground" textClassName="max-w-56 truncate font-mono" />
+                  </div>
                   <input
                     value={modelPrimary}
                     onChange={(e) => updateModelConfig((current) => ({ ...current, primary: e.target.value }))}
@@ -1697,7 +1723,8 @@ export function ConfigTab({
                   <label className="block text-xs text-muted-foreground mb-1">{t('fallbackModels')}</label>
                   <div className="space-y-2">
                     {modelFallbacks.map((fallback: string, index: number) => (
-                      <div key={`${fallback}-${index}`} className="flex gap-2">
+                      <div key={`${fallback}-${index}`} className="flex items-center gap-2">
+                        <EngineLogoForText text={fallback} size={13} decorative />
                         <input
                           value={fallback}
                           onChange={(e) => {
@@ -1741,13 +1768,18 @@ export function ConfigTab({
               </div>
             ) : (
               <div className="text-sm">
-                <div><span className="text-muted-foreground">{t('primary')}:</span> <span className="text-foreground font-mono">{modelPrimary || t('notConfigured')}</span></div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">{t('primary')}:</span>
+                  {modelPrimary
+                    ? <LlmLabel text={modelPrimary} size={14} textClassName="font-mono text-foreground" />
+                    : <span className="text-foreground font-mono">{t('notConfigured')}</span>}
+                </div>
                 {modelFallbacks.length > 0 && (
                   <div className="mt-1">
                     <span className="text-muted-foreground">{t('fallbacks')}:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {modelFallbacks.map((fb: string, i: number) => (
-                        <span key={i} className="px-2 py-0.5 text-xs bg-surface-2 rounded text-muted-foreground font-mono">{fb.split('/').pop()}</span>
+                        <LlmLabel key={i} text={fb} size={12} className="rounded bg-surface-2 px-2 py-0.5 text-xs text-muted-foreground" textClassName="font-mono" />
                       ))}
                     </div>
                   </div>
@@ -2606,7 +2638,7 @@ export function ChannelsTab({ agent }: { agent: Agent }) {
         <div>
           <h4 className="text-lg font-medium text-foreground">{t('channelStatus')}</h4>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {t('channelStatusDesc', { agent: agent.name })}
+            Fleet-wide OpenClaw channels — not bound to {agent.name} until gateway accounts are per-agent.
           </p>
         </div>
         <Button onClick={loadChannels} size="sm" variant="secondary" disabled={loading}>
@@ -2674,25 +2706,32 @@ interface AgentCronJob {
 export function CronTab({ agent }: { agent: Agent }) {
   const t = useTranslations('agentDetail')
   const [allJobs, setAllJobs] = useState<AgentCronJob[]>([])
+  const [automations, setAutomations] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
 
-  const loadCron = async () => {
+  const loadCron = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const data = await apiFetch<{ jobs?: AgentCronJob[] }>('/api/cron?action=list')
       setAllJobs(data.jobs || [])
+      try {
+        const inventory = await apiFetch<{ automations?: string[] }>(`/api/agents/${agent.id}/inventory`)
+        setAutomations(inventory.automations || [])
+      } catch {
+        setAutomations([])
+      }
     } catch (err: any) {
       // Preserve the original generic failure message.
       setError(extractApiErrorMessage(err, 'Failed to load cron jobs'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [agent.id])
 
-  useEffect(() => { loadCron() }, [])
+  useEffect(() => { void loadCron() }, [loadCron])
 
   const agentName = agent.name.toLowerCase().replace(/\s+/g, '-')
   const agentJobs = showAll
@@ -2743,6 +2782,12 @@ export function CronTab({ agent }: { agent: Agent }) {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm">
           {error}
+        </div>
+      )}
+
+      {automations.length > 0 && (
+        <div className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
+          CLI automations for {agent.name}: {automations.join(', ')}
         </div>
       )}
 
@@ -2903,7 +2948,10 @@ export function ModelsTab({ agent }: { agent: Agent }) {
 
       {/* Primary model */}
       <div className="bg-surface-1/50 rounded-lg p-4">
-        <h5 className="text-sm font-medium text-foreground mb-2">{t('primaryModel')}</h5>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h5 className="text-sm font-medium text-foreground">{t('primaryModel')}</h5>
+          <LlmLabel text={primary} size={14} className="text-xs text-muted-foreground" textClassName="max-w-64 truncate font-mono" />
+        </div>
         <select
           value={primary}
           onChange={(e) => setPrimary(e.target.value)}
@@ -2933,7 +2981,7 @@ export function ModelsTab({ agent }: { agent: Agent }) {
             {fallbacks.map((fb, i) => (
               <div key={`${fb}-${i}`} className="flex items-center gap-2 bg-surface-1 rounded px-3 py-1.5">
                 <span className="text-xs text-muted-foreground w-5">{i + 1}.</span>
-                <span className="flex-1 font-mono text-xs text-foreground">{fb}</span>
+                <LlmLabel text={fb} size={13} className="flex-1" textClassName="truncate font-mono text-xs text-foreground" />
                 <button
                   onClick={() => moveFallback(i, -1)}
                   disabled={i === 0}

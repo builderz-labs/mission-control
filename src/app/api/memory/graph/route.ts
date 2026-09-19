@@ -7,6 +7,8 @@ import { requireRole } from '@/lib/auth'
 import { readLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
+import { fleetMemoryRoots } from '@/lib/memory-roots'
+import { loadBrainGraph, loadHistoryGraph, loadSkillsGraph, loadVaultWikiGraph } from '@/lib/vault-wiki-graph'
 
 interface AgentFileInfo {
   path: string
@@ -85,18 +87,32 @@ export async function GET(request: NextRequest) {
   const isolationDenied = denyUnscopedResourceForStrictWorkspace(auth.user, 'runtime_memory', new URL(request.url).pathname)
   if (isolationDenied) return isolationDenied
 
-  if (!memoryDbDir || !existsSync(memoryDbDir)) {
-    return NextResponse.json(
-      { error: 'Memory directory not available', agents: [] },
-      { status: 404 }
-    )
-  }
-
   const agentFilter = request.nextUrl.searchParams.get('agent') || 'all'
 
   try {
-    const entries = readdirSync(memoryDbDir).filter((f) => f.endsWith('.sqlite'))
     const agents: AgentGraphData[] = []
+    for (const root of fleetMemoryRoots()) {
+      if (root.id === 'omnia-vault') {
+        const vault = loadVaultWikiGraph(root.root)
+        if (vault && (agentFilter === 'all' || agentFilter === vault.name)) agents.push(vault)
+      }
+      if (root.id === 'skills') {
+        const skills = loadSkillsGraph(root.root)
+        if (skills && (agentFilter === 'all' || agentFilter === skills.name)) agents.push(skills)
+      }
+      if (root.id === 'openclaw') {
+        const brain = loadBrainGraph(path.join(root.root, 'brain-graph.json'))
+        if (brain && (agentFilter === 'all' || agentFilter === brain.name)) agents.push(brain)
+        for (const file of ['claude-history.json', 'engine-history.json'] as const) {
+          const fallback = file.replace(/\.json$/, '')
+          const history = loadHistoryGraph(path.join(root.root, file), fallback)
+          if (history && (agentFilter === 'all' || agentFilter === history.name)) agents.push(history)
+        }
+      }
+    }
+    const entries = memoryDbDir && existsSync(memoryDbDir)
+      ? readdirSync(memoryDbDir).filter((f) => f.endsWith('.sqlite'))
+      : []
 
     for (const entry of entries) {
       const agentName = entry.replace('.sqlite', '')

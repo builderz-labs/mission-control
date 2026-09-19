@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { EngineLogoForText } from '@/components/brand/engine-logo'
 
 interface TerminalToolbarProps {
   sessionId: string
@@ -36,6 +37,7 @@ export function TerminalToolbar({
       {/* Left: Session info */}
       <div className="flex items-center gap-2 min-w-0">
         <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-green-500 animate-pulse' : 'bg-zinc-500'}`} />
+        <EngineLogoForText text={sessionKind} size={14} decorative />
         <span className="text-xs font-medium text-foreground truncate">
           {sessionName || kindLabel}
         </span>

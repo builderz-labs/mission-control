@@ -4,6 +4,8 @@ import { requireRole } from '@/lib/auth'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { ensureTenantWorkspaceAccess, ForbiddenError } from '@/lib/workspaces'
+import { allSeedProjects, seedFleetProjects } from '@/lib/fleet-projects'
+import { seedRepoHealthTasks } from '@/lib/repo-health-tasks'
 
 function slugify(input: string): string {
   const normalized = input
@@ -88,6 +90,12 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get('user-agent'),
     })
     const body = await request.json()
+
+    if (body?.action === 'seed-fleet') {
+      const result = seedFleetProjects(db, workspaceId)
+      const repoHealth = seedRepoHealthTasks(db, workspaceId, allSeedProjects())
+      return NextResponse.json({ ...result, repoHealth })
+    }
 
     const name = String(body?.name || '').trim()
     const description = typeof body?.description === 'string' ? body.description.trim() : ''

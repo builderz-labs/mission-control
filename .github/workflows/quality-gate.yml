@@ -3,7 +3,7 @@ name: Quality Gate
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 concurrency:
   group: quality-gate-${{ github.ref }}
@@ -56,6 +56,9 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Desktop unit and packaging contract tests
+        run: pnpm test:desktop
 
       - name: Prepare E2E environment
         run: cp .env.test .env

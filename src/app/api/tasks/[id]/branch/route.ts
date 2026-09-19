@@ -5,6 +5,7 @@ import { requireRole } from '@/lib/auth'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { createRef, getRef, fetchPullRequests, createPullRequest } from '@/lib/github'
+import { requireAgentTaskAccess } from '@/lib/enforcement/workspace-scope'
 
 function slugify(title: string, maxLen: number): string {
   return title
@@ -45,6 +46,9 @@ export async function GET(
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
+
+    const taskDeny = requireAgentTaskAccess(auth.user, task.assigned_to ?? null)
+    if (taskDeny) return taskDeny
 
     const result: Record<string, unknown> = {
       branch: task.github_branch || null,
@@ -115,6 +119,9 @@ export async function POST(
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
+
+    const taskDeny = requireAgentTaskAccess(auth.user, task.assigned_to ?? null)
+    if (taskDeny) return taskDeny
 
     if (!task.github_repo) {
       return NextResponse.json(
