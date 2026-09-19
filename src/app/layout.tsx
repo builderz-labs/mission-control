@@ -7,6 +7,7 @@ import { getLocale, getMessages } from 'next-intl/server'
 import { THEME_IDS } from '@/lib/themes'
 import { ThemeBackground } from '@/components/ui/theme-background'
 import { AuthExpiredListener } from '@/components/auth-expired-listener'
+import { AppToaster } from '@/components/ui/app-toaster'
 import './globals.css'
 
 const inter = Inter({
@@ -121,6 +122,7 @@ export default async function RootLayout({
           >
             <ThemeBackground />
             <AuthExpiredListener />
+            <AppToaster />
             <div className="h-screen overflow-hidden bg-background text-foreground">
               {children}
             </div>
