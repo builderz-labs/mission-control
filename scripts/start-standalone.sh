@@ -78,13 +78,16 @@ reap_previous_controller() {
   want="$STANDALONE_DIR"
   want_real="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || printf '%s' "$STANDALONE_DIR")"
   local candidates pid cwd cwd_real comm
-  # Quality Gate runs this under `set -euo pipefail`. A failed lsof/pgrep in a
-  # pipeline must not abort the sweep before we reach the real prior controller.
-  # Also strip /proc/<pid>/comm newlines (Ubuntu) and match logical + physical cwd.
+  # Quality Gate runs under `set -euo pipefail`. Do not put `case ...)` inside
+  # `$()` — the pattern's closing paren terminates the command substitution
+  # (bash parse error; empty/partial candidate list; stale controller survives).
+  # Strip /proc/<pid>/comm newlines on Linux. Tolerate failed lsof lookups.
   candidates="$(
     {
       ps -eo pid=,comm= 2>/dev/null | while read -r pid comm; do
-        case "$comm" in node|doppler) printf '%s\n' "$pid" ;; esac
+        if [[ "$comm" == "node" || "$comm" == "doppler" ]]; then
+          printf '%s\n' "$pid"
+        fi
       done || true
       if command -v pgrep >/dev/null 2>&1; then
         pgrep -x node 2>/dev/null || true
@@ -98,9 +101,13 @@ reap_previous_controller() {
         for proc_cwd in /proc/[0-9]*/cwd; do
           pid="${proc_cwd%/cwd}"
           pid="${pid#/proc/}"
-          [[ "$pid" =~ ^[0-9]+$ ]] || continue
+          if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+            continue
+          fi
           comm="$(tr -d '\0\r\n' < "/proc/$pid/comm" 2>/dev/null || true)"
-          case "$comm" in node|doppler) ;; *) continue ;; esac
+          if [[ "$comm" != "node" && "$comm" != "doppler" ]]; then
+            continue
+          fi
           cwd="$(readlink "$proc_cwd" 2>/dev/null || true)"
           cwd="${cwd% (deleted)}"
           cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P || printf '%s' "$cwd")"
@@ -122,7 +129,6 @@ reap_previous_controller() {
       cwd="${cwd% (deleted)}"
     fi
     if [[ -z "$cwd" ]]; then
-      # lsof exits 1 when it finds nothing; under pipefail that must not kill the loop.
       cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)" || true
     fi
     [[ -n "$cwd" ]] || continue
