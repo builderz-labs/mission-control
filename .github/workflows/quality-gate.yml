@@ -3,7 +3,7 @@ name: Quality Gate
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 concurrency:
   group: quality-gate-${{ github.ref }}

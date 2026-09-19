@@ -79,8 +79,18 @@ reap_previous_controller() {
   local want="$STANDALONE_DIR" want_real
   want_real="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || echo "$STANDALONE_DIR")"
   local candidates pid cwd
+  # Linux GitHub runners: `lsof -a -d cwd -c node -- "$STANDALONE_DIR"` often
+  # returns nothing for a node process whose only handle on that directory is
+  # cwd. That made Quality Gate fail in ~1s (no candidates → no TERM wait) while
+  # macOS still passed. Enumerate node/doppler PIDs first, then confirm cwd.
   candidates="$(
     {
+      if command -v pgrep >/dev/null 2>&1; then
+        pgrep -x node 2>/dev/null || true
+        pgrep -x doppler 2>/dev/null || true
+      fi
+      lsof -t -c node 2>/dev/null || true
+      lsof -t -c doppler 2>/dev/null || true
       lsof -t -a -d cwd -c node -c doppler -- "$STANDALONE_DIR" 2>/dev/null || true
       [[ -f "$db" ]] && { lsof -t -- "$db" 2>/dev/null || true; }
       lsof -t -nP -iTCP:"${PORT:-3000}" -sTCP:LISTEN 2>/dev/null || true
@@ -89,8 +99,16 @@ reap_previous_controller() {
 
   for pid in $candidates; do
     [[ "$ancestors" == *" $pid "* ]] && continue
-    # Only ever signal a process whose working directory is this deployment.
-    cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    # Prefer /proc on Linux: still works after a redeploy unlinks the cwd inode
+    # (readlink reports "<path> (deleted)"). Fall back to lsof on macOS.
+    cwd=""
+    if [[ -L "/proc/$pid/cwd" ]]; then
+      cwd="$(readlink "/proc/$pid/cwd" 2>/dev/null || true)"
+      cwd="${cwd% (deleted)}"
+    fi
+    if [[ -z "$cwd" ]]; then
+      cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    fi
     [[ "$cwd" == "$want" || "$cwd" == "$want_real" ]] || continue
     echo "reaping previous controller pid $pid" >&2
     kill -TERM "$pid" 2>/dev/null || true
