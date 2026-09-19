@@ -3,6 +3,7 @@ import { existsSync } from 'fs'
 import { dirname, join, sep } from 'path'
 import { resolveWithin } from '@/lib/paths'
 import { config } from '@/lib/config'
+import { fleetMemoryRoots } from '@/lib/memory-roots'
 
 const DOC_ROOT_CANDIDATES = ['docs', 'knowledge-base', 'knowledge', 'memory']
 
@@ -239,6 +240,17 @@ export async function searchDocs(query: string, limit = 100): Promise<Array<{ pa
       await searchDir(rootPath, root)
     } catch {
       // Ignore unreadable roots
+    }
+  }
+
+  // Shared-isolation writes land in ~/.openclaw/memory (prefixed openclaw/...).
+  for (const fleetRoot of fleetMemoryRoots()) {
+    if (fleetRoot.id !== 'openclaw') continue
+    if (!existsSync(fleetRoot.root)) continue
+    try {
+      await searchDir(fleetRoot.root, fleetRoot.id)
+    } catch {
+      // Ignore unreadable openclaw root
     }
   }
 
