@@ -79,6 +79,12 @@ export function isDocsPathAllowed(relativePath: string): boolean {
   const normalized = normalizeRelativePath(relativePath)
   if (!normalized) return false
 
+  // Shared-isolation OpenClaw writes (openclaw/...)
+  if (normalized === 'openclaw' || normalized.startsWith('openclaw/')) {
+    const fleet = fleetMemoryRoots().find((root) => root.id === 'openclaw')
+    return Boolean(fleet)
+  }
+
   const baseDir = config.memoryDir
   if (!baseDir || !existsSync(baseDir)) return false
 
@@ -160,12 +166,24 @@ export async function readDocsContent(relativePath: string): Promise<{ content: 
     throw new Error('Path not allowed')
   }
 
-  const baseDir = config.memoryDir
-  if (!baseDir || !existsSync(baseDir)) {
-    throw new Error('Docs directory not configured')
+  const normalized = normalizeRelativePath(relativePath)
+
+  let safePath: string
+  if (normalized === 'openclaw' || normalized.startsWith('openclaw/')) {
+    const fleet = fleetMemoryRoots().find((root) => root.id === 'openclaw')
+    if (!fleet || !existsSync(fleet.root)) {
+      throw new Error('Docs directory not configured')
+    }
+    const rest = normalized === 'openclaw' ? '' : normalized.slice('openclaw/'.length)
+    safePath = rest ? await resolveSafePath(fleet.root, rest) : fleet.root
+  } else {
+    const baseDir = config.memoryDir
+    if (!baseDir || !existsSync(baseDir)) {
+      throw new Error('Docs directory not configured')
+    }
+    safePath = await resolveSafePath(baseDir, relativePath)
   }
 
-  const safePath = await resolveSafePath(baseDir, relativePath)
   const content = await readFile(safePath, 'utf-8')
   const info = await stat(safePath)
 
@@ -173,7 +191,7 @@ export async function readDocsContent(relativePath: string): Promise<{ content: 
     content,
     size: info.size,
     modified: info.mtime.getTime(),
-    path: normalizeRelativePath(relativePath),
+    path: normalized,
   }
 }
 
@@ -182,16 +200,12 @@ function isSearchable(name: string): boolean {
 }
 
 export async function searchDocs(query: string, limit = 100): Promise<Array<{ path: string; name: string; matches: number }>> {
-  const baseDir = config.memoryDir
-  if (!baseDir || !existsSync(baseDir)) return []
-
-  const roots = allowedRoots(baseDir)
-  if (roots.length === 0) return []
-
   const q = query.trim().toLowerCase()
   if (!q) return []
 
   const results: Array<{ path: string; name: string; matches: number }> = []
+  const baseDir = config.memoryDir
+  const roots = baseDir && existsSync(baseDir) ? allowedRoots(baseDir) : []
 
   const searchFile = async (fullPath: string, relativePath: string) => {
     let handle
