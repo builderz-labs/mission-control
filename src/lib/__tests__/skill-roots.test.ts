@@ -46,4 +46,14 @@ describe('listSkillRoots', () => {
     const extras = listExtraSkillRoots().map((root) => root.source)
     expect(extras.every((source) => source !== 'user-agents')).toBe(true)
   })
+
+  it('keeps install targets when directories are missing', () => {
+    tempDir = mkdtempSync(path.join(os.tmpdir(), 'mc-skills-empty-'))
+    process.env.HOME = tempDir
+    const sources = listSkillRoots().map((root) => root.source)
+    for (const target of SKILL_INSTALL_TARGETS) {
+      expect(sources).toContain(target)
+    }
+  })
+
 })

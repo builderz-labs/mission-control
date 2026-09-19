@@ -63,7 +63,21 @@ kill -0 "$STALE" 2>/dev/null || fail 'the stale controller stand-in did not star
   : > "$TMP_DIR/reap.done" ) || true
 [[ -f "$TMP_DIR/reap.done" ]] || fail "the reaper aborted: $(cat "$TMP_DIR/reap.err" 2>/dev/null)"
 
-kill -0 "$STALE" 2>/dev/null && fail "a prior controller holding neither the port nor the database survived the reaper (pid $STALE)"
+if kill -0 "$STALE" 2>/dev/null; then
+  {
+    echo "--- reap debug ---"
+    echo "STALE=$STALE STANDALONE_DIR=$STANDALONE_DIR"
+    echo "pwd -P=$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P)"
+    echo "proc cwd=$(readlink "/proc/$STALE/cwd" 2>/dev/null || echo no-proc)"
+    echo "comm=$(tr -d '\0\r\n' < "/proc/$STALE/comm" 2>/dev/null || echo no-comm)"
+    echo "pgrep node: $(pgrep -x node 2>/dev/null | tr '\n' ' ')"
+    echo "lsof -t -c node: $(lsof -t -c node 2>/dev/null | tr '\n' ' ')"
+    echo "lsof cwd-scoped: $(lsof -t -a -d cwd -c node -- "$STANDALONE_DIR" 2>/dev/null | tr '\n' ' ')"
+    echo "reap.err: $(cat "$TMP_DIR/reap.err" 2>/dev/null)"
+    echo "function lines: $(sed -n '/^reap_previous_controller() {$/,/^}$/p' "$START_SCRIPT" | wc -l)"
+  } >&2
+  fail "a prior controller holding neither the port nor the database survived the reaper (pid $STALE)"
+fi
 kill -0 "$BYSTANDER" 2>/dev/null || fail "the reaper signalled an unrelated process in the same directory (pid $BYSTANDER)"
 
 # The reaper must never signal itself or the process tree that started it.

@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { resolveSafeMemoryPath } from '@/lib/memory-path'
@@ -25,10 +26,10 @@ export function fleetMemoryRoots(home = homedir()): MemoryRoot[] {
   if (existsSync(skills)) {
     roots.push({ id: 'skills', label: 'Skills', root: skills, prefixes: [] })
   }
+  // Always expose the OpenClaw write root so shared-isolation creates can
+  // mkdir on first write (CI runners start without ~/.openclaw/memory).
   const openclaw = join(home, '.openclaw', 'memory')
-  if (existsSync(openclaw)) {
-    roots.push({ id: 'openclaw', label: 'OpenClaw', root: openclaw, prefixes: [] })
-  }
+  roots.push({ id: 'openclaw', label: 'OpenClaw', root: openclaw, prefixes: [] })
   return roots
 }
 
@@ -58,6 +59,8 @@ export function isSharedMemoryWritePath(relativePath: string): boolean {
 export async function resolveSharedMemoryTarget(relativePath: string) {
   const located = locateMemoryPath(relativePath)
   if (!located) return null
+  // Ensure the OpenClaw write root exists before realpath-based containment checks.
+  await mkdir(located.root.root, { recursive: true })
   if (!located.rest) {
     return { ...located, abs: located.root.root }
   }
