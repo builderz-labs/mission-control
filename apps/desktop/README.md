@@ -35,11 +35,21 @@ The source and build paths are discovered relative to this package, independent 
   runs find the repository and resolve Git's common checkout for worktrees. Packaged
   builds record that canonical path as non-secret metadata. The conventional
   `~/Dev/mission-control` is the fallback for an unpackaged copy with no repository.
+- Backend and gateway ports are discovered at launch from each service's own
+  `~/Library/LaunchAgents/<label>.plist`, so moving a server to another port needs no
+  rebuild. An unreadable plist falls back to the service default (3000 and 18789).
 - `MC_DESKTOP_URL`: optional loopback HTTP origin with an explicit port, such as
   `http://127.0.0.1:3100`, `http://localhost:3100`, or `http://[::1]:3100`.
   Ports must be 1024–65535; Chromium-blocked ports and port 4190 are refused. Other origins,
   userinfo, numeric host aliases, paths, queries and fragments are rejected. An
   optional trailing root slash is accepted.
+
+Launching the app starts every server it depends on: the Mission Control backend
+(`com.tylerdevries.mission-control`) and the OpenClaw gateway (`ai.openclaw.gateway`).
+Both are started in parallel; a server already running is reused untouched, a stopped
+or disabled one is enabled and kickstarted, and one that was never loaded is
+bootstrapped from its own plist. Only the backend gates the window — a gateway that
+will not start is logged as `service_unavailable` and the dashboard still opens.
 
 Health probes have a three-second timeout including body consumption and one
 retry for transport/timeouts or HTTP 408/500/502/503/504. Probes reject redirects
