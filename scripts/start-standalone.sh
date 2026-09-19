@@ -72,68 +72,88 @@ reap_previous_controller() {
   done
 
   local db="${MISSION_CONTROL_DATA_DIR:-}/mission-control.db"
-  # Keep both the caller's path and the physical path: macOS TMPDIR is often a
-  # symlink (/var/folders -> /private/var/...), and GHA may normalize differently.
-  local want want_real
+  local want want_real pid cwd cwd_real comm path
   want="$STANDALONE_DIR"
   want_real="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || printf '%s' "$STANDALONE_DIR")"
-  local candidates pid cwd cwd_real comm
-  # Quality Gate runs under `set -euo pipefail`. Do not put `case ...)` inside
-  # `$()` — the pattern's closing paren terminates the command substitution
-  # (bash parse error; empty/partial candidate list; stale controller survives).
-  # Strip /proc/<pid>/comm newlines on Linux. Tolerate failed lsof lookups.
-  candidates="$(
-    {
-      ps -eo pid=,comm= 2>/dev/null | while read -r pid comm; do
-        if [[ "$comm" == "node" || "$comm" == "doppler" ]]; then
-          printf '%s\n' "$pid"
-        fi
-      done || true
-      if command -v pgrep >/dev/null 2>&1; then
-        pgrep -x node 2>/dev/null || true
-        pgrep -x doppler 2>/dev/null || true
-      fi
-      lsof -t -c node 2>/dev/null || true
-      lsof -t -c doppler 2>/dev/null || true
-      lsof -t -a -d cwd -c node -c doppler -- "$STANDALONE_DIR" 2>/dev/null || true
-      lsof -t -a -d cwd -c node -c doppler -- "$want_real" 2>/dev/null || true
-      if [[ -d /proc ]]; then
-        for proc_cwd in /proc/[0-9]*/cwd; do
-          pid="${proc_cwd%/cwd}"
-          pid="${pid#/proc/}"
-          if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
-            continue
-          fi
-          comm="$(tr -d '\0\r\n' < "/proc/$pid/comm" 2>/dev/null || true)"
-          if [[ "$comm" != "node" && "$comm" != "doppler" ]]; then
-            continue
-          fi
-          cwd="$(readlink "$proc_cwd" 2>/dev/null || true)"
-          cwd="${cwd% (deleted)}"
-          cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P || printf '%s' "$cwd")"
-          if [[ "$cwd" == "$want" || "$cwd" == "$want_real" || "$cwd_real" == "$want" || "$cwd_real" == "$want_real" ]]; then
-            printf '%s\n' "$pid"
-          fi
-        done
-      fi
-      [[ -f "$db" ]] && { lsof -t -- "$db" 2>/dev/null || true; }
-      lsof -t -nP -iTCP:"${PORT:-3000}" -sTCP:LISTEN 2>/dev/null || true
-    } | sort -u
-  )" || true
 
-  for pid in $candidates; do
+  # Collect candidate PIDs into a temp file — never into a $() that also
+  # contains `case …)` / complex expansions (bash ends $() at that paren).
+  # Linux CI: path-scoped `lsof -- $dir` returns empty when cwd is the only
+  # handle, so discover via pgrep / bare -c, then filter by cwd below.
+  local cand_file
+  cand_file="$(mktemp "${TMPDIR:-/tmp}/mc-reap-cands.XXXXXX")"
+  {
+    if command -v pgrep >/dev/null 2>&1; then
+      pgrep -x node 2>/dev/null || true
+      pgrep -x doppler 2>/dev/null || true
+    fi
+    # ps pads PIDs with spaces on some hosts — strip before recording.
+    ps -eo pid=,comm= 2>/dev/null | while read -r pid comm; do
+      if [[ "$comm" == "node" || "$comm" == "doppler" ]]; then
+        printf '%s\n' "$(printf '%s' "$pid" | tr -d '[:space:]')"
+      fi
+    done || true
+    # Separate -c queries: `lsof -a -c node -c doppler` ANDs the names and
+    # matches nothing.
+    lsof -t -c node 2>/dev/null || true
+    lsof -t -c doppler 2>/dev/null || true
+    lsof -t -a -d cwd -c node -- "$want" 2>/dev/null || true
+    lsof -t -a -d cwd -c doppler -- "$want" 2>/dev/null || true
+    lsof -t -a -d cwd -c node -- "$want_real" 2>/dev/null || true
+    lsof -t -a -d cwd -c doppler -- "$want_real" 2>/dev/null || true
+    if [[ -f "$db" ]]; then
+      lsof -t -- "$db" 2>/dev/null || true
+    fi
+    lsof -t -nP -iTCP:"${PORT:-3000}" -sTCP:LISTEN 2>/dev/null || true
+  } | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;/^$/d' | sort -u > "$cand_file" || true
+
+  # Linux: also walk /proc for node/doppler whose cwd matches.
+  if [[ -d /proc ]]; then
+    for path in /proc/[0-9]*/cwd; do
+      pid="${path%/cwd}"
+      pid="${pid#/proc/}"
+      if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+        continue
+      fi
+      comm="$(tr -d '\0\r\n' < "/proc/$pid/comm" 2>/dev/null || true)"
+      if [[ "$comm" != "node" && "$comm" != "doppler" ]]; then
+        continue
+      fi
+      cwd="$(readlink "$path" 2>/dev/null || true)"
+      # Strip kernel " (deleted)" suffix (rebuild unlinks the inode).
+      if [[ "$cwd" == *" (deleted)" ]]; then
+        cwd="${cwd% (deleted)}"
+      fi
+      cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P || printf '%s' "$cwd")"
+      if [[ "$cwd" == "$want" || "$cwd" == "$want_real" || "$cwd_real" == "$want" || "$cwd_real" == "$want_real" ]]; then
+        printf '%s\n' "$pid" >> "$cand_file"
+      fi
+    done
+    sort -u -o "$cand_file" "$cand_file" 2>/dev/null || true
+  fi
+
+  while read -r pid; do
+    [[ -n "$pid" ]] || continue
     [[ "$ancestors" == *" $pid "* ]] && continue
     cwd=""
     if [[ -L "/proc/$pid/cwd" ]]; then
       cwd="$(readlink "/proc/$pid/cwd" 2>/dev/null || true)"
-      cwd="${cwd% (deleted)}"
+    fi
+    if [[ -z "$cwd" ]] && command -v pwdx >/dev/null 2>&1; then
+      cwd="$(pwdx "$pid" 2>/dev/null | sed 's/^[0-9]*:[[:space:]]*//')" || true
     fi
     if [[ -z "$cwd" ]]; then
       cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)" || true
     fi
+    # lsof -Fn and readlink both report "path (deleted)" after a rebuild.
+    if [[ "$cwd" == *" (deleted)" ]]; then
+      cwd="${cwd% (deleted)}"
+    fi
     [[ -n "$cwd" ]] || continue
     cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P || printf '%s' "$cwd")"
-    [[ "$cwd" == "$want" || "$cwd" == "$want_real" || "$cwd_real" == "$want" || "$cwd_real" == "$want_real" ]] || continue
+    if [[ "$cwd" != "$want" && "$cwd" != "$want_real" && "$cwd_real" != "$want" && "$cwd_real" != "$want_real" ]]; then
+      continue
+    fi
     echo "reaping previous controller pid $pid" >&2
     kill -TERM "$pid" 2>/dev/null || true
     # A hung controller has been measured ignoring SIGTERM for a full twenty
@@ -153,7 +173,8 @@ reap_previous_controller() {
         sleep 0.1
       done
     fi
-  done
+  done < "$cand_file"
+  rm -f "$cand_file"
 }
 
 reap_previous_controller
