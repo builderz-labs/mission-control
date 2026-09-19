@@ -65,39 +65,27 @@ reap_previous_controller() {
   command -v lsof >/dev/null 2>&1 || return 0
   # Never signal ourselves or anything that started us.
   local self ancestors=" $$ "
-  self="$(ps -o ppid= -p "$$" 2>/dev/null | tr -d ' ')"
+  self="$(ps -o ppid= -p "$$" 2>/dev/null | tr -d '[:space:]')"
   while [[ -n "$self" && "$self" != 0 && "$self" != 1 ]]; do
     ancestors+="$self "
-    self="$(ps -o ppid= -p "$self" 2>/dev/null | tr -d ' ')"
+    self="$(ps -o ppid= -p "$self" 2>/dev/null | tr -d '[:space:]')"
   done
 
   local db="${MISSION_CONTROL_DATA_DIR:-}/mission-control.db"
-  # lsof reports a physically resolved path. $STANDALONE_DIR may still contain a
-  # symlink (on macOS /var and /tmp are links into /private), so keep both forms
-  # and accept either; the directory may also have just been replaced, so fall
-  # back to the literal value when it cannot be resolved.
-  local want="$STANDALONE_DIR" want_real
-  want_real="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || echo "$STANDALONE_DIR")"
-  local candidates pid cwd comm
-  # Ubuntu Quality Gate: `lsof -a -d cwd -c node -- $STANDALONE_DIR` returns
-  # nothing when cwd is the only handle (failure in ~1s, no TERM wait). Scan
-  # /proc/*/cwd for node/doppler on Linux; keep lsof/pgrep as additional signals.
+  # Resolve the deployment directory the same way the kernel reports cwd.
+  local want want_real
+  want="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || printf '%s' "$STANDALONE_DIR")"
+  want_real="$want"
+  local candidates pid cwd comm args
+  # Ubuntu Quality Gate: cwd-scoped lsof returns nothing when cwd is the only
+  # handle, and /proc/<pid>/comm includes a trailing newline that breaks a
+  # strict [[ == "node" ]] match. Collect PIDs via ps/pgrep/lsof//proc, then
+  # compare realpaths.
   candidates="$(
     {
-      if [[ -d /proc ]]; then
-        for proc_cwd in /proc/[0-9]*/cwd; do
-          pid="${proc_cwd%/cwd}"
-          pid="${pid#/proc/}"
-          [[ "$pid" =~ ^[0-9]+$ ]] || continue
-          comm="$(cat "/proc/$pid/comm" 2>/dev/null || true)"
-          [[ "$comm" == "node" || "$comm" == "doppler" ]] || continue
-          cwd="$(readlink "$proc_cwd" 2>/dev/null || true)"
-          cwd="${cwd% (deleted)}"
-          if [[ "$cwd" == "$want" || "$cwd" == "$want_real" ]]; then
-            printf '%s\n' "$pid"
-          fi
-        done
-      fi
+      ps -eo pid=,comm= 2>/dev/null | while read -r pid comm; do
+        case "$comm" in node|doppler) printf '%s\n' "$pid" ;; esac
+      done
       if command -v pgrep >/dev/null 2>&1; then
         pgrep -x node 2>/dev/null || true
         pgrep -x doppler 2>/dev/null || true
@@ -105,6 +93,22 @@ reap_previous_controller() {
       lsof -t -c node 2>/dev/null || true
       lsof -t -c doppler 2>/dev/null || true
       lsof -t -a -d cwd -c node -c doppler -- "$STANDALONE_DIR" 2>/dev/null || true
+      if [[ -d /proc ]]; then
+        for proc_cwd in /proc/[0-9]*/cwd; do
+          pid="${proc_cwd%/cwd}"
+          pid="${pid#/proc/}"
+          [[ "$pid" =~ ^[0-9]+$ ]] || continue
+          # /proc/comm is newline-terminated; strip CR/LF/NUL before compare.
+          comm="$(tr -d '\0\r\n' < "/proc/$pid/comm" 2>/dev/null || true)"
+          case "$comm" in node|doppler) ;; *) continue ;; esac
+          cwd="$(readlink "$proc_cwd" 2>/dev/null || true)"
+          cwd="${cwd% (deleted)}"
+          cwd="$(cd "$cwd" 2>/dev/null && pwd -P || printf '%s' "$cwd")"
+          if [[ "$cwd" == "$want" || "$cwd" == "$want_real" ]]; then
+            printf '%s\n' "$pid"
+          fi
+        done
+      fi
       [[ -f "$db" ]] && { lsof -t -- "$db" 2>/dev/null || true; }
       lsof -t -nP -iTCP:"${PORT:-3000}" -sTCP:LISTEN 2>/dev/null || true
     } | sort -u
@@ -120,21 +124,16 @@ reap_previous_controller() {
     if [[ -z "$cwd" ]]; then
       cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
     fi
+    cwd="$(cd "$cwd" 2>/dev/null && pwd -P || printf '%s' "$cwd")"
     [[ "$cwd" == "$want" || "$cwd" == "$want_real" ]] || continue
     echo "reaping previous controller pid $pid" >&2
     kill -TERM "$pid" 2>/dev/null || true
-    # A hung controller has been measured ignoring SIGTERM for a full twenty
-    # seconds, so give an orderly exit real time before forcing it.
     for _ in $(seq 1 20); do
       kill -0 "$pid" 2>/dev/null || break
       sleep 1
     done
     if kill -0 "$pid" 2>/dev/null; then
       kill -KILL "$pid" 2>/dev/null || true
-      # SIGKILL returns before the kernel has torn the process down, and the
-      # descriptors it is about to release are the port and the database this
-      # server is seconds away from taking. Returning here would hand the caller
-      # a directory that still has an owner, so wait for the pid to actually go.
       for _ in $(seq 1 50); do
         kill -0 "$pid" 2>/dev/null || break
         sleep 0.1
