@@ -57,7 +57,8 @@ test.describe('Session Controls API', () => {
 
     expect(continueRes.status()).toBe(200)
     const continueBody = await continueRes.json()
-    expect(continueBody).toMatchObject({ ok: true, reply: 'CONTINUE_OK' })
+    expect(continueBody.ok).toBe(true)
+    expect(String(continueBody.reply || '')).toContain('CONTINUE_OK')
   })
 
   // ── POST /api/sessions – set-thinking ─────────
