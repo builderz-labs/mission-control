@@ -78,13 +78,26 @@ reap_previous_controller() {
   # back to the literal value when it cannot be resolved.
   local want="$STANDALONE_DIR" want_real
   want_real="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || echo "$STANDALONE_DIR")"
-  local candidates pid cwd
-  # Linux GitHub runners: `lsof -a -d cwd -c node -- "$STANDALONE_DIR"` often
-  # returns nothing for a node process whose only handle on that directory is
-  # cwd. That made Quality Gate fail in ~1s (no candidates → no TERM wait) while
-  # macOS still passed. Enumerate node/doppler PIDs first, then confirm cwd.
+  local candidates pid cwd comm
+  # Ubuntu Quality Gate: `lsof -a -d cwd -c node -- $STANDALONE_DIR` returns
+  # nothing when cwd is the only handle (failure in ~1s, no TERM wait). Scan
+  # /proc/*/cwd for node/doppler on Linux; keep lsof/pgrep as additional signals.
   candidates="$(
     {
+      if [[ -d /proc ]]; then
+        for proc_cwd in /proc/[0-9]*/cwd; do
+          pid="${proc_cwd%/cwd}"
+          pid="${pid#/proc/}"
+          [[ "$pid" =~ ^[0-9]+$ ]] || continue
+          comm="$(cat "/proc/$pid/comm" 2>/dev/null || true)"
+          [[ "$comm" == "node" || "$comm" == "doppler" ]] || continue
+          cwd="$(readlink "$proc_cwd" 2>/dev/null || true)"
+          cwd="${cwd% (deleted)}"
+          if [[ "$cwd" == "$want" || "$cwd" == "$want_real" ]]; then
+            printf '%s\n' "$pid"
+          fi
+        done
+      fi
       if command -v pgrep >/dev/null 2>&1; then
         pgrep -x node 2>/dev/null || true
         pgrep -x doppler 2>/dev/null || true
@@ -99,8 +112,6 @@ reap_previous_controller() {
 
   for pid in $candidates; do
     [[ "$ancestors" == *" $pid "* ]] && continue
-    # Prefer /proc on Linux: still works after a redeploy unlinks the cwd inode
-    # (readlink reports "<path> (deleted)"). Fall back to lsof on macOS.
     cwd=""
     if [[ -L "/proc/$pid/cwd" ]]; then
       cwd="$(readlink "/proc/$pid/cwd" 2>/dev/null || true)"
