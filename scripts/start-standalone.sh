@@ -72,67 +72,63 @@ reap_previous_controller() {
   done
 
   local db="${MISSION_CONTROL_DATA_DIR:-}/mission-control.db"
-  local want want_real pid cwd cwd_real comm path
+  local want want_real pid cwd cwd_real exe base path
   want="$STANDALONE_DIR"
   want_real="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || printf '%s' "$STANDALONE_DIR")"
 
   # Collect candidate PIDs into a temp file — never into a $() that also
-  # contains `case …)` / complex expansions (bash ends $() at that paren).
-  # Linux CI: path-scoped `lsof -- $dir` returns empty when cwd is the only
-  # handle, so discover via pgrep / bare -c, then filter by cwd below.
+  # contains `case …)` (bash ends $() at that paren).
+  #
+  # Ubuntu GitHub runners: Node renames its main thread, so /proc/<pid>/comm
+  # is "MainThread" and `pgrep -x node` / `lsof -c node` return nothing even
+  # though the process is alive. Discover via /proc/<pid>/exe basename (and
+  # macOS name-based fallbacks), then confirm by cwd below.
   local cand_file
   cand_file="$(mktemp "${TMPDIR:-/tmp}/mc-reap-cands.XXXXXX")"
   {
     if command -v pgrep >/dev/null 2>&1; then
       pgrep -x node 2>/dev/null || true
+      pgrep -x nodejs 2>/dev/null || true
       pgrep -x doppler 2>/dev/null || true
     fi
-    # ps pads PIDs with spaces on some hosts — strip before recording.
     ps -eo pid=,comm= 2>/dev/null | while read -r pid comm; do
-      if [[ "$comm" == "node" || "$comm" == "doppler" ]]; then
+      if [[ "$comm" == "node" || "$comm" == "nodejs" || "$comm" == "doppler" ]]; then
         printf '%s\n' "$(printf '%s' "$pid" | tr -d '[:space:]')"
       fi
     done || true
-    # Separate -c queries: `lsof -a -c node -c doppler` ANDs the names and
-    # matches nothing.
     lsof -t -c node 2>/dev/null || true
+    lsof -t -c nodejs 2>/dev/null || true
     lsof -t -c doppler 2>/dev/null || true
     lsof -t -a -d cwd -c node -- "$want" 2>/dev/null || true
+    lsof -t -a -d cwd -c nodejs -- "$want" 2>/dev/null || true
     lsof -t -a -d cwd -c doppler -- "$want" 2>/dev/null || true
     lsof -t -a -d cwd -c node -- "$want_real" 2>/dev/null || true
+    lsof -t -a -d cwd -c nodejs -- "$want_real" 2>/dev/null || true
     lsof -t -a -d cwd -c doppler -- "$want_real" 2>/dev/null || true
     if [[ -f "$db" ]]; then
       lsof -t -- "$db" 2>/dev/null || true
     fi
     lsof -t -nP -iTCP:"${PORT:-3000}" -sTCP:LISTEN 2>/dev/null || true
+    # Linux: every process whose executable is node/nodejs/doppler.
+    if [[ -d /proc ]]; then
+      for path in /proc/[0-9]*/exe; do
+        pid="${path%/exe}"
+        pid="${pid#/proc/}"
+        if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+          continue
+        fi
+        exe="$(readlink "$path" 2>/dev/null || true)"
+        if [[ "$exe" == *" (deleted)" ]]; then
+          exe="${exe% (deleted)}"
+        fi
+        base="${exe##*/}"
+        if [[ "$base" == "node" || "$base" == "nodejs" || "$base" == "doppler" ]]; then
+          printf '%s\n' "$pid"
+        fi
+      done
+    fi
   } | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;/^$/d' | sort -u > "$cand_file" || true
 
-  # Linux: also walk /proc for node/doppler whose cwd matches.
-  if [[ -d /proc ]]; then
-    for path in /proc/[0-9]*/cwd; do
-      pid="${path%/cwd}"
-      pid="${pid#/proc/}"
-      if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
-        continue
-      fi
-      comm="$(tr -d '\0\r\n' < "/proc/$pid/comm" 2>/dev/null || true)"
-      if [[ "$comm" != "node" && "$comm" != "doppler" ]]; then
-        continue
-      fi
-      cwd="$(readlink "$path" 2>/dev/null || true)"
-      # Strip kernel " (deleted)" suffix (rebuild unlinks the inode).
-      if [[ "$cwd" == *" (deleted)" ]]; then
-        cwd="${cwd% (deleted)}"
-      fi
-      cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P || printf '%s' "$cwd")"
-      if [[ "$cwd" == "$want" || "$cwd" == "$want_real" || "$cwd_real" == "$want" || "$cwd_real" == "$want_real" ]]; then
-        printf '%s\n' "$pid" >> "$cand_file"
-      fi
-    done
-    sort -u -o "$cand_file" "$cand_file" 2>/dev/null || true
-  fi
-
-  echo "reap_previous_controller: $(wc -l < "$cand_file") candidates want=$want want_real=$want_real" >&2
   while read -r pid; do
     [[ -n "$pid" ]] || continue
     [[ "$ancestors" == *" $pid "* ]] && continue
@@ -146,7 +142,8 @@ reap_previous_controller() {
     if [[ -z "$cwd" ]]; then
       cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)" || true
     fi
-    # lsof -Fn and readlink both report "path (deleted)" after a rebuild.
+    # After a rebuild replaces $STANDALONE_DIR, Linux reports
+    # "<path> (deleted)" for the prior controller's cwd.
     if [[ "$cwd" == *" (deleted)" ]]; then
       cwd="${cwd% (deleted)}"
     fi
