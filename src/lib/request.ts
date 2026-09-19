@@ -22,6 +22,13 @@ export function extractClientIpFromTrusted(
   trusted: Set<string>,
   fallback = 'unknown',
 ): string {
+  // E2E / test mode: honor spoofable client IP headers so suites can isolate buckets.
+  if (process.env.MISSION_CONTROL_TEST_MODE === '1' || process.env.MC_E2E_TRUST_CLIENT_IP === '1') {
+    const real = request.headers.get('x-real-ip')?.trim()
+    if (real) return real
+    const xffTest = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    if (xffTest) return xffTest
+  }
   const xff = request.headers.get('x-forwarded-for')
   if (xff && trusted.size > 0) {
     const ips = xff.split(',').map(s => s.trim())

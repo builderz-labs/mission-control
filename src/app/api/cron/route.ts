@@ -141,7 +141,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const action = searchParams.get('action') || 'list'
+    const action = searchParams.get('action')
+    if (!action) {
+      return NextResponse.json({ error: 'action is required' }, { status: 400 })
+    }
 
     if (action === 'list') {
       const cronFile = await loadCronFile()

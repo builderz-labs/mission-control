@@ -52,7 +52,7 @@ Rate values and digests above are placeholders, not usable configuration. Unknow
 
 ### Operator-only image commissioning
 
-Agents must not invoke Fly directly. A deployment operator can use an authenticated Docker registry session and the Docker CLI below after reviewing the image source; clean independent builds are otherwise submitted through Mission Control per global routing policy. Each image intentionally omits unused model CLIs.
+Agents must not invoke Fly directly. A deployment operator can use an authenticated Docker registry session and the Docker CLI below after reviewing the image source; clean independent builds are otherwise submitted through Mission Control per global routing policy. Each image intentionally omits unused model CLIs. Both images do install `jq`: GitHub-hosted runners ship it, and repositories whose tests run their real release shell scripts call it (coffee-story's consistency suite does). Without it those `test` leaves fail on Fly while GitHub CI passes the same commit, and the one-line failure summary does not say why.
 
 ```sh
 docker buildx build --platform linux/amd64 --provenance=false --push -f workers/core/Dockerfile -t registry.fly.io/mission-control-workers-tyler:polled-core-v1 .

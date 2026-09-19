@@ -4,7 +4,8 @@ import { checkoutRoot, PACKAGE_ROOT } from "./app-paths.mjs";
 import { openBackend, partitionForOrigin } from "./backend-window.mjs";
 import { createDesktopUnlock } from "./desktop-unlock.mjs";
 import { isLoginPage } from "./desktop-navigation.mjs";
-import { validateOrigin } from "./origin.mjs";
+import { ensureServer } from "./ensure-server.mjs";
+import { backendOf, planServices } from "./service-plan.mjs";
 import { configurePermissions, focusOrCreateWindow, secureWindow } from "./window-policy.mjs";
 import { configureRequestCookies } from "./request-policy.mjs";
 
@@ -12,6 +13,7 @@ app.setName("Mission Control");
 const locked = app.requestSingleInstanceLock();
 let window;
 let origin;
+let plan = [];
 let backendSession;
 let desktopUnlock;
 const failedWindows = new WeakSet();
@@ -27,9 +29,14 @@ function showLoadError(target) {
 
 async function attachWindow(target) {
   try {
-    if (!origin || !await openBackend({ origin, loadURL: async (url) => {
-      if (!target.isDestroyed()) await target.loadURL(url);
-    } })) showLoadError(target);
+    if (!origin || !await openBackend({
+      origin,
+      // Re-checked on every attach: every planned server is started, not just the backend.
+      ensure: (options) => ensureServer({ ...options, plan }),
+      loadURL: async (url) => {
+        if (!target.isDestroyed()) await target.loadURL(url);
+      },
+    })) showLoadError(target);
   } catch {
     console.error("[desktop] backend_attach_failed");
     showLoadError(target);
@@ -67,9 +74,11 @@ if (!locked) {
     app.whenReady().then(() => { window = focusOrCreateWindow(window, createWindow); })
       .catch(() => console.error("[desktop] window_reopen_failed"));
   });
-  app.whenReady().then(() => {
-    try { origin = validateOrigin(process.env.MC_DESKTOP_URL); }
-    catch { console.error("[desktop] invalid_backend_origin"); }
+  app.whenReady().then(async () => {
+    try {
+      plan = await planServices();
+      origin = backendOf(plan)?.origin;
+    } catch { console.error("[desktop] invalid_backend_origin"); }
     // No persist: prefix: credentials live only for this app process and full origin.
     backendSession = session.fromPartition(origin ? partitionForOrigin(origin) : "mc-invalid-config");
     configureRequestCookies(backendSession, origin);

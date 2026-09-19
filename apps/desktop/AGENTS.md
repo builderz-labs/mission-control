@@ -15,13 +15,19 @@ Node runtime, database, or alternate portable service.
 - `MISSION_CONTROL_ROOT` identifies the canonical checkout in build metadata.
   Never read credentials files or copy secrets into artifacts.
 - `MC_DESKTOP_URL` accepts explicit loopback HTTP origins with safe unprivileged
-  ports. Health, login and window use the same origin.
+  ports and overrides discovery. Health, login and window use the same origin.
+- Without that override, each server's origin is read from its own launchd plist
+  (`src/service-plan.mjs`), never compiled into the bundle. A missing or unparseable
+  plist falls back to that service's default port.
 - Refuse external navigation/redirects and popups. Preserve sandbox,
   contextIsolation, disabled nodeIntegration and single-instance behavior.
 - Use the ordinary login screen; never send passwords or install cookies automatically.
   Use an in-memory session partition keyed by the full origin; never the default session.
-- Reuse healthy service. Only unavailable canonical default may receive
-  `launchctl kickstart` without `-k`; no stop/restart/bootstrap of shared services.
+- Launching the app starts every server in `SERVICES`, in parallel. Only the
+  `required` one gates the window; the rest are reported and never block it.
+- Reuse healthy service. Only a server that is unavailable at its own planned origin
+  is started, via `enable` then `kickstart` without `-k`, and `bootstrap` from its own
+  plist only when it is not loaded at all. Never stop, `-k` or restart a healthy service.
 - Keep source modules <=200 lines, errors free of secrets, and retries/timeouts bounded.
 - No live service or production database mutations in tests. No app installation,
   quarantine changes, Fly, push or main changes without separate authorization.

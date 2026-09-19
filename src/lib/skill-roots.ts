@@ -72,15 +72,19 @@ export function listSkillRoots(): SkillRoot[] {
     // openclaw state may not exist
   }
   const seen = new Set<string>()
+  const install = new Set<string>(SKILL_INSTALL_TARGETS)
   return roots.filter((root) => {
-    if (!existsSync(root.path)) return false
+    // Install targets must stay visible even before the directory exists so
+    // POST/PUT can mkdir on first write (CI runners start with empty homes).
+    const isInstallTarget = install.has(root.source as (typeof SKILL_INSTALL_TARGETS)[number])
+    if (!existsSync(root.path)) return isInstallTarget
     try {
       const real = realpathSync(root.path)
       if (seen.has(real)) return false
       seen.add(real)
       return true
     } catch {
-      return false
+      return isInstallTarget
     }
   })
 }
