@@ -132,6 +132,7 @@ reap_previous_controller() {
     sort -u -o "$cand_file" "$cand_file" 2>/dev/null || true
   fi
 
+  echo "reap_previous_controller: $(wc -l < "$cand_file") candidates want=$want want_real=$want_real" >&2
   while read -r pid; do
     [[ -n "$pid" ]] || continue
     [[ "$ancestors" == *" $pid "* ]] && continue
