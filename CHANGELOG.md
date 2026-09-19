@@ -6,6 +6,16 @@ All notable changes to Mission Control are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Handoff briefs: a structured context object (`handoff_briefs` table,
+  `/api/handoffs` + `/api/handoffs/{id}/consume`, `mc_create_handoff` /
+  `mc_get_handoff` / `mc_consume_handoff` MCP tools) for passing task
+  context between agents/runtimes at a session boundary — e.g. a
+  mobile-reachable agent handing a task to Claude Code, or back. Includes
+  a `SessionStart` hook template (`scripts/hooks/handoff-session-start.mjs`)
+  that auto-injects the latest brief into a new Claude Code session. See
+  `docs/handoff-briefs.md`.
+
 ---
 
 ## [2.3.0] - 2026-07-25
