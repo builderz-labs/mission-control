@@ -20,7 +20,10 @@ test("a healthy service gets only a credential-free probe then backend-owned aut
   const calls = [];
   const urls = [];
   assert.equal(await openBackend({ origin: "http://127.0.0.1:3000", loadURL: async (url) => urls.push(url),
-    ensure: (options) => ensureServer({ ...options, fetchImpl: async (url, init) => {
+    ensure: (options) => ensureServer({ ...options, plan: [{
+      key: "backend", label: "com.tylerdevries.mission-control", required: true,
+      origin: "http://127.0.0.1:3000", plist: "/absent.plist",
+    }], fetchImpl: async (url, init) => {
       calls.push(url);
       assert.equal(init.body, undefined);
       assert.equal(init.headers, undefined);
