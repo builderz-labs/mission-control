@@ -35,11 +35,11 @@ const assistant = {
 }
 
 async function login(page: Page) {
-  await page.goto('/login')
-  await page.getByLabel(/username/i).fill('testadmin')
-  await page.getByLabel(/password/i).fill('testpass1234!')
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await expect(page).not.toHaveURL(/\/login/)
+  const response = await page.request.post('/api/auth/login', { data: {
+    username: process.env.E2E_AUTH_USER || 'testadmin',
+    password: process.env.E2E_AUTH_PASS || 'testpass1234!',
+  } })
+  expect(response.status()).toBe(200)
 }
 
 async function mockJev(page: Page) {
