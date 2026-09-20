@@ -44,6 +44,10 @@ async function login(page: Page) {
     settings: { 'general.interface_mode': 'full' },
   } })
   expect(fullMode.status()).toBe(200)
+  const onboarding = await page.request.post('/api/onboarding', {
+    data: { action: 'skip' },
+  })
+  expect(onboarding.status()).toBe(200)
 }
 
 async function mockJev(page: Page) {
