@@ -5,6 +5,7 @@ export type DashboardPageLayout = 'standard' | 'wide' | 'workspace'
 const WORKSPACE_PANELS = new Set([
   'chat',
   'gateway-config',
+  'jev',
   'knowledge-graph',
   'logs',
   'memory',
@@ -19,7 +20,6 @@ const WIDE_PANELS = new Set([
   'channels',
   'cron',
   'fly',
-  'jev',
   'overview',
   'skills',
   'super-admin',

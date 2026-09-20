@@ -33,6 +33,8 @@ describe('fleet projects', () => {
   it('inserts missing projects and assigns the five identities', () => {
     const db = new Database(':memory:')
     db.exec(`
+      CREATE TABLE workspaces (id INTEGER PRIMARY KEY, slug TEXT NOT NULL);
+      INSERT INTO workspaces (id,slug) VALUES (1,'default');
       CREATE TABLE projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         workspace_id INTEGER NOT NULL,
@@ -52,6 +54,10 @@ describe('fleet projects', () => {
         role TEXT,
         UNIQUE(project_id, agent_name)
       );
+      CREATE TABLE jev_project_checkouts (
+        project_id INTEGER PRIMARY KEY, workspace_id INTEGER NOT NULL,
+        root_path TEXT NOT NULL UNIQUE
+      );
     `)
     const first = seedFleetProjects(db, 1)
     expect(first.created).toBe(FLEET_PROJECTS.length + DISCOVERED_PROJECTS.length)
@@ -61,6 +67,8 @@ describe('fleet projects', () => {
       'SELECT COUNT(DISTINCT agent_name) AS n FROM project_agent_assignments',
     ).get() as { n: number }
     expect(assigned.n).toBe(FLEET_AGENT_NAMES.length)
+    expect(db.prepare('SELECT COUNT(*) AS n FROM jev_project_checkouts').get())
+      .toEqual({ n: FLEET_PROJECTS.length + DISCOVERED_PROJECTS.length })
     db.prepare(`
       INSERT INTO projects (workspace_id, name, slug, ticket_prefix, status, created_at, updated_at)
       VALUES (1, 'General', 'general', 'GEN', 'active', 1, 1)

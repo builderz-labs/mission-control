@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
+import { validateBoundedBody } from '@/lib/bounded-validation'
 import { JevClientError } from '@/lib/jev-client'
 import { jevErrorResponse } from '@/lib/jev-route-error'
 import { assertJevProject, listJevEvaluations } from '@/lib/jev-repository'
 import { runJevEvaluation } from '@/lib/jev-service'
 import { runJevEvaluationSchema } from '@/lib/jev-validation'
 import { heavyLimiter, readLimiter } from '@/lib/rate-limit'
-import { validateBody } from '@/lib/validation'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const limited = heavyLimiter(request)
   if (limited) return limited
-  const validated = await validateBody(request, runJevEvaluationSchema)
+  const validated = await validateBoundedBody(request, runJevEvaluationSchema, {
+    maxBytes: 220_000, maxDepth: 40, label: 'Evaluation request',
+  })
   if ('error' in validated) return validated.error
 
   try {
@@ -42,11 +44,13 @@ export async function POST(request: NextRequest) {
     const result = await runJevEvaluation({
       workspaceId: auth.user.workspace_id,
       projectId: body.projectId,
+      idempotencyKey: body.idempotencyKey,
       policyId: body.policyId,
       state: body.state,
       questions: body.questions,
       model: body.model,
       retainStatePreview: body.retainStatePreview,
+      signal: request.signal,
       actor: { id: auth.user.id, username: auth.user.username },
     })
     return NextResponse.json({ evaluation: result }, { status: 201 })

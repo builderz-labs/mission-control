@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import { getDatabase } from '@/lib/db'
 import type { JevEvaluation, JevPolicy, JevQuestions } from '@/lib/jev-types'
+import { jevPolicyConfigurationSchema } from '@/lib/jev-policy-configuration'
 
 export class JevRecordError extends Error {
   constructor(message: string, readonly status: 404 | 409) {
@@ -15,10 +16,21 @@ function parseQuestions(value: string): JevQuestions {
   return JSON.parse(value) as JevQuestions
 }
 
+function parseConfiguration(value: unknown): JevPolicy['configuration'] {
+  if (!value) return null
+  try {
+    const parsed = jevPolicyConfigurationSchema.safeParse(JSON.parse(String(value)))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
 function policyFromRow(row: Record<string, unknown>): JevPolicy {
   return {
-    ...(row as unknown as Omit<JevPolicy, 'questions' | 'enabled'>),
+    ...(row as unknown as Omit<JevPolicy, 'questions' | 'configuration' | 'enabled'>),
     questions: parseQuestions(String(row.questions)),
+    configuration: parseConfiguration(row.configuration),
     enabled: Boolean(row.enabled),
   }
 }
@@ -73,10 +85,11 @@ export function createJevPolicy(
   try {
     const result = db.prepare(`
       INSERT INTO jev_policies
-        (workspace_id, project_id, name, description, model, mode, questions, enabled, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (workspace_id, project_id, name, description, model, mode, questions, configuration, enabled, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(workspaceId, input.project_id, input.name, input.description, input.model,
-      input.mode, JSON.stringify(input.questions), input.enabled ? 1 : 0, input.created_by)
+      input.mode, JSON.stringify(input.questions), input.configuration ? JSON.stringify(input.configuration) : null,
+      input.enabled ? 1 : 0, input.created_by)
     return getJevPolicy(workspaceId, input.project_id, Number(result.lastInsertRowid), db)
   } catch (error) {
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
@@ -88,16 +101,17 @@ export function createJevPolicy(
 
 export function updateJevPolicy(
   policy: JevPolicy,
-  updates: Partial<Pick<JevPolicy, 'name' | 'description' | 'model' | 'mode' | 'questions' | 'enabled'>>,
+  updates: Partial<Pick<JevPolicy, 'name' | 'description' | 'model' | 'mode' | 'questions' | 'configuration' | 'enabled'>>,
   db: Db = getDatabase(),
 ): JevPolicy {
   const next = { ...policy, ...updates }
   try {
     db.prepare(`
-      UPDATE jev_policies SET name=?, description=?, model=?, mode=?, questions=?, enabled=?, updated_at=unixepoch()
+      UPDATE jev_policies SET name=?, description=?, model=?, mode=?, questions=?, configuration=?, enabled=?, updated_at=unixepoch()
       WHERE id=? AND workspace_id=? AND project_id=?
     `).run(next.name, next.description, next.model, next.mode, JSON.stringify(next.questions),
-      next.enabled ? 1 : 0, policy.id, policy.workspace_id, policy.project_id)
+      next.configuration ? JSON.stringify(next.configuration) : null, next.enabled ? 1 : 0,
+      policy.id, policy.workspace_id, policy.project_id)
     return getJevPolicy(policy.workspace_id, policy.project_id, policy.id, db)
   } catch (error) {
     if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
@@ -119,7 +133,7 @@ export function listJevEvaluations(
   db: Db = getDatabase(),
 ): JevEvaluation[] {
   const rows = db.prepare(`
-    SELECT e.*, p.name AS project_name, jp.name AS policy_name
+    SELECT e.*, p.name AS project_name, COALESCE(e.policy_name_snapshot,jp.name) AS policy_name
     FROM jev_evaluations e JOIN projects p ON p.id=e.project_id
     LEFT JOIN jev_policies jp ON jp.id=e.policy_id
     WHERE e.workspace_id=? AND e.project_id=? ORDER BY e.created_at DESC LIMIT ?
@@ -127,21 +141,54 @@ export function listJevEvaluations(
   return rows.map(evaluationFromRow)
 }
 
+export function getJevEvaluationByIdempotency(
+  workspaceId: number,
+  idempotencyKey: string,
+  db: Db = getDatabase(),
+): JevEvaluation | null {
+  const row = db.prepare(`
+    SELECT e.*, p.name AS project_name, COALESCE(e.policy_name_snapshot,jp.name) AS policy_name
+    FROM jev_evaluations e JOIN projects p ON p.id=e.project_id
+    LEFT JOIN jev_policies jp ON jp.id=e.policy_id
+    WHERE e.workspace_id=? AND e.idempotency_key=? LIMIT 1
+  `).get(workspaceId, idempotencyKey) as Record<string, unknown> | undefined
+  return row ? evaluationFromRow(row) : null
+}
+
 export function insertJevEvaluation(row: Record<string, unknown>, db: Db = getDatabase()): void {
   db.prepare(`
     INSERT INTO jev_evaluations
       (id,workspace_id,project_id,policy_id,status,model_requested,questions,state_sha256,
-       state_length,state_preview,created_by)
+       state_length,state_preview,created_by,idempotency_key,policy_name_snapshot,
+       policy_configuration_snapshot)
     VALUES (@id,@workspace_id,@project_id,@policy_id,'running',@model_requested,@questions,
-      @state_sha256,@state_length,@state_preview,@created_by)
+      @state_sha256,@state_length,@state_preview,@created_by,@idempotency_key,
+      @policy_name_snapshot,@policy_configuration_snapshot)
   `).run(row)
 }
 
-export function finishJevEvaluation(id: string, values: Record<string, unknown>, db: Db = getDatabase()): void {
-  db.prepare(`
+export function finishJevEvaluation(
+  id: string,
+  workspaceId: number,
+  values: Record<string, unknown>,
+  db: Db = getDatabase(),
+): void {
+  const result = db.prepare(`
     UPDATE jev_evaluations SET status=@status, model_resolved=@model_resolved, answers=@answers,
       usage_input_tokens=@usage_input_tokens, usage_output_tokens=@usage_output_tokens,
       latency_ms=@latency_ms, request_id=@request_id, error_code=@error_code, completed_at=unixepoch()
-    WHERE id=@id
-  `).run({ id, ...values })
+    WHERE id=@id AND workspace_id=@workspace_id
+  `).run({ id, workspace_id: workspaceId, ...values })
+  if (result.changes !== 1) throw new JevRecordError('Jev evaluation not found', 404)
+}
+
+export function reconcileStaleJevEvaluations(
+  workspaceId: number,
+  maximumAgeSeconds = 300,
+  db: Db = getDatabase(),
+): number {
+  return db.prepare(`
+    UPDATE jev_evaluations SET status='failed',error_code='JEV_INTERRUPTED',completed_at=unixepoch()
+    WHERE workspace_id=? AND status='running' AND created_at < unixepoch()-?
+  `).run(workspaceId, maximumAgeSeconds).changes
 }

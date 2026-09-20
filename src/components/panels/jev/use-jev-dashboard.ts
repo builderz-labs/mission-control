@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '@/lib/api-client'
 import type {
   JevEvaluation,
@@ -18,13 +18,22 @@ export function useJevDashboard(projectId: number | null) {
   const [evaluations, setEvaluations] = useState<JevEvaluation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const requestRef = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
 
   const refresh = useCallback(async () => {
+    abortRef.current?.abort()
+    const requestId = ++requestRef.current
+    const controller = new AbortController()
+    abortRef.current = controller
     setLoading(true)
     try {
-      const statusPromise = apiFetch<{ status: JevStatus }>('/api/jev/status')
+      const options = { signal: controller.signal }
+      const statusPromise = apiFetch<{ status: JevStatus }>('/api/jev/status', options)
       if (!projectId) {
-        setStatus((await statusPromise).status)
+        const nextStatus = (await statusPromise).status
+        if (requestId !== requestRef.current) return
+        setStatus(nextStatus)
         setPolicies([])
         setEvaluations([])
         return
@@ -32,21 +41,32 @@ export function useJevDashboard(projectId: number | null) {
       const query = `projectId=${projectId}`
       const [statusData, policyData, evaluationData] = await Promise.all([
         statusPromise,
-        apiFetch<{ policies: JevPolicy[] }>(`/api/jev/policies?${query}`),
-        apiFetch<{ evaluations: JevEvaluation[] }>(`/api/jev/evaluations?${query}`),
+        apiFetch<{ policies: JevPolicy[] }>(`/api/jev/policies?${query}`, options),
+        apiFetch<{ evaluations: JevEvaluation[] }>(`/api/jev/evaluations?${query}`, options),
       ])
+      if (requestId !== requestRef.current) return
       setStatus(statusData.status)
       setPolicies(policyData.policies)
       setEvaluations(evaluationData.evaluations)
       setError(null)
     } catch (cause) {
+      if (requestId !== requestRef.current || (cause instanceof Error && cause.name === 'AbortError')) return
       setError(cause instanceof Error ? cause.message : 'Unable to load Jev')
     } finally {
-      setLoading(false)
+      if (requestId === requestRef.current) {
+        setLoading(false)
+        abortRef.current = null
+      }
     }
   }, [projectId])
 
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => {
+    void refresh()
+    return () => {
+      requestRef.current += 1
+      abortRef.current?.abort()
+    }
+  }, [refresh])
 
   const createPolicy = async (input: JevPolicyInput) => {
     if (!projectId) throw new Error('Select a repository first')
@@ -55,6 +75,18 @@ export function useJevDashboard(projectId: number | null) {
     })
     await refresh()
     return response.policy
+  }
+
+  const createPolicies = async (
+    input: JevPolicyInput,
+    projectIds: number[],
+    approval?: { sessionId: string; expectedRevisionNo: number },
+  ) => {
+    const response = await apiFetch<{ policies: JevPolicy[] }>('/api/jev/policies/bulk', {
+      method: 'POST', body: JSON.stringify({ ...input, projectIds, approval }),
+    })
+    await refresh()
+    return response.policies
   }
 
   const updatePolicy = async (id: number, input: Partial<JevPolicyInput>) => {
@@ -74,22 +106,24 @@ export function useJevDashboard(projectId: number | null) {
   const runEvaluation = async (policyId: number, state: JevState, retainStatePreview: boolean) => {
     if (!projectId) throw new Error('Select a repository first')
     const response = await apiFetch<{ evaluation: JevRunResult }>('/api/jev/evaluations', {
-      method: 'POST', body: JSON.stringify({ projectId, policyId, state, retainStatePreview }),
+      method: 'POST', body: JSON.stringify({
+        idempotencyKey: crypto.randomUUID(), projectId, policyId, state, retainStatePreview,
+      }),
     })
-    await refresh()
+    void refresh()
     return response.evaluation
   }
 
-  const loadRepositoryContext = async () => {
+  const loadRepositoryContext = async (policyId: number) => {
     if (!projectId) throw new Error('Select a repository first')
     const response = await apiFetch<{ context: JevRepositoryContext }>(
-      `/api/jev/context?projectId=${projectId}`,
+      `/api/jev/context?projectId=${projectId}&policyId=${policyId}`,
     )
     return response.context
   }
 
   return {
     status, policies, evaluations, loading, error, setError, refresh,
-    createPolicy, updatePolicy, deletePolicy, runEvaluation, loadRepositoryContext,
+    createPolicy, createPolicies, updatePolicy, deletePolicy, runEvaluation, loadRepositoryContext,
   }
 }

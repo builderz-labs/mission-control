@@ -1,6 +1,18 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { createJevPolicySchema, runJevEvaluationSchema } from '@/lib/jev-validation'
+import {
+  createJevPoliciesSchema,
+  createJevPolicySchema,
+  runJevEvaluationSchema,
+  updateJevPolicySchema,
+} from '@/lib/jev-validation'
+
+const configuration = (projectIds: number[]) => ({
+  scope: 'selected', projectIds, trigger: 'manual', enforcement: 'advisory',
+  contextMode: 'safe_repository', failureMode: 'retry_then_review', rollout: 'shadow',
+  retainPreview: false, uncertaintyThreshold: 0.65, tests: [], risks: [], observability: [],
+})
+const testUuid = (tail: number) => `00000000-0000-4000-8000-${String(tail).padStart(12, '0')}`
 
 describe('Jev boundary validation', () => {
   it('accepts arbitrary unique Choice labels inside the documented bounds', () => {
@@ -48,7 +60,45 @@ describe('Jev boundary validation', () => {
   it('requires a policy or ad-hoc questions and caps serialized state', () => {
     expect(runJevEvaluationSchema.safeParse({ projectId: 1, state: 'hello' }).success).toBe(false)
     expect(runJevEvaluationSchema.safeParse({
+      idempotencyKey: testUuid(1),
       projectId: 1, policyId: 1, state: 'x'.repeat(200_001),
     }).success).toBe(false)
+  })
+
+  it('requires a retry-safe idempotency key for every paid evaluation request', () => {
+    const request = { projectId: 1, policyId: 1, state: 'hello' }
+    expect(runJevEvaluationSchema.safeParse(request).success).toBe(false)
+    expect(runJevEvaluationSchema.safeParse({
+      ...request, idempotencyKey: testUuid(2),
+    }).success).toBe(true)
+  })
+
+  it('requires persisted configuration targets to match policy targets exactly', () => {
+    const policy = {
+      name: 'Scoped', questions: { ready: { type: 'noul', instructions: 'Ready?' } },
+    }
+    expect(createJevPolicySchema.safeParse({
+      ...policy, projectId: 1, configuration: configuration([2]),
+    }).success).toBe(false)
+    expect(updateJevPolicySchema.safeParse({
+      projectId: 1, configuration: configuration([2]),
+    }).success).toBe(false)
+    expect(createJevPoliciesSchema.safeParse({
+      ...policy, projectIds: [1, 2], configuration: configuration([2, 1]),
+    }).success).toBe(true)
+    expect(createJevPoliciesSchema.safeParse({
+      ...policy, projectIds: [1, 2], configuration: configuration([1, 3]),
+    }).success).toBe(false)
+  })
+
+  it('rejects oversized, deeply nested, and reserved generated schemas', () => {
+    let nested: Record<string, unknown> = { value: 'end' }
+    for (let index = 0; index < 14; index += 1) nested = { nested }
+    const policy = (instructions: unknown, id = 'check') => ({
+      projectId: 1, name: 'Bounded', questions: { [id]: { type: 'noul', instructions } },
+    })
+    expect(createJevPolicySchema.safeParse(policy('x'.repeat(60_001))).success).toBe(false)
+    expect(createJevPolicySchema.safeParse(policy(nested)).success).toBe(false)
+    expect(createJevPolicySchema.safeParse(policy('Check', 'constructor')).success).toBe(false)
   })
 })

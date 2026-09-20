@@ -32,6 +32,7 @@ describe('Jev operator UI', () => {
     expect(screen.getAllByRole('progressbar')).toHaveLength(6)
     expect(screen.getByLabelText('No probability')).toHaveAttribute('aria-valuenow', '25')
     expect(screen.getByText(/jev-1.13.0/)).toBeInTheDocument()
+    expect(screen.getByText(/Next step: use this as advisory evidence/)).toBeInTheDocument()
   })
 
   it('parses structured state before invoking the selected policy', async () => {
@@ -57,12 +58,43 @@ describe('Jev operator UI', () => {
     expect(onRun).not.toHaveBeenCalled()
   })
 
+  it('keeps a completed result visible across background data refreshes', async () => {
+    const onRun = vi.fn().mockResolvedValue({
+      id: 'eval', model: 'jev-1.13.0', answers: { decision: { type: 'noul', noul: 0.8 } },
+      usage: { input_tokens: 1, output_tokens: 1 }, requestId: null, latencyMs: 10,
+    })
+    const props = { selectedId: 7, canRun: true, onSelect: vi.fn(), onRun, onLoadContext: vi.fn().mockResolvedValue(context) }
+    const { rerender } = render(<JevWorkbench {...props} policies={[policy]} />)
+    fireEvent.change(screen.getByLabelText('Context Jev will evaluate'), { target: { value: 'Release evidence' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Evaluate with Jev' }))
+    expect(await screen.findByText('Evaluation complete')).toBeInTheDocument()
+    rerender(<JevWorkbench {...props} policies={[{ ...policy }]} />)
+    expect(screen.getByText('Evaluation complete')).toBeInTheDocument()
+  })
+
   it('loads a safe repository snapshot into the reviewable context field', async () => {
     const onLoadContext = vi.fn().mockResolvedValue(context)
     render(<JevWorkbench policies={[policy]} selectedId={7} canRun onSelect={vi.fn()} onRun={vi.fn()} onLoadContext={onLoadContext} />)
     fireEvent.click(screen.getByRole('button', { name: 'Load repository context' }))
     expect(await screen.findByText('Context ready.')).toBeInTheDocument()
+    expect(onLoadContext).toHaveBeenCalledWith(7)
     expect(String(screen.getByLabelText('Context Jev will evaluate').getAttribute('value') ?? (screen.getByLabelText('Context Jev will evaluate') as HTMLTextAreaElement).value)).toContain('src/app.ts')
+  })
+
+  it('discards an evaluation result when the selected policy changes mid-request', async () => {
+    let resolveRun: ((value: unknown) => void) | undefined
+    const onRun = vi.fn().mockImplementation(() => new Promise((resolve) => { resolveRun = resolve }))
+    const second = { ...policy, id: 8, name: 'Other gate' }
+    const props = { canRun: true, onSelect: vi.fn(), onRun, onLoadContext: vi.fn().mockResolvedValue(context) }
+    const { rerender } = render(<JevWorkbench {...props} policies={[policy, second]} selectedId={7} />)
+    fireEvent.change(screen.getByLabelText('Context Jev will evaluate'), { target: { value: 'Evidence' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Evaluate with Jev' }))
+    rerender(<JevWorkbench {...props} policies={[policy, second]} selectedId={8} />)
+    resolveRun?.({
+      id: 'old', model: 'jev-1.13.0', answers: {},
+      usage: { input_tokens: 1, output_tokens: 1 }, requestId: null, latencyMs: 10,
+    })
+    await waitFor(() => expect(screen.queryByText('Evaluation complete')).not.toBeInTheDocument())
   })
 
   it('keeps evaluation and context loading unavailable to viewers', () => {

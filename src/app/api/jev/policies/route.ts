@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
+import { validateBoundedBody } from '@/lib/bounded-validation'
 import { logAuditEvent } from '@/lib/db'
 import { jevErrorResponse } from '@/lib/jev-route-error'
 import { assertJevProject, createJevPolicy, listJevPolicies } from '@/lib/jev-repository'
 import { createJevPolicySchema } from '@/lib/jev-validation'
 import { mutationLimiter, readLimiter } from '@/lib/rate-limit'
-import { validateBody } from '@/lib/validation'
 
 export async function GET(request: NextRequest) {
   const auth = requireRole(request, 'viewer')
@@ -30,7 +30,9 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const limited = mutationLimiter(request)
   if (limited) return limited
-  const validated = await validateBody(request, createJevPolicySchema)
+  const validated = await validateBoundedBody(request, createJevPolicySchema, {
+    maxBytes: 80_000, maxDepth: 24, label: 'Policy request',
+  })
   if ('error' in validated) return validated.error
 
   try {
@@ -43,6 +45,7 @@ export async function POST(request: NextRequest) {
       model: body.model,
       mode: body.mode,
       questions: body.questions,
+      configuration: body.configuration ?? null,
       enabled: body.enabled,
       created_by: auth.user.username,
     }, auth.user.workspace_id)

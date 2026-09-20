@@ -83,3 +83,6 @@ __pycache__/
 .merge/
 graphify-out/cost.json
 graphify-out/cache/
+
+# Local Supabase CLI link state (remote migrations remain committed)
+supabase/.temp/

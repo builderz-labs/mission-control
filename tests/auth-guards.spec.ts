@@ -32,6 +32,14 @@ const PROTECTED_GET_ENDPOINTS = [
   '/api/security-scan',
   '/api/diagnostics',
   '/api/openclaw/doctor',
+  '/api/jev/status',
+  '/api/jev/models',
+  '/api/jev/policies?projectId=1',
+  '/api/jev/sessions?projectId=1',
+  '/api/jev/sessions/00000000-0000-4000-8000-000000000000',
+  '/api/jev/sessions/00000000-0000-4000-8000-000000000000/messages',
+  '/api/jev/context?projectId=1&policyId=1',
+  '/api/jev/evaluations?projectId=1',
 ]
 
 test.describe('Auth Guards (Issue #4)', () => {
@@ -49,4 +57,13 @@ test.describe('Auth Guards (Issue #4)', () => {
     // Should be 200 (or possibly 500 if no gateway configured, but NOT 401)
     expect(res.status()).not.toBe(401)
   })
+
+  for (const endpoint of [
+    '/api/jev/assistant', '/api/jev/policies/bulk', '/api/jev/evaluations', '/api/jev/sessions',
+  ]) {
+    test(`POST ${endpoint} returns 401 without auth`, async ({ request }) => {
+      const res = await request.post(endpoint, { data: {} })
+      expect(res.status()).toBe(401)
+    })
+  }
 })

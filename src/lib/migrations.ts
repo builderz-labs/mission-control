@@ -8,6 +8,11 @@ import { flyRepairMigration } from './fly-repair-migration'
 import { flyTopologyMigration } from './fly-topology-migration'
 import { jevMigration } from './jev-migration'
 import { desktopBrowserLoginMigration } from './desktop-browser-login-migration'
+import { jevAssistantMigration } from './jev-assistant-migration'
+import { jevCheckoutBindingMigration } from './jev-checkout-binding-migration'
+import { jevSetupSessionMigration } from './jev-setup-session-migration'
+import { jevCloudMigration } from './jev-cloud-migration'
+import { jevEvaluationLifecycleMigration } from './jev-evaluation-lifecycle-migration'
 
 export type Migration = {
   id: string
@@ -1680,6 +1685,11 @@ export function runMigrations(db: Database.Database) {
     flyTopologyMigration,
     jevMigration,
     desktopBrowserLoginMigration,
+    jevAssistantMigration,
+    jevCheckoutBindingMigration,
+    jevSetupSessionMigration,
+    jevCloudMigration,
+    jevEvaluationLifecycleMigration,
     ...extraMigrations,
   ]) {
     if (applied.has(migration.id)) continue

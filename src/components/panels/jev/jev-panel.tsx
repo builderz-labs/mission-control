@@ -6,79 +6,131 @@ import { useMissionControl } from '@/store'
 import { JevHistory } from './jev-history'
 import { JevPolicyForm } from './jev-policy-form'
 import { JevPolicyList } from './jev-policy-list'
-import { JevQuickstart } from './jev-quickstart'
+import { JevPolicyRail, type JevWorkspaceView } from './jev-policy-rail'
+import { draftFromPolicy, emptyQuestion, questionsFromDrafts, type QuestionDraft } from './jev-policy-draft'
+import { JevQuestionEditorDialog } from './jev-question-editor-dialog'
+import { JevSetupAssistant } from './jev-setup-assistant'
 import { JevWorkbench } from './jev-workbench'
-import type { JevPolicy, JevPolicyInput } from './jev-ui-types'
+import { JevWorkspaceShell } from './jev-workspace-shell'
+import type { JevPolicy, JevPolicyInput, JevQuestions } from './jev-ui-types'
 import { useJevDashboard } from './use-jev-dashboard'
+import { useJevSessions } from './use-jev-sessions'
 
-type Tab = 'workbench' | 'policies' | 'history'
-const field = 'rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-void-cyan'
+interface QuestionEditorState {
+  policy: JevPolicy
+  originalId: string | null
+  draft: QuestionDraft
+}
+
+const VIEW_TITLES: Record<JevWorkspaceView, string> = {
+  assistant: 'Setup assistant', evaluate: 'Evaluate', policies: 'Policies', history: 'History',
+}
 
 export function JevPanel() {
   const { projects, activeProject, setActiveProject, fetchProjects, currentUser } = useMissionControl()
-  const [tab, setTab] = useState<Tab>('workbench')
+  const [view, setView] = useState<JevWorkspaceView>('assistant')
   const [editing, setEditing] = useState<JevPolicy | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [selectedPolicy, setSelectedPolicy] = useState<number | null>(null)
+  const [selectedSession, setSelectedSession] = useState<string | null>(null)
+  const [visibleQuestionIds, setVisibleQuestionIds] = useState<Set<string>>(new Set())
+  const [questionEditor, setQuestionEditor] = useState<QuestionEditorState | null>(null)
   const project = useMemo(() => projects.find((item) => item.id === activeProject?.id) ?? projects[0] ?? null, [activeProject, projects])
   const data = useJevDashboard(project?.id ?? null)
+  const sessionData = useJevSessions()
+  const policies = useMemo(() => data.policies.filter((policy) => policy.project_id === project?.id), [data.policies, project?.id])
+  const evaluations = useMemo(() => data.evaluations.filter((evaluation) => evaluation.project_id === project?.id), [data.evaluations, project?.id])
   const canOperate = currentUser?.role === 'admin' || currentUser?.role === 'operator'
+  const selected = policies.find((policy) => policy.id === selectedPolicy) ?? null
+  const questionSignature = selected ? `${selected.id}:${Object.keys(selected.questions).join('|')}` : ''
   const runDisabledReason = !canOperate
     ? 'Operator access is required to send an evaluation.'
-    : !data.status?.configured ? 'Connect the TypeSafe credential before evaluating.' : undefined
+    : !data.status?.configured ? 'Connect the TypeSafe credential before evaluating.'
+      : !data.status.healthy ? 'The TypeSafe connection check failed. Retry status before evaluating.' : undefined
+  const connectionStatus = !data.status ? 'Checking'
+    : !data.status.healthy ? data.status.configured ? 'Needs attention' : 'Not configured'
+      : data.status.cloud.state === 'synced' || data.status.cloud.state === 'ready' ? 'Connected · cloud synced'
+        : data.status.cloud.state === 'pending' ? `Saved locally · ${data.status.cloud.pending} pending`
+          : data.status.cloud.state === 'retrying' ? 'Saved locally · sync retrying' : 'Connected · local only'
 
   useEffect(() => { if (projects.length === 0) void fetchProjects() }, [fetchProjects, projects.length])
   useEffect(() => { if (project && activeProject?.id !== project.id) setActiveProject(project) }, [activeProject?.id, project, setActiveProject])
   useEffect(() => {
-    if (selectedPolicy && !data.policies.some((policy) => policy.id === selectedPolicy && policy.enabled)) setSelectedPolicy(null)
-  }, [data.policies, selectedPolicy])
+    if (selectedPolicy !== null && policies.some((policy) => policy.id === selectedPolicy)) return
+    setSelectedPolicy(policies.find((policy) => policy.enabled)?.id ?? policies[0]?.id ?? null)
+  }, [policies, selectedPolicy])
+  useEffect(() => {
+    setVisibleQuestionIds(new Set(selected ? Object.keys(selected.questions) : []))
+  }, [questionSignature]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const savePolicy = async (input: JevPolicyInput) => {
     if (editing) await data.updatePolicy(editing.id, input)
     else await data.createPolicy(input)
-    setEditing(null)
-    setShowForm(false)
+    setEditing(null); setShowForm(false)
+  }
+  const openQuestion = (policy: JevPolicy, id: string) => {
+    const draft = draftFromPolicy(policy).find((item) => item.id === id)
+    if (draft) setQuestionEditor({ policy, originalId: id, draft })
+  }
+  const addQuestion = (policy: JevPolicy) => {
+    let index = 1
+    while (policy.questions[index === 1 ? 'question' : `question_${index}`]) index += 1
+    setQuestionEditor({ policy, originalId: null, draft: { ...emptyQuestion(), id: index === 1 ? 'question' : `question_${index}` } })
+  }
+  const saveQuestion = async (draft: QuestionDraft) => {
+    if (!questionEditor) return
+    const questions: JevQuestions = { ...questionEditor.policy.questions }
+    if (questionEditor.originalId) delete questions[questionEditor.originalId]
+    const [entry] = Object.entries(questionsFromDrafts([draft]))
+    questions[entry[0]] = entry[1]
+    await data.updatePolicy(questionEditor.policy.id, { questions })
+    setQuestionEditor(null)
+  }
+  const deleteQuestion = async () => {
+    if (!questionEditor?.originalId) return
+    const questions: JevQuestions = { ...questionEditor.policy.questions }
+    delete questions[questionEditor.originalId]
+    await data.updatePolicy(questionEditor.policy.id, { questions })
+    setQuestionEditor(null)
   }
 
+  const rail = <JevPolicyRail projects={projects} activeProjectId={project?.id ?? null} policies={policies} evaluations={evaluations} sessions={sessionData.sessions} selectedSessionId={selectedSession} selectedPolicyId={selectedPolicy} visibleQuestionIds={visibleQuestionIds} view={view} canManage={Boolean(canOperate)} onNewSetup={() => { setSelectedSession(null); setView('assistant') }} onSession={(session) => { const target = projects.find((item) => item.id === session.project_id); if (target) setActiveProject(target); setSelectedSession(session.id); setView('assistant') }} onProject={(next) => { setActiveProject(next); setSelectedPolicy(null); setSelectedSession(null) }} onPolicy={(policy) => { setSelectedPolicy(policy.id); setView(policy.enabled ? 'evaluate' : 'policies') }} onView={setView} onToggleQuestion={(id) => setVisibleQuestionIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })} onEditQuestion={openQuestion} onAddQuestion={addQuestion} />
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6">
-      <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div><div className="flex items-center gap-2"><h1 className="text-xl font-semibold text-foreground">Jev by TypeSafe</h1><span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${data.status?.configured ? 'border-emerald-500/30 text-emerald-400' : 'border-red-500/30 text-red-400'}`}>{data.status?.configured ? 'Connected' : 'Not configured'}</span></div><p className="mt-1 max-w-2xl text-sm text-muted-foreground">Ask repeatable questions about any repository and get probability-based answers with a complete audit trail. Jev never changes code or makes the decision for you.</p></div>
-        <label className="flex min-w-64 flex-col text-xs text-muted-foreground">Repository<select className={`${field} mt-1`} value={project?.id ?? ''} onChange={(event) => setActiveProject(projects.find((item) => item.id === Number(event.target.value)) ?? null)}>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}{item.github_repo ? ` · ${item.github_repo}` : ''}</option>)}</select></label>
-      </header>
-
-      {data.error && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300"><span>{data.error}</span><Button variant="outline" size="sm" onClick={() => void data.refresh()}>Retry</Button></div>}
-      {!data.status?.configured && !data.loading && <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200"><strong>Jev needs a server credential.</strong> Add <code className="font-mono">TYPESAFE_API_KEY</code> to the active Doppler production configuration. The key is never sent to the browser.</div>}
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Jev status summary">
-        <Metric label="Workspace policies" value={data.status?.policyCount ?? 0} />
-        <Metric label="Workspace evaluations" value={data.status?.evaluationCount ?? 0} />
-        <Metric label="Successful runs" value={data.status?.successfulCount ?? 0} />
-        <Metric label="Default model" value={data.status?.defaultModel ?? 'jev-latest'} mono />
-      </section>
-
-      {!project ? (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center"><p className="text-sm font-medium text-foreground">No repository projects are available</p><p className="mt-1 text-xs text-muted-foreground">Add or sync a Mission Control project before configuring Jev.</p></div>
-      ) : data.loading ? (
-        <div role="status" aria-live="polite" className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading Jev workspace…</div>
-      ) : (
-        <>
-          <details className="rounded-lg border border-border bg-card p-3 text-sm">
-            <summary className="cursor-pointer font-medium text-foreground">New to Jev? Learn the three answer types</summary>
-            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3"><p><strong className="text-foreground">Yes / no (Noul)</strong><br />A probability between no and yes.</p><p><strong className="text-foreground">Choose one (Choice)</strong><br />Probabilities across your named options.</p><p><strong className="text-foreground">Rating (Score)</strong><br />A weighted position across 2–10 levels.</p></div>
-          </details>
-          {data.policies.length === 0 && <JevQuickstart canCreate={Boolean(canOperate)} onCreate={data.createPolicy} onReady={(policy) => { setSelectedPolicy(policy.id); setTab('workbench') }} />}
-          <nav aria-label="Jev sections" className="flex gap-1 rounded-lg border border-border bg-card p-1">{(['workbench', 'policies', 'history'] as Tab[]).map((item) => <Button key={item} variant={tab === item ? 'secondary' : 'ghost'} size="sm" onClick={() => setTab(item)} className="capitalize">{item}</Button>)}</nav>
-          {!canOperate && <div className="rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">Viewer access is read-only. An operator or administrator can create policies and run evaluations.</div>}
-          {tab === 'workbench' && <JevWorkbench key={project.id} policies={data.policies} selectedId={selectedPolicy} canRun={Boolean(canOperate && data.status?.configured)} disabledReason={runDisabledReason} onSelect={setSelectedPolicy} onRun={data.runEvaluation} onLoadContext={data.loadRepositoryContext} />}
-          {tab === 'policies' && <section className="space-y-4"><div className="flex items-center justify-between"><div><h2 className="text-sm font-semibold text-foreground">Repository policies</h2><p className="text-xs text-muted-foreground">Noul, Choice, and Score questions may be combined in one evaluation.</p></div>{canOperate && <Button size="sm" onClick={() => { setEditing(null); setShowForm(true) }}>New policy</Button>}</div>{showForm && <JevPolicyForm policy={editing} onSubmit={savePolicy} onCancel={() => { setShowForm(false); setEditing(null) }} />}<JevPolicyList policies={data.policies} canManage={canOperate} onEdit={(policy) => { setEditing(policy); setShowForm(true) }} onToggle={(policy) => data.updatePolicy(policy.id, { enabled: !policy.enabled })} onDelete={async (policy) => { if (window.confirm(`Delete “${policy.name}”? Evaluation history will be preserved.`)) await data.deletePolicy(policy.id) }} /></section>}
-          {tab === 'history' && <section className="space-y-3"><div><h2 className="text-sm font-semibold text-foreground">Evaluation history</h2><p className="text-xs text-muted-foreground">Provider version, confidence output, latency, usage, and safe error codes are retained for audit.</p></div><JevHistory evaluations={data.evaluations} /></section>}
-        </>
-      )}
-    </div>
+    <>
+      <JevWorkspaceShell sidebar={rail} header={<WorkspaceHeader title={VIEW_TITLES[view]} project={project?.name} status={connectionStatus} loading={data.loading && data.status !== null} />}>
+        {!project ? <EmptyProject /> : data.loading && !data.status ? <div role="status" className="m-auto text-sm text-muted-foreground">Loading Jev workspace…</div> : (
+          <>
+            {data.error && <Alert tone="error"><span>{data.error}</span><Button variant="outline" size="sm" onClick={() => void data.refresh()}>Retry</Button></Alert>}
+            {sessionData.error && <Alert tone="error"><span>{sessionData.error}</span><Button variant="outline" size="sm" onClick={() => void sessionData.refresh()}>Retry chats</Button></Alert>}
+            {!data.status?.configured && !data.loading && <Alert tone="warning">Jev needs a server credential. Add <code className="font-mono">TYPESAFE_API_KEY</code> to the active server configuration.</Alert>}
+            {data.status?.configured && !data.status.healthy && !data.loading && <Alert tone="warning"><span>Jev could not complete its connection check. No repository content was sent.</span><Button variant="outline" size="sm" onClick={() => void data.refresh()}>Check again</Button></Alert>}
+            {data.status?.cloud.state === 'configuration_error' && <Alert tone="warning">Cloud sync is misconfigured. Changes remain safely queued in Mission Control.</Alert>}
+            {!canOperate && <div className="shrink-0 border-b border-[var(--chat-border)] px-4 py-2 text-xs text-muted-foreground">Viewer access is read-only.</div>}
+            {view === 'assistant' && <JevSetupAssistant key={`${project.id}:${selectedSession ?? 'new'}`} projects={projects} activeProjectId={project.id} canOperate={Boolean(canOperate)} assistantAvailable={Boolean(data.status?.assistantAvailable)} sessionId={selectedSession} onSessionChange={setSelectedSession} onSessionsChanged={() => void sessionData.refresh()} onCreate={data.createPolicies} onReady={(policy) => { setSelectedPolicy(policy.id); const target = projects.find((item) => item.id === policy.project_id); if (target) setActiveProject(target); setView('evaluate') }} />}
+            {view === 'evaluate' && <JevWorkbench key={project.id} policies={policies} selectedId={selectedPolicy} visibleQuestionIds={visibleQuestionIds} canRun={Boolean(canOperate && data.status?.healthy)} disabledReason={runDisabledReason} onSelect={setSelectedPolicy} onRun={data.runEvaluation} onLoadContext={data.loadRepositoryContext} />}
+            {view === 'policies' && <PoliciesView policies={policies} canOperate={Boolean(canOperate)} editing={editing} showForm={showForm} onNew={() => { setEditing(null); setShowForm(true) }} onEdit={(policy) => { setEditing(policy); setShowForm(true) }} onSave={savePolicy} onCancel={() => { setEditing(null); setShowForm(false) }} onToggle={(policy) => data.updatePolicy(policy.id, { enabled: !policy.enabled })} onDelete={async (policy) => { if (window.confirm(`Delete “${policy.name}”? Evaluation history will be preserved.`)) await data.deletePolicy(policy.id) }} />}
+            {view === 'history' && <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-7xl space-y-3"><div><h2 className="text-sm font-semibold text-foreground">Evaluation history</h2><p className="text-xs text-muted-foreground">Provider version, confidence output, latency, usage, and safe error codes are retained for audit.</p></div><JevHistory evaluations={evaluations} /></div></div>}
+          </>
+        )}
+      </JevWorkspaceShell>
+      {questionEditor && <JevQuestionEditorDialog initial={questionEditor.draft} existingIds={Object.keys(questionEditor.policy.questions).filter((id) => id !== questionEditor.originalId)} canDelete={Object.keys(questionEditor.policy.questions).length > 1} onSave={saveQuestion} onDelete={questionEditor.originalId ? deleteQuestion : undefined} onClose={() => setQuestionEditor(null)} />}
+    </>
   )
 }
 
-function Metric({ label, value, mono = false }: { label: string; value: string | number; mono?: boolean }) {
-  return <div className="rounded-lg border border-border bg-card p-3"><div className="text-xs text-muted-foreground">{label}</div><div className={`mt-1 text-lg font-semibold text-foreground ${mono ? 'font-mono text-sm' : ''}`}>{value}</div></div>
+function WorkspaceHeader({ title, project, status, loading }: { title: string; project?: string; status: string; loading: boolean }) {
+  return <div className="flex min-w-0 flex-1 items-center gap-2 text-xs"><strong className="truncate text-sm text-[var(--chat-text)]">{title}</strong>{project && <span className="truncate text-[var(--chat-muted)]">· {project}</span>}<span className="ml-auto shrink-0 rounded-full border border-[var(--chat-border)] px-2 py-0.5 text-[10px] text-[var(--chat-muted)]">{loading ? 'Refreshing' : status}</span></div>
+}
+
+function EmptyProject() {
+  return <div className="m-auto p-8 text-center"><p className="text-sm font-medium text-foreground">No repository projects are available</p><p className="mt-1 text-xs text-muted-foreground">Add or sync a Mission Control project before configuring Jev.</p></div>
+}
+
+function Alert({ tone, children }: { tone: 'error' | 'warning'; children: React.ReactNode }) {
+  return <div role={tone === 'error' ? 'alert' : 'status'} className={`flex shrink-0 items-center justify-between gap-3 border-b px-4 py-2 text-xs ${tone === 'error' ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>{children}</div>
+}
+
+function PoliciesView({ policies, canOperate, editing, showForm, onNew, onEdit, onSave, onCancel, onToggle, onDelete }: { policies: JevPolicy[]; canOperate: boolean; editing: JevPolicy | null; showForm: boolean; onNew: () => void; onEdit: (policy: JevPolicy) => void; onSave: (input: JevPolicyInput) => Promise<void>; onCancel: () => void; onToggle: (policy: JevPolicy) => Promise<void>; onDelete: (policy: JevPolicy) => Promise<void> }) {
+  return <div className="h-full overflow-y-auto p-4 md:p-6"><section className="mx-auto max-w-7xl space-y-4"><div className="flex items-center justify-between"><div><h2 className="text-sm font-semibold text-foreground">Repository policies</h2><p className="text-xs text-muted-foreground">Noul, Choice, and Score questions may be combined in one evaluation.</p></div>{canOperate && <Button size="sm" onClick={onNew}>New policy</Button>}</div>{showForm && <JevPolicyForm policy={editing} onSubmit={onSave} onCancel={onCancel} />}<JevPolicyList policies={policies} canManage={canOperate} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} /></section></div>
 }

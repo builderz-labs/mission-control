@@ -1,52 +1,52 @@
 # Graph Report - mission-control  (2026-09-20)
 
 ## Corpus Check
-- 1247 files · ~973,140 words
+- 1304 files · ~998,986 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 16 file(s) not represented in the graph (top: (none) 11, .example 1, .toml 1)
 
 ## Summary
-- 7115 nodes · 19093 edges · 343 communities (311 shown, 32 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 187 edges (avg confidence: 0.87)
+- 7396 nodes · 19910 edges · 344 communities (306 shown, 38 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 194 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `31cc384e`
+- Built from commit: `ffe20156`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - vitest
-- api/agents/route.ts
+- widget-primitives.tsx
 - mac-cleanup/index.ts
 - resolveWithin
-- getUserFromRequest
-- button.tsx
-- agent-avatar.tsx
-- getDatabase
-- useSmartPoll
+- auth.ts
+- chat-icons.tsx
+- jev-assistant-provider.ts
+- runOpenClaw
+- security-audit-panel.tsx
 - useMissionControl
 - denyUnscopedResourceForStrictWorkspace
-- hermes/route.ts
+- hermes-tasks.ts
 - Changelog
-- apiFetch
-- api/diagnostics/route.ts
-- react
 - agent-squad-panel-phase3.tsx
-- chat-icons.tsx
-- requireRole
-- mutationLimiter
-- adapters/index.ts
+- login/page.tsx
+- store/index.ts
+- main.mjs
+- group-sessions.ts
+- header-bar.tsx
+- config
+- eventBus
 - office-panel.tsx
 - integrations/route.ts
 - api/status/route.ts
 - nav-rail.tsx
-- settings-panel.tsx
-- memory-utils.ts
-- ref_node_child_process
-- chat-session-identity.ts
+- hermes/route.ts
+- fly-admission.test.ts
+- mc-cli.cjs
+- chat-desktop-workspace.tsx
 - @playwright/test
-- fly-orchestration-panel.tsx
+- mutationLimiter
 - utils.ts
 - security-scan.ts
 - chat-session-pane.tsx
@@ -55,152 +55,152 @@
 - engine-logo.tsx
 - mc-fly-enroll.py
 - build-app.mjs
-- main.mjs
-- cost-tracker-panel.tsx
-- chat-display.ts
-- workspaces.ts
-- task-board-panel.tsx
-- cron-management-panel.tsx
-- login/page.tsx
-- fly-reconciler.ts
-- webhooks.ts
-- scheduler.ts
-- widget-primitives.tsx
-- package.json
 - ref_node_assert
-- memory-browser-panel.tsx
-- chat-usage-tracker.ts
+- cost-tracker-panel.tsx
+- permission-connector.ts
+- keys/route.ts
+- desktop-browser-login.ts
+- cron-management-panel.tsx
+- apiFetch
+- claude-fleet-rename.ts
+- webhooks.ts
+- db.ts
+- widget-grid.tsx
+- package.json
+- desktop-auth-store.mjs
+- agent-avatar.tsx
+- skills/route.ts
 - websocket.ts
-- claude-sessions.ts
-- skill-registry.ts
+- skill-sync.ts
+- memory-utils.ts
 - gateway-config-panel.tsx
 - Runbook: move the worker pool onto an isolated private network
 - dependencies
 - scripts
-- validation.ts
+- exec-approvals/route.ts
 - injection-guard.ts
-- api/memory/route.ts
+- github/route.ts
 - FlyMachinesClient
 - dashboard-cli-fleets.ts
 - exec-approval-panel.tsx
 - channels-panel.tsx
-- permission-connector.ts
+- chat-display.ts
 - handoff/route.ts
 - agent-comms-panel.tsx
-- agent-sync.ts
-- mc-provisioner-daemon.js
+- validation.ts
+- react
 - mcp-audit.ts
-- session-terminal-cell.tsx
+- session-terminal-widget.tsx
 - openclaw-doctor.ts
 - mc-tui.cjs
 - claude-fleet-plans.ts
 - gnap-sync.ts
-- jev-ui-types.ts
+- jev-panel.tsx
 - session-list-local.ts
-- header-bar.tsx
-- mc-cli.cjs
+- jev-assistant-service.ts
+- getDatabase
 - workload/route.ts
-- github-activity.ts
+- github-sync-engine.ts
 - layout.tsx
 - start-e2e-server.mjs
 - gateways/connect/route.ts
 - onboarding/route.ts
 - dashboard-board.ts
-- fly/status/route.ts
+- fly-workers.ts
 - install.ps1
-- desktop-browser-login.ts
-- src/index.ts
-- skills/route.ts
-- vault-wiki-graph.ts
+- mc-provisioner-daemon.js
+- models.ts
+- skill-registry.ts
+- graph/route.ts
 - fetchWithRetry
-- api/sessions/route.ts
+- evals/route.ts
 - super-admin.ts
 - proxy.ts
 - desktop/package.json
 - agent-runtimes.ts
-- session-transcript-route.ts
-- runtime-history.ts
+- Jev Workspace Product Requirements
+- grok-sessions.ts
 - local-session-list.ts
 - Mission Control Style Guide
 - schema.sql
 - install.sh
 - runCommand
 - recurring-tasks.ts
-- skill-sync.ts
-- jev-repository.ts
+- ref_node_child_process
+- gateways/health/route.ts
 - api-contract-parity.ts
 - cli-inventory.ts
 - device-identity.ts
 - compilerOptions
-- github.ts
+- session-thread.tsx
 - devDependencies
 - framework-templates.ts
-- keys/route.ts
+- memory-browser-panel.tsx
 - agent-templates.ts
-- github-sync-engine.ts
-- split-pane-layout.tsx
-- next
+- flight-deck/route.ts
+- button.tsx
+- requireRole
 - pty-websocket.ts
+- ref_node_crypto
 - mc-mcp-server.cjs
-- conversation-list.tsx
 - nodes-panel.tsx
 - opencode-sessions.ts
-- artifact/route.ts
-- session-terminal-widget.tsx
-- claude-transcript.ts
-- memory-search.ts
-- rate-limit.ts
+- dashboard.tsx
+- fly-reconciler.ts
+- session-transcript-route.ts
+- chat-session-map.ts
+- claude-code-sessions.ts
 - ref_node_module
-- session-transcript-types.ts
+- jev-assistant-schema.ts
+- jev-context.ts
 - renderDashboard
-- session-continue-model.ts
-- session-archive.ts
+- lib/config.ts
 - rail-width.ts
 - webhook-panel.tsx
-- fly-reservations.ts
-- session-continue-run.ts
+- fly-fairness.test.ts
+- cron-occurrences.ts
 - websocket-utils.ts
 - mc-fly-contract.test.cjs
 - agent-filesystem-isolation.test.ts
 - tokens/route.ts
 - Deployment Guide
-- ref_path
+- gateway-config/route.ts
 - coordinator-routing.ts
 - local-agent-sync.ts
 - mc-fly-cli.test.cjs
 - notification-daemon.sh
 - adapter-compliance.test.ts
 - [id]/diagnostics/route.ts
-- docs-knowledge.ts
-- github-pulls-api.ts
+- pipeline-tab.tsx
+- rate-limit.ts
 - message-bubble.tsx
-- github/route.ts
+- chat-fly-jobs.ts
 - openclaw-doctor-banner.tsx
 - alert-evaluate.ts
-- claude-code-sessions.ts
-- codex-sessions.ts
+- security-scan-card.tsx
+- runtime-history.ts
 - kimi-sessions.ts
 - package-manager-patches/package.json
-- handoff-banner.tsx
+- cli-session-kinds.ts
 - fleet-agents.ts
 - Orchestration Patterns
-- handoff-brief.ts
+- Troubleshooting
 - hook-profiles.ts
 - createTestAgent
-- pipeline-tab.tsx
+- Production (Docker)
 - check-api-contract-parity.mjs
 - api/health/route.ts
-- provision-jobs/[id]/route.ts
+- gateway-runtime.ts
 - channels/route.ts
 - Everything Included In The v2 Update
 - PtySession
 - unlock-renderer.mjs
 - mcp-server.spec.ts
-- attribution/route.ts
-- gateway-config/route.ts
-- group-sessions.ts
-- better-sqlite3
-- getGitHubToken
+- provision-jobs/[id]/route.ts
+- terminal-view.tsx
+- next
+- session-terminal-cell.tsx
+- openclaw-agents.ts
 - pty-manager.ts
 - createTestTask
 - agent-heartbeat.sh
@@ -208,26 +208,26 @@
 - fleet-projects.ts
 - attention-detector.ts
 - fly-stale-controller.ts
-- gateway-runtime.ts
-- buildGatewayWebSocketUrl
-- openclaw-doctor-fix.ts
+- pty-websocket-auth.test.ts
+- openclaw-gateway.ts
+- auto-credentials.ts
 - check-standalone-artifact.mjs
 - deploy-standalone.sh
-- minimax.ts
+- github.ts
 - Mission Control Hardening
 - task-routing.ts
 - chat-permission-mode-route.test.ts
-- messages/route.ts
+- chat/messages/route.ts
 - tasks-route-noop-update.test.ts
-- mentions.spec.ts
-- provisioner-client.ts
+- helpers.ts
+- typesafe-probe.ts
 - security-audit.sh
-- executeProvisionJob
+- github-activity.ts
 - Mission Control
 - jev-service.ts
-- openclaw-doctor-route.test.ts
-- memory/health/route.ts
-- jev-panel.tsx
+- hermes-sessions.ts
+- optimize/route.ts
+- buildGatewayWebSocketUrl
 - aggregate/route.ts
 - migrations.ts
 - generate-env.sh
@@ -237,76 +237,76 @@
 - index/route.ts
 - Mission Control Platform Hardening + Full Agent CLI/TUI PRD
 - Mission Control Agent Skill
-- release-update-route-security.test.ts
-- process/route.ts
-- tasks-bulk-put-agent-access.test.ts
+- openclaw-doctor-fix.ts
+- callDirectly
+- attribution/route.ts
 - jev-validation.ts
-- prepare-standalone-artifact.mjs
+- provisioner-client.ts
 - process-title.test.sh
 - Agent Setup Guide
-- fly-topology.test.ts
+- locale-parity.test.ts
 - NavRail
 - token-utils.test.ts
 - next.config.js
 - load-env.sh
 - reap-controller.test.sh
 - gateways/control/route.ts
-- session-terminal-view.tsx
+- chat-folder-order-route.test.ts
 - docker-entrypoint.sh
 - Command groups
 - Mission Control
-- use-chat-github.ts
-- hermes-sessions.ts
+- memory/health/route.ts
+- executeProvisionJob
 - load-env.test.sh
 - security-audit.test.sh
-- limit-caps.spec.ts
+- take-screenshots.ts
 - Findings
 - open-mission-control
 - build-app.sh script
 - check-node-version.mjs
 - opencode
 - plugins.ts
-- Troubleshooting
+- openclaw-doctor-route.test.ts
 - git-askpass.mjs
 - Full Changelog
 - 3. Key Hardening Recommendations
 - API Endpoints
-- task-dispatch-sandbox.test.ts
+- hermes-memory.ts
 - Contributor Covenant Code of Conduct
-- Production (Docker)
+- mock-gateway.mjs
 - gen-star-history.py
 - dashboard-page-frame.tsx
 - Mission Control production audit
 - Mission Control Fly command workers
 - Quickstart: Your First Agent in 5 Minutes
-- cron/route.ts
+- github-pulls-api.ts
 - verify-jev-live.mjs
-- eslint.config.mjs
-- cron-occurrences.ts
+- prepare-standalone-artifact.mjs
+- ClientLogger
 - Deferred / blocked
 - test_mc_fly_enroll.py
-- MobileBottomSheet
-- adaptive-context-handoff.ts
-- activity-feed-panel.tsx
+- agents-delete-route.test.ts
+- quality-review-reviewer-identity.test.ts
+- task-broadcast-route-agent-access.test.ts
 - Spec Files
 - Quick Start
 - Fly recovery and shared skill hardening — 2026-09-06
 - Образцовый пример: команда из 3 провайдеров (Claude + OpenAI + Local) в Mission Control
 - Hardening Checklist
-- jev-policy-form.tsx
+- jev-setup-flow.spec.ts
 - dashboard-widgets.ts
 - Mission Control Fly audit — 2026-09-06
 - Screenshot Guide
 - 10. Troubleshooting
-- security-properties.test.ts
-- pty-websocket-auth.test.ts
+- release-update-route-security.test.ts
+- eslint.config.mjs
 - Contributing to Mission Control
 - Fly cleanup and capacity audit — September 6, 2026
 - Fly scale and cost decision — 2026-09-06
 - Jev in Mission Control
 - OpenClaw Gateway Hardening
 - 4. Агент №2 — Implementor (OpenAI gpt-4o-mini)
-- permission-mode/route.ts
+- tasks-bulk-put-agent-access.test.ts
 - Consolidated Fly implementation audit — 2026-09-05
 - Local Mission Control consolidation — 2026-09-05
 - Onboarding + Walkthrough hardening plan
@@ -315,155 +315,156 @@
 - 3. Агент №1 — Architect (Claude Opus)
 - Release Process
 - Mission Control Installer Skill
-- workspace-isolation-enforcement.test.ts
-- Fly worker topology decision — September 6, 2026
+- [1.3.0] - 2026-03-02
 - [2.2.0] - 2026-07-17
 - Desktop consolidation
 - OpenClaw Config Compatibility Note
 - 8. Запустить конвейер
 - pull_request_template.md
 - check-workflow-action-pins.py
-- chat-folder-order.ts
-- workspaces-tenant-access.test.ts
-- activity-timeline-widget.tsx
-- task-branch-route-agent-access.test.ts
+- workspace-sync.ts
+- better-sqlite3
+- claude-tasks.ts
+- adapter-assignment-isolation.test.ts
 - Support
 - TODO later: Overview modular board
 - Mission Control Wiki
 - Mission Control desktop
-- typesafe-probe.ts
-- [1.3.0] - 2026-03-02
+- vitest.config.ts
+- activity-timeline-widget.tsx
 - 0. Подготовка
 - 5. Агент №3 — Linter (Local LMStudio)
 - Q: Where should a Jev decision dashboard live across the repository fleet, and how should it integrate with Mission Control?
 - Q: Implement complete repo-agnostic Jev by TypeSafe frontend and backend in Mission Control with advanced tests and secure rollout
 - runtime-types.ts
-- injection-guard-endpoints.spec.ts
+- MobileBottomSheet
 - 2. Project (для тикет-префикса и группировки задач)
 - 6. Агент №4 — Aegis (Claude Sonnet, reviewer)
 - event-bus.ts
-- @testing-library/jest-dom
+- 20260920231000_mission_control_jev_events.sql
+- jev-supabase-persistence.md
 - doppler-runtime.test.sh
-- adapter-assignment-isolation.test.ts
-- auth-guards.spec.ts
 - engineering-bot/identity.md
 - engineering-bot/soul.md
 - research-bot/identity.md
 - research-bot/soul.md
+- auth-guards.spec.ts
 - delete-body.spec.ts
+- @scalar/api-reference-react
+- limit-caps.spec.ts
 
 ## God Nodes (most connected - your core abstractions)
-1. `requireRole()` - 438 edges
-2. `getDatabase()` - 401 edges
-3. `vitest` - 323 edges
-4. `next` - 237 edges
+1. `requireRole()` - 451 edges
+2. `getDatabase()` - 404 edges
+3. `vitest` - 339 edges
+4. `next` - 246 edges
 5. `logger` - 163 edges
-6. `apiFetch()` - 141 edges
-7. `react` - 134 edges
+6. `apiFetch()` - 145 edges
+7. `react` - 142 edges
 8. `denyUnscopedResourceForStrictWorkspace()` - 125 edges
-9. `logAuditEvent()` - 112 edges
+9. `logAuditEvent()` - 121 edges
 10. `useMissionControl` - 104 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Rate Limit Backend Strategy` --references--> `createRateLimiter()`  [INFERRED]
-  docs/SECURITY-HARDENING.md → src/lib/rate-limit.ts
-- `Verified already landed (do not redo)` --references--> `fleetAgentLogo()`  [INFERRED]
-  docs/audit-2026-09-19-mc-only.md → src/lib/fleet-agents.ts
-- `Code Style` --references--> `requireRole()`  [INFERRED]
-  CONTRIBUTING.md → src/lib/auth.ts
-- `Changed` --references--> `validateBody()`  [INFERRED]
-  CHANGELOG.md → src/lib/validation.ts
-- `How It Works` --references--> `dispatchAssignedTasks()`  [INFERRED]
-  docs/orchestration.md → src/lib/task-dispatch.ts
+- `Active-session CLI bridge` --references--> `build()`  [INFERRED]
+  docs/fly-agent-workers.md → apps/desktop/scripts/build-app.mjs
+- `How It Works` --references--> `status()`  [INFERRED]
+  docs/agent-setup.md → apps/desktop/src/desktop-unlock.mjs
+- `4. Report Task Progress` --references--> `status()`  [INFERRED]
+  SKILL.md → apps/desktop/src/desktop-unlock.mjs
+- `What runs where` --references--> `command()`  [INFERRED]
+  docs/fly-agent-workers.md → scripts/mc-fly-enroll.py
+- `Recommended Wiki Structure` --references--> `Home()`  [INFERRED]
+  wiki/Home.md → src/app/[[...panel]]/page.tsx
 
 ## Import Cycles
 - None detected.
 
-## Communities (343 total, 32 thin omitted)
+## Communities (344 total, 38 thin omitted)
 
 ### Community 0 - "vitest"
 Cohesion: 0.03
-Nodes (40): ref_node_fs, ref_node_os, ref_node_path, vitest, dbRowsByName, partRowsByMessageId, agentInboxDir(), writeAgentInbox() (+32 more)
+Nodes (43): ref_node_fs, ref_node_os, ref_node_path, vitest, report, result, dbRowsByName, partRowsByMessageId (+35 more)
 
-### Community 1 - "api/agents/route.ts"
-Cohesion: 0.07
-Nodes (37): DELETE(), POST(), GET(), POST(), PUT(), formatNotificationMessage(), POST(), CachedDoctor (+29 more)
+### Community 1 - "widget-primitives.tsx"
+Cohesion: 0.13
+Nodes (20): ActivityIconMini(), AgentIcon(), CostIcon(), formatTokensShort(), GatewayIcon(), LogActionIcon(), MemoryActionIcon(), MetricCard() (+12 more)
 
 ### Community 2 - "mac-cleanup/index.ts"
 Cohesion: 0.05
-Nodes (95): ok(), collectProtectedRoots(), leaseRoots(), CATALOG, catalogBinary(), CatalogEntry, main(), capture() (+87 more)
+Nodes (94): collectProtectedRoots(), leaseRoots(), CATALOG, catalogBinary(), CatalogEntry, main(), capture(), buildFindings() (+86 more)
 
 ### Community 3 - "resolveWithin"
-Cohesion: 0.19
-Nodes (24): ALLOWED_FILES, FILE_ALIASES, GET(), getAgentByIdOrName(), PUT(), resolveAgentWorkspacePath(), agentColumnName(), agentColumnValue() (+16 more)
+Cohesion: 0.16
+Nodes (27): ALLOWED_FILES, FILE_ALIASES, GET(), getAgentByIdOrName(), PUT(), resolveAgentWorkspacePath(), agentColumnName(), agentColumnValue() (+19 more)
 
-### Community 4 - "getUserFromRequest"
-Cohesion: 0.08
-Nodes (59): ensureUniqueUsername(), GET(), makeUsernameFromEmail(), POST(), POST(), POST(), POST(), upsertAccessRequest() (+51 more)
+### Community 4 - "auth.ts"
+Cohesion: 0.07
+Nodes (71): ref_crypto, ensureUniqueUsername(), GET(), makeUsernameFromEmail(), POST(), POST(), POST(), POST() (+63 more)
 
-### Community 5 - "button.tsx"
+### Community 5 - "chat-icons.tsx"
+Cohesion: 0.09
+Nodes (29): IconArtifacts(), IconChevron(), IconClock(), IconCustomize(), IconDispatch(), IconGrip(), IconPin(), IconPlus() (+21 more)
+
+### Community 6 - "jev-assistant-provider.ts"
+Cohesion: 0.18
+Nodes (11): claudeExecutable(), generateJevAssistantDraft(), isJevAssistantAvailable(), JevAssistantProviderError, PROVIDER_ENV_KEYS, providerEnvironment(), runOnce(), SYSTEM_PROMPT (+3 more)
+
+### Community 7 - "runOpenClaw"
+Cohesion: 0.09
+Nodes (33): BACKUP_DIR, DELETE(), GET(), POST(), pruneOldBackups(), CachedDoctor, doctorCache, DoctorCacheModule (+25 more)
+
+### Community 8 - "security-audit-panel.tsx"
 Cohesion: 0.05
-Nodes (39): next-intl, ChecklistItem, log, Props, State, FeedItem(), formatRelativeTime(), LiveFeed() (+31 more)
-
-### Community 6 - "agent-avatar.tsx"
-Cohesion: 0.24
-Nodes (11): AgentAvatar(), AgentAvatarProps, getAvatarColors(), getInitials(), hashString(), logoSize, sizeClasses, AgentBrand (+3 more)
-
-### Community 7 - "getDatabase"
-Cohesion: 0.03
-Nodes (91): GET(), GET(), POST(), GET(), PUT(), GET(), GET(), GET() (+83 more)
-
-### Community 8 - "useSmartPoll"
-Cohesion: 0.04
-Nodes (60): recharts, useChatFlyJobs(), clearLegacyOrder(), readLegacyOrder(), useFolderOrder(), actionColors, actionIcons, AuditEvent (+52 more)
+Nodes (43): recharts, classLabel(), formatAge(), MacCleanupJobs(), formatValue(), MacCleanupMeters(), tone(), valueClass() (+35 more)
 
 ### Community 9 - "useMissionControl"
 Cohesion: 0.04
-Nodes (69): bootLabelKeys, CapabilitiesResponse, GatewaySummary, Home(), STEP_KEYS, ChatPanel(), ChatWorkspace(), Dashboard() (+61 more)
+Nodes (81): bootLabelKeys, CapabilitiesResponse, GatewaySummary, Home(), STEP_KEYS, Dashboard(), ChecklistItem, OnboardingChecklistWidget() (+73 more)
 
 ### Community 10 - "denyUnscopedResourceForStrictWorkspace"
-Cohesion: 0.04
-Nodes (85): PATCH(), ALLOWED_COLORS, dynamic, GET(), loadPrefs(), PATCH(), savePrefs(), SessionPref (+77 more)
+Cohesion: 0.03
+Nodes (97): PATCH(), dynamic, GET(), PUT(), readOrder(), canSetMode(), dynamic, GET() (+89 more)
 
-### Community 11 - "hermes/route.ts"
-Cohesion: 0.05
-Nodes (55): zod, allowlistPatternSchema, allowlistUpdateSchema, approvalResponseSchema, computeHash(), execApprovalsPath(), gatewayUrl(), GET() (+47 more)
+### Community 11 - "hermes-tasks.ts"
+Cohesion: 0.31
+Nodes (8): GET(), cachedResult, getHermesCronDir(), getHermesTasks(), HermesCronJob, HermesTaskScanResult, peekLatestOutput(), scanCronJobs()
 
 ### Community 12 - "Changelog"
 Cohesion: 0.06
 Nodes (35): [1.0.0] - 2026-02-15, [1.1.0] - 2026-02-27, [1.2.0] - 2026-03-01, [2.0.0] - 2026-03-11, [2.0.1] - 2026-03-18, [2.1.0] - 2026-07-04, [2.3.0] - 2026-07-25, Added (+27 more)
 
-### Community 13 - "apiFetch"
+### Community 13 - "agent-squad-panel-phase3.tsx"
 Cohesion: 0.04
-Nodes (69): FlySessionStatus(), ClaudeSetup(), CodexSetup(), HermesSetup(), OpenClawSetup(), OpenCodeSetup(), RuntimeSetupModal(), RuntimeSetupModalProps (+61 more)
+Nodes (55): ConnectorsTab(), Inventory, ActivityTab(), Agent, AgentCronJob, ChannelAccountInfo, ChannelEntryInfo, ChannelsTab() (+47 more)
 
-### Community 14 - "api/diagnostics/route.ts"
-Cohesion: 0.09
-Nodes (24): GET(), safeParseJson(), GET(), getAgentInfo(), getDatabaseInfo(), getGatewayInfo(), getSecurityInfo(), getSessionInfo() (+16 more)
+### Community 14 - "login/page.tsx"
+Cohesion: 0.08
+Nodes (24): ConnectionStatus, GATEWAY_URL_PRESETS, GoogleAccountsIdApi, GoogleApi, GoogleCredentialResponse, LoginErrorPayload, LoginPage(), LoginRequestBody (+16 more)
 
-### Community 15 - "react"
-Cohesion: 0.05
-Nodes (60): react, ChatInput(), ChatInputProps, ChatWorkspaceProps, ChatDesktopWorkspace(), formatDateGroup(), groupMessagesByDate(), isGroupedWithPrevious() (+52 more)
-
-### Community 16 - "agent-squad-panel-phase3.tsx"
+### Community 15 - "store/index.ts"
 Cohesion: 0.04
-Nodes (56): ConnectorsTab(), Inventory, ActivityTab(), Agent, AgentCronJob, ChannelAccountInfo, ChannelEntryInfo, ChannelsTab() (+48 more)
+Nodes (73): ChatInput(), ChatInputProps, ChatPanel(), ChatWorkspace(), ChatWorkspaceProps, asRecord(), COLOR_OPTIONS, ConversationList() (+65 more)
 
-### Community 17 - "chat-icons.tsx"
+### Community 16 - "main.mjs"
+Cohesion: 0.12
+Nodes (29): openBackend(), partitionForOrigin(), isLoginPage(), ensureServer(), attachWindow(), createWindow(), failedWindows, locked (+21 more)
+
+### Community 17 - "group-sessions.ts"
+Cohesion: 0.11
+Nodes (22): ChatFilterPopover(), OpenMenu, applyFolderOrder(), mergeFolderOrder(), moveFolder(), parseFolderOrder(), uniqueStrings(), buildSidebarRows() (+14 more)
+
+### Community 18 - "header-bar.tsx"
+Cohesion: 0.06
+Nodes (35): react-dom, ModeBadge(), NavigationLatencyStat(), QUICK_NAV_COMMANDS, SearchResult, AgentSquadPanelPhase3(), getSourceLabel(), PanelTab (+27 more)
+
+### Community 19 - "config"
+Cohesion: 0.06
+Nodes (59): GET(), GET(), POST(), slugify(), POST(), GET(), POST(), DELETE() (+51 more)
+
+### Community 20 - "eventBus"
 Cohesion: 0.10
-Nodes (27): IconArtifacts(), IconChevron(), IconClock(), IconCustomize(), IconDispatch(), IconGrip(), IconPin(), IconPlus() (+19 more)
-
-### Community 18 - "requireRole"
-Cohesion: 0.05
-Nodes (76): DELETE(), POST(), POST(), BACKUP_DIR, DELETE(), GET(), POST(), pruneOldBackups() (+68 more)
-
-### Community 19 - "mutationLimiter"
-Cohesion: 0.04
-Nodes (71): POST(), AlertRule, DELETE(), GET(), POST(), PUT(), ALLOWED_GATEWAY_PATHS, gatewayFetch() (+63 more)
-
-### Community 20 - "adapters/index.ts"
-Cohesion: 0.10
-Nodes (13): AgentRegistration, Assignment, FrameworkAdapter, HeartbeatPayload, queryPendingAssignments(), TaskReport, AutoGenAdapter, ClaudeSdkAdapter (+5 more)
+Nodes (14): AgentRegistration, Assignment, FrameworkAdapter, HeartbeatPayload, queryPendingAssignments(), TaskReport, AutoGenAdapter, ClaudeSdkAdapter (+6 more)
 
 ### Community 21 - "office-panel.tsx"
 Cohesion: 0.05
@@ -471,143 +472,143 @@ Nodes (57): buildPath(), buildWalkabilityGrid(), clamp(), easeInOut(), findGridP
 
 ### Community 22 - "integrations/route.ts"
 Cohesion: 0.11
-Nodes (43): BLOCKED_PREFIXES, BLOCKED_VARS, BuiltinCategory, CATEGORIES, checkCommandAvailable(), checkOllamaReachable(), checkOpAuthenticated(), checkOpAvailable() (+35 more)
+Nodes (43): ref_os, BLOCKED_PREFIXES, BLOCKED_VARS, BuiltinCategory, CATEGORIES, checkCommandAvailable(), checkOllamaReachable(), checkOpAuthenticated() (+35 more)
 
 ### Community 23 - "api/status/route.ts"
-Cohesion: 0.13
-Nodes (25): GET(), getAvailableModels(), getCapabilities(), getDashboardData(), getDbStats(), getGatewayStatus(), getMemorySnapshot(), getSystemStatus() (+17 more)
+Cohesion: 0.16
+Nodes (19): GET(), getAvailableModels(), getCapabilities(), getDashboardData(), getGatewayStatus(), getMemorySnapshot(), getSystemStatus(), healthHttpStatus() (+11 more)
 
 ### Community 24 - "nav-rail.tsx"
 Cohesion: 0.05
 Nodes (7): adminOnlyPanels, gatewayOnlyPanels, groupTranslationKeys, NavGroup, navGroups, NavItem, navItemTranslationKeys
 
-### Community 25 - "settings-panel.tsx"
-Cohesion: 0.05
-Nodes (49): DashboardRegistration, DiagSecurityCheck, modeColors(), OnboardingState, OnboardingWizard(), RuntimeStatusInfo, StepCredentials(), StepGatewayLink() (+41 more)
+### Community 25 - "hermes/route.ts"
+Cohesion: 0.16
+Nodes (16): dataDir, dynamic, extractDeviceAuth(), HOOK_DIR, POST(), formatHermesCommandOutput(), hermesMutationSchema, parseHermesSetupCommand() (+8 more)
 
-### Community 26 - "memory-utils.ts"
-Cohesion: 0.11
-Nodes (23): GET(), mergeContextPayloads(), ConsolidationItem, ConsolidationReport, ContextPayload, extractFrontmatter(), extractSchema(), GapItem (+15 more)
+### Community 26 - "fly-admission.test.ts"
+Cohesion: 0.14
+Nodes (19): flyNumber(), flyReadiness(), FlySubmission, flySubmissionSchema, SubmissionRow, submitFlyLeaf(), flyBudgetPeriods(), flyCommittedSpend() (+11 more)
 
-### Community 27 - "ref_node_child_process"
-Cohesion: 0.27
-Nodes (8): ref_node_child_process, report, result, FleetProjectSpec, expandHome(), gitCount(), inspectRepo(), seedRepoHealthTasks()
+### Community 27 - "mc-cli.cjs"
+Cohesion: 0.13
+Nodes (23): Mission Control desktop, normalizeMissionControlBaseUrl(), bodyFromFlags(), commands, ensureParentDir(), EXIT, fs, handleEventsWatch() (+15 more)
 
-### Community 28 - "chat-session-identity.ts"
+### Community 28 - "chat-desktop-workspace.tsx"
 Cohesion: 0.12
-Nodes (36): conversationsToItems(), gitLensByProject(), GitLensSessionRow, HomeSessionRow, sortNewestFirst(), toGitLensRow(), toHomeSessions(), toSessionItem() (+28 more)
+Nodes (32): plan(), ChatDesktopWorkspace(), ChatMobileBar(), useChatUsage(), projectFromRow(), sendDesktopPrompt(), SessionOpts, useLiveNow() (+24 more)
 
 ### Community 29 - "@playwright/test"
-Cohesion: 0.09
+Cohesion: 0.07
 Nodes (4): @playwright/test, API_KEY_HEADER, stamp, dbPath
 
-### Community 30 - "fly-orchestration-panel.tsx"
-Cohesion: 0.11
-Nodes (24): @testing-library/react, ChatSessionFlyJobs(), FlyActivityTable(), asRecord(), FlowNode(), FlyOrchestrationPanel(), money(), normalize() (+16 more)
+### Community 30 - "mutationLimiter"
+Cohesion: 0.09
+Nodes (38): AlertRule, DELETE(), GET(), POST(), PUT(), DELETE(), DELETE(), GET() (+30 more)
 
 ### Community 31 - "utils.ts"
 Cohesion: 0.10
 Nodes (13): clsx, tailwind-merge, normalizeModel(), Agent, AgentStatus, ChatMessage, ConnectionState, Conversation (+5 more)
 
 ### Community 32 - "security-scan.ts"
-Cohesion: 0.07
-Nodes (56): AgentScanFixRequest, buildSummary(), FixScope, isFixableInScope(), POST(), fixRequestSchema, FixResult, getFailingChecks() (+48 more)
+Cohesion: 0.06
+Nodes (53): AgentScanFixRequest, buildSummary(), FixScope, isFixableInScope(), POST(), FixResult, getFailingChecks(), getRequestHostCandidates() (+45 more)
 
 ### Community 33 - "chat-session-pane.tsx"
 Cohesion: 0.13
-Nodes (24): ChatSessionRow(), ChatSessionPane(), ContextWindowBar(), SessionPrChip(), SessionStatusBar(), SessionThread(), SessionToolRow(), contextPercent() (+16 more)
+Nodes (27): ChatSessionRow(), ChatSessionPane(), ContextWindowBar(), dismissKey(), HandoffBanner(), looksReal(), transcriptExcerpt(), HandoffPicker() (+19 more)
 
 ### Community 34 - "task-dispatch.ts"
-Cohesion: 0.07
-Nodes (65): Fixed, firstExisting(), FleetCliResult, resolveGrokCliPath(), resolveKimiCliPath(), runCli(), runGrokPrompt(), runKimiPrompt() (+57 more)
+Cohesion: 0.06
+Nodes (50): Pattern 7: Stale Task Recovery, dispatchToFly(), AgentResponseParsed, autoRouteInboxTasks(), buildDeferredCompletionMarkers(), buildReviewPrompt(), buildTaskPrompt(), clampCliMaxBudgetUsd() (+42 more)
 
 ### Community 35 - "polled.mjs"
 Cohesion: 0.11
-Nodes (33): ref_node_url, packageFailure(), clearGitCredentials(), withGitAuth(), CHECKS, loadJob(), RUNTIMES, SETUPS (+25 more)
+Nodes (32): packageFailure(), clearGitCredentials(), withGitAuth(), CHECKS, loadJob(), RUNTIMES, SETUPS, text() (+24 more)
 
 ### Community 36 - "engine-logo.tsx"
-Cohesion: 0.11
-Nodes (34): LLM identity system, EngineLogo(), EngineLogoForText(), EngineLogoSet(), LlmLabel(), ChatComposer(), ComposerChips(), ModelPicker() (+26 more)
+Cohesion: 0.14
+Nodes (27): LLM identity system, EngineLogo(), EngineLogoForText(), EngineLogoSet(), LlmLabel(), ChatComposer(), ComposerChips(), ModelPicker() (+19 more)
 
 ### Community 37 - "mc-fly-enroll.py"
 Cohesion: 0.27
 Nodes (12): argparse, fcntl, hashlib, os, command(), enroll_key(), github(), main() (+4 more)
 
 ### Community 38 - "build-app.mjs"
-Cohesion: 0.19
-Nodes (21): build(), stage(), validCache(), buildOptions(), resolveElectron(), exists(), installApp(), publishCandidate() (+13 more)
+Cohesion: 0.18
+Nodes (22): build(), stage(), validCache(), buildOptions(), resolveElectron(), exists(), installApp(), publishCandidate() (+14 more)
 
-### Community 39 - "main.mjs"
-Cohesion: 0.08
-Nodes (43): openBackend(), partitionForOrigin(), isLoginPage(), ensureServer(), ensureService(), ensureServices(), healthStatus(), launchctl() (+35 more)
+### Community 39 - "ref_node_assert"
+Cohesion: 0.14
+Nodes (21): ensureService(), ensureServices(), healthStatus(), launchctl(), serviceTarget(), startService(), BACKEND, GATEWAY (+13 more)
 
 ### Community 40 - "cost-tracker-panel.tsx"
 Cohesion: 0.14
 Nodes (21): AgentsView(), ByAgentEntry, ByAgentModelBreakdown, ByAgentResponse, COLORS, CostTrackerPanel(), formatCost(), formatNumber() (+13 more)
 
-### Community 41 - "chat-display.ts"
+### Community 41 - "permission-connector.ts"
+Cohesion: 0.10
+Nodes (29): PermissionMenu(), IconCheck(), emit(), getSnapshot(), listeners, Snapshot, subscribe(), usePermissionMode() (+21 more)
+
+### Community 42 - "keys/route.ts"
+Cohesion: 0.29
+Nodes (10): AgentKeyRow, AgentRow, ALLOWED_SCOPES, DELETE(), GET(), hashApiKey(), parseExpiry(), parseScopes() (+2 more)
+
+### Community 43 - "desktop-browser-login.ts"
 Cohesion: 0.15
-Nodes (18): messages_en, IconSparkle(), ChatUserFooter(), asFeed(), ChatHomeList(), feedTime(), HomeSessionRow, KIND_KEY (+10 more)
-
-### Community 42 - "workspaces.ts"
-Cohesion: 0.13
-Nodes (26): DELETE(), GET(), POST(), toProjectId(), DELETE(), GET(), normalizePrefix(), PATCH() (+18 more)
-
-### Community 43 - "task-board-panel.tsx"
-Cohesion: 0.08
-Nodes (33): Agent, AgentsResponse, COLOR_PALETTE, mutate(), Project, ProjectManagerModal(), ProjectsResponse, Agent (+25 more)
+Nodes (19): POST(), POST(), approveDesktopBrowserLogin(), authSecret(), consumeDesktopBrowserLogin(), Db, DESKTOP_BROWSER_LOGIN_TTL_SECONDS, DesktopBrowserLoginResult (+11 more)
 
 ### Community 44 - "cron-management-panel.tsx"
 Cohesion: 0.12
 Nodes (24): addDays(), AGENT_COLORS, CalendarViewMode, ClaudeCodeTeamsSection(), CronManagementPanel(), DayJobSummary, extractApiErrorMessage(), formatDateLabel() (+16 more)
 
-### Community 45 - "login/page.tsx"
-Cohesion: 0.06
-Nodes (30): ConnectionStatus, GATEWAY_URL_PRESETS, GoogleAccountsIdApi, GoogleApi, GoogleCredentialResponse, LoginErrorPayload, LoginPage(), LoginRequestBody (+22 more)
+### Community 45 - "apiFetch"
+Cohesion: 0.03
+Nodes (76): ContextSwitcher(), Agent, AgentsResponse, COLOR_PALETTE, mutate(), Project, ProjectManagerModal(), ProjectsResponse (+68 more)
 
-### Community 46 - "fly-reconciler.ts"
-Cohesion: 0.21
-Nodes (13): parseResult(), polledResultSchema, readPolledResult(), recordPolledResult(), settleFlyJob(), expireFlyQueue(), releaseQueuedFlySubmission(), launchMachine() (+5 more)
+### Community 46 - "claude-fleet-rename.ts"
+Cohesion: 0.38
+Nodes (8): hasTable(), NAME_COLUMNS, renameAgentTable(), renameClaudeFleetAgentRows(), renameLooseColumns(), renameProjectAssignments(), RENAMES, rewriteAgentConfig()
 
 ### Community 47 - "webhooks.ts"
-Cohesion: 0.08
-Nodes (35): ref_node_dns, ref_node_http, ref_node_https, ref_node_net, ref_node_stream, port, server, wss (+27 more)
+Cohesion: 0.10
+Nodes (29): ref_node_dns, ref_node_https, ref_node_stream, MAX_WEBHOOK_RESPONSE_BYTES, readLimitedHttpBody(), claimDueWebhookRetry(), DueWebhookRetry, releaseWebhookRetryClaim() (+21 more)
 
-### Community 48 - "scheduler.ts"
-Cohesion: 0.15
-Nodes (28): ref_fs, POST(), syncAgentsFromConfig(), Result, startFlyReconcileLoop(), Task, syncLocalAgents(), syncRuntimeHistory() (+20 more)
+### Community 48 - "db.ts"
+Cohesion: 0.06
+Nodes (39): GET(), handleActivitiesRequest(), handleStatsRequest(), GET(), safeParseJson(), CleanupResult, GET(), getRetentionTargets() (+31 more)
 
-### Community 49 - "widget-primitives.tsx"
-Cohesion: 0.07
-Nodes (48): DashboardGitHubStats, DashboardSystemStats, SIZE_CLASSES, WIDGET_COMPONENTS, WidgetGrid(), ActivityIconMini(), AgentIcon(), ClaudeStats (+40 more)
+### Community 49 - "widget-grid.tsx"
+Cohesion: 0.10
+Nodes (27): SIZE_CLASSES, WIDGET_COMPONENTS, WidgetGrid(), DashboardData, formatBytes(), formatUptime(), HealthRow(), LogRow() (+19 more)
 
 ### Community 50 - "package.json"
-Cohesion: 0.05
-Nodes (36): author, description, keywords, license, name, packageManager, repository, type (+28 more)
+Cohesion: 0.06
+Nodes (35): author, description, keywords, license, name, packageManager, repository, type (+27 more)
 
-### Community 51 - "ref_node_assert"
-Cohesion: 0.12
-Nodes (33): configure(), readPin(), createPinRecord(), createPinThrottle(), credentialsFromEnvironment(), derive(), parseEnvironment(), unquote() (+25 more)
+### Community 51 - "desktop-auth-store.mjs"
+Cohesion: 0.16
+Nodes (24): configure(), readPin(), createPinRecord(), createPinThrottle(), credentialsFromEnvironment(), derive(), parseEnvironment(), unquote() (+16 more)
 
-### Community 52 - "memory-browser-panel.tsx"
-Cohesion: 0.08
-Nodes (25): reagraph, countFiles(), fileIcon(), formatFileSize(), HealthCategory, HealthReport, HealthView(), log (+17 more)
+### Community 52 - "agent-avatar.tsx"
+Cohesion: 0.24
+Nodes (11): AgentAvatar(), AgentAvatarProps, getAvatarColors(), getInitials(), hashString(), logoSize, sizeClasses, AgentBrand (+3 more)
 
-### Community 53 - "chat-usage-tracker.ts"
-Cohesion: 0.15
-Nodes (21): BAR, UsagePopup(), CAPS, extraNeedle(), liveUsageTracker(), modelNeedle(), oldestSince(), sumTokens() (+13 more)
+### Community 53 - "skills/route.ts"
+Cohesion: 0.21
+Nodes (21): auditSkillMutation(), collectSkillsFromDir(), DELETE(), deleteSkill(), dynamic, extractDescription(), GET(), getRootBySource() (+13 more)
 
 ### Community 54 - "websocket.ts"
-Cohesion: 0.07
-Nodes (29): authTokenRef, clearHandshakeTimers(), connectRef, connectSentRef, formatAge(), GatewayFrame, GatewayMessage, gatewaySupportsPingRef (+21 more)
+Cohesion: 0.06
+Nodes (31): cacheDeviceToken(), getCachedDeviceToken(), authTokenRef, clearHandshakeTimers(), connectRef, connectSentRef, formatAge(), GatewayFrame (+23 more)
 
-### Community 55 - "claude-sessions.ts"
-Cohesion: 0.16
-Nodes (13): ref_readline, clampTimestamp(), DEFAULT_PRICING, JSONLEntry, lastSyncResult, MAX_SESSION_FILE_BYTES, MODEL_PRICING, parsedCache (+5 more)
+### Community 55 - "skill-sync.ts"
+Cohesion: 0.17
+Nodes (16): parseSkillDescription(), getTargetDir(), ALIAS_SKILL_SOURCES, envPath(), listExtraSkillRoots(), listSkillRoots(), LOCAL_SKILL_SOURCES, SKILL_INSTALL_TARGETS (+8 more)
 
-### Community 56 - "skill-registry.ts"
-Cohesion: 0.11
-Nodes (29): dynamic, PUT(), VALID_SOURCES, VALID_TARGETS, checkSkillSecurity(), fetchAwesomeIndex(), fetchAwesomeOpenclawSkill(), fetchClawdHubSkill() (+21 more)
+### Community 56 - "memory-utils.ts"
+Cohesion: 0.05
+Nodes (89): GET(), LinkGraph, mergeGraphs(), scanRoots(), withPathPrefix(), POST(), buildFileTree(), DELETE() (+81 more)
 
 ### Community 57 - "gateway-config-panel.tsx"
 Cohesion: 0.12
@@ -625,68 +626,61 @@ Nodes (32): dependencies, better-sqlite3, class-variance-authority, clsx, eslint
 Cohesion: 0.06
 Nodes (32): scripts, api:parity, api:parity:json, artifact:check, artifact:prepare, build, deploy:standalone, desktop:build (+24 more)
 
-### Community 61 - "validation.ts"
-Cohesion: 0.07
-Nodes (40): ref_os, checkToolExists(), discoverOsUsers(), GET(), installToolForUser(), OsUser, POST(), SERVICE_ACCOUNTS (+32 more)
+### Community 61 - "exec-approvals/route.ts"
+Cohesion: 0.20
+Nodes (14): allowlistPatternSchema, allowlistUpdateSchema, approvalResponseSchema, computeHash(), execApprovalsPath(), gatewayUrl(), GET(), getAllowlist() (+6 more)
 
 ### Community 62 - "injection-guard.ts"
 Cohesion: 0.12
-Nodes (27): CONFUSABLES, decodeRot13(), detectRot13(), escapeHtml(), generateDecodingVariants(), GuardOptions, InjectionCategory, InjectionMatch (+19 more)
+Nodes (26): CONFUSABLES, decodeRot13(), detectRot13(), escapeHtml(), generateDecodingVariants(), GuardOptions, InjectionCategory, InjectionMatch (+18 more)
 
-### Community 63 - "api/memory/route.ts"
-Cohesion: 0.20
-Nodes (22): GET(), LinkGraph, mergeGraphs(), scanRoots(), withPathPrefix(), buildFileTree(), DELETE(), GET() (+14 more)
+### Community 63 - "github/route.ts"
+Cohesion: 0.19
+Nodes (18): GET(), handleClose(), handleComment(), handleGitHubStats(), handleInitLabels(), handleStatus(), handleSync(), handleSyncProject() (+10 more)
 
 ### Community 64 - "FlyMachinesClient"
-Cohesion: 0.14
-Nodes (9): Implemented in this change, enabled(), FlyMachineCreateRequest, FlyMachineResponse, FlyMachinesClient, FlyMachinesClientOptions, FlyMachinesError, retryable() (+1 more)
+Cohesion: 0.10
+Nodes (15): Boundaries, Controller split brain (found during validation, now resolved), Fly worker topology decision — September 6, 2026, Implemented in this change, Measured evidence, Post-redeploy validation (2026-09-06 20:09), Remaining cutover step (not applied), Why not per-project apps (+7 more)
 
 ### Community 65 - "dashboard-cli-fleets.ts"
-Cohesion: 0.11
-Nodes (27): buildDashboardView(), getLocalOsStatus(), getMcHealth(), SessionWorkbenchRow(), SessionWorkbenchWidget(), data(), CLI_KIND_META, CLI_SESSION_KINDS (+19 more)
+Cohesion: 0.19
+Nodes (14): FleetStatusWidget(), getSessionSparkline(), SessionWorkbenchRow(), SessionWorkbenchWidget(), data(), cliKindLabel(), cliKindMeta, buildCliFleets() (+6 more)
 
 ### Community 66 - "exec-approval-panel.tsx"
-Cohesion: 0.11
-Nodes (22): emit(), getSnapshot(), listeners, Snapshot, subscribe(), usePermissionMode(), ExecApprovalOverlay(), formatRemaining() (+14 more)
+Cohesion: 0.21
+Nodes (10): AgentAllowlistCard(), AllowlistState, ApprovalCard(), FilterTab, PanelView, RISK_BADGE, RISK_BORDER, timeAgo() (+2 more)
 
 ### Community 67 - "channels-panel.tsx"
 Cohesion: 0.12
 Nodes (24): AccountList(), ActionResult, asRecord(), CardShell(), ChannelAccount, channelIsActive(), ChannelsSnapshot, ChannelStatus (+16 more)
 
-### Community 68 - "permission-connector.ts"
-Cohesion: 0.13
-Nodes (22): PermissionMenu(), ALIASES, ARGV, isBypassMode(), isPermissionRuntime(), MODES, PermissionRuntime, permissionSupport() (+14 more)
+### Community 68 - "chat-display.ts"
+Cohesion: 0.10
+Nodes (29): messages_en, IconSparkle(), ChatUserFooter(), asFeed(), ChatHomeList(), feedTime(), HomeSessionRow, KIND_KEY (+21 more)
 
 ### Community 69 - "handoff/route.ts"
-Cohesion: 0.10
-Nodes (37): dynamic, executeHandoff(), HandoffRequest, makeSpec(), parseBody(), parsedHandoff(), POST(), readReply() (+29 more)
+Cohesion: 0.05
+Nodes (77): dynamic, executeHandoff(), HandoffRequest, makeSpec(), parseBody(), parsedHandoff(), POST(), readReply() (+69 more)
 
 ### Community 70 - "agent-comms-panel.tsx"
 Cohesion: 0.09
 Nodes (25): AggregateEvent, ActivitiesData, activitiesToFeed(), ActivityRecord, AGENT_IDENTITY, AgentCommsPanel(), CATEGORY_META, CommsData (+17 more)
 
-### Community 71 - "agent-sync.ts"
-Cohesion: 0.12
-Nodes (31): GET(), deepMerge(), enrichAgentConfigFromWorkspace(), getConfigPath(), mapAgentToMC(), normalizeAgentConfigForOpenClaw(), normalizeModelConfig(), OpenClawAgent (+23 more)
+### Community 71 - "validation.ts"
+Cohesion: 0.04
+Nodes (65): ref_child_process, GET(), POST(), EXEC_OPTIONS, GET(), log, POST(), GET() (+57 more)
 
-### Community 72 - "mc-provisioner-daemon.js"
-Cohesion: 0.10
-Nodes (25): {
-  COMMAND_TIMEOUT_MS,
-  IDLE_SOCKET_TIMEOUT_MS,
-  MAX_CONNECTIONS,
-  MAX_OUTPUT_BYTES,
-  MAX_REQUEST_BYTES,
-  appendBounded,
-}, escapeRegExp(), { execFileSync, spawn }, fs, GATEWAY_SYSTEMD_TEMPLATE, isSafeHomePath(), isSafeUser(), net (+17 more)
+### Community 72 - "react"
+Cohesion: 0.06
+Nodes (48): react, FlySessionStatus(), useChatFlyJobs(), EMPTY, clearLegacyOrder(), readLegacyOrder(), useFolderOrder(), Activity (+40 more)
 
 ### Community 73 - "mcp-audit.ts"
 Cohesion: 0.14
 Nodes (20): GET(), parsePositiveInteger(), logMcpCall(), McpCallInput, McpCallStats, verifyMcpCallReceipt(), verifyMcpCallReceipts(), canonicalize() (+12 more)
 
-### Community 74 - "session-terminal-cell.tsx"
-Cohesion: 0.21
-Nodes (18): SessionTerminalCell(), terminalCellTitle(), transcriptSubject(), workingDirLeaf(), isCliSessionKind(), normalizeCliKind(), DashboardSession, isAgentWorking() (+10 more)
+### Community 74 - "session-terminal-widget.tsx"
+Cohesion: 0.15
+Nodes (14): SessionTerminalWidget(), TerminalWidgetData, transcripts, DashboardSession, COLUMN_CLASS, gridTerminalSessions(), TERMINAL_GRID_LIMIT, TERMINAL_GRID_SNAPS (+6 more)
 
 ### Community 75 - "openclaw-doctor.ts"
 Cohesion: 0.20
@@ -697,36 +691,36 @@ Cohesion: 0.14
 Nodes (27): activityIcon(), ansi, api(), cleanup(), fetchAgentSessions(), fetchDashboardData(), fetchTranscript(), formatNumber() (+19 more)
 
 ### Community 77 - "claude-fleet-plans.ts"
-Cohesion: 0.24
-Nodes (10): CostFleetPlans(), claudeConfigDirForAgent(), claudeSessionHomes(), CLAUDE_FLEET_PLANS, ClaudeFleetAuthStatus, ClaudeFleetPlanDef, ClaudeFleetPlanIdentity, ClaudeFleetPlanStatus (+2 more)
+Cohesion: 0.26
+Nodes (9): CostFleetPlans(), claudeSessionHomes(), CLAUDE_FLEET_PLANS, ClaudeFleetAuthStatus, ClaudeFleetPlanDef, ClaudeFleetPlanIdentity, ClaudeFleetPlanStatus, claudeFleetPlanTotalUsd() (+1 more)
 
 ### Community 78 - "gnap-sync.ts"
 Cohesion: 0.20
 Nodes (21): GET(), POST(), getGnapStatus(), git(), GNAP_TO_MC_STATUS, gnapStatusToMc(), GnapTask, hasChanges() (+13 more)
 
-### Community 79 - "jev-ui-types.ts"
-Cohesion: 0.16
-Nodes (16): JevAnswerCards(), formatTime(), JevHistory(), src_components_panels_jev_jev_ui_types_jevevaluation, src_components_panels_jev_jev_ui_types_jevrepositorycontext, JevRunResult, src_components_panels_jev_jev_ui_types_jevstate, src_components_panels_jev_jev_ui_types_jevstatus (+8 more)
+### Community 79 - "jev-panel.tsx"
+Cohesion: 0.04
+Nodes (85): Frontend components, @testing-library/react, Answer(), humanize(), JevAnswerCards(), nextAction(), EXAMPLES, JevAssistantHome() (+77 more)
 
 ### Community 80 - "session-list-local.ts"
-Cohesion: 0.24
-Nodes (19): CLI_SESSION_SCAN_LIMIT, isForeignPrefixedSessionId(), getLocalGrokSessions(), getLocalKimiSessions(), mapEngineRow(), activityFields(), formatAge(), formatTokens() (+11 more)
+Cohesion: 0.25
+Nodes (18): CLI_SESSION_SCAN_LIMIT, getLocalGrokSessions(), getLocalKimiSessions(), mapEngineRow(), activityFields(), formatAge(), formatTokens(), getLocalClaudeSessions() (+10 more)
 
-### Community 81 - "header-bar.tsx"
-Cohesion: 0.06
-Nodes (30): react-dom, ModeBadge(), NavigationLatencyStat(), QUICK_NAV_COMMANDS, SearchResult, AgentSquadPanelPhase3(), getSourceLabel(), PanelTab (+22 more)
+### Community 81 - "jev-assistant-service.ts"
+Cohesion: 0.22
+Nodes (15): sanitizeForPrompt(), JevAssistantRequest, buildJevAssistantPrompt(), configurationFromRequest(), containsInjection(), createJevAssistantDraft(), defaults, protectProviderValue() (+7 more)
 
-### Community 82 - "mc-cli.cjs"
-Cohesion: 0.16
-Nodes (20): bodyFromFlags(), commands, ensureParentDir(), EXIT, fs, handleEventsWatch(), httpRequest(), loadProfile() (+12 more)
+### Community 82 - "getDatabase"
+Cohesion: 0.05
+Nodes (83): ref_fs, ref_path, ref_readline, DELETE(), GET(), PUT(), GET(), POST() (+75 more)
 
 ### Community 83 - "workload/route.ts"
-Cohesion: 0.14
-Nodes (20): AgentMetrics, buildAgentMetrics(), buildCapacityMetrics(), buildQueueMetrics(), buildThresholds(), CapacityMetrics, computeRecommendation(), escalate() (+12 more)
+Cohesion: 0.13
+Nodes (21): AgentMetrics, buildAgentMetrics(), buildCapacityMetrics(), buildQueueMetrics(), buildThresholds(), CapacityMetrics, computeRecommendation(), escalate() (+13 more)
 
-### Community 84 - "github-activity.ts"
+### Community 84 - "github-sync-engine.ts"
 Cohesion: 0.17
-Nodes (18): asEvent(), collectGitHubActivity(), fetchRepoEvents(), firstCommitMessage(), GitHubEventLike, GitHubFeedKind, keepNewer(), loadEvents() (+10 more)
+Nodes (20): createIssue(), fetchIssue(), GitHubIssue, ALL_MC_LABELS, ALL_PRIORITY_LABEL_NAMES, ALL_STATUS_LABEL_NAMES, FLEET_AGENT_LABELS, LABEL_PRIORITY_MAP (+12 more)
 
 ### Community 85 - "layout.tsx"
 Cohesion: 0.15
@@ -734,7 +728,7 @@ Nodes (16): Fixed in this pass, next-themes, sonner, src_app_globals, inter, jet
 
 ### Community 86 - "start-e2e-server.mjs"
 Cohesion: 0.09
-Nodes (17): ref_node_process, baseEnv, buildIdPath, children, dataDir, fixtureSource, gatewayPort, mockBinDir (+9 more)
+Nodes (18): ref_node_net, ref_node_process, baseEnv, buildIdPath, children, dataDir, fixtureSource, gatewayPort (+10 more)
 
 ### Community 87 - "gateways/connect/route.ts"
 Cohesion: 0.19
@@ -748,65 +742,72 @@ Nodes (20): GET(), getOnboardingSetting(), ONBOARDING_SETTING_KEYS, OnboardingSe
 Cohesion: 0.11
 Nodes (38): ALLOWED_W, BOARD_COLS, BoardItem, BoardItemKind, BoardState, canPlace(), clampItem(), compactUp() (+30 more)
 
-### Community 90 - "fly/status/route.ts"
-Cohesion: 0.13
-Nodes (23): dynamic, GET(), buildFlyActivity(), flySubmissionStatus(), flyReadiness(), FlySubmission, submitFlyLeaf(), pricedFlyJob() (+15 more)
+### Community 90 - "fly-workers.ts"
+Cohesion: 0.15
+Nodes (19): Read this before touching anything, sleep(), FlyDispatchResult, FlyDispatchTask, flyImageApps(), isFlyWorkerImageRef(), pricedFlyJob(), priceFromFlyHistory() (+11 more)
 
 ### Community 91 - "install.ps1"
 Cohesion: 0.24
 Nodes (19): Get-RandomHex(), Get-RandomPassword(), Get-Source(), New-EnvFile(), Deploy-Docker(), Deploy-Local(), Main(), Stop-WithError() (+11 more)
 
-### Community 92 - "desktop-browser-login.ts"
-Cohesion: 0.15
-Nodes (18): POST(), POST(), approveDesktopBrowserLogin(), authSecret(), Db, DESKTOP_BROWSER_LOGIN_TTL_SECONDS, DesktopBrowserLoginResult, digest() (+10 more)
+### Community 92 - "mc-provisioner-daemon.js"
+Cohesion: 0.11
+Nodes (24): {
+  COMMAND_TIMEOUT_MS,
+  IDLE_SOCKET_TIMEOUT_MS,
+  MAX_CONNECTIONS,
+  MAX_OUTPUT_BYTES,
+  MAX_REQUEST_BYTES,
+  appendBounded,
+}, escapeRegExp(), { execFileSync, spawn }, fs, GATEWAY_SYSTEMD_TEMPLATE, isSafeHomePath(), isSafeUser(), net (+16 more)
 
-### Community 93 - "src/index.ts"
-Cohesion: 0.10
-Nodes (20): zustand, Activity, Agent, ChatMessage, Comment, ConnectionStatus, Conversation, CronJob (+12 more)
+### Community 93 - "models.ts"
+Cohesion: 0.07
+Nodes (30): zustand, Activity, Agent, ChatMessage, Comment, ConnectionStatus, Conversation, CronJob (+22 more)
 
-### Community 94 - "skills/route.ts"
-Cohesion: 0.18
-Nodes (25): assertRealPathWithin(), auditSkillMutation(), collectSkillsFromDir(), DELETE(), deleteSkill(), dynamic, extractDescription(), GET() (+17 more)
+### Community 94 - "skill-registry.ts"
+Cohesion: 0.12
+Nodes (26): dynamic, PUT(), VALID_SOURCES, VALID_TARGETS, fetchAwesomeIndex(), fetchAwesomeOpenclawSkill(), fetchClawdHubSkill(), fetchSkillsShSkill() (+18 more)
 
-### Community 95 - "vault-wiki-graph.ts"
-Cohesion: 0.17
-Nodes (18): GET(), getAgentData(), execDoctor(), execFileAsync, HealthCategory, parseWikiDoctorOutput(), runVaultWikiDoctor(), CatalogRow (+10 more)
+### Community 95 - "graph/route.ts"
+Cohesion: 0.16
+Nodes (20): AgentFileInfo, AgentGraphData, GET(), getAgentData(), execDoctor(), execFileAsync, HealthCategory, parseWikiDoctorOutput() (+12 more)
 
 ### Community 96 - "fetchWithRetry"
 Cohesion: 0.16
 Nodes (15): compareSemver(), GET(), headers, compareSemver(), GET(), canRetryMethod(), FetchRetryPolicy, fetchWithRetry() (+7 more)
 
-### Community 97 - "api/sessions/route.ts"
-Cohesion: 0.07
-Nodes (35): ws, ACTION_RPC_MAP, DeviceAction, GET(), isGatewayReachable(), POST(), VALID_DEVICE_ACTIONS, dynamic (+27 more)
+### Community 97 - "evals/route.ts"
+Cohesion: 0.20
+Nodes (18): GET(), POST(), checkDrift(), convergenceScore(), DriftResult, evalCorrectnessScore(), EvalLayer, evalReasoningCoherence() (+10 more)
 
 ### Community 98 - "super-admin.ts"
 Cohesion: 0.16
 Nodes (19): GET(), POST(), ProvisionJob, Tenant, buildBootstrapPlan(), createTenantAndBootstrapJob(), ensurePort(), getTenantHomeRoot() (+11 more)
 
 ### Community 99 - "proxy.ts"
-Cohesion: 0.21
-Nodes (16): buildMissionControlCsp(), buildNonceRequestHeaders(), addSecurityHeaders(), config, envFlag(), extractApiKeyFromRequest(), getImplicitAllowedHosts(), getRequestHostCandidates() (+8 more)
+Cohesion: 0.18
+Nodes (18): buildMissionControlCsp(), buildNonceRequestHeaders(), LEGACY_MC_SESSION_COOKIE_NAME, MC_SESSION_COOKIE_NAME, addSecurityHeaders(), config, envFlag(), extractApiKeyFromRequest() (+10 more)
 
 ### Community 100 - "desktop/package.json"
 Cohesion: 0.10
 Nodes (18): description, devDependencies, electron, engines, node, main, name, packageManager (+10 more)
 
 ### Community 101 - "agent-runtimes.ts"
-Cohesion: 0.08
-Nodes (49): ref_node_crypto, GET(), POST(), VALID_MODES, VALID_RUNTIMES, DeploymentMode, detectAllRuntimes(), detectOpenClaw() (+41 more)
+Cohesion: 0.07
+Nodes (51): GET(), POST(), VALID_MODES, VALID_RUNTIMES, DeploymentMode, detectAllRuntimes(), detectBinary(), detectClaude() (+43 more)
 
-### Community 102 - "session-transcript-route.ts"
-Cohesion: 0.15
-Nodes (22): findClaudeTranscriptFile(), readClaudeTranscript(), contentParts(), findCodexTranscriptFile(), parseCodexTranscriptLines(), readCodexTranscript(), rec(), epochSecondsToISO() (+14 more)
+### Community 102 - "Jev Workspace Product Requirements"
+Cohesion: 0.17
+Nodes (11): Backend components, Deferred batch scope, Information architecture, Jev Workspace Product Requirements, Outcome, Primary flow, Question behavior, Repository context (+3 more)
 
-### Community 103 - "runtime-history.ts"
-Cohesion: 0.18
-Nodes (15): asNumber(), asObject(), asString(), clampTimestamp(), GrokSessionStats, listSummaryFiles(), parseSummary(), scanGrokSessions() (+7 more)
+### Community 103 - "grok-sessions.ts"
+Cohesion: 0.39
+Nodes (8): asNumber(), asObject(), asString(), clampTimestamp(), GrokSessionStats, listSummaryFiles(), parseSummary(), scanGrokSessions()
 
 ### Community 104 - "local-session-list.ts"
 Cohesion: 0.27
-Nodes (14): flagsFor(), formatAge(), formatTokens(), fromClaudeRow(), fromScanner(), listNormalizedLocalSessions(), formatAge(), formatTokens() (+6 more)
+Nodes (15): flagsFor(), formatAge(), formatTokens(), fromClaudeRow(), fromScanner(), listNormalizedLocalSessions(), formatAge(), formatTokens() (+7 more)
 
 ### Community 105 - "Mission Control Style Guide"
 Cohesion: 0.07
@@ -821,40 +822,40 @@ Cohesion: 0.33
 Nodes (17): check_openclaw(), check_prerequisites(), command_exists(), detect_os(), die(), err(), fetch_source(), info() (+9 more)
 
 ### Community 108 - "runCommand"
-Cohesion: 0.12
-Nodes (27): ref_node_events, DEFAULT_INSTALL_PATHS, dynamic, GET(), getConfiguredFlightDeckPath(), getFlightDeckBaseUrl(), getFlightDeckLaunchUrl(), isInstalled() (+19 more)
+Cohesion: 0.13
+Nodes (20): ref_node_events, cpuTotals(), GET(), getCpuSnapshot(), getDiskSnapshot(), getGpuSnapshot(), getMemorySnapshot(), getNetworkSnapshot() (+12 more)
 
 ### Community 109 - "recurring-tasks.ts"
 Cohesion: 0.18
 Nodes (13): GET(), formatDateSuffix(), isSubDailyCron(), MONTHS, RecurrenceMetadata, spawnRecurringTasks(), DAY_MAP, isCronDue() (+5 more)
 
-### Community 110 - "skill-sync.ts"
-Cohesion: 0.21
-Nodes (12): parseSkillDescription(), ALIAS_SKILL_SOURCES, envPath(), listSkillRoots(), LOCAL_SKILL_SOURCES, SKILL_INSTALL_TARGETS, SkillRoot, DiskSkill (+4 more)
+### Community 110 - "ref_node_child_process"
+Cohesion: 0.18
+Nodes (17): ref_node_child_process, firstExisting(), FleetCliResult, resolveGrokCliPath(), resolveKimiCliPath(), runCli(), runGrokPrompt(), runKimiPrompt() (+9 more)
 
-### Community 111 - "jev-repository.ts"
-Cohesion: 0.20
-Nodes (15): createJevPolicy(), Db, deleteJevPolicy(), evaluationFromRow(), getJevPolicy(), JevRecordError, listJevEvaluations(), listJevPolicies() (+7 more)
+### Community 111 - "gateways/health/route.ts"
+Cohesion: 0.24
+Nodes (12): BLOCKED_HOSTNAMES, BLOCKED_PRIVATE_CIDRS, buildGatewayProbeUrl(), ensureGatewaysTable(), GatewayEntry, hasOpenClaw32ToolsProfileRisk(), HealthResult, ipv4InCidr() (+4 more)
 
 ### Community 112 - "api-contract-parity.ts"
 Cohesion: 0.20
 Nodes (17): collectOpenApiOperations(), collectRouteOperations(), compareApiContractParity(), ContractOperation, extractHttpMethods(), HTTP_METHODS, loadOpenApiFile(), normalizeOperation() (+9 more)
 
 ### Community 113 - "cli-inventory.ts"
-Cohesion: 0.22
-Nodes (17): GET(), AgentInventory, inventoryForAgent(), inventoryLooksSafe(), runtimeOf(), jsonKeys(), listClaudeMcp(), listCodexAutomations() (+9 more)
+Cohesion: 0.27
+Nodes (14): GET(), AgentInventory, inventoryForAgent(), inventoryLooksSafe(), runtimeOf(), jsonKeys(), listClaudeMcp(), listCodexAutomations() (+6 more)
 
 ### Community 114 - "device-identity.ts"
-Cohesion: 0.20
-Nodes (18): cacheDeviceToken(), clearDeviceIdentity(), createNewIdentity(), DeviceIdentity, fromBase64Url(), getCachedDeviceToken(), getOrCreateDeviceIdentity(), idbDeleteKey() (+10 more)
+Cohesion: 0.23
+Nodes (16): clearDeviceIdentity(), createNewIdentity(), DeviceIdentity, fromBase64Url(), getOrCreateDeviceIdentity(), idbDeleteKey(), idbGetKey(), idbPutKey() (+8 more)
 
 ### Community 115 - "compilerOptions"
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+10 more)
 
-### Community 116 - "github.ts"
-Cohesion: 0.23
-Nodes (13): POST(), slugify(), createLabel(), createPullRequest(), createRef(), ensureLabels(), getRef(), githubFetch() (+5 more)
+### Community 116 - "session-thread.tsx"
+Cohesion: 0.12
+Nodes (16): react-markdown, remark-gfm, IconClose(), SessionArtifactPanel(), SessionPlanPanel(), SessionPrChip(), SessionThread(), SessionToolRow() (+8 more)
 
 ### Community 117 - "devDependencies"
 Cohesion: 0.11
@@ -864,65 +865,65 @@ Nodes (18): devDependencies, fast-check, jsdom, pino-pretty, @playwright/test, @
 Cohesion: 0.26
 Nodes (14): dynamic, GET(), listAdapters(), AGENT_TEMPLATES, FRAMEWORK_REGISTRY, FrameworkConnectionConfig, FrameworkInfo, getFrameworkInfo() (+6 more)
 
-### Community 119 - "keys/route.ts"
-Cohesion: 0.11
-Nodes (18): ref_crypto, AgentKeyRow, AgentRow, ALLOWED_SCOPES, DELETE(), GET(), hashApiKey(), parseExpiry() (+10 more)
+### Community 119 - "memory-browser-panel.tsx"
+Cohesion: 0.08
+Nodes (25): reagraph, countFiles(), fileIcon(), formatFileSize(), HealthCategory, HealthReport, HealthView(), log (+17 more)
 
 ### Community 120 - "agent-templates.ts"
 Cohesion: 0.12
 Nodes (17): AgentIdentityConfig, AgentMemorySearchConfig, AgentModelConfig, AgentSandboxConfig, AgentSubagentsConfig, AgentTemplate, AgentToolsConfig, COMMON_DENY (+9 more)
 
-### Community 121 - "github-sync-engine.ts"
-Cohesion: 0.17
-Nodes (20): createIssue(), fetchIssue(), GitHubIssue, ALL_MC_LABELS, ALL_PRIORITY_LABEL_NAMES, ALL_STATUS_LABEL_NAMES, FLEET_AGENT_LABELS, LABEL_PRIORITY_MAP (+12 more)
+### Community 121 - "flight-deck/route.ts"
+Cohesion: 0.40
+Nodes (9): DEFAULT_INSTALL_PATHS, dynamic, GET(), getConfiguredFlightDeckPath(), getFlightDeckBaseUrl(), getFlightDeckLaunchUrl(), isInstalled(), POST() (+1 more)
 
-### Community 122 - "split-pane-layout.tsx"
-Cohesion: 0.24
-Nodes (8): getLayoutMode(), LAYOUT_CLASSES, LayoutMode, SplitPane, SplitPaneLayout(), SplitPaneLayoutProps, TerminalToolbar(), TerminalToolbarProps
+### Community 122 - "button.tsx"
+Cohesion: 0.03
+Nodes (69): next-intl, log, Props, State, ContentRouter(), ESSENTIAL_PANELS, routedContent(), FeedItem() (+61 more)
 
-### Community 123 - "next"
-Cohesion: 0.06
-Nodes (51): next, GET(), handleActivitiesRequest(), handleStatsRequest(), dynamic, VALID_ROLES, dynamic, dynamic (+43 more)
+### Community 123 - "requireRole"
+Cohesion: 0.03
+Nodes (122): dynamic, GET(), POST(), GET(), GET(), POST(), DELETE(), POST() (+114 more)
 
 ### Community 124 - "pty-websocket.ts"
-Cohesion: 0.18
-Nodes (15): ref_http, http, path, PORT, server, standaloneDir, getPtySession(), handlePtyUpgrade() (+7 more)
+Cohesion: 0.17
+Nodes (16): ref_http, http, path, PORT, server, standaloneDir, createPtySession(), getPtySession() (+8 more)
 
-### Community 125 - "mc-mcp-server.cjs"
-Cohesion: 0.15
-Nodes (17): ref_node_readline, normalizeMissionControlBaseUrl(), api(), CAPABILITIES, fs, handleMessage(), loadConfig(), main() (+9 more)
-
-### Community 126 - "conversation-list.tsx"
+### Community 125 - "ref_node_crypto"
 Cohesion: 0.12
-Nodes (22): asRecord(), COLOR_OPTIONS, ConversationList(), renderConversationItem(), ConversationListProps, log, readNumber(), readSessionPrefs() (+14 more)
+Nodes (25): ref_node_crypto, canonicalJson(), hashJevCloudPayload(), Db, getJevCloudQueueStatus(), JevCloudEvent, jsonFields, prepareJevCloudPayload() (+17 more)
+
+### Community 126 - "mc-mcp-server.cjs"
+Cohesion: 0.16
+Nodes (16): ref_node_readline, api(), CAPABILITIES, fs, handleMessage(), loadConfig(), main(), makeError() (+8 more)
 
 ### Community 127 - "nodes-panel.tsx"
 Cohesion: 0.17
 Nodes (15): deviceAction(), DeviceTokenSummary, InstancesTab(), NodesPanel(), PairedDevice, PairedDevicesSection(), handleRevokeToken(), handleRotateToken() (+7 more)
 
 ### Community 128 - "opencode-sessions.ts"
-Cohesion: 0.20
-Nodes (16): detectOpenCode(), asNumber(), asObject(), asString(), getOpenCodeBinaryCandidates(), getOpenCodeExecutable(), getOpenCodeVersion(), isOpenCodeInstalled() (+8 more)
-
-### Community 129 - "artifact/route.ts"
-Cohesion: 0.27
-Nodes (8): allowedFile(), dynamic, GET(), SessionArtifactPanel(), SESSION_ID_RE, extractSessionArtifacts(), latestArtifact(), SessionArtifact
-
-### Community 130 - "session-terminal-widget.tsx"
 Cohesion: 0.14
-Nodes (13): SessionTerminalWidget(), TerminalWidgetData, transcripts, COLUMN_CLASS, gridTerminalSessions(), TERMINAL_GRID_LIMIT, TERMINAL_GRID_SNAPS, terminalGridClass() (+5 more)
+Nodes (23): detectOpenCode(), asNumber(), asObject(), asString(), epochMsToIso(), getOpenCodeBinaryCandidates(), getOpenCodeDbCandidates(), getOpenCodeVersion() (+15 more)
 
-### Community 131 - "claude-transcript.ts"
-Cohesion: 0.23
-Nodes (13): keepLastArtifact(), parseClaudeTranscriptLines(), parseUser(), assistantParts(), attachToolResults(), dedupeConsecutiveText(), rec(), toolInputBody() (+5 more)
+### Community 129 - "dashboard.tsx"
+Cohesion: 0.22
+Nodes (11): buildDashboardView(), DashboardRequest, REQUEST_LABELS, DashboardGitHubStats, DashboardSystemStats, ClaudeStats, DbStats, getLocalOsStatus() (+3 more)
 
-### Community 132 - "memory-search.ts"
+### Community 130 - "fly-reconciler.ts"
+Cohesion: 0.15
+Nodes (21): dynamic, GET(), buildFlyActivity(), flySubmissionStatus(), FLY_LAUNCH_BATCH_SIZE, FLY_RECONCILE_INTERVAL_MS, flyCapacity(), flyLaunchRegions() (+13 more)
+
+### Community 131 - "session-transcript-route.ts"
+Cohesion: 0.07
+Nodes (53): allowedFile(), dynamic, GET(), dynamic, GET(), findClaudeTranscriptFile(), keepLastArtifact(), parseClaudeTranscriptLines() (+45 more)
+
+### Community 132 - "chat-session-map.ts"
 Cohesion: 0.25
-Nodes (16): GET(), POST(), rebuildFleetMemoryIndex(), searchFleetMemory(), ensureFtsTable(), ensureIndex(), extractTitle(), indexFile() (+8 more)
+Nodes (12): ENGINE_LABELS, asKind(), asRecord(), kindLabel(), mapProviderSessions(), readNumber(), readSessionPrefs(), readSessions() (+4 more)
 
-### Community 133 - "rate-limit.ts"
-Cohesion: 0.06
-Nodes (39): dynamic, GET(), POST(), GET(), POST(), admitLimiter, dynamic, POST() (+31 more)
+### Community 133 - "claude-code-sessions.ts"
+Cohesion: 0.25
+Nodes (11): AgentSessionRow, assertSessionOwnedByAgent(), auditClaudeSessionDispatch(), ClaudeBaseSession, ensureClaudeBaseSession(), isValidClaudeSessionId(), markClaudeBaseSessionMaterialized(), readAgentSessionRow() (+3 more)
 
 ### Community 134 - "ref_node_module"
 Cohesion: 0.13
@@ -935,21 +936,21 @@ Nodes (9): ref_node_module, {
   appendBounded,
 }, require (+1 more)
 
-### Community 135 - "session-transcript-types.ts"
-Cohesion: 0.19
-Nodes (18): asObject(), findSessionDir(), isoFromUnknown(), readGrokTranscript(), epochMsToIso(), getOpenCodeDbCandidates(), fallbackParts(), mapRole() (+10 more)
+### Community 135 - "jev-assistant-schema.ts"
+Cohesion: 0.21
+Nodes (9): error(), exceedsJsonDepth(), validateJevAssistantRequest(), clarificationOptionSchema, JEV_ASSISTANT_OUTPUT_JSON_SCHEMA, jevAssistantDraftSchema, jevAssistantRequestSchema, jevClarificationSchema (+1 more)
 
-### Community 136 - "renderDashboard"
+### Community 136 - "jev-context.ts"
+Cohesion: 0.31
+Nodes (12): buildJevRepositoryContext(), git(), inside(), languageSummary(), projectRoot(), ProjectRow, readBoundedText(), redactContext() (+4 more)
+
+### Community 137 - "renderDashboard"
 Cohesion: 0.42
 Nodes (12): getTermSize(), pad(), priorityColor(), renderAgentDetail(), renderAgentsList(), renderDashboard(), renderTaskDetail(), renderTasksList() (+4 more)
 
-### Community 137 - "session-continue-model.ts"
-Cohesion: 0.52
-Nodes (5): continueEffort(), continueModelId(), lastSegment(), providerForKind(), safeModelId()
-
-### Community 138 - "session-archive.ts"
-Cohesion: 0.22
-Nodes (16): archivePath(), archiveSessionMeta(), archiveSessionTranscript(), ArchivedSessionRow, ensureSessionTranscriptsTable(), indexSessionArchives(), listArchivedSessions(), readArchivedTranscript() (+8 more)
+### Community 138 - "lib/config.ts"
+Cohesion: 0.13
+Nodes (25): defaultDataDir, defaultMemoryDir, defaultOpenClawStateDir, loadConfigWithEnv(), resolveWithin(), archiveListedSessions(), archivePath(), archiveSessionMeta() (+17 more)
 
 ### Community 139 - "rail-width.ts"
 Cohesion: 0.29
@@ -959,17 +960,17 @@ Nodes (11): ChatShell(), HandleProps, useRailResize(), clampRailWidth(), RAIL_DE
 Cohesion: 0.17
 Nodes (15): AVAILABLE_EVENTS, CreateWebhookForm(), Delivery, isWebhookTransportFailure(), SchedulerResult, SchedulerTask, Webhook, webhookErrorPayload() (+7 more)
 
-### Community 141 - "fly-reservations.ts"
-Cohesion: 0.12
-Nodes (24): flyNumber(), flyBudgetPeriods(), flyCommittedSpend(), FLY_LAUNCH_BATCH_SIZE, FLY_RECONCILE_INTERVAL_MS, flyCapacity(), flyLaunchRegions(), flyWorkerLimit() (+16 more)
+### Community 141 - "fly-fairness.test.ts"
+Cohesion: 0.26
+Nodes (9): flyFairOrder(), FlyQueuedRow, flyQueueIsContended(), flyRepositoryDailyCap(), flyRepositorySpendToday(), ratio(), repositoryOf(), share() (+1 more)
 
-### Community 142 - "session-continue-run.ts"
-Cohesion: 0.31
-Nodes (12): permissionArgv(), ContinueBusyError, ContinueKind, HostMode, runClaude(), runCodex(), runSessionContinue(), sessionJsonlMtime() (+4 more)
+### Community 142 - "cron-occurrences.ts"
+Cohesion: 0.29
+Nodes (10): buildDayKey(), CronOccurrence, getCronOccurrences(), matchesDay(), normalizeCronExpression(), parseCron(), ParsedCron, ParsedField (+2 more)
 
 ### Community 143 - "websocket-utils.ts"
-Cohesion: 0.26
-Nodes (13): buildProtocolNegotiation(), calculateBackoff(), calculateReconnectDelay(), ConnectErrorDetailCodes, detectSequenceGap(), GATEWAY_OPERATOR_SCOPES, GatewayErrorDetail, isNonRetryableErrorCode() (+5 more)
+Cohesion: 0.29
+Nodes (12): buildProtocolNegotiation(), calculateBackoff(), calculateReconnectDelay(), ConnectErrorDetailCodes, detectSequenceGap(), GatewayErrorDetail, isNonRetryableErrorCode(), NON_RETRYABLE_ERROR_CODES (+4 more)
 
 ### Community 144 - "mc-fly-contract.test.cjs"
 Cohesion: 0.30
@@ -980,16 +981,16 @@ Cohesion: 0.16
 Nodes (12): assertStatus(), baseUrl, call(), headers, run(), authUser(), denyUnscopedResourceMock, getAgentWorkspaceCandidatesMock (+4 more)
 
 ### Community 146 - "tokens/route.ts"
-Cohesion: 0.05
-Nodes (69): calculateStats(), DbTokenUsageRow, dedupeTokenRecords(), deriveFromSessions(), ExportData, extractAgentName(), filterByTimeframe(), GET() (+61 more)
+Cohesion: 0.06
+Nodes (60): calculateStats(), DbTokenUsageRow, dedupeTokenRecords(), deriveFromSessions(), ExportData, extractAgentName(), filterByTimeframe(), GET() (+52 more)
 
 ### Community 147 - "Deployment Guide"
 Cohesion: 0.14
 Nodes (14): Agent Registration, Architecture, Deployment Guide, Environment Variables, Health Checks, Kubernetes Sidecar Deployment, macOS, Next Steps (+6 more)
 
-### Community 148 - "ref_path"
-Cohesion: 0.12
-Nodes (13): ref_path, PANELS, cachedResult, ClaudeCodeScanResult, ClaudeCodeTask, ClaudeCodeTeam, safeParse(), scanClaudeCodeTasks() (+5 more)
+### Community 148 - "gateway-config/route.ts"
+Cohesion: 0.07
+Nodes (44): fast-check, applyConfig(), computeHash(), gatewayHeaders(), gatewayUrl(), GET(), getConfigPath(), getSchema() (+36 more)
 
 ### Community 149 - "coordinator-routing.ts"
 Cohesion: 0.35
@@ -1015,21 +1016,21 @@ Nodes (10): getAdapter(), mockBroadcast, mockQuery, simulateAdapterAction(), ALL
 Cohesion: 0.27
 Nodes (12): ALLOWED_SECTIONS, buildActivityBreakdown(), buildErrorAnalysis(), buildSummary(), buildTaskMetrics(), buildTokenMetrics(), buildTrendAlerts(), buildTrends() (+4 more)
 
-### Community 155 - "docs-knowledge.ts"
-Cohesion: 0.30
-Nodes (14): allowedRoots(), buildTreeFrom(), DOC_ROOT_CANDIDATES, DocsTreeNode, getDocsTree(), isDocsPathAllowed(), isSearchable(), isWithinBase() (+6 more)
+### Community 155 - "pipeline-tab.tsx"
+Cohesion: 0.11
+Nodes (16): Agent, emptyForm, isOrchestrationNetworkFailure(), OrchestrationBar(), orchestrationError(), TemplateFormData, WorkflowTemplate, isPipelineNetworkFailure() (+8 more)
 
-### Community 156 - "github-pulls-api.ts"
-Cohesion: 0.21
-Nodes (14): ChatGitHubItem, fetchPullRequests(), src_lib_github_getgithubtoken, emptyFeed(), handleGitHubPulls(), projectRepos(), collectPullRequests(), mapPull() (+6 more)
+### Community 156 - "rate-limit.ts"
+Cohesion: 0.05
+Nodes (42): POST(), admitLimiter, dynamic, POST(), GET(), Timeframe, TIMEFRAME_SECONDS, GET() (+34 more)
 
 ### Community 157 - "message-bubble.tsx"
 Cohesion: 0.25
 Nodes (11): AGENT_COLORS, asRecord(), formatTime(), getAgentTheme(), MessageBubble(), MessageBubbleProps, renderContent(), ToolCallBubble() (+3 more)
 
-### Community 158 - "github/route.ts"
-Cohesion: 0.26
-Nodes (14): GET(), handleClose(), handleComment(), handleGitHubStats(), handleInitLabels(), handleStatus(), handleSync(), handleSyncProject() (+6 more)
+### Community 158 - "chat-fly-jobs.ts"
+Cohesion: 0.36
+Nodes (6): ChatSessionFlyJobs(), flyJobsComplete(), jobsForSession(), SessionFlyJob, sessionMatchesFly(), withSessionFlyJobs()
 
 ### Community 159 - "openclaw-doctor-banner.tsx"
 Cohesion: 0.23
@@ -1039,61 +1040,57 @@ Nodes (8): BannerState, OpenClawDoctorBanner(), OpenClawDoctorFixProgress, OpenC
 Cohesion: 0.31
 Nodes (10): AlertRule, compareValue(), countThreshold(), evaluateAgentRule(), evaluateAllRules(), evaluateCountRule(), evaluateRule(), SAFE_COLUMNS (+2 more)
 
-### Community 161 - "claude-code-sessions.ts"
-Cohesion: 0.25
-Nodes (10): AgentSessionRow, assertSessionOwnedByAgent(), auditClaudeSessionDispatch(), ClaudeBaseSession, ensureClaudeBaseSession(), isValidClaudeSessionId(), markClaudeBaseSessionMaterialized(), readAgentSessionRow() (+2 more)
+### Community 161 - "security-scan-card.tsx"
+Cohesion: 0.13
+Nodes (15): Category, CATEGORY_LABELS, Check, CheckSeverity, FIX_SAFETY, FIXABLE_IDS, FixResponse, FixSafety (+7 more)
 
-### Community 162 - "codex-sessions.ts"
-Cohesion: 0.29
-Nodes (12): asNumber(), asObject(), asString(), clampTimestamp(), CodexSessionStats, deriveSessionId(), extractCodexUserText(), listRecentCodexSessionFiles() (+4 more)
+### Community 162 - "runtime-history.ts"
+Cohesion: 0.16
+Nodes (18): asNumber(), asObject(), asString(), clampTimestamp(), CodexSessionStats, deriveSessionId(), extractCodexUserText(), listRecentCodexSessionFiles() (+10 more)
 
 ### Community 163 - "kimi-sessions.ts"
-Cohesion: 0.21
-Nodes (19): asObject(), asString(), clampTimestamp(), isKimiClawPath(), KimiSessionStats, parseIndexLine(), parseState(), scanKimiSessions() (+11 more)
+Cohesion: 0.18
+Nodes (18): asObject(), asString(), clampTimestamp(), isKimiClawPath(), KimiSessionStats, parseIndexLine(), parseState(), scanKimiSessions() (+10 more)
 
 ### Community 164 - "package-manager-patches/package.json"
 Cohesion: 0.17
 Nodes (11): brace-expansion, ip-address, tar, dependencies, brace-expansion, ip-address, tar, description (+3 more)
 
-### Community 165 - "handoff-banner.tsx"
+### Community 165 - "cli-session-kinds.ts"
 Cohesion: 0.16
-Nodes (13): react-markdown, remark-gfm, IconClose(), dismissKey(), HandoffBanner(), looksReal(), transcriptExcerpt(), SessionPlanPanel() (+5 more)
+Nodes (15): CLI_KIND_META, CLI_SESSION_KINDS, CliSessionKind, isCliSessionKind(), isForeignPrefixedSessionId(), localSessionLogs(), mergeRecentLogs(), SessionLogLike (+7 more)
 
 ### Community 166 - "fleet-agents.ts"
-Cohesion: 0.22
-Nodes (14): Recovery archive, 2026-09-07, Restoring from the archive, The two entries that are not simply superseded, What the archive holds, AdaptiveHandoffPin, asFleetAgentName(), canonicalFleetAgentName(), FLEET_AGENT_ALIASES (+6 more)
+Cohesion: 0.20
+Nodes (14): Recovery archive, 2026-09-07, Restoring from the archive, The two entries that are not simply superseded, What the archive holds, SessionFilterBar(), SessionFilterState, asFleetAgentName(), canonicalFleetAgentName() (+6 more)
 
 ### Community 167 - "Orchestration Patterns"
 Cohesion: 0.08
-Nodes (25): API, Capacity Control, CLI, Combining Patterns, Event Streaming, Example: Research → Implement → Review, Flow, How Aegis Reviews (+17 more)
+Nodes (24): API, Capacity Control, CLI, Combining Patterns, Event Streaming, Example: Research → Implement → Review, Flow, How Aegis Reviews (+16 more)
 
-### Community 168 - "handoff-brief.ts"
-Cohesion: 0.33
-Nodes (9): buildHandoffBrief(), HANDOFF_BRIEF_MAX, prsOf(), textOf(), toolsOf(), filesTouched(), redactSecrets(), buildHandoffPrompt() (+1 more)
+### Community 168 - "Troubleshooting"
+Cohesion: 0.18
+Nodes (11): AUTH_PASS with "#" is not working, Database locked errors, Docker: gateway unreachable / WebSocket not connecting, "Gateway error: device identity required", "Gateway error: origin not allowed", "Gateway shows offline on VPS deployment", "Internal server error" on login / NODE_MODULE_VERSION mismatch, "Invalid ELF header" or "Mach-O" errors (+3 more)
 
 ### Community 169 - "hook-profiles.ts"
 Cohesion: 0.30
 Nodes (10): getActiveProfile(), getRateLimitMultiplier(), HookProfile, HookProfileLevel, PROFILES, shouldAuditMcpCalls(), shouldBlockOnSecretDetection(), shouldScanSecrets() (+2 more)
 
-### Community 170 - "createTestAgent"
-Cohesion: 0.20
-Nodes (4): createTestAgent(), createTestProject(), deleteTestAgent(), deleteTestProject()
-
-### Community 171 - "pipeline-tab.tsx"
-Cohesion: 0.11
-Nodes (16): Agent, emptyForm, isOrchestrationNetworkFailure(), OrchestrationBar(), orchestrationError(), TemplateFormData, WorkflowTemplate, isPipelineNetworkFailure() (+8 more)
+### Community 171 - "Production (Docker)"
+Cohesion: 0.18
+Nodes (11): Direct API dispatch (gateway-free), Gateway Connectivity from Docker, Host hardening (Ubuntu quick actions), Local Security Scan Expectations (HTTP dev vs HTTPS prod), Mode-aware Make workflow (minimal commands), Persistent Data, Production (Docker), Production Hardening (+3 more)
 
 ### Community 172 - "check-api-contract-parity.mjs"
 Cohesion: 0.35
 Nodes (10): extractHttpMethods(), HTTP_METHODS, normalizeOperation(), normalizeSegment(), parseArgs(), parseIgnoreArg(), routeFileToApiPath(), run() (+2 more)
 
 ### Community 173 - "api/health/route.ts"
-Cohesion: 0.33
-Nodes (5): GET(), GET, STANDALONE_BRAND_LOGO, standaloneReleaseIntact(), { getDatabaseMock, standaloneReleaseIntactMock }
+Cohesion: 0.27
+Nodes (6): GET(), GET, STANDALONE_BRAND_LOGO, standaloneReleaseIntact(), { getDatabaseMock, standaloneReleaseIntactMock }, dirs
 
-### Community 174 - "provision-jobs/[id]/route.ts"
-Cohesion: 0.33
-Nodes (8): GET(), POST(), appendProvisionEvent(), buildDecommissionPlan(), createTenantDecommissionJob(), getProvisionJob(), ProvisionJobAction, transitionProvisionJobStatus()
+### Community 174 - "gateway-runtime.ts"
+Cohesion: 0.21
+Nodes (14): acquireFileLockSync(), processIsAlive(), removeDeadLock(), dashboardOriginAliases(), getDetectedGatewayToken(), OpenClawGatewayConfig, readOpenClawConfig(), registerMcAsDashboard() (+6 more)
 
 ### Community 175 - "channels/route.ts"
 Cohesion: 0.20
@@ -1103,10 +1100,6 @@ Nodes (16): commandStdout(), errorMessage(), gatewayHeaders(), GET(), isGatewayR
 Cohesion: 0.08
 Nodes (24): Agent lifecycle and operator UX, Agents, sessions, chat, and comms, Broader agent observability, Core platform and mode handling, Deployment and runtime hardening, Detailed Fix Areas, Detailed Functional Additions, Dual-mode operation (+16 more)
 
-### Community 177 - "PtySession"
-Cohesion: 0.27
-Nodes (3): node-pty, disposePtySession(), PtySession
-
 ### Community 178 - "unlock-renderer.mjs"
 Cohesion: 0.22
 Nodes (9): accountButton, message, messages, pinForm, pinInput, separator, setBusy(), touchButton (+1 more)
@@ -1115,29 +1108,29 @@ Nodes (9): accountButton, message, messages, pinForm, pinInput, separator, setBu
 Cohesion: 0.24
 Nodes (9): Next steps, ref_node_util, CLI, execFileAsync, mc(), MCP, mcpCall(), mcpRequest() (+1 more)
 
-### Community 180 - "attribution/route.ts"
-Cohesion: 0.40
-Nodes (9): ALLOWED_SECTIONS, buildAuditTrail(), buildCostAttribution(), buildIdentity(), buildMutations(), GET(), parseHours(), parseSections() (+1 more)
+### Community 180 - "provision-jobs/[id]/route.ts"
+Cohesion: 0.27
+Nodes (9): GET(), POST(), POST(), appendProvisionEvent(), buildDecommissionPlan(), createTenantDecommissionJob(), getProvisionJob(), ProvisionJobAction (+1 more)
 
-### Community 181 - "gateway-config/route.ts"
-Cohesion: 0.24
-Nodes (14): applyConfig(), computeHash(), gatewayHeaders(), gatewayUrl(), GET(), getConfigPath(), getSchema(), PUT() (+6 more)
+### Community 181 - "terminal-view.tsx"
+Cohesion: 0.13
+Nodes (11): getLayoutMode(), LAYOUT_CLASSES, LayoutMode, SplitPane, SplitPaneLayout(), SplitPaneLayoutProps, TerminalToolbar(), TerminalToolbarProps (+3 more)
 
-### Community 182 - "group-sessions.ts"
-Cohesion: 0.11
-Nodes (21): ChatFilterPopover(), OpenMenu, readJson(), useChatDesktopPrefs(), parsePins(), isEffortLevel(), buildSidebarRows(), ChatFilterState (+13 more)
+### Community 182 - "next"
+Cohesion: 0.06
+Nodes (76): next, zod, GET(), GET(), GET(), POST(), GET(), GET() (+68 more)
 
-### Community 183 - "better-sqlite3"
-Cohesion: 0.16
-Nodes (11): better-sqlite3, hasTable(), NAME_COLUMNS, renameAgentTable(), renameClaudeFleetAgentRows(), renameLooseColumns(), renameProjectAssignments(), RENAMES (+3 more)
+### Community 183 - "session-terminal-cell.tsx"
+Cohesion: 0.14
+Nodes (22): SessionTerminalCell(), terminalCellTitle(), transcriptSubject(), LINE_CLASS, SessionTerminalView(), normalizeCliKind(), isAgentWorking(), TERMINAL_TAB_LIMIT (+14 more)
 
-### Community 184 - "getGitHubToken"
-Cohesion: 0.33
-Nodes (7): getGitHubToken(), readGhAuthToken(), getEffectiveEnvValue(), parseEnvLine(), readOpenClawEnvFile(), getEffectiveEnvValue, spawnSync
+### Community 184 - "openclaw-agents.ts"
+Cohesion: 0.38
+Nodes (8): AgentMatch, asRecord(), defaultWorkspace(), findOpenClawAgent(), listOpenClawAgents(), namesOf(), OpenClawAgentRecord, removeOpenClawAgent()
 
 ### Community 185 - "pty-manager.ts"
-Cohesion: 0.23
-Nodes (14): ref_child_process, shutdown(), GET(), POST(), createPtySession(), disposeAllPtySessions(), isTmuxAvailable(), listPtySessions() (+6 more)
+Cohesion: 0.22
+Nodes (8): node-pty, shutdown(), disposeAllPtySessions(), disposePtySession(), log, PtyClient, ptyPool, PtySessionInfo
 
 ### Community 187 - "agent-heartbeat.sh"
 Cohesion: 0.50
@@ -1148,8 +1141,8 @@ Cohesion: 0.28
 Nodes (5): BLOCKED_HOSTNAMES, BLOCKED_PRIVATE_CIDRS, ipv4InCidr(), ipv4ToNum(), isBlockedUrl()
 
 ### Community 189 - "fleet-projects.ts"
-Cohesion: 0.21
-Nodes (12): SessionFilterBar(), SessionFilterState, FLEET_AGENT_NAMES, fleetProjectSlug(), matchFleetProject(), PATH_ALIASES, specByName(), tildePath() (+4 more)
+Cohesion: 0.25
+Nodes (10): fleetProjectSlug(), matchFleetProject(), PATH_ALIASES, specByName(), tildePath(), allSeedProjects(), DISCOVERED_PROJECTS, FLEET_PROJECTS (+2 more)
 
 ### Community 190 - "attention-detector.ts"
 Cohesion: 0.22
@@ -1159,33 +1152,33 @@ Nodes (5): ATTENTION_PATTERNS, AttentionLevel, DetectionResult, ERROR_PATTERNS, 
 Cohesion: 0.39
 Nodes (4): defaultProbe, flyControllerArtifactPath(), flyControllerIsStale(), FlyStaleProbe
 
-### Community 192 - "gateway-runtime.ts"
-Cohesion: 0.24
-Nodes (14): acquireFileLockSync(), processIsAlive(), removeDeadLock(), dashboardOriginAliases(), getDetectedGatewayToken(), OpenClawGatewayConfig, readOpenClawConfig(), registerMcAsDashboard() (+6 more)
+### Community 192 - "pty-websocket-auth.test.ts"
+Cohesion: 0.22
+Nodes (5): Automatic backups, isolationDenyMock, MockWebSocketServer, requireRoleMock, wsServers
 
-### Community 193 - "buildGatewayWebSocketUrl"
-Cohesion: 0.44
-Nodes (7): buildGatewayPathFallbackUrls(), buildGatewayWebSocketUrl(), formatWebSocketUrl(), isLocalHost(), normalizeGatewayPath(), normalizeProtocol(), preserveTokenQuery()
+### Community 193 - "openclaw-gateway.ts"
+Cohesion: 0.21
+Nodes (9): ws, CallGatewayOptions, formatGatewayError(), GATEWAY_SCOPES, GatewayFrame, parseGatewayJsonOutput(), mocks, APP_VERSION (+1 more)
 
-### Community 194 - "openclaw-doctor-fix.ts"
+### Community 194 - "auto-credentials.ts"
 Cohesion: 0.36
-Nodes (6): archiveOrphanTranscriptsForStateDir(), collectReferencedTranscriptNames(), formatArchiveTimestamp(), isPrimaryTranscriptFile(), OpenClawDoctorFixResult, tempDirs
+Nodes (8): ensureAutoGeneratedCredentials(), generate(), getGeneratedFilePath(), PersistedValues, PLACEHOLDER_API_KEYS, PLACEHOLDER_AUTH_SECRETS, readPersisted(), writePersisted()
 
 ### Community 195 - "check-standalone-artifact.mjs"
-Cohesion: 0.18
-Nodes (9): Mission Control desktop, allowedRoots, allowedSourceFiles, failures, forbiddenNames, requiredFiles, root, walk() (+1 more)
+Cohesion: 0.25
+Nodes (7): allowedRoots, allowedSourceFiles, failures, forbiddenNames, requiredFiles, root, walk()
 
 ### Community 196 - "deploy-standalone.sh"
 Cohesion: 0.46
 Nodes (7): list_listener_pids(), load_env(), migrate_runtime_data_dir(), deploy-standalone.sh script, stop_existing_server(), stop_pid(), use_project_node()
 
-### Community 197 - "minimax.ts"
-Cohesion: 0.36
-Nodes (6): getMiniMaxApiKey(), MINIMAX_REGIONS, MiniMaxEnvironment, MiniMaxProtocol, MiniMaxRegion, resolveMiniMaxEndpoint()
+### Community 197 - "github.ts"
+Cohesion: 0.26
+Nodes (11): createLabel(), createPullRequest(), createRef(), ensureLabels(), getRef(), githubFetch(), GitHubLabel, GitHubPullRequest (+3 more)
 
 ### Community 198 - "Mission Control Hardening"
-Cohesion: 0.09
-Nodes (22): 10. Data Retention, 11. Runtime Installer Integrity, 1. Credentials, 2. Network Access Control, 3. HTTPS & Cookies, 4. Rate Limiting, 5. Docker Hardening, 6. Security Headers (+14 more)
+Cohesion: 0.17
+Nodes (12): 10. Data Retention, 11. Runtime Installer Integrity, 1. Credentials, 2. Network Access Control, 3. HTTPS & Cookies, 4. Rate Limiting, 5. Docker Hardening, 6. Security Headers (+4 more)
 
 ### Community 199 - "task-routing.ts"
 Cohesion: 0.36
@@ -1195,57 +1188,57 @@ Nodes (6): isNonEmptyString(), parseMetadata(), resolveTaskImplementationTarget(
 Cohesion: 0.25
 Nodes (6): auditMock, isolationMock, limiterMock, loadMock, requireRoleMock, saveMock
 
-### Community 201 - "messages/route.ts"
-Cohesion: 0.27
-Nodes (12): ChatAttachmentInput, createChatReply(), extractReplyText(), extractToolEvents(), ForwardInfo, GET(), normalizeToolEvent(), parseGatewayJson() (+4 more)
+### Community 201 - "chat/messages/route.ts"
+Cohesion: 0.19
+Nodes (17): ChatAttachmentInput, createChatReply(), extractReplyText(), extractToolEvents(), ForwardInfo, GET(), normalizeToolEvent(), parseGatewayJson() (+9 more)
 
 ### Community 202 - "tasks-route-noop-update.test.ts"
 Cohesion: 0.25
 Nodes (7): currentTask, getMock, mutationLimiterMock, normalizeTaskUpdateStatusMock, prepareMock, requireRoleMock, validateBodyMock
 
-### Community 203 - "mentions.spec.ts"
-Cohesion: 0.20
-Nodes (7): createTestAlert(), createTestUser(), createTestWebhook(), deleteTestAlert(), deleteTestUser(), deleteTestWebhook(), uid()
+### Community 203 - "helpers.ts"
+Cohesion: 0.15
+Nodes (11): createTestAlert(), createTestProject(), createTestUser(), createTestWebhook(), createTestWorkflow(), deleteTestAlert(), deleteTestProject(), deleteTestUser() (+3 more)
 
-### Community 204 - "provisioner-client.ts"
-Cohesion: 0.40
-Nodes (5): ref_net, callProvisioner(), ProvisionerRequest, ProvisionerResponse, runProvisionerCommand()
+### Community 204 - "typesafe-probe.ts"
+Cohesion: 0.27
+Nodes (6): getJevHealth(), JevHealth, mocks, hasProbeAnswer(), probeTypeSafeApiKey(), TypeSafeProbeResult
 
 ### Community 205 - "security-audit.sh"
 Cohesion: 0.52
 Nodes (6): fail(), info(), pass(), security-audit.sh script, trim_env_value(), warn()
 
-### Community 206 - "executeProvisionJob"
-Cohesion: 0.40
-Nodes (6): ensureProvisionArtifacts(), executeProvisionJob(), getProvisionArtifactDir(), parseJobRequest(), parseJsonField(), runProvisionStep()
+### Community 206 - "github-activity.ts"
+Cohesion: 0.16
+Nodes (19): asEvent(), collectGitHubActivity(), fetchRepoEvents(), firstCommitMessage(), GitHubEventLike, GitHubFeedKind, keepNewer(), loadEvents() (+11 more)
 
 ### Community 207 - "Mission Control"
 Cohesion: 0.10
 Nodes (21): Agents and runtimes, Architecture, CLI, Connect an agent, Develop, Documentation, License, MCP server (+13 more)
 
 ### Community 208 - "jev-service.ts"
-Cohesion: 0.20
-Nodes (14): createClient(), evaluateWithJev(), JEV_DEFAULT_MODEL, JEV_SDK_VERSION, JevClientError, JevClientOptions, listJevModels(), safeError() (+6 more)
+Cohesion: 0.12
+Nodes (25): createClient(), evaluateWithJev(), exactKeys(), JEV_DEFAULT_MODEL, JEV_SDK_VERSION, JevClientError, JevClientOptions, listJevModels() (+17 more)
 
-### Community 209 - "openclaw-doctor-route.test.ts"
-Cohesion: 0.29
-Nodes (4): archiveOrphanTranscriptsForStateDir, openClawMaintenanceLimiter, requireRole, runOpenClaw
+### Community 209 - "hermes-sessions.ts"
+Cohesion: 0.27
+Nodes (12): GET(), detectHermes(), epochSecondsToISO(), getHermesDbPath(), getHermesPidPath(), hasHermesCliBinary(), HermesSessionRow, HermesSessionStats (+4 more)
 
-### Community 210 - "memory/health/route.ts"
-Cohesion: 0.24
-Nodes (11): GET(), mergeReports(), classifyMemoryPath(), extractFrontmatterBlock(), fileStem(), hasDiscoverabilityField(), isHealthScored(), MemoryFileClass (+3 more)
+### Community 210 - "optimize/route.ts"
+Cohesion: 0.33
+Nodes (9): GET(), analyzeTokenEfficiency(), analyzeToolPatterns(), FleetBenchmark, generateRecommendations(), getFleetBenchmarks(), Recommendation, TokenEfficiency (+1 more)
 
-### Community 211 - "jev-panel.tsx"
-Cohesion: 0.23
-Nodes (11): Tab, JevPolicyList(), JevQuickstart(), JEV_POLICY_TEMPLATES, JevPolicyTemplate, context, policy, src_components_panels_jev_jev_ui_types_jevpolicy (+3 more)
+### Community 211 - "buildGatewayWebSocketUrl"
+Cohesion: 0.44
+Nodes (7): buildGatewayPathFallbackUrls(), buildGatewayWebSocketUrl(), formatWebSocketUrl(), isLocalHost(), normalizeGatewayPath(), normalizeProtocol(), preserveTokenQuery()
 
 ### Community 212 - "aggregate/route.ts"
 Cohesion: 0.29
 Nodes (11): dynamic, GET(), partToEvent(), isSilentReplyText(), MessageContentPart, normalizeTranscriptMessage(), parseGatewayHistoryTranscript(), parseJsonlTranscript() (+3 more)
 
 ### Community 213 - "migrations.ts"
-Cohesion: 0.23
-Nodes (8): desktopBrowserLoginMigration, flyAdmissionMigration, flyRepairMigration, flyTopologyMigration, jevMigration, extraMigrations, Migration, migrations
+Cohesion: 0.13
+Nodes (15): desktopBrowserLoginMigration, flyAdmissionMigration, flyRepairMigration, flyTopologyMigration, jevAssistantMigration, entities, jevCloudMigration, jevEvaluationLifecycleMigration (+7 more)
 
 ### Community 214 - "generate-env.sh"
 Cohesion: 0.53
@@ -1275,33 +1268,37 @@ Nodes (18): 10) Rollout plan, 11) Risks and mitigations, 12) Acceptance criteria
 Cohesion: 0.11
 Nodes (18): 1. Register, 2. Heartbeat, 3. Fetch Assignments, 4. Report Task Progress, 5. Disconnect, Adapters — `/api/adapters`, Agent Lifecycle, Agents — `/api/agents` (+10 more)
 
-### Community 222 - "process/route.ts"
-Cohesion: 0.38
-Nodes (12): POST(), consolidateFleet(), gapDetectFleet(), collectFleetWikiStems(), buildLinkGraph(), consolidatePass(), gapDetectPass(), generateMOCs() (+4 more)
+### Community 221 - "openclaw-doctor-fix.ts"
+Cohesion: 0.36
+Nodes (6): archiveOrphanTranscriptsForStateDir(), collectReferencedTranscriptNames(), formatArchiveTimestamp(), isPrimaryTranscriptFile(), OpenClawDoctorFixResult, tempDirs
 
-### Community 223 - "tasks-bulk-put-agent-access.test.ts"
-Cohesion: 0.33
-Nodes (4): prepareMock, requireRoleMock, transactionMock, validateBodyMock
+### Community 222 - "callDirectly"
+Cohesion: 0.15
+Nodes (20): claudeConfigDirForAgent(), getMiniMaxApiKey(), MINIMAX_REGIONS, MiniMaxEnvironment, MiniMaxProtocol, MiniMaxRegion, resolveMiniMaxEndpoint(), callClaudeDirectly() (+12 more)
+
+### Community 223 - "attribution/route.ts"
+Cohesion: 0.40
+Nodes (9): ALLOWED_SECTIONS, buildAuditTrail(), buildCostAttribution(), buildIdentity(), buildMutations(), GET(), parseHours(), parseSections() (+1 more)
 
 ### Community 224 - "jev-validation.ts"
-Cohesion: 0.18
-Nodes (11): @typesafe-ai/sdk, choiceQuestion, createJevPolicySchema, criterion, entry, jevQuestionsSchema, jsonValue, noulQuestion (+3 more)
+Cohesion: 0.10
+Nodes (23): @typesafe-ai/sdk, contextModeSchema, enforcementSchema, failureModeSchema, jevPolicyConfigurationSchema, rolloutSchema, scopeSchema, triggerSchema (+15 more)
 
-### Community 225 - "prepare-standalone-artifact.mjs"
-Cohesion: 0.40
-Nodes (4): allowedRoots, root, schemaPath, sourceRoot
+### Community 225 - "provisioner-client.ts"
+Cohesion: 0.33
+Nodes (6): ref_net, callProvisioner(), ProvisionerRequest, ProvisionerResponse, runProvisionerCommand(), runProvisionStep()
 
 ### Community 226 - "process-title.test.sh"
 Cohesion: 0.60
 Nodes (3): fail(), process-title.test.sh script, spills()
 
 ### Community 227 - "Agent Setup Guide"
-Cohesion: 0.08
-Nodes (21): Agent Configuration, Agent Registration, Agent Setup Guide, Agent Sources, Agent Status Values, Agent Templates, Example: Developer Agent, Example: Researcher Agent (+13 more)
+Cohesion: 0.10
+Nodes (20): Agent Configuration, Agent Registration, Agent Setup Guide, Agent Sources, Agent Status Values, Agent Templates, Example: Developer Agent, Example: Researcher Agent (+12 more)
 
-### Community 228 - "fly-topology.test.ts"
-Cohesion: 0.23
-Nodes (8): Read this before touching anything, flySubmissionSchema, SubmissionRow, dispatchToFly(), FlyDispatchResult, FlyDispatchTask, flyImageApps(), isFlyWorkerImageRef()
+### Community 228 - "locale-parity.test.ts"
+Cohesion: 0.31
+Nodes (6): defaultLocale, Locale, localeNames, locales, flattenKeys(), Messages
 
 ### Community 229 - "NavRail"
 Cohesion: 0.25
@@ -1319,9 +1316,9 @@ Nodes (3): load_env_file(), load-env.sh script, trim_env_field()
 Cohesion: 0.18
 Nodes (15): dynamic, formatCommandOutput(), GatewayStatus, GatewayType, GET(), getHermesGatewayStatus(), getOpenClawGatewayStatus(), isDockerEnvironment() (+7 more)
 
-### Community 235 - "session-terminal-view.tsx"
-Cohesion: 0.23
-Nodes (7): LINE_CLASS, SessionTerminalView(), TerminalLine, TerminalLineKind, Harness(), TailScroll, useTailScroll()
+### Community 235 - "chat-folder-order-route.test.ts"
+Cohesion: 0.25
+Nodes (6): isolationMock, limiterMock, loadMock, operator, requireRoleMock, saveMock
 
 ### Community 237 - "Command groups"
 Cohesion: 0.12
@@ -1331,13 +1328,13 @@ Nodes (17): agents, API contract parity gate, auth, Command groups, connect, cro
 Cohesion: 0.12
 Nodes (15): Agent Control Interfaces, CLI, Common Pitfalls, Conventions, Data Directory, Docker, Key Directories, MCP Server (recommended for agents) (+7 more)
 
-### Community 239 - "use-chat-github.ts"
-Cohesion: 0.39
-Nodes (7): asActivity(), asKind(), ChatGitHubKind, GithubPayload, loadGithub(), useChatGithub(), ChatPullRequest
-
-### Community 240 - "hermes-sessions.ts"
+### Community 239 - "memory/health/route.ts"
 Cohesion: 0.27
-Nodes (11): detectHermes(), epochSecondsToISO(), getHermesDbPath(), getHermesPidPath(), hasHermesCliBinary(), HermesSessionRow, HermesSessionStats, isHermesGatewayRunning() (+3 more)
+Nodes (10): GET(), mergeContextPayloads(), GET(), mergeReports(), GET(), POST(), rebuildFleetMemoryIndex(), MEMORY_ALLOWED_PREFIXES (+2 more)
+
+### Community 240 - "executeProvisionJob"
+Cohesion: 0.38
+Nodes (6): POST(), ensureProvisionArtifacts(), executeProvisionJob(), getProvisionArtifactDir(), parseJobRequest(), parseJsonField()
 
 ### Community 244 - "Findings"
 Cohesion: 0.12
@@ -1347,9 +1344,9 @@ Nodes (15): Alternatives and consequences, Concrete consolidation sequence, Deci
 Cohesion: 0.12
 Nodes (9): _categories, _integrations, _navItems, _panels, PluginCategory, PluginIntegrationDef, PluginNavItem, PluginToolProvider (+1 more)
 
-### Community 250 - "Troubleshooting"
-Cohesion: 0.18
-Nodes (11): AUTH_PASS with "#" is not working, Database locked errors, Docker: gateway unreachable / WebSocket not connecting, "Gateway error: device identity required", "Gateway error: origin not allowed", "Gateway shows offline on VPS deployment", "Internal server error" on login / NODE_MODULE_VERSION mismatch, "Invalid ELF header" or "Mach-O" errors (+3 more)
+### Community 250 - "openclaw-doctor-route.test.ts"
+Cohesion: 0.29
+Nodes (4): archiveOrphanTranscriptsForStateDir, openClawMaintenanceLimiter, requireRole, runOpenClaw
 
 ### Community 254 - "Full Changelog"
 Cohesion: 0.14
@@ -1363,17 +1360,17 @@ Nodes (13): 1. Core Security Model & Deployment Considerations, 2. Hardened Base
 Cohesion: 0.14
 Nodes (13): Agent Management, API Endpoints, Automated Health Monitoring, Check for Updates, Common Workflows, Database Backup, Diagnostics (Admin Only), Health Check (+5 more)
 
-### Community 257 - "task-dispatch-sandbox.test.ts"
-Cohesion: 0.16
-Nodes (14): clampCliMaxBudgetUsd(), CLAUDE_CLI_ALLOWED_TOOL_NAMES, CLI_MAX_BUDGET_USD_CEILING, filterCliAllowedTools(), resolveCliDispatchCwd(), resolveCliSandboxOptions(), safeParseMetadata(), base (+6 more)
+### Community 257 - "hermes-memory.ts"
+Cohesion: 0.53
+Nodes (5): countSectionEntries(), getHermesMemory(), HermesMemory, MEMORY_DIR(), readMemoryFile()
 
 ### Community 258 - "Contributor Covenant Code of Conduct"
 Cohesion: 0.15
 Nodes (12): 1. Correction, 2. Warning, 3. Temporary Ban, 4. Permanent Ban, Attribution, Contributor Covenant Code of Conduct, Enforcement, Enforcement Guidelines (+4 more)
 
-### Community 259 - "Production (Docker)"
-Cohesion: 0.18
-Nodes (11): Direct API dispatch (gateway-free), Gateway Connectivity from Docker, Host hardening (Ubuntu quick actions), Local Security Scan Expectations (HTTP dev vs HTTPS prod), Mode-aware Make workflow (minimal commands), Persistent Data, Production (Docker), Production Hardening (+3 more)
+### Community 259 - "mock-gateway.mjs"
+Cohesion: 0.33
+Nodes (4): ref_node_http, port, server, wss
 
 ### Community 260 - "gen-star-history.py"
 Cohesion: 0.29
@@ -1395,17 +1392,17 @@ Nodes (12): Active-session CLI bridge, Backend build and start, Client setup and
 Cohesion: 0.17
 Nodes (12): Prerequisites, Quickstart: Your First Agent in 5 Minutes, Step 1: Start Mission Control, Step 2: Register an Agent, Step 3: Create a Task, Step 4: Poll the Task Queue, Step 5: Complete the Task, Step 6: Send a Heartbeat (+4 more)
 
-### Community 265 - "cron/route.ts"
-Cohesion: 0.31
-Nodes (10): CronJob, GET(), getCronFilePath(), loadCronFile(), mapLastStatus(), mapOpenClawJob(), OpenClawCronFile, OpenClawCronJob (+2 more)
+### Community 265 - "github-pulls-api.ts"
+Cohesion: 0.21
+Nodes (14): ChatGitHubItem, fetchPullRequests(), src_lib_github_getgithubtoken, emptyFeed(), handleGitHubPulls(), projectRepos(), collectPullRequests(), mapPull() (+6 more)
 
 ### Community 266 - "verify-jev-live.mjs"
 Cohesion: 0.33
 Nodes (4): apiKey, baseUrl, contexts, headers
 
-### Community 268 - "cron-occurrences.ts"
-Cohesion: 0.29
-Nodes (10): buildDayKey(), CronOccurrence, getCronOccurrences(), matchesDay(), normalizeCronExpression(), parseCron(), ParsedCron, ParsedField (+2 more)
+### Community 267 - "prepare-standalone-artifact.mjs"
+Cohesion: 0.40
+Nodes (4): allowedRoots, root, schemaPath, sourceRoot
 
 ### Community 269 - "Deferred / blocked"
 Cohesion: 0.18
@@ -1415,17 +1412,17 @@ Nodes (10): Deferred / blocked, Fly ops commissioning, Fly secret blockers (docu
 Cohesion: 0.18
 Nodes (6): importlib_util, EnrollmentTests, subprocess, tempfile, unittest, unittest_mock
 
-### Community 271 - "MobileBottomSheet"
-Cohesion: 1.00
-Nodes (3): MobileBottomSheet(), handleClose(), handleKeyDown()
+### Community 271 - "agents-delete-route.test.ts"
+Cohesion: 0.40
+Nodes (4): prepare, removeAgentFromConfig, requireRole, runOpenClaw
 
-### Community 272 - "adaptive-context-handoff.ts"
-Cohesion: 0.36
-Nodes (9): adaptiveContextCli(), handoffEnv(), ledgerFromSession(), parseAdaptiveHandoff(), pinAdaptiveContext(), resolveWorkspacePolicyPath(), writeLedger(), dirs (+1 more)
+### Community 272 - "quality-review-reviewer-identity.test.ts"
+Cohesion: 0.40
+Nodes (4): prepareMock, requireRoleMock, runMock, validateBodyMock
 
-### Community 273 - "activity-feed-panel.tsx"
-Cohesion: 0.27
-Nodes (8): Activity, activityColors, ActivityFeedPanel(), activityIcons, ActivityRow(), formatRelativeTime(), groupByDay(), SessionInfo
+### Community 273 - "task-broadcast-route-agent-access.test.ts"
+Cohesion: 0.40
+Nodes (4): getTaskSubscribersMock, prepareMock, requireRoleMock, runOpenClawMock
 
 ### Community 274 - "Spec Files"
 Cohesion: 0.18
@@ -1447,9 +1444,9 @@ Nodes (9): 11. Что менять для своего сценария, 12. П�
 Cohesion: 0.20
 Nodes (10): Credentials, Docker (if applicable), Hardening Checklist, Monitoring, Network, OpenClaw Gateway, Reporting a Vulnerability, Security Considerations (+2 more)
 
-### Community 279 - "jev-policy-form.tsx"
-Cohesion: 0.40
-Nodes (8): draftFromPolicy(), DraftType, emptyQuestion(), printable(), QuestionDraft, questionsFromDrafts(), JevPolicyForm(), src_components_panels_jev_jev_ui_types_jevquestions
+### Community 279 - "jev-setup-flow.spec.ts"
+Cohesion: 0.29
+Nodes (3): assistant, policy, projects
 
 ### Community 280 - "dashboard-widgets.ts"
 Cohesion: 0.29
@@ -1467,14 +1464,6 @@ Nodes (8): Automation, How to Take New Screenshots, Prerequisites, Screenshot Gu
 Cohesion: 0.22
 Nodes (9): 10. Troubleshooting, Aegis не запускается, Architect отвечает обычным текстом, не структурированно, dispatchModel `local/...` падает с timeout, LMStudio не отвечает / `local API 404`, `OPENAI_API_KEY not set` в логах, Кнопки `+ Create Agent` нет, Кнопки `Projects` нет на /tasks (+1 more)
 
-### Community 284 - "security-properties.test.ts"
-Cohesion: 0.36
-Nodes (5): fast-check, isRecord(), setNestedConfigValue(), UNSAFE_CONFIG_SEGMENTS, safeSegment
-
-### Community 285 - "pty-websocket-auth.test.ts"
-Cohesion: 0.22
-Nodes (5): Automatic backups, isolationDenyMock, MockWebSocketServer, requireRoleMock, wsServers
-
 ### Community 286 - "Contributing to Mission Control"
 Cohesion: 0.25
 Nodes (8): Code Style, Contributing to Mission Control, Development Workflow, Getting Started, License, Project Structure, Reporting Bugs, Testing
@@ -1488,20 +1477,20 @@ Cohesion: 0.25
 Nodes (8): Anticipated cost — transparent scenarios, Architecture, Cost improvements already implemented, Deliberate limits, Fly scale and cost decision — 2026-09-06, Recommendation, Recovery and skill integration, Sizing and growth
 
 ### Community 289 - "Jev in Mission Control"
-Cohesion: 0.29
-Nodes (6): Agent and CI use, Jev in Mission Control, Model management, Operator workflow, Privacy and audit behavior, Runtime configuration
+Cohesion: 0.20
+Nodes (9): Agent and CI use, Jev in Mission Control, Model management, Operator workflow, Privacy and audit behavior, Runtime configuration, Setup assistant boundary, Webdev persistence (+1 more)
 
 ### Community 290 - "OpenClaw Gateway Hardening"
-Cohesion: 0.25
-Nodes (8): 1. Network Security, 2. Authentication, 3. Hardened Gateway Configuration, 4. File Permissions, 5. Tool Security, 6. Monitoring, 7. Known CVEs, OpenClaw Gateway Hardening
+Cohesion: 0.11
+Nodes (18): 1. Network Security, 2. Authentication, 3. Hardened Gateway Configuration, 4. File Permissions, 5. Tool Security, 6. Monitoring, 7. Known CVEs, Agent Auth: Least-Privilege Key Guidance (+10 more)
 
 ### Community 291 - "4. Агент №2 — Implementor (OpenAI gpt-4o-mini)"
 Cohesion: 0.25
 Nodes (8): 4.1. Step 1 — Template, 4.2. Step 2 — Configure, 4.3. Soul, 4.4. ⚠ Важно — задать `dispatchModel = openai/gpt-4o-mini`, 4. Агент №2 — Implementor (OpenAI gpt-4o-mini), Вариант A: через UI (Config tab), Вариант B: через API (если UI падает), Что должно произойти
 
-### Community 292 - "permission-mode/route.ts"
-Cohesion: 0.11
-Nodes (24): dynamic, GET(), PUT(), readOrder(), canSetMode(), dynamic, GET(), PUT() (+16 more)
+### Community 292 - "tasks-bulk-put-agent-access.test.ts"
+Cohesion: 0.33
+Nodes (4): prepareMock, requireRoleMock, transactionMock, validateBodyMock
 
 ### Community 293 - "Consolidated Fly implementation audit — 2026-09-05"
 Cohesion: 0.29
@@ -1535,17 +1524,13 @@ Nodes (6): Branch Strategy, Compatibility and Deprecation, Release Checklist, Re
 Cohesion: 0.29
 Nodes (6): Environment Configuration, Mission Control Installer Skill, Post-Install, Prerequisites, Usage, What This Skill Does
 
-### Community 301 - "workspace-isolation-enforcement.test.ts"
-Cohesion: 0.25
-Nodes (6): sharedUser, state, strictUser, preparedTemplateSql(), source(), dispatch()
-
-### Community 302 - "Fly worker topology decision — September 6, 2026"
-Cohesion: 0.25
-Nodes (7): Boundaries, Controller split brain (found during validation, now resolved), Fly worker topology decision — September 6, 2026, Measured evidence, Post-redeploy validation (2026-09-06 20:09), Remaining cutover step (not applied), Why not per-project apps
+### Community 301 - "[1.3.0] - 2026-03-02"
+Cohesion: 0.40
+Nodes (5): [1.3.0] - 2026-03-02, Added, Changed, Contributors, Fixed
 
 ### Community 303 - "[2.2.0] - 2026-07-17"
-Cohesion: 0.40
-Nodes (5): [2.2.0] - 2026-07-17, Added, Changed, Security, Upgrade notes
+Cohesion: 0.33
+Nodes (6): [2.2.0] - 2026-07-17, Added, Changed, Fixed, Security, Upgrade notes
 
 ### Community 304 - "Desktop consolidation"
 Cohesion: 0.33
@@ -1567,21 +1552,17 @@ Nodes (5): Contribution Checklist, Evidence, Notes, Risk Level, Summary
 Cohesion: 0.33
 Nodes (4): pathlib, re, Fail when a workflow executes a remote action through a mutable ref., sys
 
-### Community 309 - "chat-folder-order.ts"
-Cohesion: 0.57
-Nodes (5): applyFolderOrder(), mergeFolderOrder(), moveFolder(), parseFolderOrder(), uniqueStrings()
+### Community 309 - "workspace-sync.ts"
+Cohesion: 0.83
+Nodes (3): ensureWorkspaceGeneratedFiles(), generatedBlock(), mergeGenerated()
 
-### Community 310 - "workspaces-tenant-access.test.ts"
-Cohesion: 0.38
-Nodes (5): AuditEvent, createTestDb(), FakeDb, Project, Workspace
+### Community 310 - "better-sqlite3"
+Cohesion: 0.15
+Nodes (8): better-sqlite3, AuditEvent, createTestDb(), FakeDb, Project, Workspace, TOKEN_AGENT_KEY_SQL, reassignWorkspaceRows()
 
-### Community 311 - "activity-timeline-widget.tsx"
-Cohesion: 0.53
-Nodes (5): LogLike, ActivityTimelineWidget(), getSourceLabel(), getStatusBadge(), timeAgo()
-
-### Community 312 - "task-branch-route-agent-access.test.ts"
-Cohesion: 0.33
-Nodes (5): createPullRequestMock, fetchPullRequestsMock, foreignTask, prepareMock, requireRoleMock
+### Community 311 - "claude-tasks.ts"
+Cohesion: 0.27
+Nodes (10): GET(), cachedResult, ClaudeCodeScanResult, ClaudeCodeTask, ClaudeCodeTeam, getClaudeCodeTasks(), safeParse(), scanClaudeCodeTasks() (+2 more)
 
 ### Community 313 - "Support"
 Cohesion: 0.33
@@ -1599,13 +1580,9 @@ Nodes (6): Core Concepts, Mission Control Wiki, Notes For Maintainers, Quick Sta
 Cohesion: 0.40
 Nodes (4): Development, Local configuration and authentication, Mission Control desktop, Packaging and installation
 
-### Community 317 - "typesafe-probe.ts"
-Cohesion: 0.47
-Nodes (3): hasProbeAnswer(), probeTypeSafeApiKey(), TypeSafeProbeResult
-
-### Community 318 - "[1.3.0] - 2026-03-02"
-Cohesion: 0.40
-Nodes (5): [1.3.0] - 2026-03-02, Added, Changed, Contributors, Fixed
+### Community 318 - "activity-timeline-widget.tsx"
+Cohesion: 0.53
+Nodes (5): LogLike, ActivityTimelineWidget(), getSourceLabel(), getStatusBadge(), timeAgo()
 
 ### Community 319 - "0. Подготовка"
 Cohesion: 0.40
@@ -1627,6 +1604,10 @@ Nodes (4): Answer, Outcome, Q: Implement complete repo-agnostic Jev by TypeSafe 
 Cohesion: 0.60
 Nodes (3): AGENT_RUNTIME_TYPES, AgentRuntimeType, isAgentRuntimeType()
 
+### Community 324 - "MobileBottomSheet"
+Cohesion: 1.00
+Nodes (3): MobileBottomSheet(), handleClose(), handleKeyDown()
+
 ### Community 325 - "2. Project (для тикет-префикса и группировки задач)"
 Cohesion: 0.50
 Nodes (4): 2.1. Создать проект — top-bar форма, 2.2. После создания — раскрыть и доконфигурить (опционально), 2.3. Закрой модал, 2. Project (для тикет-префикса и группировки задач)
@@ -1637,27 +1618,32 @@ Nodes (4): 6.1. Создание (если нет), 6.2. Soul (формат ст
 
 ### Community 327 - "event-bus.ts"
 Cohesion: 0.15
-Nodes (11): ref_events, dynamic, GET(), runtime, eventBelongsToWorkspace(), EventType, globalBus, ServerEvent (+3 more)
+Nodes (11): ref_events, dynamic, GET(), runtime, GET(), eventBelongsToWorkspace(), EventType, globalBus (+3 more)
 
 ## Knowledge Gaps
-- **2056 isolated node(s):** `Development`, `Local configuration and authentication`, `Packaging and installation`, `Runtime configuration`, `Operator workflow` (+2051 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2477 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **32 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **2122 isolated node(s):** `name`, `version`, `private`, `description`, `type` (+2117 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2568 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **38 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+
+## Work-memory lessons
+
+**Preferred sources** — corroborated by past sessions; start here.
+- `runs.ts` (2× useful, score=1.996804729)
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `vitest` connect `vitest` to `api/agents/route.ts`, `mac-cleanup/index.ts`, `resolveWithin`, `getUserFromRequest`, `agent-avatar.tsx`, `getDatabase`, `useSmartPoll`, `useMissionControl`, `hermes/route.ts`, `apiFetch`, `api/diagnostics/route.ts`, `react`, `chat-icons.tsx`, `requireRole`, `mutationLimiter`, `api/status/route.ts`, `settings-panel.tsx`, `memory-utils.ts`, `ref_node_child_process`, `chat-session-identity.ts`, `fly-orchestration-panel.tsx`, `security-scan.ts`, `chat-session-pane.tsx`, `task-dispatch.ts`, `engine-logo.tsx`, `main.mjs`, `chat-display.ts`, `task-board-panel.tsx`, `cron-management-panel.tsx`, `login/page.tsx`, `fly-reconciler.ts`, `webhooks.ts`, `package.json`, `chat-usage-tracker.ts`, `skill-registry.ts`, `gateway-config-panel.tsx`, `validation.ts`, `injection-guard.ts`, `api/memory/route.ts`, `dashboard-cli-fleets.ts`, `exec-approval-panel.tsx`, `permission-connector.ts`, `handoff/route.ts`, `agent-sync.ts`, `mcp-audit.ts`, `session-terminal-cell.tsx`, `openclaw-doctor.ts`, `claude-fleet-plans.ts`, `gnap-sync.ts`, `session-list-local.ts`, `header-bar.tsx`, `workload/route.ts`, `github-activity.ts`, `layout.tsx`, `gateways/connect/route.ts`, `onboarding/route.ts`, `dashboard-board.ts`, `fly/status/route.ts`, `desktop-browser-login.ts`, `vault-wiki-graph.ts`, `fetchWithRetry`, `api/sessions/route.ts`, `proxy.ts`, `agent-runtimes.ts`, `runtime-history.ts`, `local-session-list.ts`, `runCommand`, `recurring-tasks.ts`, `skill-sync.ts`, `jev-repository.ts`, `api-contract-parity.ts`, `cli-inventory.ts`, `device-identity.ts`, `github.ts`, `framework-templates.ts`, `keys/route.ts`, `github-sync-engine.ts`, `next`, `artifact/route.ts`, `session-terminal-widget.tsx`, `claude-transcript.ts`, `rate-limit.ts`, `ref_node_module`, `session-transcript-types.ts`, `session-continue-model.ts`, `rail-width.ts`, `fly-reservations.ts`, `session-continue-run.ts`, `websocket-utils.ts`, `agent-filesystem-isolation.test.ts`, `tokens/route.ts`, `ref_path`, `coordinator-routing.ts`, `adapter-compliance.test.ts`, `github-pulls-api.ts`, `message-bubble.tsx`, `openclaw-doctor-banner.tsx`, `alert-evaluate.ts`, `claude-code-sessions.ts`, `kimi-sessions.ts`, `handoff-banner.tsx`, `fleet-agents.ts`, `handoff-brief.ts`, `hook-profiles.ts`, `api/health/route.ts`, `channels/route.ts`, `gateway-config/route.ts`, `group-sessions.ts`, `better-sqlite3`, `getGitHubToken`, `health-utils.test.ts`, `fleet-projects.ts`, `fly-stale-controller.ts`, `buildGatewayWebSocketUrl`, `openclaw-doctor-fix.ts`, `minimax.ts`, `task-routing.ts`, `chat-permission-mode-route.test.ts`, `tasks-route-noop-update.test.ts`, `jev-service.ts`, `openclaw-doctor-route.test.ts`, `memory/health/route.ts`, `jev-panel.tsx`, `release-update-route-security.test.ts`, `tasks-bulk-put-agent-access.test.ts`, `jev-validation.ts`, `fly-topology.test.ts`, `token-utils.test.ts`, `gateways/control/route.ts`, `session-terminal-view.tsx`, `task-dispatch-sandbox.test.ts`, `dashboard-page-frame.tsx`, `cron-occurrences.ts`, `adaptive-context-handoff.ts`, `security-properties.test.ts`, `pty-websocket-auth.test.ts`, `permission-mode/route.ts`, `workspace-isolation-enforcement.test.ts`, `chat-folder-order.ts`, `workspaces-tenant-access.test.ts`, `task-branch-route-agent-access.test.ts`, `typesafe-probe.ts`, `runtime-types.ts`, `event-bus.ts`, `agent-model-trim.test.ts`, `adapter-assignment-isolation.test.ts`?**
-  _High betweenness centrality (0.166) - this node is a cross-community bridge._
-- **Why does `next` connect `next` to `vitest`, `api/agents/route.ts`, `resolveWithin`, `getUserFromRequest`, `agent-avatar.tsx`, `getDatabase`, `useMissionControl`, `denyUnscopedResourceForStrictWorkspace`, `hermes/route.ts`, `apiFetch`, `api/diagnostics/route.ts`, `react`, `agent-squad-panel-phase3.tsx`, `requireRole`, `mutationLimiter`, `office-panel.tsx`, `integrations/route.ts`, `api/status/route.ts`, `nav-rail.tsx`, `settings-panel.tsx`, `memory-utils.ts`, `fly-orchestration-panel.tsx`, `security-scan.ts`, `engine-logo.tsx`, `workspaces.ts`, `task-board-panel.tsx`, `login/page.tsx`, `package.json`, `skill-registry.ts`, `validation.ts`, `api/memory/route.ts`, `handoff/route.ts`, `agent-sync.ts`, `mcp-audit.ts`, `gnap-sync.ts`, `workload/route.ts`, `layout.tsx`, `gateways/connect/route.ts`, `onboarding/route.ts`, `fly/status/route.ts`, `desktop-browser-login.ts`, `skills/route.ts`, `fetchWithRetry`, `api/sessions/route.ts`, `super-admin.ts`, `proxy.ts`, `agent-runtimes.ts`, `session-transcript-route.ts`, `runCommand`, `recurring-tasks.ts`, `cli-inventory.ts`, `framework-templates.ts`, `keys/route.ts`, `conversation-list.tsx`, `artifact/route.ts`, `memory-search.ts`, `rate-limit.ts`, `agent-filesystem-isolation.test.ts`, `tokens/route.ts`, `ref_path`, `[id]/diagnostics/route.ts`, `github-pulls-api.ts`, `message-bubble.tsx`, `github/route.ts`, `api/health/route.ts`, `provision-jobs/[id]/route.ts`, `channels/route.ts`, `attribution/route.ts`, `gateway-config/route.ts`, `pty-manager.ts`, `chat-permission-mode-route.test.ts`, `messages/route.ts`, `tasks-route-noop-update.test.ts`, `memory/health/route.ts`, `aggregate/route.ts`, `index/route.ts`, `release-update-route-security.test.ts`, `process/route.ts`, `tasks-bulk-put-agent-access.test.ts`, `gateways/control/route.ts`, `cron/route.ts`, `permission-mode/route.ts`, `task-branch-route-agent-access.test.ts`, `event-bus.ts`?**
-  _High betweenness centrality (0.161) - this node is a cross-community bridge._
-- **Why does `requireRole()` connect `requireRole` to `api/agents/route.ts`, `artifact/route.ts`, `resolveWithin`, `getUserFromRequest`, `rate-limit.ts`, `memory-search.ts`, `getDatabase`, `cron/route.ts`, `denyUnscopedResourceForStrictWorkspace`, `hermes/route.ts`, `api/diagnostics/route.ts`, `tokens/route.ts`, `mutationLimiter`, `integrations/route.ts`, `api/status/route.ts`, `[id]/diagnostics/route.ts`, `memory-utils.ts`, `Contributing to Mission Control`, `github/route.ts`, `security-scan.ts`, `permission-mode/route.ts`, `workspaces.ts`, `provision-jobs/[id]/route.ts`, `channels/route.ts`, `scheduler.ts`, `attribution/route.ts`, `gateway-config/route.ts`, `skill-registry.ts`, `pty-manager.ts`, `validation.ts`, `api/memory/route.ts`, `handoff/route.ts`, `agent-sync.ts`, `event-bus.ts`, `messages/route.ts`, `mcp-audit.ts`, `gnap-sync.ts`, `memory/health/route.ts`, `workload/route.ts`, `aggregate/route.ts`, `gateways/connect/route.ts`, `onboarding/route.ts`, `fly/status/route.ts`, `process/route.ts`, `vault-wiki-graph.ts`, `skills/route.ts`, `api/sessions/route.ts`, `super-admin.ts`, `agent-runtimes.ts`, `session-transcript-route.ts`, `gateways/control/route.ts`, `runCommand`, `cli-inventory.ts`, `github.ts`, `framework-templates.ts`, `keys/route.ts`, `next`, `pty-websocket.ts`?**
-  _High betweenness centrality (0.070) - this node is a cross-community bridge._
-- **What connects `Development`, `Local configuration and authentication`, `Packaging and installation` to the rest of the system?**
-  _2056 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `next` connect `next` to `vitest`, `resolveWithin`, `auth.ts`, `runOpenClaw`, `useMissionControl`, `denyUnscopedResourceForStrictWorkspace`, `hermes-tasks.ts`, `agent-squad-panel-phase3.tsx`, `login/page.tsx`, `store/index.ts`, `config`, `office-panel.tsx`, `integrations/route.ts`, `api/status/route.ts`, `nav-rail.tsx`, `hermes/route.ts`, `mutationLimiter`, `security-scan.ts`, `engine-logo.tsx`, `keys/route.ts`, `desktop-browser-login.ts`, `apiFetch`, `db.ts`, `package.json`, `agent-avatar.tsx`, `skills/route.ts`, `memory-utils.ts`, `exec-approvals/route.ts`, `github/route.ts`, `handoff/route.ts`, `validation.ts`, `react`, `mcp-audit.ts`, `gnap-sync.ts`, `getDatabase`, `workload/route.ts`, `layout.tsx`, `gateways/connect/route.ts`, `onboarding/route.ts`, `skill-registry.ts`, `graph/route.ts`, `fetchWithRetry`, `evals/route.ts`, `super-admin.ts`, `proxy.ts`, `agent-runtimes.ts`, `runCommand`, `recurring-tasks.ts`, `gateways/health/route.ts`, `cli-inventory.ts`, `framework-templates.ts`, `flight-deck/route.ts`, `button.tsx`, `requireRole`, `fly-reconciler.ts`, `session-transcript-route.ts`, `jev-assistant-schema.ts`, `agent-filesystem-isolation.test.ts`, `tokens/route.ts`, `gateway-config/route.ts`, `[id]/diagnostics/route.ts`, `rate-limit.ts`, `message-bubble.tsx`, `api/health/route.ts`, `channels/route.ts`, `provision-jobs/[id]/route.ts`, `chat-permission-mode-route.test.ts`, `chat/messages/route.ts`, `tasks-route-noop-update.test.ts`, `optimize/route.ts`, `aggregate/route.ts`, `migrations.ts`, `index/route.ts`, `attribution/route.ts`, `locale-parity.test.ts`, `gateways/control/route.ts`, `chat-folder-order-route.test.ts`, `memory/health/route.ts`, `executeProvisionJob`, `github-pulls-api.ts`, `agents-delete-route.test.ts`, `quality-review-reviewer-identity.test.ts`, `task-broadcast-route-agent-access.test.ts`, `release-update-route-security.test.ts`, `tasks-bulk-put-agent-access.test.ts`, `claude-tasks.ts`, `event-bus.ts`?**
+  _High betweenness centrality (0.194) - this node is a cross-community bridge._
+- **Why does `vitest` connect `vitest` to `mac-cleanup/index.ts`, `resolveWithin`, `auth.ts`, `chat-icons.tsx`, `jev-assistant-provider.ts`, `runOpenClaw`, `useMissionControl`, `denyUnscopedResourceForStrictWorkspace`, `login/page.tsx`, `store/index.ts`, `group-sessions.ts`, `header-bar.tsx`, `config`, `api/status/route.ts`, `hermes/route.ts`, `fly-admission.test.ts`, `chat-desktop-workspace.tsx`, `security-scan.ts`, `chat-session-pane.tsx`, `task-dispatch.ts`, `engine-logo.tsx`, `permission-connector.ts`, `desktop-browser-login.ts`, `cron-management-panel.tsx`, `apiFetch`, `claude-fleet-rename.ts`, `webhooks.ts`, `db.ts`, `package.json`, `agent-avatar.tsx`, `skills/route.ts`, `skill-sync.ts`, `memory-utils.ts`, `gateway-config-panel.tsx`, `exec-approvals/route.ts`, `injection-guard.ts`, `github/route.ts`, `dashboard-cli-fleets.ts`, `exec-approval-panel.tsx`, `chat-display.ts`, `handoff/route.ts`, `validation.ts`, `react`, `mcp-audit.ts`, `session-terminal-widget.tsx`, `openclaw-doctor.ts`, `claude-fleet-plans.ts`, `gnap-sync.ts`, `jev-panel.tsx`, `session-list-local.ts`, `jev-assistant-service.ts`, `getDatabase`, `workload/route.ts`, `github-sync-engine.ts`, `layout.tsx`, `gateways/connect/route.ts`, `onboarding/route.ts`, `dashboard-board.ts`, `fly-workers.ts`, `models.ts`, `skill-registry.ts`, `graph/route.ts`, `fetchWithRetry`, `evals/route.ts`, `proxy.ts`, `agent-runtimes.ts`, `local-session-list.ts`, `runCommand`, `recurring-tasks.ts`, `api-contract-parity.ts`, `cli-inventory.ts`, `device-identity.ts`, `session-thread.tsx`, `framework-templates.ts`, `requireRole`, `ref_node_crypto`, `opencode-sessions.ts`, `fly-reconciler.ts`, `session-transcript-route.ts`, `chat-session-map.ts`, `claude-code-sessions.ts`, `ref_node_module`, `jev-assistant-schema.ts`, `lib/config.ts`, `rail-width.ts`, `fly-fairness.test.ts`, `cron-occurrences.ts`, `websocket-utils.ts`, `agent-filesystem-isolation.test.ts`, `tokens/route.ts`, `gateway-config/route.ts`, `coordinator-routing.ts`, `adapter-compliance.test.ts`, `rate-limit.ts`, `message-bubble.tsx`, `chat-fly-jobs.ts`, `openclaw-doctor-banner.tsx`, `alert-evaluate.ts`, `runtime-history.ts`, `kimi-sessions.ts`, `cli-session-kinds.ts`, `fleet-agents.ts`, `hook-profiles.ts`, `api/health/route.ts`, `gateway-runtime.ts`, `channels/route.ts`, `next`, `session-terminal-cell.tsx`, `openclaw-agents.ts`, `health-utils.test.ts`, `fleet-projects.ts`, `fly-stale-controller.ts`, `pty-websocket-auth.test.ts`, `openclaw-gateway.ts`, `github.ts`, `task-routing.ts`, `chat-permission-mode-route.test.ts`, `tasks-route-noop-update.test.ts`, `typesafe-probe.ts`, `github-activity.ts`, `jev-service.ts`, `buildGatewayWebSocketUrl`, `migrations.ts`, `openclaw-doctor-fix.ts`, `callDirectly`, `jev-validation.ts`, `locale-parity.test.ts`, `token-utils.test.ts`, `gateways/control/route.ts`, `chat-folder-order-route.test.ts`, `openclaw-doctor-route.test.ts`, `dashboard-page-frame.tsx`, `github-pulls-api.ts`, `agents-delete-route.test.ts`, `quality-review-reviewer-identity.test.ts`, `task-broadcast-route-agent-access.test.ts`, `release-update-route-security.test.ts`, `tasks-bulk-put-agent-access.test.ts`, `agent-model-trim.test.ts`, `better-sqlite3`, `adapter-assignment-isolation.test.ts`, `vitest.config.ts`, `runtime-types.ts`, `event-bus.ts`?**
+  _High betweenness centrality (0.164) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `dashboard.tsx`, `chat-icons.tsx`, `dashboard-page-frame.tsx`, `security-audit-panel.tsx`, `useMissionControl`, `rail-width.ts`, `webhook-panel.tsx`, `agent-squad-panel-phase3.tsx`, `login/page.tsx`, `store/index.ts`, `group-sessions.ts`, `header-bar.tsx`, `gateway-config/route.ts`, `office-panel.tsx`, `nav-rail.tsx`, `pipeline-tab.tsx`, `chat-desktop-workspace.tsx`, `message-bubble.tsx`, `chat-fly-jobs.ts`, `openclaw-doctor-banner.tsx`, `chat-session-pane.tsx`, `security-scan-card.tsx`, `engine-logo.tsx`, `cost-tracker-panel.tsx`, `permission-connector.ts`, `cron-management-panel.tsx`, `apiFetch`, `widget-grid.tsx`, `package.json`, `terminal-view.tsx`, `websocket.ts`, `session-terminal-cell.tsx`, `gateway-config-panel.tsx`, `dashboard-cli-fleets.ts`, `exec-approval-panel.tsx`, `channels-panel.tsx`, `chat-display.ts`, `agent-comms-panel.tsx`, `session-terminal-widget.tsx`, `jev-panel.tsx`, `layout.tsx`, `session-thread.tsx`, `memory-browser-panel.tsx`, `plugins.ts`, `button.tsx`, `nodes-panel.tsx`?**
+  _High betweenness centrality (0.060) - this node is a cross-community bridge._
+- **What connects `name`, `version`, `private` to the rest of the system?**
+  _2122 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `vitest` be split into smaller, more focused modules?**
-  _Cohesion score 0.0333891460652024 - nodes in this community are weakly interconnected._
-- **Should `api/agents/route.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.07171717171717172 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.033720287451630734 - nodes in this community are weakly interconnected._
+- **Should `widget-primitives.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.13105413105413105 - nodes in this community are weakly interconnected._
 - **Should `mac-cleanup/index.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.05384512861522058 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0545996477442081 - nodes in this community are weakly interconnected._

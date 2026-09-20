@@ -6,6 +6,8 @@ import type {
   JevState,
   JevStatus,
 } from '@/lib/jev-types'
+import type { JevAssistantDraft } from '@/lib/jev-assistant-schema'
+import type { JevPolicyConfiguration } from '@/lib/jev-policy-configuration'
 
 export type { JevEvaluation, JevPolicy, JevQuestions, JevRepositoryContext, JevState, JevStatus }
 
@@ -15,7 +17,16 @@ export interface JevPolicyInput {
   model: string
   mode: 'manual' | 'shadow'
   questions: JevQuestions
+  configuration?: JevPolicyConfiguration | null
   enabled: boolean
+}
+
+export interface JevAssistantResponse {
+  draft: JevAssistantDraft
+  configuration: JevPolicyConfiguration
+  provider: { kind: 'claude-cli'; model: string }
+  warnings: string[]
+  session?: { id: string; revisionNo: number } | null
 }
 
 export interface JevRunResult {

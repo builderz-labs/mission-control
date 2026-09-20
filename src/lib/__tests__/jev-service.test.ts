@@ -25,15 +25,16 @@ beforeEach(() => {
 
 afterEach(() => db.close())
 
-function policyId(): number {
+function policyId(configuration: Parameters<typeof createJevPolicy>[0]['configuration'] = null): number {
   return createJevPolicy({
     project_id: 71, name: 'Gate', description: null, model: 'jev-latest', mode: 'shadow',
     questions: { ready: { type: 'noul', instructions: 'Is this ready?' } },
-    enabled: true, created_by: 'operator',
+    configuration, enabled: true, created_by: 'operator',
   }, 1, db).id
 }
 
 const actor = { id: 4, username: 'operator' }
+const testUuid = (tail: number) => `00000000-0000-4000-8000-${String(tail).padStart(12, '0')}`
 
 describe('Jev evaluation lifecycle', () => {
   it('stores provenance without retaining raw state by default', async () => {
@@ -62,6 +63,70 @@ describe('Jev evaluation lifecycle', () => {
     })
     const row = db.prepare('SELECT state_preview FROM jev_evaluations WHERE id=?').get(result.id) as { state_preview: string }
     expect(row.state_preview).toHaveLength(500)
+  })
+
+  it('enforces an approved no-preview policy even when a client requests retention', async () => {
+    mocks.evaluate.mockResolvedValue({
+      model: 'jev-1.13.0', answers: {}, usage: { input_tokens: 1, output_tokens: 1 }, requestId: null,
+    })
+    const id = policyId({
+      scope: 'current', projectIds: [71], trigger: 'manual', enforcement: 'advisory',
+      contextMode: 'safe_repository', failureMode: 'retry_then_review', rollout: 'shadow',
+      retainPreview: false, uncertaintyThreshold: 0.65, tests: [], risks: [], observability: [],
+    })
+    const result = await runJevEvaluation({
+      workspaceId: 1, projectId: 71, policyId: id, state: 'private state',
+      retainStatePreview: true, actor,
+    })
+    expect(db.prepare('SELECT state_preview FROM jev_evaluations WHERE id=?').get(result.id))
+      .toEqual({ state_preview: null })
+  })
+
+  it('replays a completed idempotent command without a second provider charge', async () => {
+    mocks.evaluate.mockResolvedValue({
+      model: 'jev-1.13.0', answers: { ready: { type: 'noul', noul: 0.8 } },
+      usage: { input_tokens: 2, output_tokens: 1 }, requestId: 'req_once',
+    })
+    const input = {
+      workspaceId: 1, projectId: 71, policyId: policyId(), state: 'stable state',
+      idempotencyKey: testUuid(1), retainStatePreview: false, actor,
+    }
+    const first = await runJevEvaluation(input)
+    const replay = await runJevEvaluation(input)
+    expect(replay).toEqual(first)
+    expect(mocks.evaluate).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects reuse of an idempotency key for different input', async () => {
+    mocks.evaluate.mockResolvedValue({
+      model: 'jev-1.13.0', answers: {}, usage: { input_tokens: 1, output_tokens: 1 }, requestId: null,
+    })
+    const id = policyId()
+    const base = {
+      workspaceId: 1, projectId: 71, policyId: id,
+      idempotencyKey: testUuid(2), retainStatePreview: false, actor,
+    }
+    await runJevEvaluation({ ...base, state: 'first' })
+    await expect(runJevEvaluation({ ...base, state: 'different' }))
+      .rejects.toMatchObject({ code: 'JEV_IDEMPOTENCY_CONFLICT', status: 409 })
+  })
+
+  it('redacts credentials from opted-in string and JSON previews', async () => {
+    mocks.evaluate.mockResolvedValue({
+      model: 'jev-1.13.0', answers: {}, usage: { input_tokens: 1, output_tokens: 1 }, requestId: null,
+    })
+    const secret = 'abcdefghijklmnopqrstuvwxyz123456'
+    const id = policyId()
+    for (const state of [`api_key=${secret}`, { nested: { password: secret } }]) {
+      const result = await runJevEvaluation({
+        workspaceId: 1, projectId: 71, policyId: id, state,
+        retainStatePreview: true, actor,
+      })
+      const row = db.prepare('SELECT state_preview FROM jev_evaluations WHERE id=?')
+        .get(result.id) as { state_preview: string }
+      expect(row.state_preview).not.toContain(secret)
+      expect(row.state_preview).toMatch(/redacted/i)
+    }
   })
 
   it('persists only a safe code when the provider fails', async () => {

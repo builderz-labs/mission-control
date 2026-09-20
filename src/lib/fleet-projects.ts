@@ -61,6 +61,19 @@ export function seedFleetProjects(
     INSERT OR IGNORE INTO project_agent_assignments (project_id, agent_name, role)
     VALUES (?, ?, 'member')
   `)
+  const hasBindings = Boolean(db.prepare(`
+    SELECT 1 FROM sqlite_master WHERE type='table' AND name='jev_project_checkouts'
+  `).get())
+  const ownerWorkspace = hasBindings ? db.prepare(`
+    SELECT id FROM workspaces
+    ORDER BY CASE WHEN slug = 'default' THEN 0 ELSE 1 END, id ASC LIMIT 1
+  `).get() as { id: number } | undefined : undefined
+  const bindCheckout = ownerWorkspace?.id === workspaceId ? db.prepare(`
+    INSERT INTO jev_project_checkouts (project_id, workspace_id, root_path)
+    VALUES (?, ?, ?)
+    ON CONFLICT(project_id) DO UPDATE SET root_path=excluded.root_path
+    WHERE jev_project_checkouts.workspace_id=excluded.workspace_id
+  `) : null
 
   let created = 0
   let updated = 0
@@ -98,6 +111,7 @@ export function seedFleetProjects(
         const result = assign.run(projectId, name)
         assigned += result.changes
       }
+      bindCheckout?.run(projectId, workspaceId, spec.path)
     }
     const general = db.prepare(
       'SELECT id FROM projects WHERE workspace_id = ? AND slug = ?',

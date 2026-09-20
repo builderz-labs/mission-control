@@ -5,6 +5,7 @@ describe('dashboardPageLayout', () => {
   it.each([
     'chat',
     'gateway-config',
+    'jev',
     'knowledge-graph',
     'logs',
     'memory',
