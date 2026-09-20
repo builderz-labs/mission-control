@@ -81,7 +81,7 @@ jobs:
         with:
           name: jev-browser-evidence-${{ github.sha }}
           path: |
-            test-results/**/*.png
+            test-results/**
             playwright-report/**
           if-no-files-found: warn
           retention-days: 14
