@@ -32381,7 +32381,7 @@
       "file_type": "code",
       "norm_label": "shot()",
       "source_file": "tests/jev-setup-flow.spec.ts",
-      "source_location": "L105"
+      "source_location": "L108"
     },
     {
       "id": "src_lib_chat_desktop_data_conversationstoitems",
@@ -145218,7 +145218,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "tests/jev-setup-flow.spec.ts",
-      "source_location": "L105",
+      "source_location": "L108",
       "weight": 1.0
     },
     {
@@ -321030,5 +321030,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "b15a15a9fb9060948b109b24b768fe2d51247a89"
+  "built_at_commit": "b5af931b89090924d82998beaaa1e12f958fdab4"
 }

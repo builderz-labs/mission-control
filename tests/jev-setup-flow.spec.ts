@@ -50,6 +50,9 @@ async function mockJev(page: Page) {
     created_by_user_id: 1, title: 'Assess release readiness', provider: 'claude-cli', model: 'haiku',
     status: 'draft', primary_policy_id: null, created_at: 1, updated_at: 1, archived_at: null,
   }
+  await page.route('**/api/status?action=capabilities', (route) => route.fulfill({ json: {
+    interfaceMode: 'full', gateway: false, processUser: 'testadmin', claudeHome: null,
+  } }))
   await page.route('**/api/projects', (route) => route.fulfill({ json: { projects } }))
   await page.route('**/api/jev/status', (route) => route.fulfill({ json: { status: {
     configured: true, healthy: true, healthError: null, lastCheckedAt: 1,
