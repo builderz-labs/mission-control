@@ -366,9 +366,9 @@
     "semantic_hash": "51dc4902eac22cba8339318b7b45080e"
   },
   "package.json": {
-    "mtime": 1789939674.288769,
-    "seen": 1789940816.732042,
-    "ast_hash": "ea8c4d09e1133f0cf1f627fdddc52052",
+    "mtime": 1789948154.9113092,
+    "seen": 1789948180.203727,
+    "ast_hash": "127966a61539ec27e07678ea45a6d43b",
     "semantic_hash": ""
   },
   "playwright.config.ts": {
@@ -456,10 +456,10 @@
     "semantic_hash": "d21fe28d4288d953f3c6b973a220c400"
   },
   "scripts/e2e-openclaw/start-e2e-server.mjs": {
-    "mtime": 1788342426.0857458,
-    "seen": 1789799247.251311,
-    "ast_hash": "adf36d257ddbe8da15d7dae80c8c7fa2",
-    "semantic_hash": "adf36d257ddbe8da15d7dae80c8c7fa2"
+    "mtime": 1789948154.9107969,
+    "seen": 1789948180.203743,
+    "ast_hash": "5c16381cb958808abc4f7a626234d2b0",
+    "semantic_hash": ""
   },
   "scripts/gen-star-history.py": {
     "mtime": 1788342426.0858645,
@@ -8295,6 +8295,18 @@
     "mtime": 1789944564.6588259,
     "seen": 1789945309.1867478,
     "ast_hash": "b658ff312c296d52d505aa49af67a8b9",
+    "semantic_hash": ""
+  },
+  "scripts/e2e-openclaw/stage-standalone-assets.mjs": {
+    "mtime": 1789948154.910171,
+    "seen": 1789948180.20374,
+    "ast_hash": "18d712b3e844186d54e891b8e3669d30",
+    "semantic_hash": ""
+  },
+  "scripts/e2e-openclaw/stage-standalone-assets.test.mjs": {
+    "mtime": 1789948154.9103777,
+    "seen": 1789948180.203742,
+    "ast_hash": "1fa0413520e4395464e78c2107bd817f",
     "semantic_hash": ""
   }
 }
