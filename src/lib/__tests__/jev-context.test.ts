@@ -14,7 +14,9 @@ let root: string
 beforeEach(() => {
   db = new Database(':memory:')
   runMigrations(db)
-  root = mkdtempSync(join(homedir(), 'Dev', 'jev-context-test-'))
+  const devRoot = join(homedir(), 'Dev')
+  mkdirSync(devRoot, { recursive: true })
+  root = mkdtempSync(join(devRoot, 'jev-context-test-'))
   mkdirSync(join(root, 'src'))
   writeFileSync(join(root, 'README.md'), '# Example\nToken: sk-supersecret123456789\n')
   writeFileSync(join(root, 'package.json'), '{"name":"example","scripts":{"test":"vitest"}}')

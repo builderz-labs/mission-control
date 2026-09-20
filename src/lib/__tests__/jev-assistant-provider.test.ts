@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ spawn: vi.fn(), spawnSync: vi.fn(() => ({ status: 0, stdout: '{"loggedIn":true}' })) }))
 vi.mock('node:child_process', async (importOriginal) => {
@@ -38,7 +38,10 @@ describe('Jev assistant provider', () => {
     mocks.spawn.mockReset()
     mocks.spawnSync.mockReset()
     mocks.spawnSync.mockReturnValue({ status: 0, stdout: '{"loggedIn":true}' })
+    vi.stubEnv('JEV_CLAUDE_BIN', process.execPath)
   })
+
+  afterEach(() => vi.unstubAllEnvs())
 
   it('uses a no-tools, no-session structured Claude process', async () => {
     const child = childProcess()
@@ -76,7 +79,6 @@ describe('Jev assistant provider', () => {
     expect(options.env).not.toHaveProperty('DOPPLER_TOKEN')
     expect(options.env).not.toHaveProperty('AUTH_SECRET')
     expect((child.stdin as { end: ReturnType<typeof vi.fn> }).end).toHaveBeenCalledWith('safe prompt')
-    vi.unstubAllEnvs()
   })
 
   it('retries invalid provider output once and returns a safe error', async () => {
