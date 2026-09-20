@@ -38,7 +38,7 @@ async function login(page: Page) {
   await page.goto('/login')
   await page.getByLabel(/username/i).fill('testadmin')
   await page.getByLabel(/password/i).fill('testpass1234!')
-  await page.getByRole('button', { name: /sign in/i }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await expect(page).not.toHaveURL(/\/login/)
 }
 
