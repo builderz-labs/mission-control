@@ -14,6 +14,7 @@ import { resolveCoordinatorDeliveryTarget, type CoordinatorAgentRecord } from '@
 import type { GatewaySession } from '@/lib/sessions'
 import { apiFetch, ApiError } from '@/lib/api-client'
 import { LlmLabel } from '@/components/brand/engine-logo'
+import { DesktopBrowserApproval } from '@/components/settings/desktop-browser-approval'
 
 interface Setting {
   key: string
@@ -208,6 +209,8 @@ export function SettingsPanel() {
         redirectOnUnauthenticated: false,
       })
       if (res.status === 401) {
+        // Preserve the settings return target across the authentication boundary.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign('/login?next=%2Fsettings')
         return
       }
@@ -455,6 +458,8 @@ export function SettingsPanel() {
           {t('workspaceManagementDesc2')}
         </div>
       )}
+
+      <DesktopBrowserApproval />
 
       {/* Station Setup */}
       {currentUser?.role === 'admin' && (

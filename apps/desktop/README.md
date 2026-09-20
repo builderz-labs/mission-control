@@ -60,6 +60,12 @@ checkout's account credentials and exchanges them directly with the backend logi
 route; credentials never enter the web page or preload bridge. The PIN is stored as
 a salted scrypt hash with owner-only file permissions. The ordinary local login
 screen remains available as a fallback.
+An authenticated desktop session can also approve a one-time browser sign-in from
+**Settings → Browser access**. The browser displays an eight-character code that
+expires after five minutes. Mission Control stores only keyed digests, accepts the
+approval only from a session originally created by the desktop app, and consumes the
+request once when it issues the browser's HttpOnly session cookie. Account passwords
+are never returned to either renderer.
 Session storage is isolated by the complete origin (including port) and held in
 memory until the app quits. Legacy default-session cookies are never selected.
 Closing and reopening a window keeps the session; quitting the app requires a

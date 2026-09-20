@@ -81,3 +81,5 @@ __pycache__/
 # Audit skill run artifacts
 .audit/
 .merge/
+graphify-out/cost.json
+graphify-out/cache/

@@ -20,6 +20,7 @@ import { GatewayConfigPanel } from '@/components/panels/gateway-config-panel'
 import { GatewayControlPanel } from '@/components/panels/gateway-control-panel'
 import { GitHubSyncPanel } from '@/components/panels/github-sync-panel'
 import { IntegrationsPanel } from '@/components/panels/integrations-panel'
+import { JevPanel } from '@/components/panels/jev/jev-panel'
 import { LocalAgentsDocPanel } from '@/components/panels/local-agents-doc-panel'
 import { LogViewerPanel } from '@/components/panels/log-viewer-panel'
 import { MemoryBrowserPanel } from '@/components/panels/memory-browser-panel'
@@ -78,6 +79,7 @@ function routedContent(tab: string, isLocal: boolean): ReactNode {
     case 'gateways': return isLocal ? <GatewayControlPanel /> : <MultiGatewayPanel />
     case 'gateway-config': return isLocal ? <LocalModeUnavailable panel={tab} /> : <GatewayConfigPanel />
     case 'integrations': return <IntegrationsPanel />
+    case 'jev': return <JevPanel />
     case 'settings': return <SettingsPanel />
     case 'super-admin': return <SuperAdminPanel />
     case 'github': return <GitHubSyncPanel />

@@ -193,7 +193,11 @@ if [[ "${MC_USE_DOPPLER:-0}" == "1" ]]; then
     echo "error: Doppler CLI is required when MC_USE_DOPPLER=1" >&2
     exit 1
   fi
-  exec doppler run --project mission-control --config prd --no-fallback -- \
+  if [[ -z "${MC_DOPPLER_PROJECT:-}" || -z "${MC_DOPPLER_CONFIG:-}" ]]; then
+    echo "error: MC_DOPPLER_PROJECT and MC_DOPPLER_CONFIG are required when MC_USE_DOPPLER=1" >&2
+    exit 1
+  fi
+  exec doppler run --project "${MC_DOPPLER_PROJECT}" --config "${MC_DOPPLER_CONFIG}" --no-fallback -- \
     bash -c 'exec -a "${MC_PROCESS_NAME}" node server.js'
 fi
 exec -a "${MC_PROCESS_NAME}" node server.js

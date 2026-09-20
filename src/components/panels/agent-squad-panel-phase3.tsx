@@ -129,6 +129,8 @@ export function AgentSquadPanelPhase3() {
       } catch (apiErr) {
         if (apiErr instanceof ApiError) {
           if (apiErr.code === 'UNAUTHENTICATED') {
+            // Preserve the full post-login return target across the auth boundary.
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
             window.location.assign('/login?next=%2Fagents')
             return
           }
@@ -181,6 +183,8 @@ export function AgentSquadPanelPhase3() {
       } catch (apiErr) {
         if (apiErr instanceof ApiError) {
           if (apiErr.code === 'UNAUTHENTICATED') {
+            // Preserve the full post-login return target across the auth boundary.
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
             window.location.assign('/login?next=%2Fagents')
             return
           }

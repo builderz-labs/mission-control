@@ -26,6 +26,9 @@ importers:
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
+      '@typesafe-ai/sdk':
+        specifier: 0.5.7
+        version: 0.5.7
       '@xterm/addon-fit':
         specifier: ^0.11.0
         version: 0.11.0
@@ -1568,6 +1571,10 @@ packages:
 
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+
+  '@typesafe-ai/sdk@0.5.7':
+    resolution: {integrity: sha512-OrbhDXyxDoX9l45/Mcts+TsNuvubCuZQzINQv0BMbi32ztcapzgrCnMmaW9gK5+JkgQAZcnJH1f47lAur+i1hw==}
+    engines: {node: '>=20'}
 
   '@typescript-eslint/eslint-plugin@8.62.1':
     resolution: {integrity: sha512-4EQM77WgVNxj7OkL/5b/D/xZsw00G577+UriYTC7JF5opcF3T2AuoeY7ueLaZgSVjSgCS6yOAJB5bRGLPSJUzA==}
@@ -6371,6 +6378,8 @@ snapshots:
   '@types/ws@8.18.1':
     dependencies:
       '@types/node': 26.1.1
+
+  '@typesafe-ai/sdk@0.5.7': {}
 
   '@typescript-eslint/eslint-plugin@8.62.1(@typescript-eslint/parser@8.62.1(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)':
     dependencies:

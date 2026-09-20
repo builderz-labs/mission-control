@@ -53,6 +53,8 @@ function redirectToLogin(): void {
   const from = window.location.pathname + window.location.search
   // Avoid redirect loops if user is already on /login
   if (window.location.pathname === '/login') return
+  // This utility runs outside React; reload to clear stale authenticated RSC state.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = `/login?from=${encodeURIComponent(from)}`
 }
 

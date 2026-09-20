@@ -97,6 +97,22 @@ export const loginLimiter = createRateLimiter({
   critical: true,
 })
 
+/** Desktop-approved browser login creation: 10 attempts per five minutes per IP. */
+export const desktopBrowserRequestLimiter = createRateLimiter({
+  windowMs: 5 * 60_000,
+  maxRequests: 10,
+  message: 'Too many browser sign-in requests. Try again in five minutes.',
+  critical: true,
+})
+
+/** Browser polling: permits the documented two-second interval for five minutes. */
+export const desktopBrowserPollLimiter = createRateLimiter({
+  windowMs: 5 * 60_000,
+  maxRequests: 160,
+  message: 'Too many browser sign-in checks. Start a new sign-in request.',
+  critical: true,
+})
+
 export const mutationLimiter = createRateLimiter({
   windowMs: 60_000,
   maxRequests: 60,
@@ -232,6 +248,14 @@ export const passwordChangeLimiter = createKeyedRateLimiter({
   windowMs: 60_000,
   maxRequests: 5,
   message: 'Too many password change attempts. Try again in a minute.',
+  critical: true,
+})
+
+/** Desktop code approval: 10 attempts per five minutes per authenticated user. */
+export const desktopBrowserApprovalLimiter = createKeyedRateLimiter({
+  windowMs: 5 * 60_000,
+  maxRequests: 10,
+  message: 'Too many browser sign-in approval attempts. Try again in five minutes.',
   critical: true,
 })
 

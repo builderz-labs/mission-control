@@ -19,6 +19,7 @@ const WIDE_PANELS = new Set([
   'channels',
   'cron',
   'fly',
+  'jev',
   'overview',
   'skills',
   'super-admin',

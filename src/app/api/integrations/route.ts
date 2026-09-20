@@ -16,6 +16,7 @@ import { getPluginIntegrations, getPluginCategories } from '@/lib/plugins'
 import type { PluginIntegrationDef } from '@/lib/plugins'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { fetchWithRetry } from '@/lib/fetch-with-retry'
+import { probeTypeSafeApiKey } from '@/lib/typesafe-probe'
 
 // ---------------------------------------------------------------------------
 // Integration registry
@@ -64,6 +65,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     recommendation: 'Stillpoint (claude-2). Concurrent dispatch needs a one-time `CLAUDE_CONFIG_DIR=~/.claude-account2 claude auth login`. Heal will not create that directory or copy oauthAccount.',
   },
   { id: 'openai', name: 'OpenAI', category: 'ai', envVars: ['OPENAI_API_KEY'], vaultItem: 'openclaw-openai-api-key', testable: true },
+  { id: 'typesafe_jev', name: 'Jev by TypeSafe AI', category: 'ai', envVars: ['TYPESAFE_API_KEY'], testable: true },
   { id: 'openrouter', name: 'OpenRouter', category: 'ai', envVars: ['OPENROUTER_API_KEY'], vaultItem: 'openclaw-openrouter-api-key', testable: true },
   { id: 'venice', name: 'Venice AI', category: 'ai', envVars: ['VENICE_API_KEY'], vaultItem: 'openclaw-venice-api-key', testable: true },
   { id: 'nvidia', name: 'NVIDIA', category: 'ai', envVars: ['NVIDIA_API_KEY'], vaultItem: 'openclaw-nvidia-api-key' },
@@ -803,6 +805,12 @@ async function handleTest(
         result = res.ok
           ? { ok: true, detail: 'API key valid' }
           : { ok: false, detail: `HTTP ${res.status}` }
+        break
+      }
+
+      case 'typesafe_jev': {
+        const key = getEffectiveEnvValue(envMap, 'TYPESAFE_API_KEY')
+        result = await probeTypeSafeApiKey(key)
         break
       }
 
