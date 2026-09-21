@@ -96,8 +96,10 @@ kill -0 "$BYSTANDER" 2>/dev/null || fail "the reaper signalled an unrelated proc
 # a second scheduler polling the same durable queue. The database handle is what
 # still gives the process away.
 DATA_DIR="$TMP_DIR/data"
-REBUILT_DIR="$TMP_DIR/rebuilt"
-mkdir -p "$DATA_DIR" "$REBUILT_DIR"
+PROJECT_ROOT="$TMP_DIR/project"
+REBUILT_DIR="$PROJECT_ROOT/.next/standalone"
+ROLLBACK_TREE="$PROJECT_ROOT/.data/releases/.next-rollback-test"
+mkdir -p "$DATA_DIR" "$REBUILT_DIR" "$(dirname "$ROLLBACK_TREE")"
 : > "$DATA_DIR/mission-control.db"
 cat > "$REBUILT_DIR/server.js" <<'EOF'
 const fs = require('fs')
@@ -111,12 +113,11 @@ PIDS+=("$REBUILT_STALE")
 sleep 1
 kill -0 "$REBUILT_STALE" 2>/dev/null || fail 'the rebuilt-directory stand-in did not start'
 
-# Replace the directory exactly as a build does, then assert the regression
-# condition actually holds: a path-based cwd lookup must no longer see it.
-rm -rf "$REBUILT_DIR"
+# Move the live tree exactly as deployment does, then recreate the new release.
+mv "$PROJECT_ROOT/.next" "$ROLLBACK_TREE"
 mkdir -p "$REBUILT_DIR"
 if lsof -t -a -d cwd -c node -- "$REBUILT_DIR" 2>/dev/null | grep -qx "$REBUILT_STALE"; then
-  fail 'fixture is wrong: the stand-in is still reachable by directory path after the rebuild'
+  fail 'fixture is wrong: the stand-in is still reachable through the new release path'
 fi
 
 ( STANDALONE_DIR="$REBUILT_DIR" MISSION_CONTROL_DATA_DIR="$DATA_DIR" \
@@ -124,6 +125,6 @@ fi
   : > "$TMP_DIR/reap2.done" ) || true
 [[ -f "$TMP_DIR/reap2.done" ]] || fail "the reaper aborted: $(cat "$TMP_DIR/reap2.err" 2>/dev/null)"
 
-kill -0 "$REBUILT_STALE" 2>/dev/null && fail "a prior controller survived the reaper after the standalone directory was replaced (pid $REBUILT_STALE)"
+kill -0 "$REBUILT_STALE" 2>/dev/null && fail "a prior controller survived after its release tree moved to rollback (pid $REBUILT_STALE)"
 
-echo "reap-controller: a prior controller is reaped by working directory or database handle, across a rebuild, and bystanders and ancestors are not"
+echo "reap-controller: active and moved rollback controllers are reaped, while bystanders and ancestors are not"

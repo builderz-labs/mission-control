@@ -45,22 +45,9 @@ fi
 
 export MISSION_CONTROL_DATA_DIR="${MISSION_CONTROL_DATA_DIR:-$PROJECT_ROOT/.data}"
 
-# `launchctl kickstart -k` replaces the doppler wrapper but not the node server
-# doppler forked from it: that server survives, reparented to PID 1, and keeps
-# polling this database with the build it was started from. Two builds sharing
-# one durable queue mis-attribute rows, so reap a prior controller before binding.
-#
-# No single signal finds it reliably:
-#   - the port and the database handle are both released early in shutdown, so a
-#     reaper that samples either can look at exactly the wrong instant, find
-#     nothing, and let a process that then fails to exit come back to life;
-#   - a redeploy replaces $STANDALONE_DIR, so the prior controller's cwd points at
-#     the old, unlinked inode. `lsof <dir>` matches by inode rather than by path
-#     and cannot see it, even though the process still reports that same path.
-# Both failures were observed in production. So take the union of all three
-# signals to find candidates, then confirm each one by the working directory it
-# reports, which stays correct even when the inode behind it is gone. That
-# confirmation is what keeps an unrelated database client or port holder safe.
+# A launchd restart can leave Doppler's node child reparented to PID 1. Select
+# candidates by process, cwd, database and port, then confirm their cwd before
+# signalling so only this release or one of its retained rollback trees is reaped.
 reap_previous_controller() {
   command -v lsof >/dev/null 2>&1 || return 0
   # Never signal ourselves or anything that started us.
@@ -72,17 +59,12 @@ reap_previous_controller() {
   done
 
   local db="${MISSION_CONTROL_DATA_DIR:-}/mission-control.db"
-  local want want_real pid cwd cwd_real exe base path
+  local want want_real project_root pid cwd cwd_real exe base path
   want="$STANDALONE_DIR"
   want_real="$(cd "$STANDALONE_DIR" 2>/dev/null && pwd -P || printf '%s' "$STANDALONE_DIR")"
+  project_root="${PROJECT_ROOT:-$(dirname "$(dirname "$want")")}"
 
-  # Collect candidate PIDs into a temp file — never into a $() that also
-  # contains `case …)` (bash ends $() at that paren).
-  #
-  # Ubuntu GitHub runners: Node renames its main thread, so /proc/<pid>/comm
-  # is "MainThread" and `pgrep -x node` / `lsof -c node` return nothing even
-  # though the process is alive. Discover via /proc/<pid>/exe basename (and
-  # macOS name-based fallbacks), then confirm by cwd below.
+  # Include executable discovery because Node can rename its main thread on Linux.
   local cand_file
   cand_file="$(mktemp "${TMPDIR:-/tmp}/mc-reap-cands.XXXXXX")"
   {
@@ -149,7 +131,12 @@ reap_previous_controller() {
     fi
     [[ -n "$cwd" ]] || continue
     cwd_real="$(cd "$cwd" 2>/dev/null && pwd -P || printf '%s' "$cwd")"
-    if [[ "$cwd" != "$want" && "$cwd" != "$want_real" && "$cwd_real" != "$want" && "$cwd_real" != "$want_real" ]]; then
+    if [[ "$cwd" != "$want" && "$cwd" != "$want_real"
+      && "$cwd_real" != "$want" && "$cwd_real" != "$want_real"
+      && "$cwd" != "$project_root"/.next-rollback-*/standalone
+      && "$cwd" != "$project_root"/.data/releases/.next-rollback-*/standalone
+      && "$cwd_real" != "$project_root"/.next-rollback-*/standalone
+      && "$cwd_real" != "$project_root"/.data/releases/.next-rollback-*/standalone ]]; then
       continue
     fi
     echo "reaping previous controller pid $pid" >&2
