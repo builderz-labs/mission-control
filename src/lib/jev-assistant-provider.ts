@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -11,6 +11,7 @@ import { JEV_ASSISTANT_SYSTEM_PROMPT } from '@/lib/jev-assistant-prompt'
 export { JevAssistantProviderError } from '@/lib/jev-assistant-error'
 
 let availability: { value: boolean; expiresAt: number } | null = null
+let availabilityFlight: Promise<boolean> | null = null
 
 const PROVIDER_ENV_KEYS = [
   'HOME', 'TMPDIR', 'USER', 'SHELL', 'LANG', 'LC_ALL', 'TERM',
@@ -37,25 +38,38 @@ function claudeExecutable(): string {
   return process.env.JEV_CLAUDE_BIN?.trim() || join(homedir(), '.local', 'bin', 'claude')
 }
 
-export function isJevAssistantAvailable(): boolean {
-  if (availability && availability.expiresAt > Date.now()) return availability.value
+async function checkAvailability(): Promise<boolean> {
   const cwd = mkdtempSync(join(tmpdir(), 'mc-jev-auth-'))
   try {
     const executable = claudeExecutable()
     if (!existsSync(executable)) throw new Error('Claude executable not found')
-    const result = spawnSync(executable, ['--safe-mode', 'auth', 'status', '--json'], {
-      encoding: 'utf8', timeout: 3_000, stdio: ['ignore', 'pipe', 'ignore'],
-      cwd, env: providerEnvironment(process.env, cwd),
-    })
-    const status = result.status === 0 ? JSON.parse(result.stdout || '{}') as { loggedIn?: boolean } : null
-    availability = { value: status?.loggedIn === true, expiresAt: Date.now() + 60_000 }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const stdout = await new Promise<string>((resolve, reject) => {
+          execFile(executable, ['--safe-mode', 'auth', 'status', '--json'], {
+            encoding: 'utf8', timeout: 5_000, maxBuffer: 64_000, killSignal: 'SIGKILL',
+            cwd, env: providerEnvironment(process.env, cwd),
+          }, (error, output) => error ? reject(error) : resolve(output))
+        })
+        const status = JSON.parse(stdout) as { loggedIn?: boolean }
+        if (typeof status.loggedIn !== 'boolean') throw new Error('Invalid auth status')
+        availability = { value: status.loggedIn, expiresAt: Date.now() + (status.loggedIn ? 60_000 : 15_000) }
+        break
+      } catch (error) { if (attempt === 1) throw error }
+    }
   } catch { availability = { value: false, expiresAt: Date.now() + 15_000 } }
   finally { try { rmSync(cwd, { recursive: true, force: true }) } catch { /* controlled temp dir */ } }
-  return availability.value
+  return availability?.value ?? false
 }
 
-function runOnce(prompt: string, signal?: AbortSignal): Promise<JevAssistantDraft> {
-  if (!isJevAssistantAvailable()) throw new JevAssistantProviderError('JEV_ASSISTANT_UNAVAILABLE', 503)
+export async function isJevAssistantAvailable(): Promise<boolean> {
+  if (availability && availability.expiresAt > Date.now()) return availability.value
+  if (!availabilityFlight) availabilityFlight = checkAvailability().finally(() => { availabilityFlight = null })
+  return availabilityFlight
+}
+
+async function runOnce(prompt: string, signal?: AbortSignal): Promise<JevAssistantDraft> {
+  if (!(await isJevAssistantAvailable())) throw new JevAssistantProviderError('JEV_ASSISTANT_UNAVAILABLE', 503)
   if (signal?.aborted) throw new JevAssistantProviderError('JEV_ASSISTANT_CANCELLED', 504)
   const cwd = mkdtempSync(join(tmpdir(), 'mc-jev-assistant-'))
   const model = jevAssistantModel('claude-cli')

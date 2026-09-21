@@ -86,6 +86,23 @@ test('saved chat opens the sorter, edits questions, runs a dataset and restores 
   await page.screenshot({ path: info.outputPath('05-restored-chat.png'), fullPage: true })
 })
 
+test('assistant connection can be retried without losing the goal', async ({ page }) => {
+  await setup(page)
+  let probes = 0
+  await page.route('**/api/jev/status', (route) => route.fulfill({ json: { status: {
+    configured: true, healthy: true, assistantAvailable: ++probes > 1,
+    assistantProvider: 'Claude Code', assistantDefault: 'claude-cli', defaultModel: 'jev-latest',
+    cloud: { state: 'synced', pending: 0 },
+  } } }))
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Retry assistant connection' })).toBeVisible()
+  await page.getByRole('textbox', { name: 'What do you want Jev to evaluate?' }).fill('Synthetic pasted release notes')
+  await page.getByRole('button', { name: 'Retry assistant connection' }).click()
+  await expect(page.getByRole('button', { name: 'Retry assistant connection' })).toBeHidden()
+  await expect(page.getByRole('textbox', { name: 'What do you want Jev to evaluate?' })).toHaveValue('Synthetic pasted release notes')
+  await expect(page.getByRole('button', { name: 'Use recommended setup' })).toBeEnabled()
+})
+
 for (const [width, height] of [[390, 844], [1024, 768], [1440, 900]]) {
   test(`sorter is usable at ${width}x${height}`, async ({ page }, info) => {
     await page.setViewportSize({ width, height })

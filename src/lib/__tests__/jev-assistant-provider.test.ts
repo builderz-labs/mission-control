@@ -2,12 +2,15 @@ import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ spawn: vi.fn(), spawnSync: vi.fn(() => ({ status: 0, stdout: '{"loggedIn":true}' })) }))
+type AuthCallback = (error: Error | null, output: string) => void
+const mocks = vi.hoisted(() => ({ spawn: vi.fn(), execFile: vi.fn<(
+  file: string, args: string[], options: unknown, callback: AuthCallback,
+) => void>() }))
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>()
   return {
-    ...actual, spawn: mocks.spawn, spawnSync: mocks.spawnSync,
-    default: { ...actual, spawn: mocks.spawn, spawnSync: mocks.spawnSync },
+    ...actual, spawn: mocks.spawn, execFile: mocks.execFile,
+    default: { ...actual, spawn: mocks.spawn, execFile: mocks.execFile },
   }
 })
 
@@ -36,8 +39,8 @@ describe('Jev assistant provider', () => {
     vi.useRealTimers()
     vi.resetModules()
     mocks.spawn.mockReset()
-    mocks.spawnSync.mockReset()
-    mocks.spawnSync.mockReturnValue({ status: 0, stdout: '{"loggedIn":true}' })
+    mocks.execFile.mockReset()
+    mocks.execFile.mockImplementation((_file, _args, _options, callback) => callback(null, '{"loggedIn":true}'))
     vi.stubEnv('JEV_CLAUDE_BIN', process.execPath)
   })
 
@@ -48,6 +51,7 @@ describe('Jev assistant provider', () => {
     mocks.spawn.mockReturnValue(child)
     const { generateJevAssistantDraft } = await import('@/lib/jev-assistant-provider')
     const generated = generateJevAssistantDraft('safe prompt')
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce())
     complete(child, { is_error: false, structured_output: valid })
     await expect(generated).resolves.toMatchObject({ name: 'Policy' })
     const args = mocks.spawn.mock.calls[0][1] as string[]
@@ -77,6 +81,7 @@ describe('Jev assistant provider', () => {
     mocks.spawn.mockReturnValue(child)
     const { generateJevAssistantDraft } = await import('@/lib/jev-assistant-provider')
     const generated = generateJevAssistantDraft('safe prompt')
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce())
     complete(child, { is_error: false, structured_output: valid })
     await generated
     const options = mocks.spawn.mock.calls[0][2]
@@ -92,6 +97,7 @@ describe('Jev assistant provider', () => {
     mocks.spawn.mockReturnValueOnce(first).mockReturnValueOnce(second)
     const { generateJevAssistantDraft } = await import('@/lib/jev-assistant-provider')
     const generated = generateJevAssistantDraft('safe prompt')
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce())
     complete(first, { is_error: false, structured_output: { unsafe: true } })
     await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledTimes(2))
     complete(second, { is_error: false, structured_output: { unsafe: true } })
@@ -105,6 +111,7 @@ describe('Jev assistant provider', () => {
     const controller = new AbortController()
     const { generateJevAssistantDraft } = await import('@/lib/jev-assistant-provider')
     const generated = generateJevAssistantDraft('safe prompt', controller.signal)
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce())
     const cwd = mocks.spawn.mock.calls[0][2].cwd as string
     controller.abort()
     await expect(generated).rejects.toMatchObject({ code: 'JEV_ASSISTANT_CANCELLED' })
@@ -118,6 +125,7 @@ describe('Jev assistant provider', () => {
     mocks.spawn.mockReturnValue(child)
     const { generateJevAssistantDraft } = await import('@/lib/jev-assistant-provider')
     const generated = generateJevAssistantDraft('safe prompt')
+    await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce())
     ;(child.stderr as EventEmitter).emit('data', Buffer.from('rate limit'))
     child.emit('close', 1)
     await expect(generated).rejects.toMatchObject({ code: 'JEV_ASSISTANT_RATE_LIMITED' })
@@ -125,7 +133,7 @@ describe('Jev assistant provider', () => {
   })
 
   it('fails safely when the authenticated provider is unavailable', async () => {
-    mocks.spawnSync.mockReturnValue({ status: 1, stdout: '' })
+    mocks.execFile.mockImplementation((_file, _args, _options, callback) => callback(new Error('unavailable'), ''))
     const { generateJevAssistantDraft } = await import('@/lib/jev-assistant-provider')
     await expect(generateJevAssistantDraft('safe prompt')).rejects.toMatchObject({
       code: 'JEV_ASSISTANT_UNAVAILABLE',
