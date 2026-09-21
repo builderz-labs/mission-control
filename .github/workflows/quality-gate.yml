@@ -65,6 +65,10 @@ jobs:
 
       - name: Build
         run: pnpm build
+        env:
+          NEXT_PUBLIC_COORDINATOR_AGENT: ${{ vars.NEXT_PUBLIC_COORDINATOR_AGENT }}
+          NEXT_PUBLIC_GATEWAY_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GATEWAY_CLIENT_ID }}
+          NEXT_PUBLIC_GATEWAY_PORT: ${{ vars.NEXT_PUBLIC_GATEWAY_PORT }}
 
       - name: Verify standalone artifact boundaries
         run: pnpm artifact:check
