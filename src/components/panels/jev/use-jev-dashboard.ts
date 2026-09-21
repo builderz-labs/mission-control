@@ -123,7 +123,7 @@ export function useJevDashboard(projectId: number | null) {
   const runEvaluation = async (policyId: number, state: JevState, retainStatePreview: boolean) => {
     if (!projectId) throw new Error('Select a repository first')
     const response = await apiFetch<{ evaluation: JevRunResult }>('/api/jev/evaluations', {
-      method: 'POST', body: JSON.stringify({
+      method: 'POST', timeoutMs: 30_000, body: JSON.stringify({
         idempotencyKey: crypto.randomUUID(), projectId, policyId, state, retainStatePreview,
       }),
     })

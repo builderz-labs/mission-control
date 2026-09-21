@@ -139,8 +139,10 @@ test('novice setup through reviewed Jev result', async ({ page }, testInfo) => {
   for (const answer of ['Recommend for me', 'Safe repository snapshot', 'Advisory', 'Manually', 'Retry, then review', 'Production-ready checks']) {
     await page.getByRole('button', { name: new RegExp(answer) }).click()
   }
-  await expect(page.getByText('Approve the policy before anything is saved')).toBeVisible()
+  await expect(page.getByText('Review before saving the policy')).toBeVisible()
   await expect(page.getByRole('region', { name: 'Draft questions' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Draft questions' }).getByText('Is the release evidence sufficient?', { exact: true })).toBeInViewport()
+  await expect(page.getByLabel('Purpose', { exact: true })).toBeHidden()
   await expect(page.getByLabel('Editable Jev schema')).toBeHidden()
   await shot(page, testInfo, '03-review-schema')
   await page.getByRole('button', { name: /Save to 1 repository/ }).click()

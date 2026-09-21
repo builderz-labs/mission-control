@@ -44,7 +44,7 @@ describe('Jev setup assistant', () => {
     renderAssistant({ onCreate })
     fireEvent.change(screen.getByLabelText('What do you want Jev to evaluate?'), { target: { value: 'Assess release readiness' } })
     fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
-    expect(await screen.findByText('Approve the policy before anything is saved')).toBeInTheDocument()
+    expect(await screen.findByText('Review before saving the policy')).toBeInTheDocument()
     expect(mocks.apiFetch).toHaveBeenCalledWith('/api/jev/assistant', expect.objectContaining({ timeoutMs: 140_000 }))
     const created = mocks.apiFetch.mock.calls.find(([path]) => path === '/api/jev/sessions')?.[1]
     expect(JSON.parse(created.body).initialInput).toMatchObject({
@@ -88,7 +88,7 @@ describe('Jev setup assistant', () => {
     renderAssistant()
     fireEvent.change(screen.getByLabelText('What do you want Jev to evaluate?'), { target: { value: 'Assess release readiness' } })
     fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
-    await screen.findByText('Approve the policy before anything is saved')
+    await screen.findByText('Review before saving the policy')
     fireEvent.change(screen.getByLabelText('Revise with assistant'), { target: { value: 'Make this stricter' } })
     fireEvent.click(screen.getByRole('button', { name: 'Revise draft' }))
     await waitFor(() => expect(mocks.apiFetch).toHaveBeenLastCalledWith('/api/jev/assistant', expect.objectContaining({
@@ -109,7 +109,7 @@ describe('Jev setup assistant', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Assistant unavailable')
     fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
-    await screen.findByText('Approve the policy before anything is saved')
+    await screen.findByText('Review before saving the policy')
     expect(mocks.apiFetch.mock.calls.filter(([path]) => path === '/api/jev/sessions')).toHaveLength(1)
     expect(mocks.apiFetch).toHaveBeenLastCalledWith('/api/jev/assistant', expect.objectContaining({
       body: expect.stringContaining('durable-draft'),
@@ -138,7 +138,7 @@ describe('Jev setup assistant', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
     expect(await screen.findByText('Which release should this evaluate?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Current candidate/ }))
-    expect(await screen.findByText('Approve the policy before anything is saved')).toBeInTheDocument()
+    expect(await screen.findByText('Review before saving the policy')).toBeInTheDocument()
     const latest = mocks.apiFetch.mock.calls.filter(([path]) => path === '/api/jev/assistant').at(-1)?.[1]
     expect(String(latest?.body)).toContain('release_target')
   })
@@ -161,7 +161,7 @@ describe('Jev setup assistant', () => {
       throw new Error(`Unexpected request ${path}`)
     })
     renderAssistant({ sessionId: id })
-    expect(await screen.findByText('Approve the policy before anything is saved')).toBeInTheDocument()
+    expect(await screen.findByText('Review before saving the policy')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Release review')).toBeInTheDocument()
   })
 })

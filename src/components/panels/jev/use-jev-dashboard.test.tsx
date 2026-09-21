@@ -35,7 +35,7 @@ describe('useJevDashboard evaluation lifecycle', () => {
     let evaluation
     await act(async () => { evaluation = await result.current.runEvaluation(7, 'safe context', false) })
     expect(evaluation).toMatchObject({ id: 'eval', model: 'jev-1.13.0' })
-    expect(mocks.apiFetch).toHaveBeenCalledWith('/api/jev/evaluations', expect.objectContaining({ method: 'POST' }))
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/api/jev/evaluations', expect.objectContaining({ method: 'POST', timeoutMs: 30_000 }))
   })
 
   it('refreshes pending cloud status without reloading policies, then stops when synced', async () => {
