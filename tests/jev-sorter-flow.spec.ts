@@ -1,12 +1,19 @@
 import { createHash } from 'node:crypto'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type APIRequestContext } from '@playwright/test'
 import { sorterEvaluation, sorterPolicy } from '../src/components/panels/jev/jev-sorter.fixtures'
 import type { JevEvaluation } from '../src/lib/jev-types'
 
-async function setup(page: Page) {
-  expect((await page.request.post('/api/auth/login', { data: {
+let sessionState: Awaited<ReturnType<APIRequestContext['storageState']>>
+test.beforeAll(async ({ request }) => {
+  // Screen-size checks share one real login; do not weaken the critical login limiter.
+  expect((await request.post('/api/auth/login', { data: {
     username: process.env.E2E_AUTH_USER || 'testadmin', password: process.env.E2E_AUTH_PASS || 'testpass1234!',
   } })).status()).toBe(200)
+  sessionState = await request.storageState()
+})
+
+async function setup(page: Page) {
+  await page.context().addCookies(sessionState.cookies)
   await page.request.put('/api/settings', { data: { settings: { 'general.interface_mode': 'full' } } })
   await page.request.post('/api/onboarding', { data: { action: 'skip' } })
   await page.addInitScript(() => window.sessionStorage.setItem('mc-onboarding-dismissed', '1'))
