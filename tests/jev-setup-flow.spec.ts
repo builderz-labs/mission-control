@@ -170,6 +170,7 @@ test('adaptive clarification survives chat selection and supports visual editing
   await page.getByLabel('Question', { exact: true }).fill('How complete is the supplied release evidence?')
   await shot(page, testInfo, '07-visual-score-editor')
   await page.getByRole('button', { name: 'Save question' }).click()
-  await expect(page.getByText('How complete is the supplied release evidence?')).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Edit question' })).toBeHidden()
+  await expect(page.getByRole('region', { name: 'Draft questions' }).getByText('How complete is the supplied release evidence?', { exact: true })).toBeVisible()
   await shot(page, testInfo, '08-visual-review')
 })
