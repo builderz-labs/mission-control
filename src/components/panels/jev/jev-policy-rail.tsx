@@ -114,7 +114,7 @@ export function JevPolicyRail({
           })}
         </div>
 
-        {selected && view !== 'assistant' && (
+        {selected && view === 'policies' && (
           <section className="mt-5" aria-labelledby="jev-rail-questions">
             <div className="flex items-center justify-between px-2">
               <h2 id="jev-rail-questions" className="text-[12px] text-[var(--chat-muted)]">Result cards</h2>

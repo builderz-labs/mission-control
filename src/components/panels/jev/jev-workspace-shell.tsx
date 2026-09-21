@@ -7,10 +7,12 @@ export function JevWorkspaceShell({
   sidebar,
   header,
   children,
+  compact = false,
 }: {
   sidebar: React.ReactNode
   header: React.ReactNode
   children: React.ReactNode
+  compact?: boolean
 }) {
   const [railOpen, setRailOpen] = useState(false)
   const drawerRef = useRef<HTMLDivElement>(null)
@@ -38,7 +40,7 @@ export function JevWorkspaceShell({
 
   return (
     <div className="chat-desktop relative flex h-full min-h-0 overflow-hidden">
-      <aside className="hidden h-full w-72 shrink-0 border-r border-[var(--chat-border)] bg-[var(--chat-sidebar)] md:flex">
+      <aside className={`hidden h-full w-72 shrink-0 border-r border-[var(--chat-border)] bg-[var(--chat-sidebar)] ${compact ? '' : 'md:flex'}`}>
         {sidebar}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col bg-[var(--chat-bg)]">
@@ -46,7 +48,7 @@ export function JevWorkspaceShell({
           <Button
             variant="ghost"
             size="sm"
-            className="mr-2 md:hidden"
+            className={`mr-2 ${compact ? '' : 'md:hidden'}`}
             aria-haspopup="dialog"
             aria-expanded={railOpen}
             onClick={() => setRailOpen(true)}
@@ -58,7 +60,7 @@ export function JevWorkspaceShell({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
       </div>
       {railOpen && (
-        <div className="fixed inset-0 z-70 md:hidden">
+        <div className={`fixed inset-0 z-70 ${compact ? '' : 'md:hidden'}`}>
           <button
             type="button"
             aria-label="Close Jev navigation"

@@ -10,7 +10,7 @@ import { JevPolicyRail, type JevWorkspaceView } from './jev-policy-rail'
 import { draftFromPolicy, emptyQuestion, questionsFromDrafts, type QuestionDraft } from './jev-policy-draft'
 import { JevQuestionEditorDialog } from './jev-question-editor-dialog'
 import { JevSetupAssistant } from './jev-setup-assistant'
-import { JevWorkbench } from './jev-workbench'
+import { JevSorterWorkspace } from './jev-sorter-workspace'
 import { JevWorkspaceShell } from './jev-workspace-shell'
 import type { JevPolicy, JevPolicyInput, JevQuestions } from './jev-ui-types'
 import { useJevDashboard } from './use-jev-dashboard'
@@ -56,9 +56,13 @@ export function JevPanel() {
   useEffect(() => { if (projects.length === 0) void fetchProjects() }, [fetchProjects, projects.length])
   useEffect(() => { if (project && activeProject?.id !== project.id) setActiveProject(project) }, [activeProject?.id, project, setActiveProject])
   useEffect(() => {
+    const linked = sessionData.sessions.find((session) => session.id === selectedSession)?.primary_policy_id
+    if (linked && policies.some((policy) => policy.id === linked) && linked !== selectedPolicy) {
+      setSelectedPolicy(linked); return
+    }
     if (selectedPolicy !== null && policies.some((policy) => policy.id === selectedPolicy)) return
     setSelectedPolicy(policies.find((policy) => policy.enabled)?.id ?? policies[0]?.id ?? null)
-  }, [policies, selectedPolicy])
+  }, [policies, selectedPolicy, selectedSession, sessionData.sessions])
   useEffect(() => {
     setVisibleQuestionIds(new Set(selected ? Object.keys(selected.questions) : []))
   }, [questionSignature]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -94,11 +98,16 @@ export function JevPanel() {
     setQuestionEditor(null)
   }
 
-  const rail = <JevPolicyRail projects={projects} activeProjectId={project?.id ?? null} policies={policies} evaluations={evaluations} sessions={sessionData.sessions} selectedSessionId={selectedSession} selectedPolicyId={selectedPolicy} visibleQuestionIds={visibleQuestionIds} view={view} canManage={Boolean(canOperate)} onNewSetup={() => { setSelectedSession(null); setView('assistant') }} onSession={(session) => { const target = projects.find((item) => item.id === session.project_id); if (target) setActiveProject(target); setSelectedSession(session.id); setView('assistant') }} onProject={(next) => { setActiveProject(next); setSelectedPolicy(null); setSelectedSession(null) }} onPolicy={(policy) => { setSelectedPolicy(policy.id); setView(policy.enabled ? 'evaluate' : 'policies') }} onView={setView} onToggleQuestion={(id) => setVisibleQuestionIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })} onEditQuestion={openQuestion} onAddQuestion={addQuestion} />
+  const toggleQuestion = (id: string) => setVisibleQuestionIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })
+  const selectPolicy = (id: number | null) => {
+    setSelectedPolicy(id)
+    setSelectedSession(sessionData.sessions.find((session) => session.primary_policy_id === id && session.project_id === project?.id)?.id ?? null)
+  }
+  const rail = <JevPolicyRail projects={projects} activeProjectId={project?.id ?? null} policies={policies} evaluations={evaluations} sessions={sessionData.sessions} selectedSessionId={selectedSession} selectedPolicyId={selectedPolicy} visibleQuestionIds={visibleQuestionIds} view={view} canManage={Boolean(canOperate)} onNewSetup={() => { setSelectedSession(null); setView('assistant') }} onSession={(session) => { const target = projects.find((item) => item.id === session.project_id); if (target) setActiveProject(target); setSelectedSession(session.id); setSelectedPolicy(session.primary_policy_id); setView(session.status === 'ready' && session.primary_policy_id ? 'evaluate' : 'assistant') }} onProject={(next) => { setActiveProject(next); setSelectedPolicy(null); setSelectedSession(null); setView('assistant') }} onPolicy={(policy) => { selectPolicy(policy.id); setView('evaluate') }} onView={setView} onToggleQuestion={toggleQuestion} onEditQuestion={openQuestion} onAddQuestion={addQuestion} />
 
   return (
     <>
-      <JevWorkspaceShell sidebar={rail} header={<WorkspaceHeader title={VIEW_TITLES[view]} project={project?.name} status={connectionStatus} loading={data.loading && data.status !== null} />}>
+      <JevWorkspaceShell compact={view === 'evaluate'} sidebar={rail} header={<WorkspaceHeader title={VIEW_TITLES[view]} project={project?.name} status={connectionStatus} loading={data.loading && data.status !== null} />}>
         {!project ? <EmptyProject /> : data.loading && !data.status ? <div role="status" className="m-auto text-sm text-muted-foreground">Loading Jev workspace…</div> : (
           <>
             {data.error && <Alert tone="error"><span>{data.error}</span><Button variant="outline" size="sm" onClick={() => void data.refresh()}>Retry</Button></Alert>}
@@ -108,7 +117,7 @@ export function JevPanel() {
             {data.status?.cloud.state === 'configuration_error' && <Alert tone="warning">Cloud sync is misconfigured. Changes remain safely queued in Mission Control.</Alert>}
             {!canOperate && <div className="shrink-0 border-b border-[var(--chat-border)] px-4 py-2 text-xs text-muted-foreground">Viewer access is read-only.</div>}
             {view === 'assistant' && <JevSetupAssistant key={`${project.id}:${selectedSession ?? 'new'}`} projects={projects} activeProjectId={project.id} canOperate={Boolean(canOperate)} assistantAvailable={Boolean(data.status?.assistantAvailable)} assistantOptions={data.status?.assistantOptions} assistantDefault={data.status?.assistantDefault} sessionId={selectedSession} onSessionChange={setSelectedSession} onSessionsChanged={() => void sessionData.refresh()} onCreate={data.createPolicies} onReady={(policy) => { setSelectedPolicy(policy.id); const target = projects.find((item) => item.id === policy.project_id); if (target) setActiveProject(target); setView('evaluate') }} />}
-            {view === 'evaluate' && <JevWorkbench key={project.id} policies={policies} selectedId={selectedPolicy} visibleQuestionIds={visibleQuestionIds} canRun={Boolean(canOperate && data.status?.healthy)} disabledReason={runDisabledReason} onSelect={setSelectedPolicy} onRun={data.runEvaluation} onLoadContext={data.loadRepositoryContext} />}
+            {view === 'evaluate' && <JevSorterWorkspace key={project.id} policies={policies} evaluations={evaluations} selectedId={selectedPolicy} visibleQuestionIds={visibleQuestionIds} canRun={Boolean(canOperate && data.status?.healthy)} canManage={Boolean(canOperate)} disabledReason={runDisabledReason} onSelect={selectPolicy} onRun={data.runEvaluation} onLoadContext={data.loadRepositoryContext} onRefresh={data.refresh} onAssistant={() => setView('assistant')} onToggleQuestion={toggleQuestion} onEditQuestion={openQuestion} onAddQuestion={addQuestion} />}
             {view === 'policies' && <PoliciesView policies={policies} canOperate={Boolean(canOperate)} editing={editing} showForm={showForm} onNew={() => { setEditing(null); setShowForm(true) }} onEdit={(policy) => { setEditing(policy); setShowForm(true) }} onSave={savePolicy} onCancel={() => { setEditing(null); setShowForm(false) }} onToggle={(policy) => data.updatePolicy(policy.id, { enabled: !policy.enabled })} onDelete={async (policy) => { if (window.confirm(`Delete “${policy.name}”? Evaluation history will be preserved.`)) await data.deletePolicy(policy.id) }} />}
             {view === 'history' && <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-7xl space-y-3"><div><h2 className="text-sm font-semibold text-foreground">Evaluation history</h2><p className="text-xs text-muted-foreground">Provider version, confidence output, latency, usage, and safe error codes are retained for audit.</p></div><JevHistory evaluations={evaluations} /></div></div>}
           </>
