@@ -10,7 +10,7 @@ export function JevSorterEvidence({ policy, data, canRun }: {
     <div className="jev-sorter-evidence-body">
       <p>Paste one item, or a JSON array of up to 100 items. Identical items are counted once. Nothing is sent to Jev until you press Run.</p>
       <div className="jev-sorter-actions">
-        <label>Context format<select value={data.format} disabled={disabled} onChange={(event) => data.changeFormat(event.target.value as typeof data.format)}>
+        <label>Context format<select aria-label="Context format" value={data.format} disabled={disabled} onChange={(event) => data.changeFormat(event.target.value as typeof data.format)}>
           <option value="text">Plain text · one item</option><option value="json">Structured JSON · one item</option><option value="dataset">JSON array · one item per row</option>
         </select></label>
         {policy.configuration?.contextMode !== 'pasted' && <button type="button" disabled={disabled} onClick={() => void data.loadContext()}>{data.busy ? 'Preparing…' : 'Load repository context'}</button>}

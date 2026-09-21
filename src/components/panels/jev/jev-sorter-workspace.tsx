@@ -11,7 +11,7 @@ import './jev-sorter.css'
 interface Props {
   policies: JevPolicy[]; selectedId: number | null; evaluations: JevEvaluation[]
   visibleQuestionIds: Set<string>; canRun: boolean; canManage: boolean; disabledReason?: string
-  onSelect: (id: number | null) => void; onRefresh: () => Promise<void>; onAssistant: () => void
+  onSelect: (id: number | null) => void; onRefresh: () => Promise<boolean>; onAssistant: () => void
   onToggleQuestion: (id: string) => void; onEditQuestion: (policy: JevPolicy, id: string) => void
   onAddQuestion: (policy: JevPolicy) => void
   onRun: (id: number, state: JevState, retain: boolean) => Promise<JevRunResult>
@@ -40,7 +40,8 @@ function Workspace({ policy, ...props }: Props & { policy: JevPolicy }) {
   const latest = Math.max(0, ...data.rows.map((row) => row.evaluation.completed_at ?? 0))
   const refresh = async () => {
     setRefreshing(true); setRefreshError(false)
-    try { await props.onRefresh() } catch { setRefreshError(true) } finally { setRefreshing(false) }
+    try { if (await props.onRefresh() !== true) setRefreshError(true); else data.reconciled() }
+    catch { setRefreshError(true) } finally { setRefreshing(false) }
   }
   const exportResults = () => {
     const blob = new Blob([JSON.stringify({ policy: { name: policy.name, questions: policy.questions },
@@ -87,7 +88,7 @@ function Workspace({ policy, ...props }: Props & { policy: JevPolicy }) {
             <select aria-label="Evaluation model" value={policy.model} disabled><option value={policy.model}>Jev · {policy.model}</option></select>
             <select aria-label="Run scope" value={data.scope} disabled={busy} onChange={(event) => data.setScope(event.target.value as typeof data.scope)}>{RUN_SCOPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
             {data.running ? <button type="button" onClick={data.stop}>Stop after current item</button>
-              : <button type="button" className="jev-sorter-run" disabled={!canRun || busy || !data.pending.length} onClick={() => void data.run()}>▷ Run{data.pending.length ? ` ${data.pending.length}` : ''}</button>}
+              : <button type="button" className="jev-sorter-run" disabled={!canRun || busy || data.needsRefresh || !data.pending.length} onClick={() => void data.run()}>▷ Run{data.pending.length ? ` ${data.pending.length}` : ''}</button>}
           </div>
         </div>
         {!canRun && <p role="status">{!policy.enabled ? 'This setup is paused. Open Policies to enable it.' : props.disabledReason}</p>}

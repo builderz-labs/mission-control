@@ -32,11 +32,11 @@ export function useJevDashboard(projectId: number | null) {
       const statusPromise = apiFetch<{ status: JevStatus }>('/api/jev/status', options)
       if (!projectId) {
         const nextStatus = (await statusPromise).status
-        if (requestId !== requestRef.current) return
+        if (requestId !== requestRef.current) return false
         setStatus(nextStatus)
         setPolicies([])
         setEvaluations([])
-        return
+        return true
       }
       const query = `projectId=${projectId}`
       const [statusData, policyData, evaluationData] = await Promise.all([
@@ -44,14 +44,16 @@ export function useJevDashboard(projectId: number | null) {
         apiFetch<{ policies: JevPolicy[] }>(`/api/jev/policies?${query}`, options),
         apiFetch<{ evaluations: JevEvaluation[] }>(`/api/jev/evaluations?${query}&limit=200`, options),
       ])
-      if (requestId !== requestRef.current) return
+      if (requestId !== requestRef.current) return false
       setStatus(statusData.status)
       setPolicies(policyData.policies)
       setEvaluations(evaluationData.evaluations)
       setError(null)
+      return true
     } catch (cause) {
-      if (requestId !== requestRef.current || (cause instanceof Error && cause.name === 'AbortError')) return
+      if (requestId !== requestRef.current || (cause instanceof Error && cause.name === 'AbortError')) return false
       setError(cause instanceof Error ? cause.message : 'Unable to load Jev')
+      return false
     } finally {
       if (requestId === requestRef.current) {
         setLoading(false)

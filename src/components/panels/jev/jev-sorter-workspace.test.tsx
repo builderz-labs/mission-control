@@ -8,7 +8,7 @@ const result = { id: 'eval', model: 'jev-1.13.0', answers: sorterEvaluation().an
   usage: { input_tokens: 10, output_tokens: 3 }, requestId: null, latencyMs: 42 }
 const props = () => ({ policies: [sorterPolicy], selectedId: 7, evaluations: [],
   visibleQuestionIds: new Set(['ready', 'kind', 'quality']), canRun: true, canManage: true,
-  onSelect: vi.fn(), onRefresh: vi.fn(), onAssistant: vi.fn(), onToggleQuestion: vi.fn(),
+  onSelect: vi.fn(), onRefresh: vi.fn().mockResolvedValue(true), onAssistant: vi.fn(), onToggleQuestion: vi.fn(),
   onEditQuestion: vi.fn(), onAddQuestion: vi.fn(), onRun: vi.fn().mockResolvedValue(result),
   onLoadContext: vi.fn().mockResolvedValue({ state: { synthetic: true }, warnings: [] }),
 })
@@ -72,5 +72,23 @@ describe('Jev screenshot-style workspace', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Refresh before retrying')
     expect(screen.queryByText(/private provider detail/)).not.toBeInTheDocument()
     expect(input.onRun).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: '▷ Run 1' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '↻ Refresh' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '▷ Run 1' })).toBeEnabled())
+  })
+  it('stops paced batches after the current item and retains completed results', async () => {
+    const input = props(); render(<JevSorterWorkspace {...input} />)
+    fireEvent.change(screen.getByLabelText('Context format'), { target: { value: 'dataset' } })
+    fireEvent.change(screen.getByLabelText('Context Jev will evaluate'), { target: { value: '["one","two"]' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare dataset' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '▷ Run 2' })).toBeEnabled())
+    vi.useFakeTimers()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '▷ Run 2' })))
+    expect(input.onRun).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop after current item' }))
+    await act(async () => vi.advanceTimersByTimeAsync(6500))
+    expect(input.onRun).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: '▷ Run 1' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Ready: Yes, 1 items' })).toBeInTheDocument()
   })
 })

@@ -16,6 +16,7 @@ export function useJevSorter(policy: JevPolicy, evaluations: JevEvaluation[], on
   const [busy, setBusy] = useState(false)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [needsRefresh, setNeedsRefresh] = useState(false)
   const [notice, setNotice] = useState('')
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const operation = useRef(0)
@@ -56,7 +57,7 @@ export function useJevSorter(policy: JevPolicy, evaluations: JevEvaluation[], on
     finally { if (current === operation.current) { locked.current = false; setBusy(false) } }
   }
   const run = async () => {
-    if (locked.current || pending.length === 0) return
+    if (locked.current || needsRefresh || pending.length === 0) return
     locked.current = true; stopped.current = false; setRunning(true); setError(null)
     const current = ++operation.current
     const queue = [...pending]
@@ -82,12 +83,16 @@ export function useJevSorter(policy: JevPolicy, evaluations: JevEvaluation[], on
       }
       if (current === operation.current) setNotice(stopped.current ? 'Stopped. Completed results are saved.' : 'Evaluation complete. Select a result below to filter items.')
     } catch {
-      if (current === operation.current) setError('Run stopped because a request failed or was rate-limited. Completed results are saved. Refresh before retrying “Anything not sorted yet”; check History for the failed request.')
+      if (current === operation.current) {
+        setNeedsRefresh(true)
+        setError('Run stopped because a request failed or was rate-limited. Completed results are saved. Refresh before retrying “Anything not sorted yet”; check History for the failed request.')
+      }
     } finally {
       if (current === operation.current) { locked.current = false; setRunning(false) }
     }
   }
   return { text, format, items, rows: visibleRows, scope, setScope, retain, setRetain, busy, running,
-    error, notice, progress, pending, edit, changeFormat, prepare, loadContext, run,
+    error, notice, progress, pending, edit, changeFormat, prepare, loadContext, run, needsRefresh,
+    reconciled: () => { setNeedsRefresh(false); setError(null) },
     stop: () => { stopped.current = true; setNotice('Stopping after the current request…') } }
 }
