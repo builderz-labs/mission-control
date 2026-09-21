@@ -14,6 +14,7 @@ import { jevSetupSessionMigration } from './jev-setup-session-migration'
 import { jevCloudMigration } from './jev-cloud-migration'
 import { jevEvaluationLifecycleMigration } from './jev-evaluation-lifecycle-migration'
 import { jevSessionPrincipalMigration } from './jev-session-principal-migration'
+import { jevSetupUpgradeMigration } from './jev-setup-upgrade-migration'
 
 export type Migration = {
   id: string
@@ -1692,6 +1693,7 @@ export function runMigrations(db: Database.Database) {
     jevCloudMigration,
     jevEvaluationLifecycleMigration,
     jevSessionPrincipalMigration,
+    jevSetupUpgradeMigration,
     ...extraMigrations,
   ]) {
     if (applied.has(migration.id)) continue
