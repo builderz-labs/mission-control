@@ -24,7 +24,7 @@ export interface JevPolicyInput {
 export interface JevAssistantResponse {
   draft: JevAssistantDraft
   configuration: JevPolicyConfiguration
-  provider: { kind: 'claude-cli'; model: string }
+  provider: { kind: import('@/lib/jev-assistant-config').JevAssistantProviderKind; model: string }
   warnings: string[]
   session?: { id: string; revisionNo: number } | null
 }

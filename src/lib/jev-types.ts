@@ -57,6 +57,8 @@ export interface JevStatus {
   lastCheckedAt: number | null
   assistantAvailable: boolean
   assistantProvider: string
+  assistantDefault?: import('@/lib/jev-assistant-config').JevAssistantProviderKind
+  assistantOptions?: import('@/lib/jev-assistant-config').JevAssistantOption[]
   defaultModel: string
   sdkVersion: string
   policyCount: number

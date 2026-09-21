@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import { JevAssistantConnection } from './jev-assistant-connection'
+import type { JevAssistantOption, JevAssistantProviderKind } from '@/lib/jev-assistant-config'
 
 const EXAMPLES = [
   'Assess whether this repository is ready to release.',
@@ -14,6 +16,7 @@ export function JevAssistantHome({
   busy,
   canOperate,
   assistantAvailable,
+  providers, provider, onProvider,
   error,
   onGoal,
   onRecommended,
@@ -24,6 +27,9 @@ export function JevAssistantHome({
   busy: boolean
   canOperate: boolean
   assistantAvailable: boolean
+  providers: JevAssistantOption[]
+  provider: JevAssistantProviderKind
+  onProvider: (kind: JevAssistantProviderKind) => void
   error: string | null
   onGoal: (value: string) => void
   onRecommended: () => void
@@ -49,8 +55,9 @@ export function JevAssistantHome({
             <h1 id="jev-assistant-title" className="text-2xl font-medium tracking-tight">What do you want evaluated?</h1>
           </div>
           <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--chat-muted)]">
-            Describe the decision in plain language. The assistant drafts typed questions; Jev evaluates only the context you review later.
+            Tell the assistant what you want to do. It will ask only the clarifying questions it needs, then fill in the question types, names, options and rating scales for you.
           </p>
+          <p className="mt-3 text-xs text-[var(--chat-muted)]">Describe → Clarify if needed → Review questions → Run with Jev</p>
           <div className="mt-8 grid gap-2 md:grid-cols-3">
             {EXAMPLES.map((example) => (
               <button key={example} type="button" onClick={() => onGoal(example)} className="rounded-xl border border-[var(--chat-border)] bg-[var(--chat-elevated)] p-3 text-left text-[13px] leading-5 text-[var(--chat-muted)] hover:border-white/20 hover:text-[var(--chat-text)]">
@@ -62,6 +69,7 @@ export function JevAssistantHome({
       </div>
       <div className="shrink-0 px-4 pb-5 md:px-6">
         <div className="mx-auto max-w-3xl">
+          <JevAssistantConnection options={providers} selected={provider} disabled={busy} onChange={onProvider} />
           <div className="rounded-xl border border-[var(--chat-border)] bg-[var(--chat-elevated)] px-3 py-2 shadow-xl shadow-black/10">
             <textarea
               ref={textareaRef}
@@ -87,7 +95,7 @@ export function JevAssistantHome({
           </div>
           {busy && <div role="status" className="mt-2 flex items-center justify-between text-[12px] text-[var(--chat-muted)]"><span>Drafting a safe, typed policy…</span><Button variant="ghost" size="xs" onClick={onCancel}>Cancel</Button></div>}
           {!canOperate && <p className="mt-2 text-[12px] text-amber-300">Operator access is required to draft a setup.</p>}
-          {canOperate && !assistantAvailable && <p className="mt-2 text-[12px] text-amber-300">The setup assistant could not be reached. Refresh to check again. If this continues, check Claude Code sign-in on the Mission Control host. Existing policies can still be evaluated with Jev.</p>}
+          {canOperate && !assistantAvailable && <p className="mt-2 text-[12px] text-amber-300">Connect the selected assistant or choose another one above. Existing policies can still be evaluated with Jev.</p>}
           {error && <p role="alert" className="mt-2 text-[12px] text-red-300">{error}</p>}
         </div>
       </div>

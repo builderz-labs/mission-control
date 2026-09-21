@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { JevAssistantProviderError } from '@/lib/jev-assistant-provider'
+import { jevAssistantErrorMessage } from '@/lib/jev-assistant-error'
 import { validateJevAssistantRequest } from '@/lib/jev-assistant-request'
 import { createJevAssistantDraft } from '@/lib/jev-assistant-service'
 import { jevErrorResponse } from '@/lib/jev-route-error'
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof JevAssistantProviderError) {
-      return NextResponse.json({ error: error.code, code: error.code }, { status: error.status })
+      return NextResponse.json({ error: jevAssistantErrorMessage(error.code), code: error.code }, { status: error.status })
     }
     return jevErrorResponse(error, 'draft policy with assistant')
   }

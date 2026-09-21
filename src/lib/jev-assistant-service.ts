@@ -1,5 +1,6 @@
 import { scanForInjection, sanitizeForPrompt } from '@/lib/injection-guard'
 import { generateJevAssistantDraft } from '@/lib/jev-assistant-provider'
+import { jevAssistantModel, resolveJevAssistantProvider } from '@/lib/jev-assistant-config'
 import { redactJevSetupText, redactJevSetupValue } from '@/lib/jev-setup-redaction'
 import type {
   JevAssistantDraft,
@@ -84,7 +85,8 @@ export function buildJevAssistantPrompt(input: JevAssistantRequest): { prompt: s
 
 export async function createJevAssistantDraft(input: JevAssistantRequest, signal?: AbortSignal) {
   const built = buildJevAssistantPrompt(input)
-  const draft = await generateJevAssistantDraft(built.prompt, signal)
+  const kind = resolveJevAssistantProvider(input.provider)
+  const draft = await generateJevAssistantDraft(built.prompt, signal, kind)
   const configuration = configurationFromRequest(input)
   configuration.tests = draft.tests
   configuration.risks = draft.risks
@@ -92,7 +94,7 @@ export async function createJevAssistantDraft(input: JevAssistantRequest, signal
   return {
     draft,
     configuration,
-    provider: { kind: 'claude-cli' as const, model: (process.env.JEV_ASSISTANT_MODEL || 'haiku').trim() },
+    provider: { kind, model: jevAssistantModel(kind) },
     warnings: built.injectionWarning
       ? ['The supplied text resembles prompt instructions. It was treated as untrusted data; review the draft carefully.']
       : [],

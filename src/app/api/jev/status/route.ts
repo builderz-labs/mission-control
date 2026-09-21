@@ -5,6 +5,7 @@ import { JEV_DEFAULT_MODEL, JEV_SDK_VERSION } from '@/lib/jev-client'
 import { jevErrorResponse } from '@/lib/jev-route-error'
 import { readLimiter } from '@/lib/rate-limit'
 import { isJevAssistantAvailable } from '@/lib/jev-assistant-provider'
+import { jevAssistantOptions, resolveJevAssistantProvider } from '@/lib/jev-assistant-config'
 import { getJevHealth } from '@/lib/jev-health'
 import { getJevCloudStatus } from '@/lib/jev-cloud-sync'
 import { reconcileStaleJevEvaluations } from '@/lib/jev-repository'
@@ -29,13 +30,17 @@ export async function GET(request: NextRequest) {
     const policy = db.prepare('SELECT COUNT(*) AS count FROM jev_policies WHERE workspace_id=?')
       .get(workspaceId) as { count: number }
 
+    const assistantOptions = jevAssistantOptions(isJevAssistantAvailable())
+    const assistantDefault = resolveJevAssistantProvider()
     return NextResponse.json({ status: {
       configured: health.configured,
       healthy: health.healthy,
       healthError: health.errorCode,
       lastCheckedAt: health.lastCheckedAt,
-      assistantAvailable: isJevAssistantAvailable(),
-      assistantProvider: 'Claude CLI (no tools)',
+      assistantAvailable: assistantOptions.some((option) => option.configured),
+      assistantProvider: assistantOptions.find((option) => option.kind === assistantDefault)?.label ?? 'Claude Code',
+      assistantDefault,
+      assistantOptions,
       defaultModel: process.env.TYPESAFE_DEFAULT_MODEL?.trim() || JEV_DEFAULT_MODEL,
       sdkVersion: JEV_SDK_VERSION,
       policyCount: policy.count,

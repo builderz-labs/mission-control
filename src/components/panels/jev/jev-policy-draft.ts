@@ -20,7 +20,11 @@ function printable(value: unknown): string {
 
 export function draftFromPolicy(policy?: JevPolicy | null): QuestionDraft[] {
   if (!policy) return [emptyQuestion()]
-  return Object.entries(policy.questions).map(([id, question]) => {
+  return draftsFromQuestions(policy.questions)
+}
+
+export function draftsFromQuestions(questions: JevQuestions): QuestionDraft[] {
+  return Object.entries(questions).map(([id, question]) => {
     if (question.type === 'choice') {
       return {
         id, type: 'choice', instructions: printable(question.instructions),

@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { jevQuestionsSchema } from '@/lib/jev-validation'
 
+const reservedClarifications = ['scope', 'answerType', 'trigger', 'enforcement', 'contextMode', 'failureMode', 'rollout', 'retention', 'validation', 'constructor', 'prototype', '__proto__']
+
 const clarificationOptionSchema = z.object({
   value: z.string().trim().min(1).max(80),
   label: z.string().trim().min(1).max(100),
@@ -9,10 +11,12 @@ const clarificationOptionSchema = z.object({
 }).strict()
 
 export const jevClarificationSchema = z.object({
-  id: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,39}$/),
+  id: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,39}$/).refine((id) => !reservedClarifications.includes(id), 'Reserved clarification ID'),
   title: z.string().trim().min(1).max(160),
   help: z.string().trim().min(1).max(240),
-  options: z.array(clarificationOptionSchema).min(2).max(4),
+  options: z.array(clarificationOptionSchema).min(2).max(4)
+    .refine((options) => new Set(options.map((item) => item.value)).size === options.length, 'Options must be unique')
+    .refine((options) => options.filter((item) => item.recommended).length <= 1, 'Choose at most one recommendation'),
 }).strict()
 
 export const jevAssistantDraftSchema = z.object({
@@ -24,10 +28,12 @@ export const jevAssistantDraftSchema = z.object({
   risks: z.array(z.string().trim().min(1).max(240)).min(1).max(8),
   observability: z.array(z.string().trim().min(1).max(240)).min(1).max(8),
   warnings: z.array(z.string().trim().min(1).max(240)).max(8),
-  clarifications: z.array(jevClarificationSchema).max(4).default([]),
+  clarifications: z.array(jevClarificationSchema).max(4).default([])
+    .refine((items) => new Set(items.map((item) => item.id)).size === items.length, 'Clarification IDs must be unique'),
 }).strict()
 
 export const jevAssistantRequestSchema = z.object({
+  provider: z.enum(['claude-cli', 'anthropic', 'openai']).optional(),
   sessionId: z.string().uuid().optional(),
   action: z.enum(['draft', 'revise']).default('draft'),
   goal: z.string().trim().min(3).max(10_000),
