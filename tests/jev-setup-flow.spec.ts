@@ -48,6 +48,9 @@ async function login(page: Page) {
     data: { action: 'skip' },
   })
   expect(onboarding.status()).toBe(200)
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('mc-onboarding-dismissed', '1')
+  })
 }
 
 async function mockJev(page: Page) {
