@@ -67,18 +67,20 @@ export interface ApiFetchOptions extends RequestInit {
   redirectOnUnauthenticated?: boolean
   /** When true, return raw Response for statuses without specialized handling. */
   raw?: boolean
+  /** Per-attempt deadline for bounded long-running operations (maximum three minutes). */
+  timeoutMs?: number
 }
 
 const RETRYABLE_READ_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
-async function fetchWithReadRetry(path: string, init: RequestInit): Promise<Response> {
+async function fetchWithReadRetry(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const method = (init.method || 'GET').toUpperCase()
   const canRetry = method === 'GET' || method === 'HEAD'
   const attempts = canRetry ? 2 : 1
   let lastError: unknown
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const isFinalAttempt = attempt === attempts - 1
-    const timeoutSignal = AbortSignal.timeout(20_000)
+    const timeoutSignal = AbortSignal.timeout(timeoutMs)
     const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
     try {
       const response = await fetch(path, { ...init, signal })
@@ -101,9 +103,14 @@ export async function apiFetch<T = unknown>(
   const {
     redirectOnUnauthenticated = true,
     raw = false,
+    timeoutMs = 20_000,
     headers,
     ...rest
   } = options
+
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 180_000) {
+    throw new ApiError('CLIENT_ERROR', 0, 'Invalid request deadline')
+  }
 
   let response: Response
   try {
@@ -118,7 +125,7 @@ export async function apiFetch<T = unknown>(
       },
       ...rest,
       signal: rest.signal,
-    })
+    }, timeoutMs)
   } catch (err) {
     throw new ApiError(
       'NETWORK_ERROR',

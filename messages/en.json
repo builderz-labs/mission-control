@@ -39,7 +39,7 @@
     "signInWithGoogle": "Sign in with Google",
     "loadingGoogleSignIn": "Loading Google Sign-In...",
     "googleSignInFailed": "Google sign-in failed",
-    "networkError": "Network error",
+    "networkError": "Sign-in could not reach the server in time. Please try again. If this continues, check that Mission Control is running.",
     "loginFailed": "Login failed",
     "enterUsername": "Enter username",
     "enterPassword": "Enter password",

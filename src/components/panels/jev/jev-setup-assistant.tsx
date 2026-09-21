@@ -96,7 +96,7 @@ export function JevSetupAssistant({
         activeSessionId = created.session.id
       }
       const next = await apiFetch<JevAssistantResponse>('/api/jev/assistant', {
-        method: 'POST', signal: controller.signal, body: JSON.stringify({
+        method: 'POST', timeoutMs: 140_000, signal: controller.signal, body: JSON.stringify({
           sessionId: activeSessionId, action: revision ? 'revise' : 'draft', goal,
           answers: nextAnswers, projectIds: ids, currentDraft: revision ? response?.draft : undefined, revision,
         }),
@@ -109,7 +109,7 @@ export function JevSetupAssistant({
       } else { setDynamicQuestions([]); setStage('review') }
       onSessionChange(activeSessionId); onSessionsChanged()
     } catch (cause) {
-      if (cause instanceof Error && cause.name === 'AbortError') return
+      if (controller.signal.aborted) return
       if (requestId === requestRef.current) setError(cause instanceof Error ? cause.message : 'Unable to draft the setup')
     } finally {
       if (requestId === requestRef.current) { setBusy(false); abortRef.current = null; onSessionsChanged() }

@@ -45,6 +45,7 @@ describe('Jev setup assistant', () => {
     fireEvent.change(screen.getByLabelText('What do you want Jev to evaluate?'), { target: { value: 'Assess release readiness' } })
     fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
     expect(await screen.findByText('Approve the policy before anything is saved')).toBeInTheDocument()
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/api/jev/assistant', expect.objectContaining({ timeoutMs: 140_000 }))
     expect((screen.getByLabelText('Editable Jev schema') as HTMLTextAreaElement).value).toContain('ready')
     fireEvent.click(screen.getByRole('button', { name: /Save to 1 repository/ }))
     await waitFor(() => expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
@@ -60,6 +61,23 @@ describe('Jev setup assistant', () => {
     expect(screen.getByText('Recommended')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Custom answer'), { target: { value: 'Future repositories only' } })
     expect(screen.getByRole('button', { name: 'Use custom answer' })).toBeEnabled()
+  })
+
+  it('lets the user cancel a slow draft without displaying an error', async () => {
+    mocks.apiFetch.mockImplementation((path: string, options: RequestInit) => {
+      if (path === '/api/jev/sessions') return Promise.resolve({ session: { id: 'draft-session' } })
+      return new Promise((_resolve, reject) => {
+        options.signal?.addEventListener('abort', () => reject(new Error('This operation was aborted')))
+      })
+    })
+    renderAssistant()
+    fireEvent.change(screen.getByLabelText('What do you want Jev to evaluate?'), { target: { value: 'Assess release readiness' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith('/api/jev/assistant', expect.any(Object)))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Use recommended setup' })).toBeEnabled())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('What do you want Jev to evaluate?')).toHaveValue('Assess release readiness')
   })
 
   it('supports conversational revision without activating the policy', async () => {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
 import { DesktopBrowserLogin } from '@/components/auth/desktop-browser-login'
 import { apiFetch } from '@/lib/api-client'
+import { requestLogin, type LoginRequestBody } from '@/lib/login-request'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 
 interface GoogleCredentialResponse {
@@ -26,10 +27,6 @@ interface GoogleApi {
     id: GoogleAccountsIdApi
   }
 }
-
-type LoginRequestBody =
-  | { username: string; password: string }
-  | { credential?: string }
 
 type LoginErrorPayload = {
   code?: string
@@ -201,14 +198,10 @@ export default function LoginPage() {
   }, [])
 
   const completeLogin = useCallback(async (path: string, body: LoginRequestBody) => {
-    const res = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    const res = await requestLogin(path, body)
 
     if (!res.ok) {
-      const data = readLoginErrorPayload(await res.json().catch(() => null))
+      const data = readLoginErrorPayload(res.data)
       if (data.code === 'PENDING_APPROVAL') {
         setPendingApproval(true)
         setNeedsSetup(false)
