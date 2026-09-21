@@ -77,6 +77,7 @@ jobs:
         # Browser tests can write test-only settings beside server.js. Capture
         # the checked runtime first; publish it only after those tests pass.
         run: |
+          cp -R .next/static .next/standalone/.next/
           printf '%s\n' "$GITHUB_SHA" > .next/RELEASE_SHA
           tar -czf mission-control-standalone.tar.gz -C .next standalone RELEASE_SHA
           sha256sum mission-control-standalone.tar.gz > mission-control-standalone.tar.gz.sha256
