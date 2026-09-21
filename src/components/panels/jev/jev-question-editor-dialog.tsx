@@ -100,7 +100,7 @@ export function JevQuestionEditorDialog({
             <input ref={nameRef} className={`${field} mt-1`} value={draft.id} onChange={(event) => update({ id: event.target.value })} placeholder="release_decision" maxLength={120} />
           </label>
           <label className="block text-xs text-muted-foreground">Question
-            <textarea className={`${field} mt-1 min-h-28 resize-y`} value={draft.instructions} onChange={(event) => update({ instructions: event.target.value })} placeholder="Write the question in full…" maxLength={4000} />
+            <textarea aria-label="Question" className={`${field} mt-1 min-h-28 resize-y`} value={draft.instructions} onChange={(event) => update({ instructions: event.target.value })} placeholder="Write the question in full…" maxLength={4000} />
           </label>
           <p id="jev-question-dialog-description" className="-mt-3 text-xs text-muted-foreground">Jev reads this question and only the context you review before running.</p>
           {draft.type === 'noul' && <JevNoulFields draft={draft} onChange={update} />}

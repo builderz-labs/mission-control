@@ -18,6 +18,7 @@ describe('Jev question editor', () => {
     expect(screen.getByRole('dialog', { name: 'New question' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /Yes \/ No/ })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByLabelText(/What counts as yes/)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Question', exact: true })).toHaveAttribute('aria-label', 'Question')
 
     fireEvent.click(screen.getByRole('radio', { name: /Choose one/ }))
     expect(screen.getByLabelText('Option 1 key')).toBeInTheDocument()
