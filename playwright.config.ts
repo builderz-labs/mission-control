@@ -12,7 +12,7 @@ export default defineConfig({
   },
   fullyParallel: false,
   workers: 1,
-  reporter: [['list']],
+  reporter: [['list'], ['./scripts/e2e-failure-reporter.ts']],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:3005',
     trace: 'retain-on-failure'
