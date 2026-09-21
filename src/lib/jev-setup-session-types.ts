@@ -5,6 +5,7 @@ export interface JevSetupSession {
   workspace_id: number
   project_id: number
   created_by_user_id: number
+  created_by_principal: string | null
   title: string
   provider: string
   model: string

@@ -4,6 +4,7 @@ import { validateBoundedBody } from '@/lib/bounded-validation'
 import { getDatabase, logAuditEvent } from '@/lib/db'
 import { jevErrorResponse } from '@/lib/jev-route-error'
 import { assertJevProject, createJevPolicy, JevRecordError } from '@/lib/jev-repository'
+import { canManageJevSession } from '@/lib/jev-session-access'
 import { getJevSetupSession } from '@/lib/jev-setup-session-repository'
 import { createJevPoliciesSchema } from '@/lib/jev-validation'
 import { mutationLimiter } from '@/lib/rate-limit'
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
     const session = body.approval
       ? getJevSetupSession(body.approval.sessionId, auth.user.workspace_id, auth.user.tenant_id, db)
       : null
-    if (session && auth.user.role !== 'admin' && session.created_by_user_id !== auth.user.id) {
+    if (session && !canManageJevSession(auth.user, session)) {
       return NextResponse.json({ error: 'Session owner or administrator required' }, { status: 403 })
     }
     if (session && !body.projectIds.includes(session.project_id)) {

@@ -4,6 +4,7 @@ import { validateBoundedBody } from '@/lib/bounded-validation'
 import { logAuditEvent } from '@/lib/db'
 import { jevErrorResponse } from '@/lib/jev-route-error'
 import { assertJevProject } from '@/lib/jev-repository'
+import { jevPrincipal } from '@/lib/jev-session-access'
 import {
   createJevSetupSession,
   listJevSetupSessions,
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
       workspaceId: auth.user.workspace_id,
       tenantId: auth.user.tenant_id,
       userId: auth.user.id,
+      principal: jevPrincipal(auth.user),
     })
     logAuditEvent({
       action: 'jev_setup_session_created',

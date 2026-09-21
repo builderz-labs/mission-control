@@ -6,6 +6,7 @@ import { validateJevAssistantRequest } from '@/lib/jev-assistant-request'
 import { createJevAssistantDraft } from '@/lib/jev-assistant-service'
 import { jevErrorResponse } from '@/lib/jev-route-error'
 import { assertJevProject } from '@/lib/jev-repository'
+import { canManageJevSession } from '@/lib/jev-session-access'
 import { jevAssistantLimiter } from '@/lib/jev-assistant-rate-limit'
 import {
   appendJevSetupExchange,
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
         auth.user.tenant_id,
       )
       : null
-    if (session && auth.user.role !== 'admin' && session.created_by_user_id !== auth.user.id) {
+    if (session && !canManageJevSession(auth.user, session)) {
       return NextResponse.json({ error: 'Session owner or administrator required' }, { status: 403 })
     }
     if (session?.status === 'archived') {

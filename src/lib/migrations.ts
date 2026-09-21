@@ -13,6 +13,7 @@ import { jevCheckoutBindingMigration } from './jev-checkout-binding-migration'
 import { jevSetupSessionMigration } from './jev-setup-session-migration'
 import { jevCloudMigration } from './jev-cloud-migration'
 import { jevEvaluationLifecycleMigration } from './jev-evaluation-lifecycle-migration'
+import { jevSessionPrincipalMigration } from './jev-session-principal-migration'
 
 export type Migration = {
   id: string
@@ -1690,6 +1691,7 @@ export function runMigrations(db: Database.Database) {
     jevSetupSessionMigration,
     jevCloudMigration,
     jevEvaluationLifecycleMigration,
+    jevSessionPrincipalMigration,
     ...extraMigrations,
   ]) {
     if (applied.has(migration.id)) continue

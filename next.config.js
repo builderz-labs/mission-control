@@ -51,10 +51,10 @@ const nextConfig = {
     config.parallelism = 1
     return config
   },
-  // `ws` conditionally loads native acceleration. Bundling replaces the
-  // optional `bufferutil` module with an empty shim, then crashes on `mask()`.
-  // Keep `ws` external so standalone Node resolves its complete runtime copy.
-  serverExternalPackages: ['ws'],
+  // Keep native modules external so standalone Node resolves the binary built
+  // for the host ABI instead of searching for it beside bundled server chunks.
+  // `ws` also conditionally loads native acceleration that bundling can shim.
+  serverExternalPackages: ['better-sqlite3', 'node-pty', 'ws'],
   // Transpile ESM-only packages so they resolve correctly in all environments
   transpilePackages: ['react-markdown', 'remark-gfm'],
   

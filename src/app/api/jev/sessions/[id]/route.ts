@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireRole, type User } from '@/lib/auth'
+import { requireRole } from '@/lib/auth'
 import { validateBoundedBody } from '@/lib/bounded-validation'
 import { logAuditEvent } from '@/lib/db'
 import { jevErrorResponse } from '@/lib/jev-route-error'
+import { canManageJevSession } from '@/lib/jev-session-access'
 import {
   archiveJevSetupSession,
   getJevSetupSession,
   getLatestJevSetupRevision,
   updateJevSetupSession,
 } from '@/lib/jev-setup-session-repository'
-import type { JevSetupSession } from '@/lib/jev-setup-session-types'
 import { updateJevSetupSessionSchema } from '@/lib/jev-setup-session-validation'
 import { mutationLimiter, readLimiter } from '@/lib/rate-limit'
 
@@ -19,10 +19,6 @@ type Context = { params: Promise<{ id: string }> }
 async function sessionId(context: Context): Promise<string | null> {
   const parsed = z.string().uuid().safeParse((await context.params).id)
   return parsed.success ? parsed.data : null
-}
-
-function canManage(user: User, session: JevSetupSession): boolean {
-  return user.role === 'admin' || session.created_by_user_id === user.id
 }
 
 export async function GET(request: NextRequest, context: Context) {
@@ -53,7 +49,7 @@ export async function PATCH(request: NextRequest, context: Context) {
   if (!id) return NextResponse.json({ error: 'Invalid session identifier' }, { status: 400 })
   try {
     const current = getJevSetupSession(id, auth.user.workspace_id, auth.user.tenant_id)
-    if (!canManage(auth.user, current)) {
+    if (!canManageJevSession(auth.user, current)) {
       return NextResponse.json({ error: 'Session owner or administrator required' }, { status: 403 })
     }
     if (current.status === 'archived') {
@@ -81,7 +77,7 @@ export async function DELETE(request: NextRequest, context: Context) {
   if (!id) return NextResponse.json({ error: 'Invalid session identifier' }, { status: 400 })
   try {
     const current = getJevSetupSession(id, auth.user.workspace_id, auth.user.tenant_id)
-    if (!canManage(auth.user, current)) {
+    if (!canManageJevSession(auth.user, current)) {
       return NextResponse.json({ error: 'Session owner or administrator required' }, { status: 403 })
     }
     const session = archiveJevSetupSession(current)

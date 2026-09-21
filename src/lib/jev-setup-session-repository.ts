@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import type Database from 'better-sqlite3'
 import { getDatabase } from '@/lib/db'
 import { JevRecordError, assertJevProject } from '@/lib/jev-repository'
+import { resolveJevCreatorUserId } from '@/lib/jev-session-access'
 import {
   redactJevSetupText,
   serializeRedactedJevSetupValue,
@@ -42,17 +43,21 @@ function parseRevision(row: Record<string, unknown>): JevSetupRevision {
 
 export function createJevSetupSession(
   input: CreateJevSetupSessionInput,
-  scope: { workspaceId: number; tenantId: number; userId: number },
+  scope: { workspaceId: number; tenantId: number; userId: number; principal?: string },
   db: Db = getDatabase(),
 ): JevSetupSession {
   assertJevProject(scope.workspaceId, scope.tenantId, input.projectId, db)
   assertPolicyScope(scope.workspaceId, input.projectId, input.primaryPolicyId, db)
+  const creatorUserId = resolveJevCreatorUserId(scope.workspaceId, scope.userId, db)
+  if (!creatorUserId) throw new JevRecordError('A workspace user is required to create a session', 409)
   const id = randomUUID()
   db.prepare(`
     INSERT INTO jev_setup_sessions
-      (id, workspace_id, project_id, created_by_user_id, title, provider, model, primary_policy_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, scope.workspaceId, input.projectId, scope.userId,
+      (id, workspace_id, project_id, created_by_user_id, created_by_principal,
+       title, provider, model, primary_policy_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, scope.workspaceId, input.projectId, creatorUserId,
+    scope.principal ?? `user:${scope.userId}`,
     redactJevSetupText(input.title), input.provider, input.model, input.primaryPolicyId ?? null)
   return getJevSetupSession(id, scope.workspaceId, scope.tenantId, db)
 }

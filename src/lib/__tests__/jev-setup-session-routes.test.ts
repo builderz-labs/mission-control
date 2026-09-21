@@ -119,4 +119,31 @@ describe('Jev setup-session routes', () => {
     expect(db.prepare('SELECT status FROM jev_setup_sessions WHERE id=?').get(id))
       .toEqual({ status: 'draft' })
   })
+
+  it('persists and enforces ownership for an agent API principal', async () => {
+    mocks.auth.mockReturnValue({
+      user: { id: -7, agent_id: 77, username: 'agent:codex', role: 'operator',
+        workspace_id: 1, tenant_id: 1 },
+    })
+    const id = await createSession()
+    expect(db.prepare(`SELECT created_by_user_id,created_by_principal
+      FROM jev_setup_sessions WHERE id=?`).get(id)).toEqual({
+      created_by_user_id: 401, created_by_principal: 'agent:77',
+    })
+
+    const { PATCH } = await import('@/app/api/jev/sessions/[id]/route')
+    const owned = await PATCH(new NextRequest(`http://localhost/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ status: 'ready' }),
+    }), { params: Promise.resolve({ id }) })
+    expect(owned.status).toBe(200)
+
+    mocks.auth.mockReturnValue({
+      user: { id: -8, agent_id: 78, username: 'agent:other', role: 'operator',
+        workspace_id: 1, tenant_id: 1 },
+    })
+    const denied = await PATCH(new NextRequest(`http://localhost/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ title: 'Other' }),
+    }), { params: Promise.resolve({ id }) })
+    expect(denied.status).toBe(403)
+  })
 })
