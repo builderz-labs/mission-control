@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { dashboardPageLayout } from './dashboard-page-frame'
+import { dashboardPageLayout, usesConversationShell } from './dashboard-page-frame'
 
 describe('dashboardPageLayout', () => {
+  it('gives chat and Jev an independently scrolling, distraction-free shell', () => {
+    expect(usesConversationShell('chat')).toBe(true)
+    expect(usesConversationShell('jev')).toBe(true)
+    expect(usesConversationShell('overview')).toBe(false)
+    expect(usesConversationShell('')).toBe(false)
+  })
   it.each([
     'chat',
     'gateway-config',

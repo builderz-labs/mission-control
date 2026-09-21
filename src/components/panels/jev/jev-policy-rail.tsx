@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { Project } from '@/store'
 import type { JevSetupSession } from '@/lib/jev-setup-session-types'
 import type { JevEvaluation, JevPolicy } from './jev-ui-types'
@@ -50,6 +51,11 @@ export function JevPolicyRail({
   onAddQuestion: (policy: JevPolicy) => void
 }) {
   const selected = policies.find((policy) => policy.id === selectedPolicyId) ?? null
+  const [search, setSearch] = useState('')
+  const query = search.trim().toLowerCase()
+  const matchingProjects = projects.filter((project) => project.name.toLowerCase().includes(query)
+    || sessions.some((session) => session.project_id === project.id && session.title.toLowerCase().includes(query)))
+    .sort((a, b) => Number(b.id === activeProjectId) - Number(a.id === activeProjectId) || a.name.localeCompare(b.name))
   return (
     <div className="flex h-full min-h-0 w-full flex-col text-[13px]">
       <div className="border-b border-[var(--chat-border)] px-3 py-3">
@@ -75,12 +81,16 @@ export function JevPolicyRail({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
         <RailHeading>Projects</RailHeading>
+        <input aria-label="Search projects and setup chats" placeholder="Search projects and chats…" value={search}
+          onChange={(event) => setSearch(event.target.value)} type="search"
+          className="mb-3 w-full rounded-md border border-[var(--chat-border)] bg-[var(--chat-bg)] px-2 py-2 text-[12px] text-[var(--chat-text)]" />
+        {matchingProjects.length === 0 && <p role="status" className="px-2 py-2 text-xs text-[var(--chat-muted)]">No projects or chats match your search.</p>}
         <div className="space-y-1">
-          {projects.map((project) => {
+          {matchingProjects.map((project) => {
             const active = project.id === activeProjectId
             return (
               <div key={project.id}>
-                <button type="button" onClick={() => onProject(project)} className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left ${active ? 'bg-white/8 text-[var(--chat-text)]' : 'text-[var(--chat-muted)] hover:bg-white/5'}`}>
+                <button type="button" aria-current={active ? 'true' : undefined} title={project.name} onClick={() => onProject(project)} className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left ${active ? 'bg-white/8 text-[var(--chat-text)]' : 'text-[var(--chat-muted)] hover:bg-white/5'}`}>
                   <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-[var(--chat-accent)]' : 'bg-white/20'}`} />
                   <span className="min-w-0 flex-1 truncate">{project.name}</span>
                 </button>
@@ -104,7 +114,7 @@ export function JevPolicyRail({
           })}
         </div>
 
-        {selected && (
+        {selected && view !== 'assistant' && (
           <section className="mt-5" aria-labelledby="jev-rail-questions">
             <div className="flex items-center justify-between px-2">
               <h2 id="jev-rail-questions" className="text-[12px] text-[var(--chat-muted)]">Result cards</h2>
@@ -125,7 +135,7 @@ export function JevPolicyRail({
           </section>
         )}
 
-        {evaluations.length > 0 && (
+        {evaluations.length > 0 && view !== 'assistant' && (
           <section className="mt-5">
             <RailHeading>Recent runs</RailHeading>
             {evaluations.slice(0, 5).map((evaluation) => (

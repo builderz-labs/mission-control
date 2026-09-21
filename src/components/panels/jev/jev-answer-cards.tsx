@@ -31,7 +31,11 @@ function Answer({ id, answer }: { id: string; answer: unknown }) {
   if (value.type === 'score' && value.probabilities && typeof value.probabilities === 'object') {
     const legend = (value.legend ?? {}) as Record<string, string>
     const probabilities = Object.entries(value.probabilities as Record<string, number>).sort((a, b) => Number(a[0]) - Number(b[0]))
-    return <div className="space-y-3"><p className="text-sm font-medium text-foreground">{humanize(id)}</p><p className="text-xs text-muted-foreground">Score: {Number(value.score).toFixed(2)}{typeof value.confidence === 'number' ? ` · ${Math.round(value.confidence * 100)}% confidence` : ''}</p>{probabilities.map(([level, probability]) => <ProbabilityBar key={level} label={`${level} — ${legend[level] ?? 'Level'}`} value={probability} />)}</div>
+    // Jev's score indices start at zero; the editor labels the same levels 1…N.
+    // Convert presentation only. Keep the original response unchanged for audit/export.
+    const oneBased = probabilities.length > 0 && probabilities.every(([level], index) => Number(level) === index)
+    const score = Number(value.score) + (oneBased ? 1 : 0)
+    return <div className="space-y-3"><p className="text-sm font-medium text-foreground">{humanize(id)}</p><p className="text-xs text-muted-foreground">Score: {score.toFixed(2)}{oneBased ? ` of ${probabilities.length}` : ''}{typeof value.confidence === 'number' ? ` · ${Math.round(value.confidence * 100)}% confidence` : ''}</p>{probabilities.map(([level, probability]) => <ProbabilityBar key={level} label={`${Number(level) + (oneBased ? 1 : 0)} — ${legend[level] ?? 'Level'}`} value={probability} />)}</div>
   }
   return <pre className="overflow-x-auto text-xs text-muted-foreground">{JSON.stringify(value, null, 2)}</pre>
 }

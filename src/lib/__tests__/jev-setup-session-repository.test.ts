@@ -2,6 +2,8 @@ import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runMigrations } from '@/lib/migrations'
 import { jevSetupSessionMigration } from '@/lib/jev-setup-session-migration'
+import { createJevSetupSessionWithInput } from '@/lib/jev-setup-session-create'
+import { createJevSetupSessionSchema } from '@/lib/jev-setup-session-validation'
 import {
   appendJevSetupExchange,
   archiveJevSetupSession,
@@ -41,6 +43,31 @@ function createSession() {
 }
 
 describe('Jev setup-session migration and repository', () => {
+  it('saves the full redacted goal and choices before any assistant response', () => {
+    const input = createJevSetupSessionSchema.parse({ projectId: 391, title: 'Short title', initialInput: {
+      goal: `${'Review accessibility and testing. '.repeat(10)} token=secret-value-123`,
+      answers: { context: 'paste', enforcement: 'advisory' }, projectIds: [391],
+    } })
+    const session = createJevSetupSessionWithInput(input, { workspaceId: 1, tenantId: 1, userId: 301 }, db)
+    const messages = listJevSetupMessages(session, 10, 0, db)
+    expect(messages).toHaveLength(1)
+    const saved = JSON.parse(messages[0].content)
+    expect(saved.goal.length).toBeGreaterThan(120)
+    expect(saved.goal).not.toContain('secret-value-123')
+    expect(saved.answers.context).toBe('paste')
+    expect(getLatestJevSetupRevision(session, db)).toBeNull()
+  })
+
+  it('rejects unauthorized or inconsistent initial repository scope without partial writes', () => {
+    const base = { projectId: 391, title: 'Short title', provider: 'claude-cli', model: 'haiku' }
+    for (const projectIds of [[391, 99999], [99999]]) {
+      expect(() => createJevSetupSessionWithInput({ ...base, initialInput: {
+        goal: 'Review accessibility', answers: {}, projectIds,
+      } }, { workspaceId: 1, tenantId: 1, userId: 301 }, db)).toThrow()
+    }
+    expect(listJevSetupSessions(1, 1, {}, db)).toEqual([])
+  })
+
   it('is idempotent and enforces ordered-message and status constraints', () => {
     jevSetupSessionMigration.up(db)
     const session = createSession()

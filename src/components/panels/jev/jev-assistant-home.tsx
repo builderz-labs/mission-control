@@ -87,7 +87,7 @@ export function JevAssistantHome({
           </div>
           {busy && <div role="status" className="mt-2 flex items-center justify-between text-[12px] text-[var(--chat-muted)]"><span>Drafting a safe, typed policy…</span><Button variant="ghost" size="xs" onClick={onCancel}>Cancel</Button></div>}
           {!canOperate && <p className="mt-2 text-[12px] text-amber-300">Operator access is required to draft a setup.</p>}
-          {canOperate && !assistantAvailable && <p className="mt-2 text-[12px] text-amber-300">The setup assistant is unavailable. Claude Code must be authenticated on the Mission Control host.</p>}
+          {canOperate && !assistantAvailable && <p className="mt-2 text-[12px] text-amber-300">The setup assistant could not be reached. Refresh to check again. If this continues, check Claude Code sign-in on the Mission Control host. Existing policies can still be evaluated with Jev.</p>}
           {error && <p role="alert" className="mt-2 text-[12px] text-red-300">{error}</p>}
         </div>
       </div>

@@ -16,6 +16,7 @@ import { UpdateBanner } from '@/components/layout/update-banner'
 import { OpenClawUpdateBanner } from '@/components/layout/openclaw-update-banner'
 import { OpenClawDoctorBanner } from '@/components/layout/openclaw-doctor-banner'
 import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard'
+import { usesConversationShell } from '@/components/layout/dashboard-page-frame'
 import { Loader } from '@/components/ui/loader'
 import { ProjectManagerModal } from '@/components/modals/project-manager-modal'
 import { ExecApprovalOverlay } from '@/components/modals/exec-approval-overlay'
@@ -78,7 +79,7 @@ export default function Home() {
 
   useEffect(() => {
     setActiveTab(normalizedPanel)
-    if (normalizedPanel === 'chat') {
+    if (usesConversationShell(normalizedPanel)) {
       setChatPanelOpen(false)
       setSidebarExpanded(false)
     }
@@ -398,7 +399,7 @@ export default function Home() {
     return <Loader variant="page" steps={isClient ? initSteps : undefined} />
   }
 
-  const isChatDesktop = !showOnboarding && normalizedPanel === 'chat'
+  const isChatDesktop = !showOnboarding && usesConversationShell(normalizedPanel)
 
   return (
     <div className={`flex h-screen overflow-hidden ${isChatDesktop ? '' : 'bg-background'}`}>

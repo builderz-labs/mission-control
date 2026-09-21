@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useJevDashboard } from './use-jev-dashboard'
 
 const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }))
@@ -13,6 +13,7 @@ const status = {
 }
 
 describe('useJevDashboard evaluation lifecycle', () => {
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
   beforeEach(() => {
     mocks.apiFetch.mockReset().mockImplementation((path: string, options?: RequestInit) => {
       if (options?.method === 'POST' && path === '/api/jev/evaluations') {
@@ -35,6 +36,27 @@ describe('useJevDashboard evaluation lifecycle', () => {
     await act(async () => { evaluation = await result.current.runEvaluation(7, 'safe context', false) })
     expect(evaluation).toMatchObject({ id: 'eval', model: 'jev-1.13.0' })
     expect(mocks.apiFetch).toHaveBeenCalledWith('/api/jev/evaluations', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('refreshes pending cloud status without reloading policies, then stops when synced', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    let reads = 0
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/api/jev/status') return Promise.resolve({ status: {
+        ...status, cloud: { pending: ++reads === 1 ? 2 : 0, state: reads === 1 ? 'pending' : 'synced' },
+      } })
+      if (path.startsWith('/api/jev/policies')) return Promise.resolve({ policies: [] })
+      return Promise.resolve({ evaluations: [] })
+    })
+    const { result } = renderHook(() => useJevDashboard(4))
+    await act(async () => { await Promise.resolve() })
+    expect(result.current.status?.cloud.pending).toBe(2)
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+    expect(result.current.status?.cloud.pending).toBe(0)
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+    expect(reads).toBe(2)
+    expect(mocks.apiFetch.mock.calls.filter(([path]) => path.startsWith('/api/jev/policies'))).toHaveLength(1)
   })
 
   it('never lets a slow repository response overwrite the newly selected repository', async () => {

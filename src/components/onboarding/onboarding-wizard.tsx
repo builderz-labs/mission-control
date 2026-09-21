@@ -14,6 +14,7 @@ import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
 // StepAgentRuntimes removed — runtime management moved to Settings page
 import { clearOnboardingReplayFromStart, markOnboardingDismissedThisSession, readOnboardingReplayFromStart } from '@/lib/onboarding-session'
 import { LlmLabel } from '@/components/brand/engine-logo'
+import { OnboardingLoadFallback } from './onboarding-load-fallback'
 
 interface StepInfo {
   id: string
@@ -73,6 +74,8 @@ export function OnboardingWizard() {
   const [slideDir, setSlideDir] = useState<'left' | 'right'>('left')
   const [animating, setAnimating] = useState(false)
   const [state, setState] = useState<OnboardingState | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [credentialStatus, setCredentialStatus] = useState<{ authOk: boolean; apiKeyOk: boolean } | null>(null)
   const [closing, setClosing] = useState(false)
   const [completionMessage, setCompletionMessage] = useState(false)
@@ -93,11 +96,16 @@ export function OnboardingWizard() {
 
   useEffect(() => {
     if (!showOnboarding) return
+    const controller = new AbortController()
+    setLoadFailed(false)
+    setClosing(false)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
-    apiFetch<OnboardingState>('/api/onboarding')
+    apiFetch<OnboardingState>('/api/onboarding', { signal: controller.signal })
       .then(data => {
+        if (controller.signal.aborted) return
+        if (!data) throw new Error('Setup response unavailable')
         if (data) {
           setState(data)
           const shouldReplayFromStart = readOnboardingReplayFromStart()
@@ -110,7 +118,7 @@ export function OnboardingWizard() {
           }
         }
       })
-      .catch(() => {})
+      .catch(() => { if (!controller.signal.aborted) setLoadFailed(true) })
 
     // Fetch system capabilities and runtime status in parallel
     Promise.allSettled([
@@ -135,9 +143,10 @@ export function OnboardingWizard() {
     })
 
     return () => {
+      controller.abort()
       document.body.style.overflow = previousOverflow
     }
-  }, [showOnboarding])
+  }, [showOnboarding, loadAttempt])
 
   const STEPS = getWizardSteps(capabilities.gatewayConnected)
   const credentialsStepIndex = STEPS.findIndex((s) => s.id === 'credentials')
@@ -210,21 +219,29 @@ export function OnboardingWizard() {
     }, 150)
   }, [])
 
+  const continueWithoutSetup = useCallback(() => {
+    markOnboardingDismissedThisSession()
+    setShowOnboarding(false)
+  }, [setShowOnboarding])
+
   useEffect(() => {
     if (!showOnboarding) return
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        skip()
+        if (state) void skip()
+        else continueWithoutSetup()
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [showOnboarding, skip])
+  }, [showOnboarding, skip, state, continueWithoutSetup])
 
-  if (!mounted || !showOnboarding || !state) return null
+  if (!mounted || !showOnboarding) return null
+  if (!state) return createPortal(<OnboardingLoadFallback failed={loadFailed}
+    onRetry={() => setLoadAttempt((attempt) => attempt + 1)} onContinue={continueWithoutSetup} />, document.body)
 
   const totalSteps = STEPS.length
   const isGateway = dashboardMode === 'full' || gatewayAvailable

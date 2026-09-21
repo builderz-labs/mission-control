@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { jevAssistantRequestSchema } from './jev-assistant-schema'
 
 const provider = z.string().trim().min(1).max(40)
 const model = z.string().trim().min(1).max(80)
@@ -9,6 +10,11 @@ export const createJevSetupSessionSchema = z.object({
   provider: provider.default('claude-cli'),
   model: model.default('haiku'),
   primaryPolicyId: z.number().int().positive().nullable().optional(),
+  initialInput: z.object({
+    goal: jevAssistantRequestSchema.shape.goal,
+    answers: jevAssistantRequestSchema.shape.answers,
+    projectIds: jevAssistantRequestSchema.shape.projectIds,
+  }).strict().optional(),
 }).strict()
 
 export const updateJevSetupSessionSchema = z.object({

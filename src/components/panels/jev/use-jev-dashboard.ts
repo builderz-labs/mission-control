@@ -68,6 +68,23 @@ export function useJevDashboard(projectId: number | null) {
     }
   }, [refresh])
 
+  // Sync finishes after the write response. Refresh only status, not the user's draft.
+  useEffect(() => {
+    if (!status?.cloud?.pending) return
+    const controller = new AbortController()
+    let inFlight = false
+    const timer = setInterval(async () => {
+      if (inFlight || document.hidden) return
+      inFlight = true
+      try {
+        const next = await apiFetch<{ status: JevStatus }>('/api/jev/status', { signal: controller.signal })
+        if (!controller.signal.aborted) setStatus(next.status)
+      } catch { /* Preserve the last truthful status; the next visible poll retries. */ }
+      finally { inFlight = false }
+    }, 15_000)
+    return () => { clearInterval(timer); controller.abort() }
+  }, [projectId, status?.cloud?.pending])
+
   const createPolicy = async (input: JevPolicyInput) => {
     if (!projectId) throw new Error('Select a repository first')
     const response = await apiFetch<{ policy: JevPolicy }>('/api/jev/policies', {

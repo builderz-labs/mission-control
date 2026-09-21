@@ -44,6 +44,7 @@ export function JevSetupAssistant({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const draftSessionRef = useRef(sessionId)
   const requestRef = useRef(0)
   const targetIds = useMemo(() => idsForScope(
     answers.scope, projects, activeProjectId, selectedIds,
@@ -65,7 +66,7 @@ export function JevSetupAssistant({
       apiFetch<{ messages: JevSetupMessage[] }>(`/api/jev/sessions/${sessionId}/messages?limit=200`),
     ]).then(([detail, history]) => {
       if (requestId !== requestRef.current) return
-      const input = firstStoredInput(history.messages)
+      const input = latestStoredInput(history.messages)
       setGoal(input.goal ?? detail.session.title); setAnswers(input.answers ?? {})
       setLockedIds(input.projectIds ?? [detail.session.project_id])
       setSelectedIds(input.projectIds ?? [detail.session.project_id])
@@ -83,7 +84,7 @@ export function JevSetupAssistant({
     const requestId = ++requestRef.current
     const controller = new AbortController()
     setBusy(true); setError(null); abortRef.current = controller
-    let activeSessionId = sessionId
+    let activeSessionId = sessionId ?? draftSessionRef.current
     try {
       if (!activeProjectId) throw new Error('Choose a repository first')
       const ids = lockedIds.length ? lockedIds : idsForScope(nextAnswers.scope, projects, activeProjectId, selectedIds)
@@ -91,9 +92,11 @@ export function JevSetupAssistant({
         const created = await apiFetch<{ session: JevSetupSession }>('/api/jev/sessions', {
           method: 'POST', signal: controller.signal, body: JSON.stringify({
             projectId: activeProjectId, title: goal.trim().slice(0, 120), provider: 'claude-cli', model: 'haiku',
+            initialInput: { goal, answers: nextAnswers, projectIds: ids },
           }),
         })
         activeSessionId = created.session.id
+        draftSessionRef.current = activeSessionId
       }
       const next = await apiFetch<JevAssistantResponse>('/api/jev/assistant', {
         method: 'POST', timeoutMs: 140_000, signal: controller.signal, body: JSON.stringify({
@@ -162,8 +165,8 @@ function idsForScope(scope: string | undefined, projects: Project[], activeId: n
   return activeId ? [activeId] : []
 }
 
-function firstStoredInput(messages: JevSetupMessage[]): StoredInput {
-  for (const message of messages) if (message.role === 'user') {
+function latestStoredInput(messages: JevSetupMessage[]): StoredInput {
+  for (const message of [...messages].reverse()) if (message.role === 'user') {
     try { return JSON.parse(message.content) as StoredInput } catch { return {} }
   }
   return {}

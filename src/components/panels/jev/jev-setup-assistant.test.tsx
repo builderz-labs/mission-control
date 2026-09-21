@@ -46,6 +46,10 @@ describe('Jev setup assistant', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
     expect(await screen.findByText('Approve the policy before anything is saved')).toBeInTheDocument()
     expect(mocks.apiFetch).toHaveBeenCalledWith('/api/jev/assistant', expect.objectContaining({ timeoutMs: 140_000 }))
+    const created = mocks.apiFetch.mock.calls.find(([path]) => path === '/api/jev/sessions')?.[1]
+    expect(JSON.parse(created.body).initialInput).toMatchObject({
+      goal: 'Assess release readiness', projectIds: [4], answers: { scope: 'current' },
+    })
     expect((screen.getByLabelText('Editable Jev schema') as HTMLTextAreaElement).value).toContain('ready')
     fireEvent.click(screen.getByRole('button', { name: /Save to 1 repository/ }))
     await waitFor(() => expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
@@ -90,6 +94,26 @@ describe('Jev setup assistant', () => {
     await waitFor(() => expect(mocks.apiFetch).toHaveBeenLastCalledWith('/api/jev/assistant', expect.objectContaining({
       method: 'POST', body: expect.stringContaining('Make this stricter'),
     })))
+  })
+
+  it('reuses the durable draft when retrying a failed provider request', async () => {
+    let attempts = 0
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/api/jev/sessions') return Promise.resolve({ session: { id: 'durable-draft' } })
+      if (path === '/api/jev/assistant') return ++attempts === 1
+        ? Promise.reject(new Error('Assistant unavailable')) : Promise.resolve(response)
+      throw new Error(`Unexpected request ${path}`)
+    })
+    renderAssistant()
+    fireEvent.change(screen.getByLabelText('What do you want Jev to evaluate?'), { target: { value: 'Assess release readiness' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Assistant unavailable')
+    fireEvent.click(screen.getByRole('button', { name: 'Use recommended setup' }))
+    await screen.findByText('Approve the policy before anything is saved')
+    expect(mocks.apiFetch.mock.calls.filter(([path]) => path === '/api/jev/sessions')).toHaveLength(1)
+    expect(mocks.apiFetch).toHaveBeenLastCalledWith('/api/jev/assistant', expect.objectContaining({
+      body: expect.stringContaining('durable-draft'),
+    }))
   })
 
   it('asks model-generated multiple-choice clarifications before final review', async () => {

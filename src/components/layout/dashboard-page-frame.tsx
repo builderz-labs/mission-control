@@ -2,6 +2,10 @@ import type { ReactNode } from 'react'
 
 export type DashboardPageLayout = 'standard' | 'wide' | 'workspace'
 
+export function usesConversationShell(panelId: string): boolean {
+  return panelId === 'chat' || panelId === 'jev'
+}
+
 const WORKSPACE_PANELS = new Set([
   'chat',
   'gateway-config',

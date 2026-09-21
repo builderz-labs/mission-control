@@ -6,9 +6,9 @@ import { jevErrorResponse } from '@/lib/jev-route-error'
 import { assertJevProject } from '@/lib/jev-repository'
 import { jevPrincipal } from '@/lib/jev-session-access'
 import {
-  createJevSetupSession,
   listJevSetupSessions,
 } from '@/lib/jev-setup-session-repository'
+import { createJevSetupSessionWithInput } from '@/lib/jev-setup-session-create'
 import { createJevSetupSessionSchema } from '@/lib/jev-setup-session-validation'
 import { mutationLimiter, readLimiter } from '@/lib/rate-limit'
 
@@ -51,12 +51,12 @@ export async function POST(request: NextRequest) {
   const limited = mutationLimiter(request)
   if (limited) return limited
   const validated = await validateBoundedBody(request, createJevSetupSessionSchema, {
-    maxBytes: 16_000, maxDepth: 8, label: 'Session request',
+    maxBytes: 80_000, maxDepth: 8, label: 'Session request',
   })
   if ('error' in validated) return validated.error
 
   try {
-    const session = createJevSetupSession(validated.data, {
+    const session = createJevSetupSessionWithInput(validated.data, {
       workspaceId: auth.user.workspace_id,
       tenantId: auth.user.tenant_id,
       userId: auth.user.id,

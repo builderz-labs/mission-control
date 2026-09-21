@@ -75,7 +75,7 @@ export function JevWorkspaceShell({
             <div className="flex shrink-0 justify-end border-b border-[var(--chat-border)] px-2 py-1">
               <Button variant="ghost" size="sm" onClick={() => setRailOpen(false)}>Close</Button>
             </div>
-            <div className="min-h-0 flex-1" onClickCapture={(event) => { if ((event.target as HTMLElement).closest('button')) setRailOpen(false) }}>{sidebar}</div>
+            <div className="min-h-0 flex-1" onClick={(event) => { if ((event.target as HTMLElement).closest('button')) setRailOpen(false) }}>{sidebar}</div>
           </div>
         </div>
       )}
