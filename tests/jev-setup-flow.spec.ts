@@ -134,7 +134,7 @@ test('novice setup through reviewed Jev result', async ({ page }, testInfo) => {
   await expect(page.getByText('Approve the policy before anything is saved')).toBeVisible()
   await shot(page, testInfo, '03-review-schema')
   await page.getByRole('button', { name: /Save to 1 repository/ }).click()
-  await expect(page.getByText('Evaluate this repository')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Evaluate this repository', level: 3 })).toBeVisible()
   await page.getByRole('button', { name: 'Load repository context' }).click()
   await expect(page.getByText('Context ready.')).toBeVisible()
   await shot(page, testInfo, '04-context-preview')
