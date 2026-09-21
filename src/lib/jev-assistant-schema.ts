@@ -62,13 +62,13 @@ export const JEV_ASSISTANT_OUTPUT_JSON_SCHEMA = {
     name: { type: 'string', minLength: 1, maxLength: 120 },
     description: { type: 'string', minLength: 1, maxLength: 1000 },
     questions: {
-      type: 'object', minProperties: 1, maxProperties: 12,
+      type: 'object', minProperties: 1, maxProperties: 6,
       propertyNames: { pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$' },
       additionalProperties: {
         oneOf: [
-          { type: 'object', additionalProperties: false, required: ['type', 'instructions'], properties: { type: { const: 'noul' }, instructions: { type: 'string' }, criteria: { type: ['object', 'null'] } } },
-          { type: 'object', additionalProperties: false, required: ['type', 'instructions', 'criteria'], properties: { type: { const: 'choice' }, instructions: { type: 'string' }, criteria: { type: 'object', minProperties: 2, maxProperties: 8 } } },
-          { type: 'object', additionalProperties: false, required: ['type', 'instructions', 'criteria'], properties: { type: { const: 'score' }, instructions: { type: 'string' }, criteria: { type: 'array', minItems: 2, maxItems: 10 } } },
+          { type: 'object', additionalProperties: false, required: ['type', 'instructions'], properties: { type: { const: 'noul' }, instructions: { type: 'string' }, criteria: { type: ['object', 'null'], additionalProperties: false, properties: { true: { type: ['string', 'null'] }, false: { type: ['string', 'null'] } } } } },
+          { type: 'object', additionalProperties: false, required: ['type', 'instructions', 'criteria'], properties: { type: { const: 'choice' }, instructions: { type: 'string' }, criteria: { type: 'object', minProperties: 2, maxProperties: 8, propertyNames: { pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$' }, additionalProperties: { type: 'string', minLength: 1 } } } },
+          { type: 'object', additionalProperties: false, required: ['type', 'instructions', 'criteria'], properties: { type: { const: 'score' }, instructions: { type: 'string' }, criteria: { type: 'array', minItems: 2, maxItems: 10, items: { type: 'string', minLength: 1 } } } },
         ],
       },
     },

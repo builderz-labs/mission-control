@@ -18,9 +18,13 @@ const PROVIDER_ENV_KEYS = [
 ] as const
 
 function providerEnvironment(source: NodeJS.ProcessEnv = process.env, isolatedHome?: string): NodeJS.ProcessEnv {
+  // Bound CLI thinking and nested retries within our 60-second attempt deadline.
+  // See code.claude.com/docs/en/env-vars (MAX_THINKING_TOKENS and output limits).
   const env: NodeJS.ProcessEnv = {
     CI: '1', NO_COLOR: '1', CLAUDE_CODE_SAFE_MODE: '1', NODE_ENV: source.NODE_ENV || 'production',
     HOME: source.HOME, PATH: '/usr/bin:/bin',
+    MAX_THINKING_TOKENS: '1024', CLAUDE_CODE_MAX_OUTPUT_TOKENS: '4096',
+    MAX_STRUCTURED_OUTPUT_RETRIES: '2', CLAUDE_CODE_MAX_RETRIES: '1',
     XDG_CONFIG_HOME: isolatedHome ? join(isolatedHome, '.config') : source.XDG_CONFIG_HOME,
   }
   for (const key of PROVIDER_ENV_KEYS) {
@@ -60,7 +64,7 @@ function runOnce(prompt: string, signal?: AbortSignal): Promise<JevAssistantDraf
     '--setting-sources', '', '--no-session-persistence', '--no-chrome', '--strict-mcp-config',
     '--mcp-config', '{"mcpServers":{}}', '--tools', '', '--permission-mode', 'dontAsk',
     '--permission-prompts', 'none', '--output-format', 'json', '--model', model,
-    '--max-budget-usd', '0.25', '--system-prompt', JEV_ASSISTANT_SYSTEM_PROMPT,
+    '--max-budget-usd', '0.25', '--system-prompt', `${JEV_ASSISTANT_SYSTEM_PROMPT}\nReturn the result with StructuredOutput; do not print a duplicate draft as text first.`,
     '--json-schema', JSON.stringify(JEV_ASSISTANT_OUTPUT_JSON_SCHEMA),
   ]
   return new Promise((resolve, reject) => {
