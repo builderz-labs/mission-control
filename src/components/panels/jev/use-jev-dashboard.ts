@@ -42,7 +42,7 @@ export function useJevDashboard(projectId: number | null) {
       const [statusData, policyData, evaluationData] = await Promise.all([
         statusPromise,
         apiFetch<{ policies: JevPolicy[] }>(`/api/jev/policies?${query}`, options),
-        apiFetch<{ evaluations: JevEvaluation[] }>(`/api/jev/evaluations?${query}`, options),
+        apiFetch<{ evaluations: JevEvaluation[] }>(`/api/jev/evaluations?${query}&limit=200`, options),
       ])
       if (requestId !== requestRef.current) return
       setStatus(statusData.status)

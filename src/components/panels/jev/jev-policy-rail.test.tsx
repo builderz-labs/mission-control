@@ -40,10 +40,12 @@ describe('Jev project and chat navigation', () => {
     expect(screen.getByRole('status')).toHaveTextContent('No projects or chats match')
   })
 
-  it('keeps result-card controls out of setup chat but available during evaluation', () => {
+  it('keeps result-card controls in policies; the sorter owns its own question rail', () => {
     const { rerender } = render(<JevPolicyRail {...props} />)
     expect(screen.queryByRole('region', { name: 'Result cards' })).not.toBeInTheDocument()
     rerender(<JevPolicyRail {...props} view="evaluate" />)
+    expect(screen.queryByRole('region', { name: 'Result cards' })).not.toBeInTheDocument()
+    rerender(<JevPolicyRail {...props} view="policies" />)
     expect(screen.getByRole('region', { name: 'Result cards' })).toBeInTheDocument()
   })
 })
