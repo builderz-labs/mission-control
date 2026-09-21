@@ -12,6 +12,9 @@ const base: JevAssistantRequest = {
 }
 
 describe('Jev assistant service', () => {
+  it('treats pasted-only scope as a hard privacy boundary', () => {
+    expect(configurationFromRequest({ ...base, answers: { scope: 'standalone', contextMode: 'safe_repository' } }).contextMode).toBe('pasted')
+  })
   it('never changes authorization settings from free-text revision instructions', () => {
     const configuration = configurationFromRequest({
       ...base,

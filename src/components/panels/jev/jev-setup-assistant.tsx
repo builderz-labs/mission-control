@@ -48,6 +48,7 @@ export function JevSetupAssistant({
   const [schemaText, setSchemaText] = useState('')
   const [revisionNo, setRevisionNo] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
+  const [loadingSession, setLoadingSession] = useState(Boolean(sessionId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -63,12 +64,13 @@ export function JevSetupAssistant({
     const requestId = ++requestRef.current
     abortRef.current?.abort()
     if (!sessionId) {
+      setBusy(false); setLoadingSession(false); draftSessionRef.current = null
       setStage('describe'); setGoal(''); setAnswers({}); setResponse(null); setSchemaText(''); setRevisionNo(null)
       setLockedIds([]); setDynamicQuestions([])
       setSelectedIds(activeProjectId ? [activeProjectId] : []); setError(null)
       return
     }
-    setBusy(true); setError(null)
+    setBusy(true); setLoadingSession(true); setError(null)
     Promise.all([
       apiFetch<{ session: JevSetupSession; latestRevision: JevSetupRevision | null }>(`/api/jev/sessions/${sessionId}`),
       apiFetch<{ messages: JevSetupMessage[] }>(`/api/jev/sessions/${sessionId}/messages?limit=200`),
@@ -88,7 +90,7 @@ export function JevSetupAssistant({
       setStage(restored.draft.clarifications?.length ? 'clarify' : 'review')
     }).catch((cause: unknown) => {
       if (requestId === requestRef.current) setError(cause instanceof Error ? cause.message : 'Unable to load setup chat')
-    }).finally(() => { if (requestId === requestRef.current) setBusy(false) })
+    }).finally(() => { if (requestId === requestRef.current) { setBusy(false); setLoadingSession(false) } })
   }, [activeProjectId, sessionId])
 
   const requestDraft = async (nextAnswers: Record<string, string>, revision?: string) => {
@@ -168,6 +170,7 @@ export function JevSetupAssistant({
     finally { setSaving(false) }
   }
 
+  if (loadingSession) return <div role="status" className="m-auto p-6 text-sm text-muted-foreground">Opening your saved setup chat…</div>
   if (stage === 'saved') return <div role="status" className="m-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6"><h2 className="text-lg font-semibold text-foreground">Policy ready</h2><p className="mt-1 text-sm text-muted-foreground">Review the outbound context in Evaluate, then run a safe sample with Jev.</p></div>
   if (stage === 'review' && response) return <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-5xl"><JevAssistantConnection options={providers} selected={provider} disabled={busy || saving || !canOperate} onChange={setProvider} /><JevSetupReview response={response} schemaText={schemaText} saving={saving} revising={busy} readOnly={!canOperate} error={error} onSchemaChange={setSchemaText} onDraftChange={(key, value) => setResponse((current) => current ? { ...current, draft: { ...current.draft, [key]: value } } : current)} onRevise={(revision) => void requestDraft(answers, revision)} onSave={() => void save()} onBack={() => { setStep(0); setStage('clarify') }} /></div></div>
   if (stage === 'clarify') return <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-4xl space-y-3">{answers.scope === 'selected' && <JevRepositoryScope projects={projects} selected={selectedIds} onChange={setSelectedIds} />}<p aria-live="polite" className="text-xs text-muted-foreground">Question {step + 1} of {activeQuestions.length}</p><JevClarificationCard key={activeQuestions[step].id} question={activeQuestions[step]} value={answers[activeQuestions[step].id]} disabled={busy} onAnswer={answer} onBack={() => step === 0 ? setStage(dynamicQuestions.length > 0 ? 'review' : 'describe') : setStep((current) => current - 1)} />{busy && <div role="status" className="flex items-center justify-between rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground"><span>The setup assistant is drafting a validated policy…</span><Button variant="ghost" size="sm" onClick={() => abortRef.current?.abort()}>Cancel</Button></div>}{error && <p role="alert" className="text-sm text-red-300">{error}</p>}</div></div>

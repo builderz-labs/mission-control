@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import type { JevAssistantDraft } from '../src/lib/jev-assistant-schema'
 
 const projects = [
   { id: 101, name: 'Mission Control', slug: 'mission-control', ticket_prefix: 'MC', status: 'active', github_repo: 'example/mission-control' },
@@ -22,7 +23,7 @@ const assistant = {
     name: policy.name, description: policy.description, questions: policy.questions,
     tests: ['Validate every answer contract', 'Exercise timeout and malformed responses'],
     risks: ['Repository evidence may be incomplete', 'Thresholds require calibration'],
-    observability: ['Record model, latency, usage, and request ID'], warnings: [], clarifications: [],
+    observability: ['Record model, latency, usage, and request ID'], warnings: [], clarifications: [] as JevAssistantDraft['clarifications'],
   },
   configuration: {
     scope: 'selected', projectIds: [101], trigger: 'manual', enforcement: 'advisory',
@@ -53,9 +54,10 @@ async function login(page: Page) {
   })
 }
 
-async function mockJev(page: Page) {
+async function mockJev(page: Page, clarify = false) {
   let saved = false
   let assistantCalled = false
+  let latestDraft = assistant.draft
   const session = {
     id: '5fb298ef-4d06-4e03-b76b-f74687c8fc44', workspace_id: 1, project_id: 101,
     created_by_user_id: 1, title: 'Assess release readiness', provider: 'claude-cli', model: 'haiku',
@@ -84,13 +86,19 @@ async function mockJev(page: Page) {
   await page.route(/\/api\/jev\/sessions\/[^/?]+$/, (route) => route.fulfill({ json: {
     session, latestRevision: assistantCalled ? {
       id: 1, workspace_id: 1, session_id: session.id, revision_no: 1,
-      draft: assistant.draft, configuration: assistant.configuration, provider: 'claude-cli',
+      draft: latestDraft, configuration: assistant.configuration, provider: 'claude-cli',
       model: 'haiku', status: 'validated', created_at: 1,
     } : null,
   } }))
   await page.route('**/api/jev/assistant', (route) => {
+    latestDraft = { ...assistant.draft, clarifications: clarify && !assistantCalled ? [{
+      id: 'clarify_evidence', title: 'Which evidence should this review?', help: 'Choose the evidence boundary.', options: [
+        { value: 'docs', label: 'Release documents', consequence: 'Review the supplied release notes.', recommended: true },
+        { value: 'tests', label: 'Test results', consequence: 'Review the supplied test results.', recommended: false },
+      ],
+    }] : [] }
     assistantCalled = true
-    return route.fulfill({ json: { ...assistant, session: { id: session.id, revisionNo: 1 } } })
+    return route.fulfill({ json: { ...assistant, draft: latestDraft, session: { id: session.id, revisionNo: 1 } } })
   })
   await page.route('**/api/jev/policies/bulk', (route) => {
     saved = true
@@ -132,6 +140,8 @@ test('novice setup through reviewed Jev result', async ({ page }, testInfo) => {
     await page.getByRole('button', { name: new RegExp(answer) }).click()
   }
   await expect(page.getByText('Approve the policy before anything is saved')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Draft questions' })).toBeVisible()
+  await expect(page.getByLabel('Editable Jev schema')).toBeHidden()
   await shot(page, testInfo, '03-review-schema')
   await page.getByRole('button', { name: /Save to 1 repository/ }).click()
   await expect(page.getByRole('heading', { name: 'Evaluate this repository', level: 3 })).toBeVisible()
@@ -143,4 +153,23 @@ test('novice setup through reviewed Jev result', async ({ page }, testInfo) => {
   await expect(result).toBeVisible()
   await result.scrollIntoViewIfNeeded()
   await shot(page, testInfo, '05-evaluation-result')
+})
+
+test('adaptive clarification survives chat selection and supports visual editing', async ({ page }, testInfo) => {
+  await login(page)
+  await mockJev(page, true)
+  await page.goto('/jev')
+  await page.getByLabel('What do you want Jev to evaluate?').fill('Help me decide what needs attention.')
+  await page.getByRole('button', { name: 'Use recommended setup' }).click()
+  await expect(page.getByText('Which evidence should this review?')).toBeVisible()
+  await shot(page, testInfo, '06-adaptive-clarification')
+  await page.getByRole('button', { name: /Release documents/ }).click()
+  await expect(page.getByRole('region', { name: 'Draft questions' })).toBeVisible()
+  await page.getByRole('button', { name: 'Edit evidence', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Edit question' })).toBeVisible()
+  await page.getByLabel('Question', { exact: true }).fill('How complete is the supplied release evidence?')
+  await shot(page, testInfo, '07-visual-score-editor')
+  await page.getByRole('button', { name: 'Save question' }).click()
+  await expect(page.getByText('How complete is the supplied release evidence?')).toBeVisible()
+  await shot(page, testInfo, '08-visual-review')
 })

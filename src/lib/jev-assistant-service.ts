@@ -28,7 +28,7 @@ export function configurationFromRequest(input: JevAssistantRequest): JevPolicyC
       ? answers.trigger as JevPolicyConfiguration['trigger'] : 'manual',
     enforcement: ['advisory', 'review', 'blocking'].includes(answers.enforcement)
       ? answers.enforcement as JevPolicyConfiguration['enforcement'] : 'advisory',
-    contextMode: ['pasted', 'safe_repository', 'metadata_only'].includes(answers.contextMode)
+    contextMode: answers.scope === 'standalone' ? 'pasted' : ['pasted', 'safe_repository', 'metadata_only'].includes(answers.contextMode)
       ? answers.contextMode as JevPolicyConfiguration['contextMode'] : 'safe_repository',
     failureMode: ['hold_for_review', 'skip_and_continue', 'retry_then_review'].includes(answers.failureMode)
       ? answers.failureMode as JevPolicyConfiguration['failureMode'] : 'retry_then_review',
