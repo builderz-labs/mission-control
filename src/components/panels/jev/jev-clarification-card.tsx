@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button'
 import type { SetupQuestion } from './jev-setup-options'
 
 export function JevClarificationCard({
-  question, value, disabled = false, onAnswer, onBack,
+  question, value, disabled = false, onAnswer, onBack, onSkipRest,
 }: {
   question: SetupQuestion
   value?: string
   disabled?: boolean
   onAnswer: (value: string) => void
   onBack: () => void
+  /** When provided, offers a one-click way to accept the recommended answer for every remaining question. */
+  onSkipRest?: () => void
 }) {
   const [custom, setCustom] = useState('')
   return (
@@ -29,7 +31,10 @@ export function JevClarificationCard({
         <input aria-label="Custom answer" disabled={disabled} maxLength={1000} value={custom} onChange={(event) => setCustom(event.target.value)} placeholder="Or write a custom answer…" className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-void-cyan" />
         <Button type="button" variant="outline" disabled={disabled || !custom.trim()} onClick={() => onAnswer(custom.trim())}>Use custom answer</Button>
       </div>
-      <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={onBack}>Back</Button>
+      <div className="flex items-center justify-between">
+        <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={onBack}>Back</Button>
+        {onSkipRest && <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={onSkipRest}>Use recommended for the rest →</Button>}
+      </div>
     </section>
   )
 }

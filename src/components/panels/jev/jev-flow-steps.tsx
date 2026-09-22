@@ -15,17 +15,19 @@ const STEPS: Array<{ id: JevFlowStep; label: string }> = [
  * five steps so the position never has to be inferred, and each owner supplies
  * the Back behaviour that is correct for its own stage.
  *
- * Colours are derived from `currentColor` rather than theme tokens: the setup
- * assistant renders on the dark chat surface while the sorter forces its own
- * light palette, so any fixed token inverts in one of the two.
+ * Colours are derived from `currentColor` so this adapts to whichever text
+ * colour its container sets, rather than duplicating a theme token here.
  */
 export function JevFlowSteps({
   current,
+  skipped = [],
   onBack,
   backLabel = 'Back',
   backDisabled = false,
 }: {
   current: JevFlowStep
+  /** Steps that were bypassed on this run (e.g. no clarifying questions were needed) — shown as skipped, not broken. */
+  skipped?: JevFlowStep[]
   onBack?: () => void
   backLabel?: string
   backDisabled?: boolean
@@ -52,7 +54,8 @@ export function JevFlowSteps({
       )}
       <ol className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {STEPS.map((step, order) => {
-          const done = order < position
+          const isSkipped = skipped.includes(step.id)
+          const done = order < position && !isSkipped
           const active = order === position
           return (
             <li key={step.id} className="flex items-center gap-2">
@@ -60,20 +63,20 @@ export function JevFlowSteps({
               <span
                 aria-current={active ? 'step' : undefined}
                 className={`flex items-center gap-1.5 whitespace-nowrap text-xs ${
-                  active ? 'font-semibold' : done ? 'opacity-85' : 'opacity-60'
+                  active ? 'font-semibold' : done ? 'opacity-85' : isSkipped ? 'opacity-50 italic' : 'opacity-60'
                 }`}
               >
                 <span
                   aria-hidden="true"
                   className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${
-                    active ? 'border-2 border-current font-semibold' : 'border border-current/40'
+                    active ? 'border-2 border-current font-semibold' : isSkipped ? 'border border-dashed border-current/40' : 'border border-current/40'
                   }`}
                 >
-                  {done ? '✓' : order + 1}
+                  {done ? '✓' : isSkipped ? '–' : order + 1}
                 </span>
                 {step.label}
                 <span className="sr-only">
-                  {active ? ' — current step' : done ? ' — completed' : ' — not started'}
+                  {active ? ' — current step' : done ? ' — completed' : isSkipped ? ' — skipped, not needed' : ' — not started'}
                 </span>
               </span>
             </li>

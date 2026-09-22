@@ -59,7 +59,6 @@ export function JevAssistantHome({
           <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--chat-muted)]">
             Tell the assistant what you want to do. It will ask only the clarifying questions it needs, then fill in the question types, names, options and rating scales for you.
           </p>
-          <p className="mt-3 text-xs text-[var(--chat-muted)]">Describe → Clarify if needed → Review questions → Run with Jev</p>
           <div className="mt-8 grid gap-2 md:grid-cols-3">
             {EXAMPLES.map((example) => (
               <button key={example} type="button" onClick={() => onGoal(example)} className="rounded-xl border border-[var(--chat-border)] bg-[var(--chat-elevated)] p-3 text-left text-[13px] leading-5 text-[var(--chat-muted)] hover:border-white/20 hover:text-[var(--chat-text)]">

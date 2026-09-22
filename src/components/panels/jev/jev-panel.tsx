@@ -49,9 +49,11 @@ export function JevPanel() {
       : !data.status.healthy ? 'The TypeSafe connection check failed. Retry status before evaluating.' : undefined
   const connectionStatus = !data.status ? 'Checking'
     : !data.status.healthy ? data.status.configured ? 'Needs attention' : 'Not configured'
-      : data.status.cloud.state === 'synced' || data.status.cloud.state === 'ready' ? 'Connected · cloud synced'
-        : data.status.cloud.state === 'pending' ? `Saved locally · ${data.status.cloud.pending} pending`
-          : data.status.cloud.state === 'retrying' ? 'Saved locally · sync retrying' : 'Connected · local only'
+      // Sync-state detail is only meaningful once there's a policy to sync; a brand-new workspace just needs "Connected."
+      : policies.length === 0 ? 'Connected'
+        : data.status.cloud.state === 'synced' || data.status.cloud.state === 'ready' ? 'Connected · cloud synced'
+          : data.status.cloud.state === 'pending' ? `Saved locally · ${data.status.cloud.pending} pending`
+            : data.status.cloud.state === 'retrying' ? 'Saved locally · sync retrying' : 'Connected · local only'
 
   useEffect(() => { if (projects.length === 0) void fetchProjects() }, [fetchProjects, projects.length])
   useEffect(() => { if (project && activeProject?.id !== project.id) setActiveProject(project) }, [activeProject?.id, project, setActiveProject])

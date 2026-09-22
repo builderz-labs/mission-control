@@ -36,6 +36,7 @@ export function JevSetupAssistant({
   onReady: (policy: JevPolicy) => void
 }) {
   const [stage, setStage] = useState<'describe' | 'clarify' | 'review' | 'saved'>('describe')
+  const [hasClarified, setHasClarified] = useState(false)
   const [provider, setProvider] = useState(assistantDefault)
   const providers = assistantOptions ?? [{ kind: 'claude-cli' as const, label: 'Claude Code', model: 'haiku', configured: assistantAvailable }]
   const selectedProvider = providers.find((option) => option.kind === provider)
@@ -66,7 +67,7 @@ export function JevSetupAssistant({
     abortRef.current?.abort()
     if (!sessionId) {
       setBusy(false); setLoadingSession(false); draftSessionRef.current = null
-      setStage('describe'); setGoal(''); setAnswers({}); setResponse(null); setSchemaText(''); setRevisionNo(null)
+      setStage('describe'); setHasClarified(false); setGoal(''); setAnswers({}); setResponse(null); setSchemaText(''); setRevisionNo(null)
       setLockedIds([]); setDynamicQuestions([])
       setSelectedIds(activeProjectId ? [activeProjectId] : []); setError(null)
       return
@@ -88,6 +89,7 @@ export function JevSetupAssistant({
       setRevisionNo(detail.latestRevision.revision_no)
       setResponse(restored); setSchemaText(JSON.stringify(restored.draft.questions, null, 2))
       setDynamicQuestions(restored.draft.clarifications ?? []); setStep(0)
+      setHasClarified(Boolean(restored.draft.clarifications?.length))
       setStage(restored.draft.clarifications?.length ? 'clarify' : 'review')
     }).catch((cause: unknown) => {
       if (requestId === requestRef.current) setError(cause instanceof Error ? cause.message : 'Unable to load setup chat')
@@ -125,7 +127,7 @@ export function JevSetupAssistant({
       setLockedIds(ids); setResponse(next); setSchemaText(JSON.stringify(next.draft.questions, null, 2))
       setRevisionNo(next.session?.revisionNo ?? null)
       if ((next.draft.clarifications?.length ?? 0) > 0) {
-        setDynamicQuestions(next.draft.clarifications ?? []); setStep(0); setStage('clarify')
+        setDynamicQuestions(next.draft.clarifications ?? []); setStep(0); setHasClarified(true); setStage('clarify')
       } else { setDynamicQuestions([]); setStage('review') }
       onSessionChange(activeSessionId); onSessionsChanged()
     } catch (cause) {
@@ -145,6 +147,15 @@ export function JevSetupAssistant({
         ? 'Revise the draft using these explicit clarification answers.' : undefined)
     }
     else setStep((current) => current + 1)
+  }
+
+  const skipRest = () => {
+    const remaining = Object.fromEntries(activeQuestions.slice(step).map((entry) => [
+      entry.id, entry.options.find((option) => option.recommended)?.value ?? entry.options[0].value,
+    ]))
+    const next = { ...answers, ...remaining }
+    setAnswers(next)
+    void requestDraft(next, dynamicQuestions.length > 0 ? 'Revise the draft using these explicit clarification answers.' : undefined)
   }
 
   const save = async () => {
@@ -173,7 +184,7 @@ export function JevSetupAssistant({
 
   if (loadingSession) return <div role="status" className="m-auto p-6 text-sm text-muted-foreground">Opening your saved setup chat…</div>
   if (stage === 'saved') return <div role="status" className="m-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-6"><h2 className="text-lg font-semibold text-foreground">Policy ready</h2><p className="mt-1 text-sm text-muted-foreground">Review the outbound context in Evaluate, then run a safe sample with Jev.</p></div>
-  if (stage === 'review' && response) return <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-5xl"><JevFlowSteps current="review" /><JevAssistantConnection options={providers} selected={provider} disabled={busy || saving || !canOperate} onChange={setProvider} /><JevSetupReview response={response} schemaText={schemaText} saving={saving} revising={busy} readOnly={!canOperate} error={error} onSchemaChange={setSchemaText} onDraftChange={(key, value) => setResponse((current) => current ? { ...current, draft: { ...current.draft, [key]: value } } : current)} onRevise={(revision) => void requestDraft(answers, revision)} onSave={() => void save()} onBack={() => { setStep(0); setStage('clarify') }} /></div></div>
-  if (stage === 'clarify') return <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-4xl"><JevFlowSteps current="clarify" /><div className="space-y-3">{answers.scope === 'selected' && <JevRepositoryScope projects={projects} selected={selectedIds} onChange={setSelectedIds} />}<p aria-live="polite" className="text-xs text-muted-foreground">Question {step + 1} of {activeQuestions.length}</p><JevClarificationCard key={activeQuestions[step].id} question={activeQuestions[step]} value={answers[activeQuestions[step].id]} disabled={busy} onAnswer={answer} onBack={() => step === 0 ? setStage(dynamicQuestions.length > 0 ? 'review' : 'describe') : setStep((current) => current - 1)} />{busy && <div role="status" className="flex items-center justify-between rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground"><span>The setup assistant is drafting a validated policy…</span><Button variant="ghost" size="sm" onClick={() => abortRef.current?.abort()}>Cancel</Button></div>}{error && <p role="alert" className="text-sm text-red-300">{error}</p>}</div></div></div>
-  return <JevAssistantHome goal={goal} busy={busy} canOperate={canOperate} assistantAvailable={Boolean(selectedProvider?.configured)} providers={providers} provider={provider} onProvider={setProvider} error={error} onGoal={setGoal} onRecommended={() => { const next = { ...recommendedAnswers, ...answers }; setAnswers(next); void requestDraft(next) }} onCustomize={() => { setDynamicQuestions([]); setStep(0); setStage('clarify') }} onCancel={() => abortRef.current?.abort()} />
+  if (stage === 'review' && response) return <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-5xl"><JevFlowSteps current="review" skipped={hasClarified ? [] : ['clarify']} /><JevAssistantConnection compact options={providers} selected={provider} disabled={busy || saving || !canOperate} onChange={setProvider} /><JevSetupReview response={response} schemaText={schemaText} saving={saving} revising={busy} readOnly={!canOperate} error={error} onSchemaChange={setSchemaText} onDraftChange={(key, value) => setResponse((current) => current ? { ...current, draft: { ...current.draft, [key]: value } } : current)} onRevise={(revision) => void requestDraft(answers, revision)} onSave={() => void save()} onBack={() => { setStep(0); setStage('clarify') }} /></div></div>
+  if (stage === 'clarify') return <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-4xl"><JevFlowSteps current="clarify" /><div className="space-y-3">{answers.scope === 'selected' && <JevRepositoryScope projects={projects} selected={selectedIds} onChange={setSelectedIds} />}<p aria-live="polite" className="text-xs text-muted-foreground">Question {step + 1} of {activeQuestions.length}</p><JevClarificationCard key={activeQuestions[step].id} question={activeQuestions[step]} value={answers[activeQuestions[step].id]} disabled={busy} onAnswer={answer} onBack={() => step === 0 ? setStage(dynamicQuestions.length > 0 ? 'review' : 'describe') : setStep((current) => current - 1)} onSkipRest={step < activeQuestions.length - 1 ? skipRest : undefined} />{busy && <div role="status" className="flex items-center justify-between rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground"><span>The setup assistant is drafting a validated policy…</span><Button variant="ghost" size="sm" onClick={() => abortRef.current?.abort()}>Cancel</Button></div>}{error && <p role="alert" className="text-sm text-red-300">{error}</p>}</div></div></div>
+  return <JevAssistantHome goal={goal} busy={busy} canOperate={canOperate} assistantAvailable={Boolean(selectedProvider?.configured)} providers={providers} provider={provider} onProvider={setProvider} error={error} onGoal={setGoal} onRecommended={() => { const next = { ...recommendedAnswers, ...answers }; setAnswers(next); void requestDraft(next) }} onCustomize={() => { setDynamicQuestions([]); setStep(0); setHasClarified(true); setStage('clarify') }} onCancel={() => abortRef.current?.abort()} />
 }

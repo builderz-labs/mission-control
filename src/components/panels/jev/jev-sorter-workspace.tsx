@@ -59,7 +59,6 @@ function Workspace({ policy, ...props }: Props & { policy: JevPolicy }) {
     <nav className="jev-sorter-tabs" aria-label="Evaluation setups">
       {props.policies.map((item) => <button key={item.id} type="button" disabled={busy} aria-current={item.id === policy.id ? 'page' : undefined}
         onClick={() => props.onSelect(item.id)}>{item.name}{!item.enabled ? ' · Paused' : ''}</button>)}
-      <button type="button" disabled={busy} onClick={props.onAssistant}>Edit in chat</button>
     </nav>
     <div className="jev-sorter-body">
       <aside className="jev-sorter-questions" aria-label="Questions">
@@ -93,10 +92,10 @@ function Workspace({ policy, ...props }: Props & { policy: JevPolicy }) {
               : <button type="button" className="jev-sorter-run" disabled={!canRun || busy || data.needsRefresh || !data.pending.length} onClick={() => void data.run()}>▷ Run{data.pending.length ? ` ${data.pending.length}` : ''}</button>}
           </div>
         </div>
-        {!canRun && <p role="status">{!policy.enabled ? 'This setup is paused. Open Policies to enable it.' : props.disabledReason}</p>}
-        {data.error && <p role="alert" className="jev-sorter-error">{data.error}</p>}
-        {refreshError && <p role="alert" className="jev-sorter-error">Unable to refresh results. Try again.</p>}
-        {data.pending.length > 0 && <p className="jev-sorter-muted">Run sends {data.pending.length} reviewed item(s) to TypeSafe. Usage may be billed; requests are paced to at most 10/minute. {data.scope !== 'unsorted' ? 'This scope can re-evaluate previously sorted items.' : ''}</p>}
+        {data.error ? <p role="alert" className="jev-sorter-error">{data.error}</p>
+          : refreshError ? <p role="alert" className="jev-sorter-error">Unable to refresh results. Try again.</p>
+            : !canRun ? <p role="status">{!policy.enabled ? 'This setup is paused. Open Policies to enable it.' : props.disabledReason}</p>
+              : data.pending.length > 0 ? <p className="jev-sorter-muted">Run sends {data.pending.length} reviewed item(s) to TypeSafe. Usage may be billed; requests are paced to at most 10/minute. {data.scope !== 'unsorted' ? 'This scope can re-evaluate previously sorted items.' : ''}</p> : null}
         <JevSorterCards policy={policy} rows={data.rows} visible={props.visibleQuestionIds} threshold={threshold / 100} filter={filter} onFilter={setFilter} />
         <div className="jev-sorter-result-tools"><input type="search" aria-label="Search results" placeholder="Search results" value={search} onChange={(event) => setSearch(event.target.value)} />
           {filter && <button type="button" onClick={() => setFilter(null)}>Clear {humanize(filter.question)} filter</button>}
