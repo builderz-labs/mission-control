@@ -88,15 +88,19 @@ test('saved chat opens the sorter, edits questions, runs a dataset and restores 
 
 test('assistant connection can be retried without losing the goal', async ({ page }) => {
   await setup(page)
-  let probes = 0
+  // Drive availability from an explicit flag, not a probe counter: the panel is
+  // free to read status more than once per load, and a counter silently flips
+  // the assistant to available before the alert can be asserted.
+  let assistantAvailable = false
   await page.route('**/api/jev/status', (route) => route.fulfill({ json: { status: {
-    configured: true, healthy: true, assistantAvailable: ++probes > 1,
+    configured: true, healthy: true, assistantAvailable,
     assistantProvider: 'Claude Code', assistantDefault: 'claude-cli', defaultModel: 'jev-latest',
-    cloud: { state: 'synced', pending: 0 },
+    cloud: { configured: true, project: 'Webdev', state: 'synced', pending: 0, synced: 1, lastSyncedAt: 1 },
   } } }))
   await page.reload()
   await expect(page.getByRole('button', { name: 'Retry assistant connection' })).toBeVisible()
   await page.getByRole('textbox', { name: 'What do you want Jev to evaluate?' }).fill('Synthetic pasted release notes')
+  assistantAvailable = true
   await page.getByRole('button', { name: 'Retry assistant connection' }).click()
   await expect(page.getByRole('button', { name: 'Retry assistant connection' })).toBeHidden()
   await expect(page.getByRole('textbox', { name: 'What do you want Jev to evaluate?' })).toHaveValue('Synthetic pasted release notes')

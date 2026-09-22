@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { JevAssistantConnection } from './jev-assistant-connection'
+import { JevFlowSteps } from './jev-flow-steps'
 import type { JevAssistantOption, JevAssistantProviderKind } from '@/lib/jev-assistant-config'
 
 const EXAMPLES = [
@@ -50,6 +51,7 @@ export function JevAssistantHome({
     <section className="flex h-full min-h-0 flex-col" aria-labelledby="jev-assistant-title">
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-10">
         <div className="mx-auto max-w-3xl">
+          <JevFlowSteps current="describe" />
           <div className="flex items-center gap-2 text-[var(--chat-text)]">
             <span aria-hidden className="text-lg">✦</span>
             <h1 id="jev-assistant-title" className="text-2xl font-medium tracking-tight">What do you want evaluated?</h1>
