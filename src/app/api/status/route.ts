@@ -551,22 +551,24 @@ async function performHealthCheck() {
     })
   }
 
-  // Check disk space (cross-platform: use df -h / and parse capacity column)
+  // Check disk space on the volume that actually holds Mission Control's data.
+  // `df -h /` reports the macOS read-only system-snapshot volume, not the data
+  // volume (/System/Volumes/Data) that .data/ and everything else lives on —
+  // that mismatch silently masked real disk pressure on macOS.
   try {
-    const { stdout } = await runCommand('df', ['-h', '/'], {
+    const { stdout } = await runCommand('df', ['-Pk', path.dirname(config.dbPath)], {
       timeoutMs: 3000
     })
     const lines = stdout.trim().split('\n')
     const last = lines[lines.length - 1] || ''
     const parts = last.split(/\s+/)
-    // On macOS capacity is col 4 ("85%"), on Linux use% is col 4 as well
-    const pctField = parts.find(p => p.endsWith('%')) || '0%'
+    const pctField = parts.find(p => /^\d+%$/.test(p)) || '0%'
     const usagePercent = parseInt(pctField.replace('%', '') || '0')
 
     health.checks.push({
       name: 'Disk Space',
       status: usagePercent < 90 ? 'healthy' : usagePercent < 95 ? 'warning' : 'critical',
-      message: `Disk usage: ${usagePercent}%`
+      message: `Data volume usage: ${usagePercent}%`
     })
   } catch (error) {
     health.checks.push({
