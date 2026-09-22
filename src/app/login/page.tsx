@@ -5,7 +5,9 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
+import { DesktopBrowserLogin } from '@/components/auth/desktop-browser-login'
 import { apiFetch } from '@/lib/api-client'
+import { requestLogin, type LoginRequestBody } from '@/lib/login-request'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 
 interface GoogleCredentialResponse {
@@ -25,10 +27,6 @@ interface GoogleApi {
     id: GoogleAccountsIdApi
   }
 }
-
-type LoginRequestBody =
-  | { username: string; password: string }
-  | { credential?: string }
 
 type LoginErrorPayload = {
   code?: string
@@ -175,6 +173,13 @@ export default function LoginPage() {
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
 
+  const finishAuthentication = useCallback(() => {
+    const candidate = new URLSearchParams(window.location.search).get('next')
+    const destination = candidate?.startsWith('/') && !candidate.startsWith('//') ? candidate : '/'
+    // A full reload ensures the new HttpOnly session is used for every request.
+    window.location.href = destination
+  }, [])
+
   // Check if first-time setup is needed on page load — auto-redirect to /setup
   useEffect(() => {
     apiFetch<{ needsSetup?: boolean }>('/api/setup', {
@@ -182,6 +187,8 @@ export default function LoginPage() {
     })
       .then((data) => {
         if (data.needsSetup) {
+          // A document reload is required to leave the authenticated app shell.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.href = '/setup'
         }
       })
@@ -191,14 +198,10 @@ export default function LoginPage() {
   }, [])
 
   const completeLogin = useCallback(async (path: string, body: LoginRequestBody) => {
-    const res = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    const res = await requestLogin(path, body)
 
     if (!res.ok) {
-      const data = readLoginErrorPayload(await res.json().catch(() => null))
+      const data = readLoginErrorPayload(res.data)
       if (data.code === 'PENDING_APPROVAL') {
         setPendingApproval(true)
         setNeedsSetup(false)
@@ -222,11 +225,9 @@ export default function LoginPage() {
       return false
     }
 
-    // Full reload ensures the session cookie is sent on all subsequent requests.
-    // router.push() + refresh() can race and use stale RSC payloads.
-    window.location.href = '/'
+    finishAuthentication()
     return true
-  }, [t])
+  }, [finishAuthentication, t])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -292,7 +293,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <main className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="absolute top-4 right-4">
         <LanguageSwitcherSelect />
       </div>
@@ -306,6 +307,7 @@ export default function LoginPage() {
               height={48}
               className="h-full w-full object-cover"
               priority
+              unoptimized
             />
           </div>
           <h1 className="text-xl font-semibold text-foreground">{t('missionControl')}</h1>
@@ -349,7 +351,11 @@ export default function LoginPage() {
               {t('noAdminDescription')}
             </p>
             <Button
-              onClick={() => { window.location.href = '/setup' }}
+              onClick={() => {
+                // A document reload is required to leave the authenticated app shell.
+                // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                window.location.href = '/setup'
+              }}
               size="sm"
               className="mt-3"
             >
@@ -458,6 +464,18 @@ export default function LoginPage() {
           )}
         </div>
 
+        <div className={pendingApproval ? 'opacity-50 pointer-events-none' : ''}>
+          <DesktopBrowserLogin
+            onAuthenticated={finishAuthentication}
+            disabled={loading || googleLoading}
+          />
+          <div className="my-4 flex items-center gap-2">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or use account credentials</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        </div>
+
         {/* Google Sign-In button — shown only when client ID is configured */}
         {googleClientId && (
           <div className={pendingApproval ? 'opacity-50 pointer-events-none' : ''}>
@@ -543,6 +561,6 @@ export default function LoginPage() {
 
         <p className="text-center text-xs text-muted-foreground mt-6">{t('orchestrationTagline')}</p>
       </div>
-    </div>
+    </main>
   )
 }

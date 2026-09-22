@@ -5,6 +5,7 @@ import net from 'node:net'
 import path from 'node:path'
 import process from 'node:process'
 import Database from 'better-sqlite3'
+import { stageStandaloneAssets } from './stage-standalone-assets.mjs'
 
 async function findAvailablePort(host = '127.0.0.1') {
   return await new Promise((resolve, reject) => {
@@ -248,10 +249,13 @@ if (!fs.existsSync(buildIdPath)) {
 }
 
 const standaloneServerPath = findStandaloneServer(repoRoot)
+const standaloneServerRoot = standaloneServerPath
+  ? stageStandaloneAssets(repoRoot, standaloneServerPath)
+  : repoRoot
 
 app = standaloneServerPath && fs.existsSync(standaloneServerPath)
   ? spawn('node', [standaloneServerPath], {
-      cwd: repoRoot,
+      cwd: standaloneServerRoot,
       env: baseEnv,
       stdio: 'inherit',
     })

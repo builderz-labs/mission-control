@@ -500,6 +500,31 @@
   }
 }
 
+@media (pointer: coarse) {
+  button,
+  select,
+  a[href] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  button,
+  select,
+  a[href],
+  input:not([type='checkbox']):not([type='radio']),
+  textarea {
+    min-height: 44px;
+  }
+
+  button,
+  select,
+  a[href] {
+    min-width: 44px;
+  }
+}
+
 @utility shimmer-bar {
   /* Touch-friendly tap targets */
 
@@ -518,6 +543,27 @@
     );
     background-size: 50% 100%;
     animation: shimmerBar 1.5s ease-in-out infinite;
+  }
+}
+
+@utility chat-glimmer-line {
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--chat-success) 85%, white) 50%,
+      transparent 100%
+    );
+    transform: translateX(-100%);
+    animation: chatGlimmer 1.6s ease-in-out infinite;
   }
 }
 
@@ -708,6 +754,10 @@
   @keyframes shimmerBar {
     0% { transform: translateX(-100%); }
     100% { transform: translateX(200%); }
+  }
+  @keyframes chatGlimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
   }
   @keyframes checkEnter {
     0% { opacity: 0; transform: scale(0.5); }
@@ -1101,4 +1151,36 @@
     repeating-linear-gradient(0deg, hsl(120 100% 50% / 0.03) 0px, transparent 1px, transparent 20px),
     repeating-linear-gradient(90deg, transparent 0px, transparent 19px, hsl(120 100% 50% / 0.02) 20px);
   background-size: 100% 100%, 20px 20px, 20px 20px;
+}
+
+/* Chat desktop (Claude Code layout). Scoped so other panels keep Void tokens. */
+.chat-desktop {
+  --chat-bg: #141414;
+  --chat-sidebar: #111111;
+  --chat-elevated: #1c1c1c;
+  --chat-border: #2a2a2a;
+  --chat-text: #e8e6e3;
+  --chat-muted: #8a8580;
+  --chat-accent: #3b82f6;
+  --chat-success: #34d399;
+  --chat-danger: #f87171;
+  background: var(--chat-bg);
+  color: var(--chat-text);
+  font-family: var(--font-sans);
+}
+
+.chat-desktop button:focus-visible,
+.chat-desktop textarea:focus-visible,
+.chat-desktop input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--chat-text) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.chat-desktop .chat-plan-prose,
+.chat-desktop .chat-plan-prose p,
+.chat-desktop .chat-plan-prose li,
+.chat-desktop .chat-plan-prose h1,
+.chat-desktop .chat-plan-prose h2,
+.chat-desktop .chat-plan-prose h3 {
+  color: var(--chat-text);
 }

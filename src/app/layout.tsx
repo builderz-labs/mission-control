@@ -7,6 +7,7 @@ import { getLocale, getMessages } from 'next-intl/server'
 import { THEME_IDS } from '@/lib/themes'
 import { ThemeBackground } from '@/components/ui/theme-background'
 import { AuthExpiredListener } from '@/components/auth-expired-listener'
+import { AppToaster } from '@/components/ui/app-toaster'
 import './globals.css'
 
 const inter = Inter({
@@ -103,6 +104,7 @@ export default async function RootLayout({
             Content is a static string literal — no user input, no XSS vector. */}
         <script
           nonce={nonce}
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme')||'void';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
           }}
@@ -120,6 +122,7 @@ export default async function RootLayout({
           >
             <ThemeBackground />
             <AuthExpiredListener />
+            <AppToaster />
             <div className="h-screen overflow-hidden bg-background text-foreground">
               {children}
             </div>

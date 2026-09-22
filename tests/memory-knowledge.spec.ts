@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test'
 import { API_KEY_HEADER } from './helpers'
 
 const stamp = Date.now()
-const testFile = `memory/e2e-mk-${stamp}.md`
-const testFile2 = `memory/e2e-mk-linked-${stamp}.md`
+const testFile = `openclaw/e2e-mk-${stamp}.md`
+const testFile2 = `openclaw/e2e-mk-linked-${stamp}.md`
 
 test.describe('Memory Knowledge Features', () => {
   // Setup: create test files with wiki-links and schema

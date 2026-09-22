@@ -10,11 +10,12 @@ import {
   PipelineActionIcon,
   type DashboardData,
 } from '../widget-primitives'
+import { EngineLogoSet } from '@/components/brand/engine-logo'
 
 /** Pick contextual actions based on current fleet/task state */
 function getContextualActions(data: DashboardData): Array<{
   label: string
-  desc: string
+  desc: React.ReactNode
   tab: string
   icon: React.ReactNode
   priority: number
@@ -32,7 +33,7 @@ function getContextualActions(data: DashboardData): Array<{
 
   const actions: Array<{
     label: string
-    desc: string
+    desc: React.ReactNode
     tab: string
     icon: React.ReactNode
     priority: number
@@ -78,7 +79,7 @@ function getContextualActions(data: DashboardData): Array<{
     actions.push({
       label: 'Create First Agent',
       desc: 'Set up your agent fleet',
-      tab: 'spawn',
+      tab: 'agents',
       icon: <SpawnActionIcon />,
       priority: 80,
     })
@@ -88,7 +89,12 @@ function getContextualActions(data: DashboardData): Array<{
   if (isLocal) {
     actions.push({
       label: 'Sessions',
-      desc: 'Claude + Codex + Hermes',
+      desc: (
+        <span className="inline-flex items-center gap-1.5">
+          <EngineLogoSet kinds={['claude-code', 'codex-cli']} size={12} decorative />
+          <span>Claude + Codex + Hermes</span>
+        </span>
+      ),
       tab: 'sessions',
       icon: <SessionIcon />,
       priority: 30,

@@ -84,4 +84,18 @@ describe('registerMcAsDashboard', () => {
     expect(readFileSync(configPath, 'utf8')).toContain('https://mc.example.com')
     expect(() => readFileSync(`${configPath}.mc-lock`, 'utf8')).toThrow()
   })
+
+  it('adds localhost and 127.0.0.1 origin twins together', async () => {
+    writeFileSync(configPath, JSON.stringify({ gateway: { controlUi: { allowedOrigins: [] } } }), 'utf8')
+    const { registerMcAsDashboard } = await import('@/lib/gateway-runtime')
+    expect(registerMcAsDashboard('http://127.0.0.1:3000')).toEqual({
+      registered: true,
+      alreadySet: false,
+    })
+    const updated = JSON.parse(readFileSync(configPath, 'utf8'))
+    expect(updated.gateway.controlUi.allowedOrigins).toEqual([
+      'http://127.0.0.1:3000',
+      'http://localhost:3000',
+    ])
+  })
 })

@@ -3,6 +3,7 @@ import { getDatabase, db_helpers } from '@/lib/db'
 import { runOpenClaw } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { requireAgentTaskAccess } from '@/lib/enforcement/workspace-scope'
 
 export async function POST(
   request: NextRequest,
@@ -33,6 +34,9 @@ export async function POST(
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
+
+    const taskDeny = requireAgentTaskAccess(auth.user, task.assigned_to ?? null)
+    if (taskDeny) return taskDeny
 
     const subscribers = new Set(db_helpers.getTaskSubscribers(taskId, workspaceId))
     subscribers.delete(author)

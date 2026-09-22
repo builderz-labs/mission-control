@@ -8,6 +8,8 @@ import { scanForInjection } from './injection-guard'
 import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } from './hermes-sessions'
 import { isOpenCodeInstalled, getOpenCodeVersion, scanOpenCodeSessions } from './opencode-sessions'
 import { logger } from './logger'
+import { isPortOpenSync } from './tcp-port'
+import { fetchWithRetry } from './fetch-with-retry'
 import {
   isValidInstallerSha256,
   resolvePinnedUserToolSpec,
@@ -135,7 +137,7 @@ async function reviewScriptWithAI(script: string, sourceUrl: string): Promise<Sc
   const truncated = script.length > 100_000 ? script.slice(0, 100_000) + '\n# ... truncated ...' : script
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetchWithRetry('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -163,7 +165,7 @@ ${truncated}
 \`\`\``,
         }],
       }),
-    })
+    }, { timeoutMs: 15_000 })
 
     if (!res.ok) {
       logger.warn({ status: res.status }, 'AI script review failed — skipping')
@@ -380,16 +382,8 @@ function pruneJobs() {
 
 function detectOpenClaw(): RuntimeStatus {
   const meta = RUNTIME_META.openclaw
-  let installed = false
+  let binary = false
   let version: string | null = null
-  let running = false
-
-  // Check config file existence
-  if (config.openclawConfigPath && existsSync(config.openclawConfigPath)) {
-    installed = true
-  }
-
-  // Try to get version
   try {
     const result = require('node:child_process').spawnSync(
       config.openclawBin || 'openclaw',
@@ -397,31 +391,31 @@ function detectOpenClaw(): RuntimeStatus {
       { stdio: 'pipe', timeout: 3000 }
     )
     if (result.status === 0) {
-      installed = true
+      binary = true
       version = (result.stdout?.toString() || '').trim() || null
     }
   } catch {
-    // binary not found
+    // binary not on PATH
   }
-
-  // Check if gateway port is listening (simple sync check)
-  try {
-    const net = require('node:net')
-    const socket = new net.Socket()
-    socket.setTimeout(500)
-    new Promise<boolean>((resolve) => {
-      socket.once('connect', () => { socket.destroy(); resolve(true) })
-      socket.once('error', () => { socket.destroy(); resolve(false) })
-      socket.once('timeout', () => { socket.destroy(); resolve(false) })
-      socket.connect(config.gatewayPort, config.gatewayHost)
-    })
-    // We can't await here synchronously, so just check config existence for "running"
-    running = installed
-  } catch {
-    // ignore
+  const hasConfig = Boolean(config.openclawConfigPath && existsSync(config.openclawConfigPath))
+  let authenticated = false
+  if (hasConfig) {
+    try {
+      const parsed = JSON.parse(readFileSync(config.openclawConfigPath, 'utf8'))
+      const mode = parsed?.gateway?.auth?.mode
+      authenticated = mode === 'token' || mode === 'password'
+    } catch {
+      authenticated = false
+    }
   }
-
-  return { id: 'openclaw', ...meta, installed, version, running, authenticated: true }
+  return {
+    id: 'openclaw',
+    ...meta,
+    installed: binary || hasConfig,
+    version,
+    running: binary && isPortOpenSync(config.gatewayHost, config.gatewayPort),
+    authenticated,
+  }
 }
 
 function detectHermes(): RuntimeStatus {

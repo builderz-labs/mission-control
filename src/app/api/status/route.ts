@@ -10,18 +10,25 @@ import { getAllGatewaySessions, getAgentLiveStatuses } from '@/lib/sessions'
 import { requireRole } from '@/lib/auth'
 import { MODEL_CATALOG } from '@/lib/models'
 import { logger } from '@/lib/logger'
-import { detectProviderSubscriptions, getPrimarySubscription } from '@/lib/provider-subscriptions'
+import { detectProviderSubscriptions } from '@/lib/provider-subscriptions'
+import { detectClaudeFleetPlans } from '@/lib/claude-fleet-plan-status'
 import { APP_VERSION } from '@/lib/version'
 import { isHermesInstalled, scanHermesSessions } from '@/lib/hermes-sessions'
 import { registerMcAsDashboard } from '@/lib/gateway-runtime'
 import { getWorkspaceIsolation } from '@/lib/workspace-isolation'
+import { getDiskHealth } from '@/lib/disk-health'
+import { standaloneReleaseIntact } from '@/lib/standalone-assets'
+
+function healthHttpStatus(status: string): number {
+  return status === 'unhealthy' || status === 'degraded' ? 503 : 200
+}
 
 export async function GET(request: NextRequest) {
   // Docker/Kubernetes health probes must work without auth/cookies.
   const preAction = new URL(request.url).searchParams.get('action') || 'overview'
   if (preAction === 'health') {
     const health = await performHealthCheck()
-    return NextResponse.json(health)
+    return NextResponse.json(health, { status: healthHttpStatus(health.status) })
   }
 
   const auth = requireRole(request, 'viewer')
@@ -58,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     if (action === 'health') {
       const health = await performHealthCheck()
-      return NextResponse.json(health)
+      return NextResponse.json(health, { status: healthHttpStatus(health.status) })
     }
 
     if (action === 'capabilities') {
@@ -266,7 +273,7 @@ async function getSystemStatus(workspaceId: number, includeGlobalRuntime: boolea
   try {
     // System uptime (cross-platform)
     if (process.platform === 'darwin') {
-      const { stdout } = await runCommand('sysctl', ['-n', 'kern.boottime'], {
+      const { stdout } = await runCommand('/usr/sbin/sysctl', ['-n', 'kern.boottime'], {
         timeoutMs: 3000
       })
       // Output format: { sec = 1234567890, usec = 0 } ...
@@ -346,6 +353,19 @@ async function getSystemStatus(workspaceId: number, includeGlobalRuntime: boolea
       status.sessions = {
         total: gatewaySessions.length,
         active: gatewaySessions.filter((s) => s.active).length,
+      }
+      if (status.sessions.total === 0) {
+        try {
+          const db = getDatabase()
+          const row = db.prepare(
+            'SELECT COUNT(*) AS total, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active FROM claude_sessions',
+          ).get() as { total: number; active: number | null } | undefined
+          if (row) {
+            status.sessions = { total: row.total || 0, active: row.active || 0 }
+          }
+        } catch {
+          // claude_sessions may not exist
+        }
       }
 
       // Sync agent statuses in DB from live session data
@@ -476,6 +496,15 @@ async function performHealthCheck() {
     timestamp: Date.now()
   }
 
+  const assetsIntact = standaloneReleaseIntact()
+  health.checks.push({
+    name: 'Release assets',
+    status: assetsIntact ? 'healthy' : 'unhealthy',
+    message: assetsIntact
+      ? 'Standalone public brand assets are present'
+      : 'Standalone public brand assets are missing',
+  })
+
   // Check DB connectivity
   try {
     const db = getDatabase()
@@ -551,22 +580,15 @@ async function performHealthCheck() {
     })
   }
 
-  // Check disk space (cross-platform: use df -h / and parse capacity column)
+  // Check the volume that actually holds Mission Control data.
   try {
-    const { stdout } = await runCommand('df', ['-h', '/'], {
-      timeoutMs: 3000
-    })
-    const lines = stdout.trim().split('\n')
-    const last = lines[lines.length - 1] || ''
-    const parts = last.split(/\s+/)
-    // On macOS capacity is col 4 ("85%"), on Linux use% is col 4 as well
-    const pctField = parts.find(p => p.endsWith('%')) || '0%'
-    const usagePercent = parseInt(pctField.replace('%', '') || '0')
+    const { usedPercent: usagePercent, availableBytes } = await getDiskHealth(path.dirname(config.dbPath))
 
     health.checks.push({
       name: 'Disk Space',
       status: usagePercent < 90 ? 'healthy' : usagePercent < 95 ? 'warning' : 'critical',
-      message: `Disk usage: ${usagePercent}%`
+      message: `Data volume usage: ${usagePercent}%`,
+      detail: { usedPercent: usagePercent, availableBytes }
     })
   } catch (error) {
     health.checks.push({
@@ -596,12 +618,13 @@ async function performHealthCheck() {
   // Determine overall health
   const hasError = health.checks.some((check: any) => check.status === 'error')
   const hasCritical = health.checks.some((check: any) => check.status === 'critical')
+  const hasUnhealthy = health.checks.some((check: any) => check.status === 'unhealthy')
   const hasWarning = health.checks.some((check: any) => check.status === 'warning')
   const hasDegraded = health.checks.some((check: any) =>
     check.name === 'Database' && check.status === 'warning'
   )
 
-  if (hasError || hasCritical) {
+  if (hasError || hasCritical || hasUnhealthy) {
     health.status = 'unhealthy'
   } else if (hasDegraded) {
     health.status = 'degraded'
@@ -658,8 +681,13 @@ async function getCapabilities(request?: NextRequest, includeGlobalRuntime = tru
     }
   }
 
-  const subscriptions = detectProviderSubscriptions().active
-  const primary = getPrimarySubscription()
+  const detectedSubscriptions = detectProviderSubscriptions(false, false).active ?? {}
+  const subscriptions = detectedSubscriptions
+  const claudeFleetPlans = detectClaudeFleetPlans()
+  const primary = detectedSubscriptions.anthropic
+    || detectedSubscriptions.openai
+    || Object.values(detectedSubscriptions)[0]
+    || null
   const subscription = primary ? {
     type: primary.type,
     provider: primary.provider,
@@ -722,13 +750,13 @@ async function getCapabilities(request?: NextRequest, includeGlobalRuntime = tru
 
   const isDocker = existsSync('/.dockerenv')
 
-  return { gateway, openclawHome, claudeHome, claudeSessions, hermesInstalled, hermesSessions, subscription, subscriptions, processUser, interfaceMode, dashboardRegistration, isDocker }
+  return { gateway, openclawHome, claudeHome, claudeSessions, hermesInstalled, hermesSessions, subscription, subscriptions, claudeFleetPlans, processUser, interfaceMode, dashboardRegistration, isDocker }
 }
 
 function isPortOpen(host: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = new net.Socket()
-    const timeoutMs = 1500
+    const timeoutMs = 200
 
     const cleanup = () => {
       socket.removeAllListeners()

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole, ROLE_LEVELS } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { buildGatewayWebSocketUrl } from '@/lib/gateway-url'
-import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
+import { getDetectedGatewayToken, isUsableGatewayToken } from '@/lib/gateway-runtime'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import {
   isTailscaleServe,
@@ -169,10 +169,12 @@ export async function POST(request: NextRequest) {
 
   const dbToken = (gateway.token || '').trim()
   const detectedToken = gateway.is_primary === 1 ? getDetectedGatewayToken() : ''
-  const token = detectedToken || dbToken
+  const token = isUsableGatewayToken(detectedToken)
+    ? detectedToken
+    : (isUsableGatewayToken(dbToken) ? dbToken : '')
 
   // Keep runtime DB aligned with detected OpenClaw gateway token for primary gateway.
-  if (gateway.is_primary === 1 && detectedToken && detectedToken !== dbToken) {
+  if (gateway.is_primary === 1 && isUsableGatewayToken(detectedToken) && detectedToken !== dbToken) {
     try {
       db.prepare('UPDATE gateways SET token = ?, updated_at = (unixepoch()) WHERE id = ?').run(detectedToken, gateway.id)
     } catch {

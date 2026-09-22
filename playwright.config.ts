@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const e2eAuthUser = process.env.E2E_AUTH_USER || 'testadmin'
+const e2eAuthPass = process.env.E2E_AUTH_PASS || 'testpass1234!'
+
 export default defineConfig({
   testDir: 'tests',
   testIgnore: /openclaw-harness\.spec\.ts/,
@@ -9,7 +12,7 @@ export default defineConfig({
   },
   fullyParallel: false,
   workers: 1,
-  reporter: [['list']],
+  reporter: [['list'], ['./scripts/e2e-failure-reporter.ts']],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:3005',
     trace: 'retain-on-failure'
@@ -31,8 +34,11 @@ export default defineConfig({
       MC_WORKLOAD_ERROR_RATE_THROTTLE: process.env.MC_WORKLOAD_ERROR_RATE_THROTTLE || '1',
       MC_WORKLOAD_ERROR_RATE_SHED: process.env.MC_WORKLOAD_ERROR_RATE_SHED || '1',
       API_KEY: process.env.API_KEY || 'test-api-key-e2e-12345',
-      AUTH_USER: process.env.AUTH_USER || 'testadmin',
-      AUTH_PASS: process.env.AUTH_PASS || 'testpass1234!',
+      AUTH_USER: e2eAuthUser,
+      AUTH_PASS: e2eAuthPass,
+      AUTH_PASS_B64: '',
+      MC_COOKIE_SECURE: '0',
+      MC_DISABLE_HSTS: '1',
     },
   }
 })
