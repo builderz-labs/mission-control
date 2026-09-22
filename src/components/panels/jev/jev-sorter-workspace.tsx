@@ -5,6 +5,7 @@ import type { JevEvaluation, JevPolicy, JevRepositoryContext, JevRunResult, JevS
 import { answerBucket, humanize, RUN_SCOPES } from './jev-sorter-data'
 import { JevSorterCards, type SorterFilter } from './jev-sorter-cards'
 import { JevSorterEvidence } from './jev-sorter-evidence'
+import { JevFlowSteps } from './jev-flow-steps'
 import { useJevSorter } from './use-jev-sorter'
 import './jev-sorter.css'
 
@@ -77,6 +78,7 @@ function Workspace({ policy, ...props }: Props & { policy: JevPolicy }) {
         </label>}
       </aside>
       <div className="jev-sorter-main">
+        <JevFlowSteps current={data.rows.length ? 'results' : 'evaluate'} onBack={props.onAssistant} backLabel="Back to setup" backDisabled={busy} />
         <header className="jev-sorter-heading"><div><h2>{policy.name}</h2><p>{policy.description || 'Sort evidence using the questions from this chat.'}</p></div>
           <div className="jev-sorter-actions"><div className="jev-sorter-updated"><span>{data.items.length || data.rows.length} unique items</span><small>{latest ? `Latest result ${new Date(latest * 1000).toLocaleString()}` : 'No completed results yet'}</small></div>
             <button type="button" disabled={busy || refreshing} onClick={() => void refresh()}>{refreshing ? 'Refreshing…' : '↻ Refresh'}</button></div>
