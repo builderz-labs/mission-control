@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
-import { insertDispatchTokenUsage, pickProvider, resolveTaskDispatchModelOverride } from '@/lib/task-dispatch'
+import { insertDispatchTokenUsage, normalizeDispatchModel, pickProvider, resolveTaskDispatchModelOverride } from '@/lib/task-dispatch'
 
 describe('insertDispatchTokenUsage', () => {
   it('persists dispatch usage using the current token_usage schema', () => {
@@ -61,5 +61,30 @@ describe('MiniMax direct dispatch routing', () => {
   it('selects the dedicated provider for both current model IDs', () => {
     expect(pickProvider('MiniMax-M3')).toBe('minimax')
     expect(pickProvider('minimax/MiniMax-M2.7')).toBe('minimax')
+  })
+})
+
+describe('normalizeDispatchModel', () => {
+  it('drops gateway prefixes down to the bare model ID', () => {
+    expect(normalizeDispatchModel('9router/cc/claude-opus-4-6')).toBe('claude-opus-4-6')
+    expect(normalizeDispatchModel('openai-codex/gpt-5.4')).toBe('gpt-5.4')
+    expect(normalizeDispatchModel('sonnet')).toBe('sonnet')
+  })
+
+  it('keeps a direct-provider prefix so the local rail stays routable', () => {
+    // An OpenAI-compatible LOCAL_LLM_ENDPOINT (OpenRouter, liteLLM, Ollama) needs the
+    // vendor-qualified ID on the wire; before the fix this collapsed to "deepseek-chat"
+    // and pickProvider sent it to Anthropic.
+    const model = normalizeDispatchModel('local/deepseek/deepseek-chat')
+    expect(model).toBe('local/deepseek/deepseek-chat')
+    expect(pickProvider(model)).toBe('local')
+    expect(pickProvider(normalizeDispatchModel('local/anthropic/claude-sonnet-4-6'))).toBe('local')
+  })
+
+  it('leaves catalog routing untouched', () => {
+    expect(pickProvider(normalizeDispatchModel('anthropic/claude-sonnet-4-6'))).toBe('anthropic')
+    expect(pickProvider(normalizeDispatchModel('openai/gpt-4.1'))).toBe('openai')
+    expect(pickProvider(normalizeDispatchModel('minimax/MiniMax-M3'))).toBe('minimax')
+    expect(pickProvider(normalizeDispatchModel('ollama/deepseek-r1:14b'))).toBe('local')
   })
 })
