@@ -80,6 +80,11 @@ function initializeSchema() {
       // Start built-in scheduler for runtime installs only.
       // Skip during `next build` and E2E/test mode to keep startup deterministic.
       if (!isBuildPhase && !isTestMode) {
+        import('./jev-cloud-sync').then(({ startJevCloudSync }) => {
+          if (db) startJevCloudSync(db);
+        }).catch(() => {
+          logger.warn('Jev cloud sync could not start; local changes remain queued');
+        });
         import('./scheduler').then(({ initScheduler }) => {
           initScheduler();
         }).catch(() => {

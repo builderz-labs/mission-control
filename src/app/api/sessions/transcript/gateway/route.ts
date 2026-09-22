@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { existsSync, readFileSync } from 'node:fs'
-import path from 'node:path'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
 import { logger } from '@/lib/logger'
+import { readLimiter } from '@/lib/rate-limit'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { parseGatewayHistoryTranscript, parseJsonlTranscript } from '@/lib/transcript-parser'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
+import { SESSION_ID_RE } from '@/lib/jsonl-tail'
+import { resolveWithin } from '@/lib/safe-home-path'
+import { extractAgentName, GATEWAY_KEY_RE } from '@/lib/gateway-session-key'
 
 /**
  * GET /api/sessions/transcript/gateway?key=<session-key>&limit=50
@@ -23,12 +26,14 @@ export async function GET(request: NextRequest) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const isolationDenied = denyUnscopedResourceForStrictWorkspace(auth.user, 'session_transcripts', new URL(request.url).pathname)
   if (isolationDenied) return isolationDenied
+  const rateCheck = readLimiter(request)
+  if (rateCheck) return rateCheck
 
   const { searchParams } = new URL(request.url)
   const sessionKey = searchParams.get('key') || ''
   const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200)
 
-  if (!sessionKey) {
+  if (!sessionKey || !GATEWAY_KEY_RE.test(sessionKey) || sessionKey.includes('..')) {
     return NextResponse.json({ error: 'key is required' }, { status: 400 })
   }
 
@@ -52,33 +57,36 @@ export async function GET(request: NextRequest) {
       logger.warn({ err: rpcErr, sessionKey }, 'Gateway chat.history failed, falling back to disk transcript')
     }
 
-    // Extract agent name from session key (e.g. "agent:jarv:main" -> "jarv")
     const agentName = extractAgentName(sessionKey)
     if (!agentName) {
       return NextResponse.json({ messages: [], source: 'gateway', error: 'Could not determine agent from session key' })
     }
 
-    // Look up the sessionId from the agent's sessions.json
-    const sessionsFile = path.join(stateDir, 'agents', agentName, 'sessions', 'sessions.json')
-    if (!existsSync(sessionsFile)) {
+    const sessionsFile = resolveWithin(stateDir, 'agents', agentName, 'sessions', 'sessions.json')
+    if (!sessionsFile || !existsSync(sessionsFile)) {
       return NextResponse.json({ messages: [], source: 'gateway', error: 'Agent sessions file not found' })
     }
 
-    let sessionsData: Record<string, any>
+    let sessionsData: Record<string, unknown>
     try {
-      sessionsData = JSON.parse(readFileSync(sessionsFile, 'utf-8'))
+      const parsed = JSON.parse(readFileSync(sessionsFile, 'utf-8')) as unknown
+      sessionsData = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : {}
     } catch {
       return NextResponse.json({ messages: [], source: 'gateway', error: 'Could not parse sessions.json' })
     }
 
     const sessionEntry = sessionsData[sessionKey]
-    if (!sessionEntry?.sessionId) {
+    const sessionId = sessionEntry && typeof sessionEntry === 'object' && !Array.isArray(sessionEntry)
+      ? (sessionEntry as { sessionId?: unknown }).sessionId
+      : null
+    if (typeof sessionId !== 'string' || !SESSION_ID_RE.test(sessionId)) {
       return NextResponse.json({ messages: [], source: 'gateway', error: 'Session not found in sessions.json' })
     }
 
-    const sessionId = sessionEntry.sessionId
-    const jsonlPath = path.join(stateDir, 'agents', agentName, 'sessions', `${sessionId}.jsonl`)
-    if (!existsSync(jsonlPath)) {
+    const jsonlPath = resolveWithin(stateDir, 'agents', agentName, 'sessions', `${sessionId}.jsonl`)
+    if (!jsonlPath || !existsSync(jsonlPath)) {
       return NextResponse.json({ messages: [], source: 'gateway', error: 'Session JSONL file not found' })
     }
 
@@ -87,18 +95,10 @@ export async function GET(request: NextRequest) {
     const messages = parseJsonlTranscript(raw, limit)
 
     return NextResponse.json({ messages, source: 'gateway' })
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.warn({ err, sessionKey }, 'Gateway session transcript read failed')
     return NextResponse.json({ messages: [], source: 'gateway', error: 'Failed to read session transcript' })
   }
-}
-
-function extractAgentName(sessionKey: string): string | null {
-  const parts = sessionKey.split(':')
-  if (parts.length >= 2 && parts[0] === 'agent') {
-    return parts[1]
-  }
-  return null
 }
 
 export const dynamic = 'force-dynamic'

@@ -57,10 +57,13 @@ export function readErrorDetailCode(error: GatewayErrorDetail | null | undefined
 }
 
 /** Error codes that should never trigger auto-reconnect. */
+export const GATEWAY_OPERATOR_SCOPES = ['operator.admin', 'operator.write', 'operator.read'] as const
+
 export const NON_RETRYABLE_ERROR_CODES = new Set<string>([
   ConnectErrorDetailCodes.AUTH_TOKEN_MISSING,
   ConnectErrorDetailCodes.AUTH_PASSWORD_MISSING,
   ConnectErrorDetailCodes.AUTH_PASSWORD_MISMATCH,
+  ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH,
   ConnectErrorDetailCodes.AUTH_RATE_LIMITED,
   ConnectErrorDetailCodes.ORIGIN_NOT_ALLOWED,
   ConnectErrorDetailCodes.DEVICE_SIGNATURE_INVALID,
@@ -102,6 +105,12 @@ export function shouldRetryWithoutDeviceIdentity(
  */
 export function calculateBackoff(attempt: number): number {
   return Math.min(1000 * Math.pow(1.7, attempt), 15000)
+}
+
+/** First retry is immediate; later attempts use exponential backoff. */
+export function calculateReconnectDelay(attempt: number): number {
+  if (attempt <= 0) return 0
+  return calculateBackoff(attempt - 1)
 }
 
 /**

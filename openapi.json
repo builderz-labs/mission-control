@@ -95,6 +95,10 @@
     {
       "name": "Docs",
       "description": "API documentation"
+    },
+    {
+      "name": "Jev",
+      "description": "Repository-scoped TypeSafe Jev policies and evaluations"
     }
   ],
   "paths": {
@@ -2213,6 +2217,86 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           }
+        }
+      }
+    },
+    "/api/auth/desktop-browser/request": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Create a one-time desktop-approved browser sign-in request",
+        "operationId": "createDesktopBrowserLogin",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "One-time code created; expires after five minutes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["request_id", "code", "expires_at"],
+                  "properties": {
+                    "request_id": { "type": "string" },
+                    "code": { "type": "string", "pattern": "^[A-Z2-9]{4}-[A-Z2-9]{4}$" },
+                    "expires_at": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "description": "Desktop browser sign-in unavailable" }
+        }
+      }
+    },
+    "/api/auth/desktop-browser/approve": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Approve a browser sign-in code from an authenticated desktop session",
+        "operationId": "approveDesktopBrowserLogin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["code"],
+                "properties": { "code": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Browser sign-in approved" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "A desktop-originated session is required" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/auth/desktop-browser/poll": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Complete an approved one-time browser sign-in",
+        "operationId": "pollDesktopBrowserLogin",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["request_id"],
+                "properties": { "request_id": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Pending, or approved with a new HttpOnly session cookie" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "410": { "description": "The one-time code expired" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
         }
       }
     },
@@ -9084,6 +9168,361 @@
         }
       }
     },
+    "/api/fly/submit": {
+      "post": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Admit a bounded clean-revision Fly command leaf",
+        "operationId": "submitFlyLeaf",
+        "description": "Operator only. Returns durable remote ownership, explicit local release, or conflict. Remote model runtimes are not commissioned.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "title",
+                  "description",
+                  "repository",
+                  "base_sha"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 12000
+                  },
+                  "repository": {
+                    "type": "string",
+                    "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git$"
+                  },
+                  "base_sha": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{40}$"
+                  },
+                  "runtime": {
+                    "type": "string",
+                    "enum": [
+                      "command",
+                      "claude",
+                      "codex"
+                    ],
+                    "default": "command"
+                  },
+                  "setup": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "npm-ci",
+                      "pnpm-ci",
+                      "npm-ci-playwright",
+                      "pnpm-ci-playwright"
+                    ],
+                    "default": "none"
+                  },
+                  "checks": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 6,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "smoke",
+                        "test",
+                        "lint",
+                        "typecheck",
+                        "build",
+                        "test:e2e"
+                      ]
+                    }
+                  },
+                  "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 1800,
+                    "default": 900
+                  },
+                  "estimated_minutes": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high",
+                      "critical"
+                    ],
+                    "default": "medium"
+                  },
+                  "request_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{8,100}$"
+                  },
+                  "session_id": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "swarm_id": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Not admitted; explicit safe_local_fallback flag"
+          },
+          "202": {
+            "description": "Durably accepted; never execute a duplicate locally"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Operator/shared runtime access required"
+          },
+          "409": {
+            "description": "Idempotency conflict"
+          },
+          "413": {
+            "description": "Payload exceeds 20 KB"
+          },
+          "429": {
+            "description": "Workspace admission limit reached"
+          },
+          "503": {
+            "description": "Unknown outcome; retry same request ID"
+          }
+        }
+      }
+    },
+    "/api/fly/status": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Read Fly configuration readiness and workspace/session activity",
+        "operationId": "getFlyStatus",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Polled protocol readiness, controller-global command capacity (max_workers, active_workers, available_slots, launch_batch_size), scoped submissions and activity; native host slots are separate. Estimated compute, not an invoice"
+          },
+          "400": {
+            "description": "Invalid filter"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "503": {
+            "description": "Status unavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Idempotently cancel a queued, unowned submission",
+        "operationId": "cancelFlySubmission",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Release confirmed; host policy still governs fallback"
+          },
+          "400": {
+            "description": "Invalid ID"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Operator role required"
+          },
+          "409": {
+            "description": "Active, unknown or inaccessible submission; ownership retained"
+          },
+          "429": {
+            "description": "Mutation limit reached"
+          },
+          "503": {
+            "description": "Cancellation unconfirmed"
+          }
+        }
+      }
+    },
+    "/api/fly/telemetry": {
+      "get": {
+        "tags": [
+          "Monitoring"
+        ],
+        "summary": "Get Fly worker fleet telemetry",
+        "operationId": "getFlyTelemetry",
+        "responses": {
+          "200": {
+            "description": "Fleet, queue, Mac pressure, cost, and bottleneck snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "queue",
+                    "fleet",
+                    "cost",
+                    "mac",
+                    "bottlenecks"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/agents/{id}/inventory": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get agent inventory",
+        "operationId": "getAgentInventory",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent inventory"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/models/access": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "Get model access",
+        "operationId": "getModelAccess",
+        "responses": {
+          "200": {
+            "description": "Available model access"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/artifact": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Get a session artifact",
+        "operationId": "getSessionArtifact",
+        "responses": {
+          "200": {
+            "description": "Session artifact"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/archive": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Archive a session",
+        "operationId": "archiveSession",
+        "responses": {
+          "200": {
+            "description": "Session archived"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/sessions/handoff": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Hand off a session",
+        "operationId": "handoffSession",
+        "responses": {
+          "200": {
+            "description": "Session handoff created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/api/workload": {
       "get": {
         "tags": [
@@ -9649,6 +10088,93 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/chat/folder-order": {
+      "get": {
+        "tags": ["API"],
+        "summary": "Get shared chat folder order",
+        "operationId": "get_api_chat_folder_order",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
+        }
+      },
+      "put": {
+        "tags": ["API"],
+        "summary": "Replace shared chat folder order",
+        "operationId": "put_api_chat_folder_order",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/permission-mode": {
+      "get": {
+        "tags": ["API"],
+        "summary": "Get chat permission mode",
+        "operationId": "get_api_chat_permission_mode",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
+        }
+      },
+      "put": {
+        "tags": ["API"],
+        "summary": "Set chat permission mode",
+        "operationId": "put_api_chat_permission_mode",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/usage": {
+      "get": {
+        "tags": ["API"],
+        "summary": "Get live chat usage tracker",
+        "operationId": "get_api_chat_usage",
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad request" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not found" },
+          "500": { "description": "Internal server error" }
         }
       }
     },
@@ -11703,6 +12229,49 @@
         }
       }
     },
+    "/api/system-monitor/automations": {
+      "get": {
+        "tags": ["Monitoring"],
+        "summary": "Mac cleanup automation status, live metrics, and thresholds",
+        "operationId": "getMacCleanupAutomations",
+        "responses": {
+          "200": {
+            "description": "Automation snapshot",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Monitoring"],
+        "summary": "Safely trigger a Mac cleanup automation",
+        "operationId": "triggerMacCleanupAutomation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "mode"],
+                "properties": {
+                  "id": { "type": "string", "enum": ["safe-reclaim", "resource-guardian", "storage-maintenance"] },
+                  "mode": { "type": "string", "enum": ["audit", "dry-run", "auto"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Trigger result" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
     "/api/system-monitor": {
       "get": {
         "tags": ["Monitoring"],
@@ -11802,6 +12371,398 @@
           "409": { "description": "Working tree is dirty or release provenance is invalid" },
           "429": { "description": "Too many update attempts" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/api/jev/status": {
+      "get": {
+        "tags": ["Jev"],
+        "summary": "Get workspace Jev configuration and usage status",
+        "description": "Includes live TypeSafe health, no-tools assistant availability, evaluation totals, and honest local/pending/synced Webdev persistence status.",
+        "operationId": "getJevStatus",
+        "responses": {
+          "200": { "description": "Jev status summary" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/jev/models": {
+      "get": {
+        "tags": ["Jev"],
+        "summary": "List Jev models available to the configured account",
+        "operationId": "listJevModels",
+        "responses": {
+          "200": { "description": "Available Jev models" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "502": { "description": "TypeSafe provider error" }
+        }
+      }
+    },
+    "/api/jev/policies": {
+      "get": {
+        "tags": ["Jev"],
+        "summary": "List Jev policies for a repository project",
+        "operationId": "listJevPolicies",
+        "parameters": [{
+          "name": "projectId", "in": "query", "required": true,
+          "schema": { "type": "integer", "minimum": 1 }
+        }],
+        "responses": {
+          "200": { "description": "Repository Jev policies" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "post": {
+        "tags": ["Jev"],
+        "summary": "Create a reusable Jev policy for a repository project",
+        "operationId": "createJevPolicy",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "required": ["projectId", "name", "questions"],
+            "properties": {
+              "projectId": { "type": "integer", "minimum": 1 },
+              "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "description": { "type": "string", "maxLength": 1000 },
+              "model": { "type": "string", "default": "jev-latest" },
+              "mode": { "type": "string", "enum": ["manual", "shadow"], "default": "shadow" },
+              "enabled": { "type": "boolean", "default": true },
+              "configuration": { "type": "object", "description": "Reviewed scope, trigger, privacy, rollout, tests, risks, and observability metadata" },
+              "questions": { "type": "object", "minProperties": 1, "maxProperties": 50 }
+            }
+          } } }
+        },
+        "responses": {
+          "201": { "description": "Jev policy created" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "description": "Policy name already exists" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/jev/assistant": {
+      "post": {
+        "tags": ["Jev"],
+        "summary": "Draft or revise a typed Jev policy with the no-tools setup assistant",
+        "description": "The assistant returns an editable draft only. Repository scope, activation, and retention remain server-owned and no Jev evaluation is run.",
+        "operationId": "draftJevPolicy",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "required": ["goal", "answers", "projectIds"],
+            "properties": {
+              "sessionId": { "type": "string", "format": "uuid", "description": "Durable setup chat receiving the successful exchange" },
+              "action": { "type": "string", "enum": ["draft", "revise"], "default": "draft" },
+              "goal": { "type": "string", "minLength": 3, "maxLength": 10000 },
+              "answers": { "type": "object", "maxProperties": 20 },
+              "projectIds": { "type": "array", "maxItems": 100, "items": { "type": "integer", "minimum": 1 } },
+              "currentDraft": { "type": "object" },
+              "revision": { "type": "string", "maxLength": 2000 }
+            }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Validated editable Jev policy draft" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "502": { "description": "Setup assistant returned an invalid or failed response" },
+          "503": { "description": "Setup assistant is unavailable" },
+          "504": { "description": "Setup assistant timed out or was cancelled" }
+        }
+      }
+    },
+    "/api/jev/sessions": {
+      "get": {
+        "tags": ["Jev"],
+        "summary": "List durable Jev setup chats",
+        "operationId": "listJevSetupSessions",
+        "parameters": [
+          { "name": "projectId", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "includeArchived", "in": "query", "schema": { "type": "boolean", "default": false } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0, "maximum": 1000000, "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Workspace-scoped setup chats" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "post": {
+        "tags": ["Jev"],
+        "summary": "Create a durable project-scoped Jev setup chat",
+        "operationId": "createJevSetupSession",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "required": ["projectId", "title"],
+            "properties": {
+              "projectId": { "type": "integer", "minimum": 1 },
+              "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "provider": { "type": "string", "default": "claude-cli", "maxLength": 40 },
+              "model": { "type": "string", "default": "haiku", "maxLength": 80 },
+              "primaryPolicyId": { "type": ["integer", "null"], "minimum": 1 }
+            }
+          } } }
+        },
+        "responses": {
+          "201": { "description": "Setup chat created" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/jev/sessions/{id}": {
+      "parameters": [{
+        "name": "id", "in": "path", "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      }],
+      "get": {
+        "tags": ["Jev"], "summary": "Read a setup chat and its latest validated revision",
+        "operationId": "getJevSetupSession",
+        "responses": {
+          "200": { "description": "Setup chat and latest revision" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "patch": {
+        "tags": ["Jev"], "summary": "Rename or update an owned setup chat",
+        "operationId": "updateJevSetupSession",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false, "minProperties": 1,
+            "properties": {
+              "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "provider": { "type": "string", "maxLength": 40 },
+              "model": { "type": "string", "maxLength": 80 },
+              "status": { "type": "string", "enum": ["draft", "ready"] },
+              "primaryPolicyId": { "type": ["integer", "null"], "minimum": 1 }
+            }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Setup chat updated" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Archived setup chats cannot be updated" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "delete": {
+        "tags": ["Jev"], "summary": "Archive an owned setup chat",
+        "operationId": "archiveJevSetupSession",
+        "responses": {
+          "200": { "description": "Setup chat archived" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/jev/sessions/{id}/messages": {
+      "get": {
+        "tags": ["Jev"], "summary": "List the redacted messages in a setup chat",
+        "operationId": "listJevSetupMessages",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 100 } },
+          { "name": "afterOrdinal", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Ordered redacted setup messages" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/jev/policies/bulk": {
+      "post": {
+        "tags": ["Jev"],
+        "summary": "Create the same reviewed Jev policy independently across selected repositories",
+        "operationId": "createJevPolicies",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "required": ["projectIds", "name", "questions"],
+            "properties": {
+              "projectIds": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+              "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "description": { "type": "string", "maxLength": 1000 },
+              "model": { "type": "string", "default": "jev-latest" },
+              "mode": { "type": "string", "enum": ["manual", "shadow"], "default": "shadow" },
+              "questions": { "type": "object", "minProperties": 1, "maxProperties": 50 },
+              "configuration": { "type": "object" },
+              "approval": {
+                "type": "object", "additionalProperties": false,
+                "required": ["sessionId", "expectedRevisionNo"],
+                "properties": {
+                  "sessionId": { "type": "string", "format": "uuid" },
+                  "expectedRevisionNo": { "type": "integer", "minimum": 1 }
+                }
+              },
+              "enabled": { "type": "boolean", "default": true }
+            }
+          } } }
+        },
+        "responses": {
+          "201": { "description": "Policies created atomically" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "A policy name already exists in at least one repository" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/jev/policies/{id}": {
+      "parameters": [{
+        "name": "id", "in": "path", "required": true,
+        "schema": { "type": "integer", "minimum": 1 }
+      }],
+      "patch": {
+        "tags": ["Jev"],
+        "summary": "Update a repository Jev policy",
+        "operationId": "updateJevPolicy",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "required": ["projectId"],
+            "properties": {
+              "projectId": { "type": "integer", "minimum": 1 },
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "model": { "type": "string" },
+              "mode": { "type": "string", "enum": ["manual", "shadow"] },
+              "questions": { "type": "object" },
+              "configuration": { "type": "object" },
+              "enabled": { "type": "boolean" }
+            }
+          } } }
+        },
+        "responses": {
+          "200": { "description": "Jev policy updated" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Policy name already exists" }
+        }
+      },
+      "delete": {
+        "tags": ["Jev"],
+        "summary": "Delete a repository Jev policy while preserving evaluation history",
+        "operationId": "deleteJevPolicy",
+        "parameters": [{
+          "name": "projectId", "in": "query", "required": true,
+          "schema": { "type": "integer", "minimum": 1 }
+        }],
+        "responses": {
+          "204": { "description": "Jev policy deleted" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/jev/context": {
+      "get": {
+        "tags": ["Jev"],
+        "summary": "Build the privacy mode allowed by an approved repository policy",
+        "description": "The server derives pasted, metadata-only, or safe-repository behavior from the selected policy. Environment files, credential files, raw source, symlinks, and Git internals are excluded.",
+        "operationId": "getJevRepositoryContext",
+        "parameters": [
+          { "name": "projectId", "in": "query", "required": true, "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "policyId", "in": "query", "required": true, "schema": { "type": "integer", "minimum": 1 } }
+        ],
+        "responses": {
+          "200": { "description": "Safe repository context snapshot" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/jev/evaluations": {
+      "get": {
+        "tags": ["Jev"],
+        "summary": "List repository Jev evaluation history",
+        "operationId": "listJevEvaluations",
+        "parameters": [
+          { "name": "projectId", "in": "query", "required": true, "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "Jev evaluation history" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "post": {
+        "tags": ["Jev"],
+        "summary": "Run a typed Jev evaluation for a repository",
+        "description": "State is forwarded only when explicitly supplied. Mission Control stores only a hash and length unless the approved policy permits a bounded redacted preview. Idempotency is required to prevent duplicate paid calls on client retry.",
+        "operationId": "runJevEvaluation",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": false,
+            "required": ["idempotencyKey", "projectId", "state"],
+            "properties": {
+              "idempotencyKey": { "type": "string", "format": "uuid" },
+              "projectId": { "type": "integer", "minimum": 1 },
+              "policyId": { "type": "integer", "minimum": 1 },
+              "state": { "oneOf": [{ "type": "string" }, { "type": "object" }, { "type": "array" }] },
+              "questions": { "type": "object", "minProperties": 1, "maxProperties": 50 },
+              "model": { "type": "string" },
+              "retainStatePreview": { "type": "boolean", "default": false }
+            }
+          } } }
+        },
+        "responses": {
+          "201": { "description": "Jev evaluation completed" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Policy is disabled" },
+          "422": { "description": "TypeSafe rejected the evaluation contract" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "502": { "description": "TypeSafe provider error" },
+          "503": { "description": "Jev is not configured or unavailable" },
+          "504": { "description": "Jev request timed out" }
         }
       }
     }

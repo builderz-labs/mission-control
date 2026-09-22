@@ -3,7 +3,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { access, lstat, mkdir, open, readFile, realpath, readdir, rename, rm } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { join, relative } from 'node:path'
-import { homedir } from 'node:os'
+import { listExtraSkillRoots, listSkillRoots } from '@/lib/skill-roots'
+import { syncSkillsFromDisk } from '@/lib/skill-sync'
 import { requireRole } from '@/lib/auth'
 import { resolveWithin } from '@/lib/paths'
 import { checkSkillSecurity } from '@/lib/skill-registry'
@@ -46,13 +47,7 @@ function auditSkillMutation(
   }
 }
 
-function resolveSkillRoot(
-  envName: string,
-  fallback: string,
-): string {
-  const override = process.env[envName]
-  return override && override.trim().length > 0 ? override.trim() : fallback
-}
+
 
 async function pathReadable(path: string): Promise<boolean> {
   try {
@@ -67,11 +62,9 @@ async function extractDescription(skillPath: string): Promise<string | undefined
   const skillDocPath = join(skillPath, 'SKILL.md')
   if (!(await pathReadable(skillDocPath))) return undefined
   try {
+    const { parseSkillDescription } = await import('@/lib/skill-frontmatter')
     const content = await readFile(skillDocPath, 'utf8')
-    const lines = content.split('\n').map((line) => line.trim()).filter(Boolean)
-    const firstParagraph = lines.find((line) => !line.startsWith('#'))
-    if (!firstParagraph) return undefined
-    return firstParagraph.length > 220 ? `${firstParagraph.slice(0, 217)}...` : firstParagraph
+    return parseSkillDescription(content)
   } catch {
     return undefined
   }
@@ -102,43 +95,7 @@ async function collectSkillsFromDir(baseDir: string, source: string): Promise<Sk
 }
 
 function getSkillRoots(): SkillRoot[] {
-  const home = homedir()
-  const cwd = process.cwd()
-  const roots: SkillRoot[] = [
-    { source: 'user-agents', path: resolveSkillRoot('MC_SKILLS_USER_AGENTS_DIR', join(home, '.agents', 'skills')) },
-    { source: 'user-codex', path: resolveSkillRoot('MC_SKILLS_USER_CODEX_DIR', join(home, '.codex', 'skills')) },
-    // Runtime workspace paths are intentionally not statically traced into the
-    // standalone artifact. They are operator-managed content, not build input.
-    { source: 'project-agents', path: resolveSkillRoot('MC_SKILLS_PROJECT_AGENTS_DIR', `${cwd}/.agents/skills`) },
-    { source: 'project-codex', path: resolveSkillRoot('MC_SKILLS_PROJECT_CODEX_DIR', `${cwd}/.codex/skills`) },
-  ]
-  // Add OpenClaw gateway skill roots when configured
-  const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  const openclawSkills = resolveSkillRoot('MC_SKILLS_OPENCLAW_DIR', join(openclawState, 'skills'))
-  roots.push({ source: 'openclaw', path: openclawSkills })
-
-  // Add OpenClaw workspace-local skills (takes precedence when names conflict)
-  const workspaceDir = process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace')
-  const workspaceSkills = resolveSkillRoot('MC_SKILLS_WORKSPACE_DIR', join(workspaceDir, 'skills'))
-  roots.push({ source: 'workspace', path: workspaceSkills })
-
-  // Dynamic: scan for workspace-<agent> directories
-  try {
-    const { readdirSync, existsSync } = require('node:fs') as typeof import('node:fs')
-    const entries = readdirSync(openclawState) as string[]
-    for (const entry of entries) {
-      if (!entry.startsWith('workspace-')) continue
-      const skillsDir = join(openclawState, entry, 'skills')
-      if (existsSync(skillsDir)) {
-        const agentName = entry.replace('workspace-', '')
-        roots.push({ source: `workspace-${agentName}`, path: skillsDir })
-      }
-    }
-  } catch {
-    // openclawBase may not exist
-  }
-
-  return roots
+  return [...listSkillRoots(), ...listExtraSkillRoots()]
 }
 
 function normalizeSkillName(raw: string): string | null {
@@ -352,6 +309,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ source, name, security })
   }
+
+  await syncSkillsFromDisk()
 
   // Try DB-backed fast path first
   const dbSkills = getSkillsFromDB()

@@ -93,6 +93,9 @@ export function useServerEvents() {
     }
 
     function dispatch(event: ServerEvent) {
+      if (event.type === 'fly.worker.updated') {
+        window.dispatchEvent(new CustomEvent('mission-control:fly-worker-updated', { detail: event.data }))
+      }
       switch (event.type) {
         case 'connected':
           // Initial connection ack, nothing to do

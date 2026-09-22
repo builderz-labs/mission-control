@@ -4,9 +4,10 @@ import { useRouter, usePathname } from 'next/navigation'
 import { startTransition, useCallback, useEffect } from 'react'
 import { startNavigationTiming } from '@/lib/navigation-metrics'
 import { useMissionControl } from '@/store'
+import { canonicalPanelId, panelPath } from '@/lib/panel-routing'
 
 export function panelHref(panel: string): string {
-  return panel === 'overview' ? '/' : `/${panel}`
+  return panelPath(panel)
 }
 
 const PREFETCHED_ROUTES = new Set<string>()
@@ -39,12 +40,13 @@ export function useNavigateToPanel() {
   }, [pathname, router])
 
   return useCallback((panel: string) => {
-    const href = panelHref(panel)
+    const canonicalPanel = canonicalPanelId(panel)
+    const href = panelHref(canonicalPanel)
     if (href === pathname) return
     safePrefetch(router, href)
     startNavigationTiming(pathname, href)
-    setActiveTab(panel === 'sessions' ? 'chat' : panel)
-    if (panel === 'chat' || panel === 'sessions') {
+    setActiveTab(canonicalPanel)
+    if (canonicalPanel === 'chat') {
       setChatPanelOpen(false)
     }
     startTransition(() => {

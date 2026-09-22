@@ -2,6 +2,7 @@
  * Bidirectional mapping between Mission Control statuses/priorities and GitHub labels.
  * Labels use `mc:` prefix to avoid collisions with existing repo labels.
  */
+import { FLEET_AGENT_NAMES } from './fleet-agents'
 
 export type TaskStatus = 'backlog' | 'inbox' | 'assigned' | 'awaiting_owner' | 'in_progress' | 'review' | 'quality_review' | 'done' | 'failed'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
@@ -65,9 +66,16 @@ export function labelToPriority(labels: string[]): TaskPriority {
 
 // ── All MC labels (for initialization) ──────────────────────────
 
+export const FLEET_AGENT_LABELS: LabelDef[] = FLEET_AGENT_NAMES.map((name) => ({
+  name: `agent:${name}`,
+  color: '64748b',
+  description: `Mission Control fleet agent ${name}`,
+}))
+
 export const ALL_MC_LABELS: LabelDef[] = [
   ...Object.values(STATUS_LABEL_MAP),
   ...Object.values(PRIORITY_LABEL_MAP),
+  ...FLEET_AGENT_LABELS,
 ]
 
 export const ALL_STATUS_LABEL_NAMES = Object.values(STATUS_LABEL_MAP).map(l => l.name)

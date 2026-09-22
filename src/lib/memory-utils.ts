@@ -6,6 +6,11 @@
 import { readdir, readFile, stat } from 'fs/promises'
 import { join, relative, extname, basename, dirname } from 'path'
 import { logger } from './logger'
+import { hasDiscoverabilityField, isHealthScored } from './memory-file-class'
+
+export interface GraphBuildOptions {
+  extraStems?: Iterable<string>
+}
 
 // ─── Wiki-link extraction ────────────────────────────────────────
 
@@ -218,9 +223,14 @@ export interface LinkGraph {
 /**
  * Build a complete wiki-link graph from all markdown files in a directory.
  */
-export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFileInfo[]): Promise<LinkGraph> {
+export async function buildLinkGraph(
+  baseDir: string,
+  existingFiles?: MemoryFileInfo[],
+  options?: GraphBuildOptions,
+): Promise<LinkGraph> {
   const files = existingFiles ?? await scanMemoryFiles(baseDir, { extensions: ['.md'] })
   const nodes: Record<string, LinkGraphNode> = {}
+  const extraStems = new Set(options?.extraStems ?? [])
 
   // Build a lookup: stem -> relative path
   const stemToPath = new Map<string, string>()
@@ -244,6 +254,8 @@ export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFile
         const resolved = stemToPath.get(link.target)
         if (resolved && resolved !== f.path) {
           outgoing.push(resolved)
+        } else if (extraStems.has(link.target)) {
+          outgoing.push(`external:${link.target}`)
         }
       }
 
@@ -301,9 +313,14 @@ export interface HealthReport {
   generatedAt: number
 }
 
-export async function runHealthDiagnostics(baseDir: string): Promise<HealthReport> {
-  const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
-  const graph = await buildLinkGraph(baseDir, files)
+export async function runHealthDiagnostics(
+  baseDir: string,
+  options?: GraphBuildOptions,
+): Promise<HealthReport> {
+  const scanned = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+  const files = scanned.filter((file) => isHealthScored(file.path))
+  const extraStems = new Set(options?.extraStems ?? [])
+  const graph = await buildLinkGraph(baseDir, files, { extraStems })
 
   const categories: HealthCategory[] = []
 
@@ -368,7 +385,7 @@ export async function runHealthDiagnostics(baseDir: string): Promise<HealthRepor
     }
     for (const node of Object.values(graph.nodes)) {
       for (const link of node.wikiLinks) {
-        if (!stemToPath.has(link.target)) {
+        if (!stemToPath.has(link.target) && !extraStems.has(link.target)) {
           brokenLinks.push(`${node.path}:${link.line} -> [[${link.target}]]`)
         }
       }
@@ -474,8 +491,7 @@ export async function runHealthDiagnostics(baseDir: string): Promise<HealthRepor
     for (const f of files) {
       try {
         const content = await readFile(join(baseDir, f.path), 'utf-8')
-        const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-        if (fmMatch && /description:\s*.+/.test(fmMatch[1])) {
+        if (hasDiscoverabilityField(content)) {
           withDescription++
         }
       } catch { /* skip */ }
@@ -727,9 +743,14 @@ export interface GapReport {
  * topics referenced in content but without dedicated files.
  * Inspired by LACP's detect_knowledge_gaps.py.
  */
-export async function gapDetectPass(baseDir: string): Promise<GapReport> {
-  const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
-  const graph = await buildLinkGraph(baseDir, files)
+export async function gapDetectPass(
+  baseDir: string,
+  options?: GraphBuildOptions,
+): Promise<GapReport> {
+  const scanned = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+  const files = scanned.filter((file) => isHealthScored(file.path))
+  const extraStems = new Set(options?.extraStems ?? [])
+  const graph = await buildLinkGraph(baseDir, files, { extraStems })
   const now = Date.now()
   const staleThreshold = 30 * 24 * 60 * 60 * 1000 // 30 days
   const maxStaleAge = 90 * 24 * 60 * 60 * 1000 // 90 days for max severity
@@ -745,7 +766,7 @@ export async function gapDetectPass(baseDir: string): Promise<GapReport> {
   // 1. Broken links (severity: 0.8)
   for (const node of Object.values(graph.nodes)) {
     for (const link of node.wikiLinks) {
-      if (!stemToPath.has(link.target)) {
+      if (!stemToPath.has(link.target) && !extraStems.has(link.target)) {
         gaps.push({
           type: 'broken-link',
           path: node.path,
@@ -782,7 +803,7 @@ export async function gapDetectPass(baseDir: string): Promise<GapReport> {
   // 4. Knowledge gaps — find terms that appear frequently across files
   // but don't have their own dedicated file (potential missing notes)
   const termFrequency = new Map<string, number>()
-  const existingStems = new Set(stemToPath.keys())
+  const existingStems = new Set([...stemToPath.keys(), ...extraStems])
 
   for (const node of Object.values(graph.nodes)) {
     for (const link of node.wikiLinks) {
@@ -848,7 +869,8 @@ export interface ConsolidationReport {
  * Inspired by LACP's mycelium consolidation model.
  */
 export async function consolidatePass(baseDir: string): Promise<ConsolidationReport> {
-  const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+  const scanned = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
+  const files = scanned.filter((file) => isHealthScored(file.path))
   const graph = await buildLinkGraph(baseDir, files)
   const items: ConsolidationItem[] = []
 

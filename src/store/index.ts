@@ -26,6 +26,7 @@ export interface Session {
   messageCount?: number
   cost?: number
   label?: string
+  source?: 'local' | 'gateway'
 }
 
 export interface LogEntry {
@@ -243,7 +244,7 @@ export interface Conversation {
     prefKey?: string
     sessionId: string
     sessionKey?: string
-    sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+    sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'grok' | 'kimi' | 'gateway'
     agent?: string
     displayName?: string
     colorTag?: string
@@ -251,8 +252,14 @@ export interface Conversation {
     tokens?: string
     workingDir?: string | null
     lastUserPrompt?: string | null
+    customTitle?: string
     active?: boolean
     age?: string
+    project?: string
+    projectSlug?: string
+    environment?: string
+    startTime?: number
+    lastActivity?: number
   }
   participants: string[]
   lastMessage?: ChatMessage

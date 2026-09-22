@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { getDatabase } from '@/lib/db'
 import { mutationLimiter } from '@/lib/rate-limit'
-import { createAlertSchema, validateBody } from '@/lib/validation'
+import { createAlertSchema } from '@/lib/validation'
+import { evaluateAllRules } from '@/lib/alert-evaluate'
 
 interface AlertRule {
   id: number
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (rawBody.action === 'evaluate') {
-    return evaluateRules(db, workspaceId)
+    return NextResponse.json(evaluateAllRules(db, workspaceId))
   }
 
   // Validate for create using schema
@@ -190,147 +191,3 @@ export async function DELETE(request: NextRequest) {
   return NextResponse.json({ deleted: result.changes > 0 })
 }
 
-/**
- * Evaluate all enabled alert rules against current data
- */
-function evaluateRules(db: ReturnType<typeof getDatabase>, workspaceId: number) {
-  let rules: AlertRule[]
-  try {
-    rules = db.prepare('SELECT * FROM alert_rules WHERE enabled = 1 AND workspace_id = ?').all(workspaceId) as AlertRule[]
-  } catch {
-    return NextResponse.json({ evaluated: 0, triggered: 0, results: [] })
-  }
-
-  const now = Math.floor(Date.now() / 1000)
-  const results: { rule_id: number; rule_name: string; triggered: boolean; reason?: string }[] = []
-
-  for (const rule of rules) {
-    // Check cooldown
-    if (rule.last_triggered_at && (now - rule.last_triggered_at) < rule.cooldown_minutes * 60) {
-      results.push({ rule_id: rule.id, rule_name: rule.name, triggered: false, reason: 'In cooldown' })
-      continue
-    }
-
-    const triggered = evaluateRule(db, rule, now, workspaceId)
-    results.push({ rule_id: rule.id, rule_name: rule.name, triggered, reason: triggered ? 'Condition met' : 'Condition not met' })
-
-    if (triggered) {
-      // Update trigger tracking
-      db.prepare('UPDATE alert_rules SET last_triggered_at = ?, trigger_count = trigger_count + 1 WHERE id = ? AND workspace_id = ?')
-        .run(now, rule.id, workspaceId)
-
-      // Create notification
-      try {
-        const config = JSON.parse(rule.action_config || '{}')
-        const recipient = config.recipient || 'system'
-        db.prepare(`
-          INSERT INTO notifications (recipient, type, title, message, source_type, source_id, workspace_id)
-          VALUES (?, 'alert', ?, ?, 'alert_rule', ?, ?)
-        `).run(recipient, `Alert: ${rule.name}`, rule.description || `Rule "${rule.name}" triggered`, rule.id, workspaceId)
-      } catch { /* notification creation failed */ }
-    }
-  }
-
-  const triggered = results.filter(r => r.triggered).length
-  return NextResponse.json({ evaluated: rules.length, triggered, results })
-}
-
-function evaluateRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, now: number, workspaceId: number): boolean {
-  try {
-    switch (rule.entity_type) {
-      case 'agent': return evaluateAgentRule(db, rule, now, workspaceId)
-      case 'task': return evaluateTaskRule(db, rule, now, workspaceId)
-      case 'session': return evaluateSessionRule(db, rule, now, workspaceId)
-      case 'activity': return evaluateActivityRule(db, rule, now, workspaceId)
-      default: return false
-    }
-  } catch {
-    return false
-  }
-}
-
-function evaluateAgentRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, now: number, workspaceId: number): boolean {
-  const { condition_field, condition_operator, condition_value } = rule
-
-  if (condition_operator === 'count_above' || condition_operator === 'count_below') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND ${safeColumn('agents', condition_field)} = ?`).get(workspaceId, condition_value) as any)?.c || 0
-    return condition_operator === 'count_above' ? count > parseInt(condition_value) : count < parseInt(condition_value)
-  }
-
-  if (condition_operator === 'age_minutes_above') {
-    // Check agents where field value is older than N minutes (e.g., last_seen)
-    const threshold = now - parseInt(condition_value) * 60
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND status != 'offline' AND ${safeColumn('agents', condition_field)} < ?`).get(workspaceId, threshold) as any)?.c || 0
-    return count > 0
-  }
-
-  const agents = db.prepare(`SELECT ${safeColumn('agents', condition_field)} as val FROM agents WHERE workspace_id = ? AND status != 'offline'`).all(workspaceId) as any[]
-  return agents.some(a => compareValue(a.val, condition_operator, condition_value))
-}
-
-function evaluateTaskRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, _now: number, workspaceId: number): boolean {
-  const { condition_field, condition_operator, condition_value } = rule
-
-  if (condition_operator === 'count_above') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ? AND ${safeColumn('tasks', condition_field)} = ?`).get(workspaceId, condition_value) as any)?.c || 0
-    return count > parseInt(condition_value)
-  }
-
-  if (condition_operator === 'count_below') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE workspace_id = ?`).get(workspaceId) as any)?.c || 0
-    return count < parseInt(condition_value)
-  }
-
-  const tasks = db.prepare(`SELECT ${safeColumn('tasks', condition_field)} as val FROM tasks WHERE workspace_id = ?`).all(workspaceId) as any[]
-  return tasks.some(t => compareValue(t.val, condition_operator, condition_value))
-}
-
-function evaluateSessionRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, _now: number, workspaceId: number): boolean {
-  // Session data comes from the gateway, not the DB, so we check the agents table for session info
-  const { condition_operator, condition_value } = rule
-
-  if (condition_operator === 'count_above') {
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM agents WHERE workspace_id = ? AND status = 'busy'`).get(workspaceId) as any)?.c || 0
-    return count > parseInt(condition_value)
-  }
-
-  return false
-}
-
-function evaluateActivityRule(db: ReturnType<typeof getDatabase>, rule: AlertRule, now: number, workspaceId: number): boolean {
-  const { condition_field, condition_operator, condition_value } = rule
-
-  if (condition_operator === 'count_above') {
-    // Count activities in the last hour
-    const hourAgo = now - 3600
-    const count = (db.prepare(`SELECT COUNT(*) as c FROM activities WHERE workspace_id = ? AND created_at > ? AND ${safeColumn('activities', condition_field)} = ?`).get(workspaceId, hourAgo, condition_value) as any)?.c || 0
-    return count > parseInt(condition_value)
-  }
-
-  return false
-}
-
-function compareValue(actual: any, operator: string, expected: string): boolean {
-  if (actual == null) return false
-  const strActual = String(actual)
-  switch (operator) {
-    case 'equals': return strActual === expected
-    case 'not_equals': return strActual !== expected
-    case 'greater_than': return Number(actual) > Number(expected)
-    case 'less_than': return Number(actual) < Number(expected)
-    case 'contains': return strActual.toLowerCase().includes(expected.toLowerCase())
-    default: return false
-  }
-}
-
-// Whitelist of columns per table to prevent SQL injection
-const SAFE_COLUMNS: Record<string, Set<string>> = {
-  agents: new Set(['status', 'role', 'name', 'last_seen', 'last_activity']),
-  tasks: new Set(['status', 'priority', 'assigned_to', 'title']),
-  activities: new Set(['type', 'actor', 'entity_type']),
-}
-
-function safeColumn(table: string, column: string): string {
-  if (SAFE_COLUMNS[table]?.has(column)) return column
-  return 'id' // fallback to safe column
-}

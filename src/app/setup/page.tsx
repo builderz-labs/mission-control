@@ -90,6 +90,8 @@ export default function SetupPage() {
       })
 
       if (!data.needsSetup) {
+        // Setup and login have distinct server-rendered authentication shells.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.href = '/login'
         return
       }
@@ -170,6 +172,8 @@ export default function SetupPage() {
       updateProgress(3, 'done')
 
       await new Promise((r) => setTimeout(r, 500))
+      // Reload so the newly created session is present on the first app request.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = '/'
     } catch (error) {
       updateProgress(1, 'error')
@@ -192,18 +196,18 @@ export default function SetupPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <main className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
           {t('checkingSetupStatus')}
         </div>
-      </div>
+      </main>
     )
   }
 
   if (!setupAvailable) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <main className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="w-full max-w-sm rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive space-y-3">
           <p>{error || t('failedToCheckSetup')}</p>
           <Button
@@ -215,12 +219,12 @@ export default function SetupPage() {
             {tc('retry')}
           </Button>
         </div>
-      </div>
+      </main>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <main className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="absolute top-4 right-4">
         <LanguageSwitcherSelect />
       </div>
@@ -359,6 +363,6 @@ export default function SetupPage() {
           </>
         )}
       </div>
-    </div>
+    </main>
   )
 }

@@ -25,10 +25,10 @@ test.describe('i18n Language Switcher', () => {
     await page.context().clearCookies()
     await page.goto('/login')
 
-    await expect(page.locator('text=Sign in to continue')).toBeVisible()
-    await expect(page.locator('text=Username')).toBeVisible()
-    await expect(page.locator('text=Password')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+    await expect(page.getByText('Sign in to continue', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Username', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
   })
 
   test('language switcher shows all 11 languages', async ({ page }) => {
@@ -56,31 +56,31 @@ test.describe('i18n Language Switcher', () => {
     await page.goto('/login')
     await switchLocale(page, 'zh')
 
-    await expect(page.locator('text=登录以继续')).toBeVisible()
-    await expect(page.locator('text=用户名')).toBeVisible()
-    await expect(page.locator('text=密码')).toBeVisible()
-    await expect(page.getByRole('button', { name: '登录' })).toBeVisible()
+    await expect(page.getByText('登录以继续', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('用户名', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('密码', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible()
   })
 
   test('Traditional Chinese (Taiwan) locale renders zh-tw translations', async ({ page }) => {
     await page.goto('/login')
     await switchLocale(page, 'zh-tw')
 
-    await expect(page.locator('text=登入以繼續')).toBeVisible()
-    await expect(page.locator('text=使用者名稱')).toBeVisible()
-    await expect(page.getByRole('button', { name: '登入' })).toBeVisible()
+    await expect(page.getByText('登入以繼續', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('使用者名稱', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '登入', exact: true })).toBeVisible()
   })
 
   test('language preference persists across page reload', async ({ page }) => {
     await page.goto('/login')
     await switchLocale(page, 'zh')
-    await expect(page.locator('text=登录以继续')).toBeVisible()
+    await expect(page.getByText('登录以继续', { exact: true })).toBeVisible()
 
     // Reload page — cookie should persist
     await page.reload({ waitUntil: 'load' })
 
-    await expect(page.locator('text=登录以继续')).toBeVisible()
-    await expect(page.locator('text=用户名')).toBeVisible()
+    await expect(page.getByText('登录以继续', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('用户名', { exact: true })).toBeVisible()
 
     const selectedValue = await page.getByLabel('Language').inputValue()
     expect(selectedValue).toBe('zh')
@@ -90,18 +90,18 @@ test.describe('i18n Language Switcher', () => {
     await page.goto('/login')
     await switchLocale(page, 'es')
 
-    await expect(page.locator('text=Inicia sesión para continuar')).toBeVisible()
-    await expect(page.locator('text=Nombre de usuario')).toBeVisible()
-    await expect(page.locator('text=Contraseña')).toBeVisible()
+    await expect(page.getByText('Inicia sesión para continuar', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Nombre de usuario', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Contraseña', { exact: true })).toBeVisible()
   })
 
   test('switching back to English restores English text', async ({ page }) => {
     await page.goto('/login')
     await switchLocale(page, 'zh')
-    await expect(page.locator('text=登录以继续')).toBeVisible()
+    await expect(page.getByText('登录以继续', { exact: true })).toBeVisible()
 
     await switchLocale(page, 'en')
-    await expect(page.locator('text=Sign in to continue')).toBeVisible()
-    await expect(page.locator('text=Username')).toBeVisible()
+    await expect(page.getByText('Sign in to continue', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('Username', { exact: true })).toBeVisible()
   })
 })

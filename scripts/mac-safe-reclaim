@@ -1,0 +1,72 @@
+#!/bin/bash
+set -uo pipefail
+umask 077
+
+HOME_DIR="${HOME:-/Users/tylerdevries}"
+MODE="${1:---audit}"
+case "$MODE" in
+  --auto|auto) MODE=auto ;;
+  --dry-run|dry-run) MODE=dry-run ;;
+  *) MODE=audit ;;
+esac
+
+protected_from_lsof() {
+  /usr/sbin/lsof -a -d cwd -Fn 2>/dev/null | /usr/bin/awk -v home="$HOME_DIR" '
+    /^n/ {
+      path = substr($0, 2)
+      prefix = home "/Dev/"
+      if (index(path, prefix) != 1) next
+      rest = substr(path, length(prefix) + 1)
+      n = split(rest, parts, "/")
+      if (n < 1 || parts[1] == "") next
+      if (parts[1] == "_idle" && n >= 2) print prefix "_idle/" parts[2]
+      else if (parts[1] != "_idle") print prefix parts[1]
+    }
+  ' | /usr/bin/sort -u
+}
+
+busy() {
+  /usr/bin/pgrep -ifl "$1" >/dev/null 2>&1
+}
+
+is_protected() {
+  local target="$1" root
+  while IFS= read -r root; do
+    [[ -z "$root" ]] && continue
+    [[ "$target" == "$root" || "$target" == "$root"/* || "$root" == "$target"/* ]] && return 0
+  done <<< "$PROTECTED"
+  return 1
+}
+
+clear_dir() {
+  local path="$1" label="$2"
+  [[ -d "$path" && ! -L "$path" ]] || return 0
+  is_protected "$path" && { printf '{"id":"%s","status":"protected"}\n' "$label"; return 0; }
+  if [[ "$MODE" != auto ]]; then
+    printf '{"id":"%s","status":"skipped","path":"%s"}\n' "$label" "$path"
+    return 0
+  fi
+  /bin/rm -rf -- "$path"
+  printf '{"id":"%s","status":"cleaned","path":"%s"}\n' "$label" "$path"
+}
+
+PROTECTED="$(printf '%s\n' "$HOME_DIR/Work" "$HOME_DIR/Dev/mission-control" "$HOME_DIR/.claude" "$HOME_DIR/.codex" "$HOME_DIR/.openclaw" "$HOME_DIR/.grok" "$HOME_DIR/.agents"; protected_from_lsof)"
+
+busy 'npm|npx|node-gyp' || clear_dir "$HOME_DIR/.npm/_cacache" npm-cache
+busy 'pnpm|pnpx' || clear_dir "$HOME_DIR/Library/pnpm/store" pnpm-store
+busy brew || clear_dir "$HOME_DIR/Library/Caches/Homebrew" homebrew
+clear_dir "$HOME_DIR/.cache/node" node-cache
+clear_dir "$HOME_DIR/.cache/codex-runtimes" codex-runtimes
+busy 'Xcode|xcodebuild' || clear_dir "$HOME_DIR/Library/Developer/Xcode/DerivedData" xcode-derived
+
+if [[ -d "$HOME_DIR/Dev/_idle" ]]; then
+  for project in "$HOME_DIR/Dev/_idle"/*; do
+    [[ -d "$project" ]] || continue
+    is_protected "$project" && continue
+    for child in node_modules .next .turbo dist coverage; do
+      [[ -e "$project/$child" ]] || continue
+      clear_dir "$project/$child" "idle-$(basename "$project")-$child"
+    done
+  done
+fi
+exit 0

@@ -1,6 +1,7 @@
 'use client'
 
 import type { DashboardData, LogLike } from '../widget-primitives'
+import { LlmLabel } from '@/components/brand/engine-logo'
 
 function timeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp
@@ -67,9 +68,12 @@ export function ActivityTimelineWidget({ data }: { data: DashboardData }) {
                     </span>
 
                     {/* Source badge */}
-                    <span className="text-2xs font-medium text-foreground/60 w-14 shrink-0 pt-0.5">
-                      {getSourceLabel(log.source)}
-                    </span>
+                    <LlmLabel
+                      text={getSourceLabel(log.source)}
+                      size={12}
+                      className="w-20 shrink-0 pt-0.5 text-2xs font-medium text-foreground/60"
+                      textClassName="truncate"
+                    />
 
                     {/* Message */}
                     <p className="flex-1 text-xs text-foreground/80 min-w-0 wrap-break-word leading-relaxed">

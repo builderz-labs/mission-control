@@ -9,6 +9,7 @@ import { getDetectedGatewayToken } from '@/lib/gateway-runtime'
 import { parseJsonRelaxed } from '@/lib/json-relaxed'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { setNestedConfigValue } from '@/lib/config-path'
+import { fetchWithRetry } from '@/lib/fetch-with-retry'
 
 function getConfigPath(): string | null {
   return config.openclawConfigPath || null
@@ -74,27 +75,27 @@ export async function GET(request: NextRequest) {
 }
 
 async function getSchema(): Promise<NextResponse> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 5000)
   try {
-    const res = await fetch(gatewayUrl('/api/config/schema'), {
-      signal: controller.signal,
-      headers: gatewayHeaders(),
-    })
-    clearTimeout(timeout)
+    const res = await fetchWithRetry(
+      gatewayUrl('/api/config/schema'),
+      { headers: gatewayHeaders() },
+      { attempts: 2, timeoutMs: 5_000 },
+    )
     if (!res.ok) {
       return NextResponse.json(
-        { error: `Gateway returned ${res.status}` },
-        { status: 502 },
+        { available: false, schema: null, warning: `Gateway schema unavailable (${res.status})` },
       )
     }
     const data = await res.json()
     return NextResponse.json(data)
-  } catch (err: any) {
-    clearTimeout(timeout)
+  } catch (error: unknown) {
+    const timedOut = error instanceof Error && error.name === 'TimeoutError'
     return NextResponse.json(
-      { error: err.name === 'AbortError' ? 'Gateway timeout' : 'Gateway unreachable' },
-      { status: 502 },
+      {
+        available: false,
+        schema: null,
+        warning: timedOut ? 'Gateway schema request timed out' : 'Gateway schema unavailable',
+      },
     )
   }
 }

@@ -83,7 +83,7 @@ export function NotificationsPanel() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center p-4 border-b border-border shrink-0">
-        <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
+        <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
         <Button
           onClick={markAllRead}
           variant="secondary"

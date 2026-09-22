@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { createPortal } from 'react-dom'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -13,6 +13,8 @@ import { clampWizardStep, getWizardSteps, stepIdAt } from '@/lib/onboarding-flow
 import { SecurityScanCard } from '@/components/onboarding/security-scan-card'
 // StepAgentRuntimes removed — runtime management moved to Settings page
 import { clearOnboardingReplayFromStart, markOnboardingDismissedThisSession, readOnboardingReplayFromStart } from '@/lib/onboarding-session'
+import { LlmLabel } from '@/components/brand/engine-logo'
+import { OnboardingLoadFallback } from './onboarding-load-fallback'
 
 interface StepInfo {
   id: string
@@ -72,6 +74,8 @@ export function OnboardingWizard() {
   const [slideDir, setSlideDir] = useState<'left' | 'right'>('left')
   const [animating, setAnimating] = useState(false)
   const [state, setState] = useState<OnboardingState | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [credentialStatus, setCredentialStatus] = useState<{ authOk: boolean; apiKeyOk: boolean } | null>(null)
   const [closing, setClosing] = useState(false)
   const [completionMessage, setCompletionMessage] = useState(false)
@@ -92,11 +96,16 @@ export function OnboardingWizard() {
 
   useEffect(() => {
     if (!showOnboarding) return
+    const controller = new AbortController()
+    setLoadFailed(false)
+    setClosing(false)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
-    apiFetch<OnboardingState>('/api/onboarding')
+    apiFetch<OnboardingState>('/api/onboarding', { signal: controller.signal })
       .then(data => {
+        if (controller.signal.aborted) return
+        if (!data) throw new Error('Setup response unavailable')
         if (data) {
           setState(data)
           const shouldReplayFromStart = readOnboardingReplayFromStart()
@@ -109,7 +118,7 @@ export function OnboardingWizard() {
           }
         }
       })
-      .catch(() => {})
+      .catch(() => { if (!controller.signal.aborted) setLoadFailed(true) })
 
     // Fetch system capabilities and runtime status in parallel
     Promise.allSettled([
@@ -134,9 +143,10 @@ export function OnboardingWizard() {
     })
 
     return () => {
+      controller.abort()
       document.body.style.overflow = previousOverflow
     }
-  }, [showOnboarding])
+  }, [showOnboarding, loadAttempt])
 
   const STEPS = getWizardSteps(capabilities.gatewayConnected)
   const credentialsStepIndex = STEPS.findIndex((s) => s.id === 'credentials')
@@ -209,21 +219,29 @@ export function OnboardingWizard() {
     }, 150)
   }, [])
 
+  const continueWithoutSetup = useCallback(() => {
+    markOnboardingDismissedThisSession()
+    setShowOnboarding(false)
+  }, [setShowOnboarding])
+
   useEffect(() => {
     if (!showOnboarding) return
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        skip()
+        if (state) void skip()
+        else continueWithoutSetup()
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [showOnboarding, skip])
+  }, [showOnboarding, skip, state, continueWithoutSetup])
 
-  if (!mounted || !showOnboarding || !state) return null
+  if (!mounted || !showOnboarding) return null
+  if (!state) return createPortal(<OnboardingLoadFallback failed={loadFailed}
+    onRetry={() => setLoadAttempt((attempt) => attempt + 1)} onContinue={continueWithoutSetup} />, document.body)
 
   const totalSteps = STEPS.length
   const isGateway = dashboardMode === 'full' || gatewayAvailable
@@ -354,9 +372,11 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
                             : 'bg-surface-2'
                       }`} />
                       <div className="text-left">
-                        <span className={`text-sm font-medium ${rt.installed ? 'text-foreground' : 'text-muted-foreground/60'}`}>
-                          {rt.name}
-                        </span>
+                        <LlmLabel
+                          text={rt.name}
+                          size={15}
+                          className={`text-sm font-medium ${rt.installed ? 'text-foreground' : 'text-muted-foreground/60'}`}
+                        />
                         {rt.version && (
                           <span className="text-2xs text-muted-foreground/50 ml-1.5">v{rt.version}</span>
                         )}
@@ -401,9 +421,16 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
         <div className="flex flex-wrap items-center justify-center gap-2">
           <StatusChip
             ok={capabilities.claudeSessions > 0}
-            label={capabilities.claudeSessions > 0
-              ? t('activeSessionsDetected', { count: capabilities.claudeSessions })
-              : t('noActiveSessions')}
+            label={(
+              <LlmLabel
+                text={capabilities.claudeSessions > 0 ? 'Claude active sessions' : t('noActiveSessions')}
+                size={13}
+              >
+                {capabilities.claudeSessions > 0
+                  ? t('activeSessionsDetected', { count: capabilities.claudeSessions })
+                  : t('noActiveSessions')}
+              </LlmLabel>
+            )}
           />
           <StatusChip
             ok={capabilities.gatewayConnected}
@@ -429,7 +456,7 @@ function StepWelcome({ isGateway, capabilities, runtimeStatuses, runtimesLoading
   )
 }
 
-function StatusChip({ ok, label }: { ok: boolean; label: string }) {
+function StatusChip({ ok, label }: { ok: boolean; label: ReactNode }) {
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-1 border border-border/30">
       <span className={`w-2 h-2 rounded-full ${ok ? 'bg-green-400' : 'bg-surface-2'}`} />
