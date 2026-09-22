@@ -7,10 +7,12 @@ import { apiFetch, ApiError } from '@/lib/api-client'
 import { createClientLogger } from '@/lib/client-logger'
 import { Button } from '@/components/ui/button'
 import { SessionKindAvatar, SessionKindPill } from './session-kind-brand'
+import { SessionFilterBar, type SessionFilterState } from './session-filters'
+import { fleetAgentsShareIdentity } from '@/lib/fleet-agents'
 
 const log = createClientLogger('ConversationList')
 
-type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'grok' | 'kimi' | 'gateway'
 
 type SessionRecord = {
   id: string
@@ -26,6 +28,9 @@ type SessionRecord = {
   lastActivity?: number
   workingDir?: string | null
   lastUserPrompt?: string | null
+  project?: string | null
+  projectSlug?: string | null
+  environment?: string | null
 }
 
 type SessionPrefs = Record<string, { name?: string; color?: string }>
@@ -81,6 +86,9 @@ function readSessions(payload: unknown): SessionRecord[] {
       lastActivity: readNumber(session?.lastActivity),
       workingDir: typeof session?.workingDir === 'string' || session?.workingDir === null ? session.workingDir : undefined,
       lastUserPrompt: typeof session?.lastUserPrompt === 'string' || session?.lastUserPrompt === null ? session.lastUserPrompt : undefined,
+      project: readString(session?.project) ?? null,
+      projectSlug: readString(session?.projectSlug) ?? null,
+      environment: readString(session?.environment) ?? null,
     }]
   })
 }
@@ -140,6 +148,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
     agents,
   } = useMissionControl()
   const [search, setSearch] = useState('')
+  const [filters, setFilters] = useState<SessionFilterState>({ agent: '', project: '', active: '', environment: '' })
   const [initialLoading, setInitialLoading] = useState(conversations.length === 0)
 
   // Context menu state
@@ -272,7 +281,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
           const updatedAt = lastActivityMs > 1_000_000_000_000
             ? Math.floor(lastActivityMs / 1000)
             : lastActivityMs
-          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes' || s.kind === 'opencode'
+          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes' || s.kind === 'opencode' || s.kind === 'grok' || s.kind === 'kimi'
             ? s.kind
             : 'gateway'
           const kindLabel = sessionKind === 'codex-cli'
@@ -283,12 +292,14 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
                 ? 'Hermes'
                 : sessionKind === 'opencode'
                   ? 'OpenCode'
+                : sessionKind === 'grok'
+                  ? 'Grok'
+                  : sessionKind === 'kimi'
+                    ? 'Kimi'
                 : 'Gateway'
           const prefKey = `${sessionKind}:${s.id}`
           const pref = prefs[prefKey] || {}
-          const defaultName = s.source === 'local'
-            ? `${kindLabel} • ${s.key || s.id}`
-            : `${s.agent || 'Gateway'} • ${s.key || s.id}`
+          const defaultName = `${s.agent || kindLabel} • ${s.project || s.key || s.id}`
           const sessionName = pref.name || defaultName
 
           return {
@@ -310,6 +321,9 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
               lastUserPrompt: s.lastUserPrompt || null,
               active: !!s.active,
               age: s.age,
+              project: s.project || undefined,
+              projectSlug: s.projectSlug || undefined,
+              environment: s.environment || undefined,
             },
             participants: [],
             lastMessage: {
@@ -349,11 +363,25 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
   }
 
   const filteredConversations = conversations.filter((c) => {
+    const session = c.session
+    if (
+      filters.agent
+      && session?.agent !== filters.agent
+      && c.name !== filters.agent
+      && !fleetAgentsShareIdentity(filters.agent, session?.agent || '')
+      && !fleetAgentsShareIdentity(filters.agent, c.name || '')
+    ) return false
+    if (filters.project && session?.project !== filters.project && session?.projectSlug !== filters.project) return false
+    if (filters.active === '1' && !session?.active) return false
+    if (filters.active === '0' && session?.active) return false
+    if (filters.environment && session?.environment !== filters.environment) return false
     if (!search) return true
     const s = search.toLowerCase()
     return (
       c.id.toLowerCase().includes(s) ||
       (c.name || '').toLowerCase().includes(s) ||
+      (session?.agent || '').toLowerCase().includes(s) ||
+      (session?.project || '').toLowerCase().includes(s) ||
       c.lastMessage?.from_agent.toLowerCase().includes(s) ||
       c.lastMessage?.content.toLowerCase().includes(s)
     )
@@ -544,6 +572,13 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
             className="w-full bg-surface-1 rounded-md pl-7 pr-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-hidden focus:ring-1 focus:ring-primary/30"
+          />
+        </div>
+        <div className="mt-2">
+          <SessionFilterBar
+            value={filters}
+            projects={[...new Set(conversations.flatMap((c) => c.session?.project ? [c.session.project] : []))].sort()}
+            onChange={setFilters}
           />
         </div>
       </div>

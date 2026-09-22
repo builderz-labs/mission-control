@@ -162,6 +162,7 @@ export function GatewayConfigPanel() {
   const [configPath, setConfigPath] = useState('')
   const [configHash, setConfigHash] = useState<string | null>(null)
   const [schema, setSchema] = useState<JsonSchema | null>(null)
+  const [schemaNotice, setSchemaNotice] = useState<string | null>(null)
   const [schemaLoading, setSchemaLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -203,12 +204,23 @@ export function GatewayConfigPanel() {
   const fetchSchema = useCallback(async () => {
     setSchemaLoading(true)
     try {
-      const data = await apiFetch<JsonSchema & { schema?: JsonSchema }>(
+      const data = await apiFetch<JsonSchema & {
+        schema?: JsonSchema | null
+        available?: boolean
+        warning?: string
+      }>(
         '/api/gateway-config?action=schema',
       )
-      setSchema(data.schema ?? data)
+      if ('schema' in data) {
+        setSchema(data.schema ?? null)
+        setSchemaNotice(data.available === false ? 'Schema unavailable; fields are inferred from the current configuration.' : null)
+      } else {
+        setSchema(data)
+        setSchemaNotice(null)
+      }
     } catch {
-      // Schema is optional - form still works without it
+      setSchema(null)
+      setSchemaNotice('Schema unavailable; fields are inferred from the current configuration.')
     } finally {
       setSchemaLoading(false)
     }
@@ -357,6 +369,7 @@ export function GatewayConfigPanel() {
   if (loading) {
     return (
       <div className="p-6 flex items-center gap-2">
+        <h1 className="sr-only">{t('sidebarTitle')}</h1>
         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
@@ -367,6 +380,7 @@ export function GatewayConfigPanel() {
   if (error) {
     return (
       <div className="p-6">
+        <h1 className="mb-3 text-lg font-semibold text-foreground">{t('sidebarTitle')}</h1>
         <div className="bg-destructive/10 text-destructive rounded-lg p-4 text-sm">{error}</div>
         <p className="text-xs text-muted-foreground mt-2">
           {t('configPathHint')}
@@ -378,18 +392,19 @@ export function GatewayConfigPanel() {
   const visibleSections = activeSection ? [activeSection] : filteredSections
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="w-52 shrink-0 border-r border-border bg-card/50 flex flex-col overflow-hidden">
+      <aside className="w-full shrink-0 border-b border-border bg-card/50 flex flex-col md:w-52 md:border-b-0 md:border-r md:overflow-hidden">
         <div className="px-3 pt-4 pb-2">
-          <h2 className="text-sm font-semibold text-foreground">{t('sidebarTitle')}</h2>
-          <p className="text-2xs text-muted-foreground mt-0.5 truncate font-mono">{configPath}</p>
+          <h1 className="text-sm font-semibold text-foreground">{t('sidebarTitle')}</h1>
+          <p className="hidden text-2xs text-muted-foreground mt-0.5 truncate font-mono md:block">{configPath}</p>
         </div>
 
         {/* Search */}
         <div className="px-3 pb-2">
           <div className="relative">
             <input
+              aria-label={t('searchPlaceholder')}
               type="text"
               placeholder={t('searchPlaceholder')}
               value={searchQuery}
@@ -402,13 +417,14 @@ export function GatewayConfigPanel() {
             </svg>
             {searchQuery && (
               <button
+                aria-label="Clear settings search"
                 onClick={() => setSearchQuery('')}
                 className="absolute right-1.5 top-1.5 text-muted-foreground hover:text-foreground text-xs"
               >x</button>
             )}
           </div>
           {/* Tag chips */}
-          <div className="flex flex-wrap gap-1 mt-1.5">
+          <div className="hidden flex-wrap gap-1 mt-1.5 md:flex">
             {TAG_PRESETS.map(tag => (
               <button
                 key={tag}
@@ -425,10 +441,21 @@ export function GatewayConfigPanel() {
               >{tag}</button>
             ))}
           </div>
+          <select
+            aria-label="Configuration section"
+            value={activeSection ?? ''}
+            onChange={(event) => setActiveSection(event.target.value || null)}
+            className="mt-2 h-9 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground md:hidden"
+          >
+            <option value="">{t('allSettings')}</option>
+            {sections.map((key) => (
+              <option key={key} value={key}>{SECTION_META[key]?.label ?? humanize(key)}</option>
+            ))}
+          </select>
         </div>
 
         {/* Section nav */}
-        <nav className="flex-1 overflow-y-auto px-1.5 pb-2 space-y-0.5">
+        <nav className="hidden flex-1 overflow-y-auto px-1.5 pb-2 space-y-0.5 md:block">
           <button
             onClick={() => setActiveSection(null)}
             className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
@@ -493,9 +520,9 @@ export function GatewayConfigPanel() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="min-h-0 flex-1 flex flex-col overflow-hidden">
         {/* Action bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/30">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-b border-border bg-card/30">
           <div className="flex items-center gap-2">
             {hasChanges ? (
               <span className="text-xs font-medium text-amber-400">
@@ -505,7 +532,7 @@ export function GatewayConfigPanel() {
               <span className="text-xs text-muted-foreground">{t('noChanges')}</span>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Button
               variant="outline"
               size="xs"
@@ -535,7 +562,7 @@ export function GatewayConfigPanel() {
 
         {/* Feedback */}
         {feedback && (
-          <div className={`mx-4 mt-2 rounded-lg p-2.5 text-xs font-medium ${
+          <div role={feedback.ok ? 'status' : 'alert'} className={`mx-4 mt-2 rounded-lg p-2.5 text-xs font-medium ${
             feedback.ok ? 'bg-green-500/10 text-green-400' : 'bg-destructive/10 text-destructive'
           }`}>
             {feedback.text}
@@ -565,6 +592,7 @@ export function GatewayConfigPanel() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {mode === 'json' ? (
             <textarea
+              aria-label="Gateway configuration JSON"
               value={jsonText}
               onChange={e => setJsonText(e.target.value)}
               className="w-full h-full min-h-[500px] p-3 text-xs font-mono bg-background border border-border rounded-lg focus:outline-hidden focus:ring-1 focus:ring-primary/50 resize-y"
@@ -576,6 +604,11 @@ export function GatewayConfigPanel() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                   {t('loadingSchema')}
+                </div>
+              )}
+              {schemaNotice && !schemaLoading && (
+                <div role="status" className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+                  {schemaNotice}
                 </div>
               )}
               {config && visibleSections.map(sectionKey => {
@@ -710,12 +743,13 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
     return (
       <FieldWrapper label={label} help={help} path={path}>
         <select
+          aria-label={label}
           value={value != null ? String(value) : ''}
           onChange={e => {
             const selected = schema.enum!.find(opt => String(opt) === e.target.value)
             onPatch(path, selected ?? e.target.value)
           }}
-          className="h-8 px-2 text-xs bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 min-w-40"
+          className="h-8 w-full min-w-0 px-2 text-xs bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 sm:min-w-40"
         >
           <option value="">Select...</option>
           {schema.enum.map((opt, i) => (
@@ -737,6 +771,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
         </div>
         <div className="relative">
           <input
+            aria-label={label}
             type="checkbox"
             checked={checked}
             onChange={e => onPatch(path, e.target.checked)}
@@ -755,6 +790,7 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
     return (
       <FieldWrapper label={label} help={help} path={path}>
         <input
+          aria-label={label}
           type="number"
           value={numValue}
           min={schema.minimum}
@@ -777,12 +813,13 @@ function SchemaField({ fieldKey, schema, value, path, onPatch }: {
     return (
       <FieldWrapper label={label} help={help} path={path}>
         <input
+          aria-label={label}
           type={isRedacted ? 'password' : 'text'}
           value={strValue}
           placeholder={schema.default != null ? `Default: ${String(schema.default)}` : ''}
           disabled={isRedacted}
           onChange={e => onPatch(path, e.target.value)}
-          className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 flex-1 min-w-40 disabled:opacity-50"
+          className="h-8 w-full min-w-0 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 sm:min-w-40 disabled:opacity-50"
         />
       </FieldWrapper>
     )
@@ -839,12 +876,12 @@ function FieldWrapper({ label, help, path, children }: {
   children: React.ReactNode
 }) {
   return (
-    <div className="flex items-start gap-3 py-1.5 px-2 rounded hover:bg-secondary/30">
-      <div className="w-40 shrink-0 pt-1.5">
+    <div className="flex min-w-0 flex-col items-stretch gap-1.5 rounded px-2 py-1.5 hover:bg-secondary/30 sm:flex-row sm:items-start sm:gap-3">
+      <div className="min-w-0 pt-1.5 sm:w-40 sm:shrink-0">
         <div className="text-xs font-medium text-foreground truncate" title={path.join('.')}>{label}</div>
         {help && <div className="text-2xs text-muted-foreground mt-0.5 line-clamp-2">{help}</div>}
       </div>
-      <div className="flex-1 flex items-start">
+      <div className="flex min-w-0 flex-1 items-start">
         {children}
       </div>
     </div>
@@ -928,7 +965,7 @@ function ArrayField({ label, help, items, itemSchema, path, onPatch }: {
   onPatch: (path: string[], value: unknown) => void
 }) {
   return (
-    <div className="ml-2 border-l-2 border-border/40 pl-3 py-1">
+    <div className="border-l-2 border-border/40 py-1 pl-2 sm:ml-2 sm:pl-3">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-medium text-foreground">{label}</span>
         <span className="text-2xs text-muted-foreground">{items.length} item{items.length !== 1 ? 's' : ''}</span>
@@ -948,9 +985,9 @@ function ArrayField({ label, help, items, itemSchema, path, onPatch }: {
       ) : (
         <div className="space-y-2">
           {items.map((item, idx) => (
-            <div key={idx} className="flex gap-2 items-start bg-secondary/20 rounded p-2">
+            <div key={idx} className="flex min-w-0 items-start gap-2 rounded bg-secondary/20 p-2">
               <span className="text-2xs text-muted-foreground pt-1.5 w-6 shrink-0">#{idx + 1}</span>
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 {itemSchema && schemaType(normalizeSchema(itemSchema)) === 'object' ? (
                   <SchemaField
                     fieldKey={String(idx)}
@@ -1060,6 +1097,7 @@ function FallbackField({ fieldKey, value, path, onPatch }: {
         <span className="text-xs text-foreground">{humanize(fieldKey)}</span>
         <div className="relative">
           <input
+            aria-label={humanize(fieldKey)}
             type="checkbox"
             checked={value}
             onChange={e => onPatch(path, e.target.checked)}
@@ -1075,6 +1113,7 @@ function FallbackField({ fieldKey, value, path, onPatch }: {
   return (
     <FieldWrapper label={humanize(fieldKey)} path={path}>
       <input
+        aria-label={humanize(fieldKey)}
         type={isNum ? 'number' : isRedacted ? 'password' : 'text'}
         value={displayValue}
         disabled={isRedacted}
@@ -1087,7 +1126,7 @@ function FallbackField({ fieldKey, value, path, onPatch }: {
             onPatch(path, raw)
           }
         }}
-        className="h-8 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 flex-1 min-w-40 disabled:opacity-50"
+        className="h-8 w-full min-w-0 px-2 text-xs font-mono bg-background border border-border rounded-md focus:outline-hidden focus:ring-1 focus:ring-primary/50 sm:min-w-40 disabled:opacity-50"
       />
     </FieldWrapper>
   )

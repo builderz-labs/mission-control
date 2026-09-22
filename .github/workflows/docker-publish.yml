@@ -72,6 +72,10 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            NEXT_PUBLIC_COORDINATOR_AGENT=${{ vars.NEXT_PUBLIC_COORDINATOR_AGENT }}
+            NEXT_PUBLIC_GATEWAY_CLIENT_ID=${{ vars.NEXT_PUBLIC_GATEWAY_CLIENT_ID }}
+            NEXT_PUBLIC_GATEWAY_PORT=${{ vars.NEXT_PUBLIC_GATEWAY_PORT }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

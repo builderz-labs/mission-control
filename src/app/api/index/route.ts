@@ -47,6 +47,9 @@ const endpoints: Endpoint[] = [
   { path: '/api/chat/messages/:id', methods: ['PATCH'], description: 'Mark chat message read', tag: 'Chat', auth: 'operator' },
   { path: '/api/chat/conversations', methods: ['GET'], description: 'List conversations', tag: 'Chat', auth: 'viewer' },
   { path: '/api/chat/session-prefs', methods: ['GET', 'PATCH'], description: 'Local session chat preferences (rename + color)', tag: 'Chat', auth: 'viewer/operator' },
+  { path: '/api/chat/folder-order', methods: ['GET', 'PUT'], description: 'Shared chat project folder order', tag: 'Chat', auth: 'viewer/operator' },
+  { path: '/api/chat/permission-mode', methods: ['GET', 'PUT'], description: 'Per-user chat permission mode', tag: 'Chat', auth: 'viewer/operator' },
+  { path: '/api/chat/usage', methods: ['GET'], description: 'Live chat usage tracker (context + rate limits)', tag: 'Chat', auth: 'viewer' },
 
   // ── Sessions ──────────────────────────────────────
   { path: '/api/sessions', methods: ['GET', 'POST', 'DELETE'], description: 'List and control gateway/local runtime sessions', tag: 'Sessions', auth: 'viewer/operator' },
@@ -135,6 +138,8 @@ const endpoints: Endpoint[] = [
   { path: '/api/audit', methods: ['GET'], description: 'Audit trail', tag: 'System', auth: 'admin' },
   { path: '/api/backup', methods: ['POST'], description: 'Database backup', tag: 'System', auth: 'admin' },
   { path: '/api/cleanup', methods: ['POST'], description: 'Database cleanup', tag: 'System', auth: 'admin' },
+  { path: '/api/system-monitor', methods: ['GET'], description: 'Host CPU, memory, disk, GPU, network, and process metrics', tag: 'System', auth: 'viewer' },
+  { path: '/api/system-monitor/automations', methods: ['GET', 'POST'], description: 'Mac cleanup automation status, thresholds, and safe triggers', tag: 'System', auth: 'viewer/admin' },
   { path: '/api/export', methods: ['GET'], description: 'Data export', tag: 'System', auth: 'viewer' },
   { path: '/api/workload', methods: ['GET'], description: 'Agent workload stats', tag: 'System', auth: 'viewer' },
   { path: '/api/releases/check', methods: ['GET'], description: 'Check for updates', tag: 'System', auth: 'public' },

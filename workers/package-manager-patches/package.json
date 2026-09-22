@@ -1,0 +1,11 @@
+{
+  "name": "mc-worker-package-manager-patches",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Pinned patches for pnpm 10 bundled dependencies until upstream refreshes them.",
+  "dependencies": {
+    "brace-expansion": "2.1.4",
+    "ip-address": "10.5.0",
+    "tar": "7.5.22"
+  }
+}

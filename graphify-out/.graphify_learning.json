@@ -1,0 +1,251 @@
+{
+  "generated_at": "2026-09-22T19:38:31.857537+00:00",
+  "nodes": {
+    "src_app_api_events_route_runtime": {
+      "code_fingerprint": "0e990fbb0d8a6bbe8c00ffc19bc826d7be0e3f7a92b116da8d779c88435e7e68",
+      "label": "runtime",
+      "last": "2026-09-20T19:24:59.239328+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T19:24:59.239328+00:00",
+          "outcome": "useful",
+          "q": "Where should a Jev decision dashboard live across the repository fleet, and how should it integrate with Mission Control?"
+        }
+      ],
+      "score": 0.954634131,
+      "source_file": "src/app/api/events/route.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_app_api_integrations_route_integrations": {
+      "code_fingerprint": "ada3eb689a92b973dd7745f4fe306753040069b84d1a577cbd2426fbc77b389e",
+      "label": "INTEGRATIONS",
+      "last": "2026-09-20T19:24:59.239328+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T19:24:59.239328+00:00",
+          "outcome": "useful",
+          "q": "Where should a Jev decision dashboard live across the repository fleet, and how should it integrate with Mission Control?"
+        }
+      ],
+      "score": 0.954634131,
+      "source_file": "src/app/api/integrations/route.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_components_chat_desktop_chat_desktop_workspace": {
+      "code_fingerprint": "c358d47b542f22f8158e7bf6ad86e3aa6af9b94fcf9fe854df6de00436280f42",
+      "label": "chat-desktop-workspace.tsx",
+      "last": "2026-09-21T17:06:30.349509+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-21T17:06:30.349509+00:00",
+          "outcome": "useful",
+          "q": "How is Mission Control set up for client-isolated connectors, shared harnesses, Doppler and Supabase?"
+        }
+      ],
+      "score": 0.974779331,
+      "source_file": "src/components/chat/desktop/chat-desktop-workspace.tsx",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_components_dashboard_dashboard_dashboard": {
+      "code_fingerprint": "7d19f487f77b1d2608cfc114fcfba1f2b95606323825533552c13b582c9ada07",
+      "label": "Dashboard()",
+      "last": "2026-09-20T19:24:59.239328+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T19:24:59.239328+00:00",
+          "outcome": "useful",
+          "q": "Where should a Jev decision dashboard live across the repository fleet, and how should it integrate with Mission Control?"
+        }
+      ],
+      "score": 0.954634131,
+      "source_file": "src/components/dashboard/dashboard.tsx",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_components_layout_content_router": {
+      "code_fingerprint": "59fbb9aadc0b7dc3135f68d42d63b77d78c7528be51725a016d33931ae2af424",
+      "label": "content-router.tsx",
+      "last": "2026-09-20T20:51:25.733749+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T20:51:25.733749+00:00",
+          "outcome": "useful",
+          "q": "Implement complete repo-agnostic Jev by TypeSafe frontend and backend in Mission Control with advanced tests and secure rollout"
+        }
+      ],
+      "score": 0.95595909,
+      "source_file": "src/components/layout/content-router.tsx",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_components_panels_integrations_panel": {
+      "code_fingerprint": "45e23c0476361d2598aa635f6c4c1a773a9ec8a2949933addcdc7bcc04991d09",
+      "label": "integrations-panel.tsx",
+      "last": "2026-09-20T20:51:25.733749+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T20:51:25.733749+00:00",
+          "outcome": "useful",
+          "q": "Implement complete repo-agnostic Jev by TypeSafe frontend and backend in Mission Control with advanced tests and secure rollout"
+        }
+      ],
+      "score": 0.95595909,
+      "source_file": "src/components/panels/integrations-panel.tsx",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_lib_agent_evals": {
+      "code_fingerprint": "ae88007e362826671ba10f22770dbb1c8ef12d9bc29da370263648e614b1c09c",
+      "label": "agent-evals.ts",
+      "last": "2026-09-20T20:51:25.733749+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T20:51:25.733749+00:00",
+          "outcome": "useful",
+          "q": "Implement complete repo-agnostic Jev by TypeSafe frontend and backend in Mission Control with advanced tests and secure rollout"
+        }
+      ],
+      "score": 0.95595909,
+      "source_file": "src/lib/agent-evals.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_lib_auth": {
+      "code_fingerprint": "5393656e3cb1bf278303f499c4fc8dbf536bb17595f87117b03b953ec49829f9",
+      "label": "auth.ts",
+      "last": "2026-09-21T17:06:30.349509+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-21T17:06:30.349509+00:00",
+          "outcome": "useful",
+          "q": "How is Mission Control set up for client-isolated connectors, shared harnesses, Doppler and Supabase?"
+        }
+      ],
+      "score": 0.974779331,
+      "source_file": "src/lib/auth.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_lib_db": {
+      "code_fingerprint": "64aa7f7abfca5357c1dd8505955b405150bea35ac663cd788442074605e7bd59",
+      "label": "db.ts",
+      "last": "2026-09-20T20:51:25.733749+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T20:51:25.733749+00:00",
+          "outcome": "useful",
+          "q": "Implement complete repo-agnostic Jev by TypeSafe frontend and backend in Mission Control with advanced tests and secure rollout"
+        }
+      ],
+      "score": 0.95595909,
+      "source_file": "src/lib/db.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_lib_github_sync_engine": {
+      "code_fingerprint": "58df5be1cc576b1a341312b5669ac3f0f1da83ff055a7e4b51914467b6b3f54f",
+      "label": "github-sync-engine.ts",
+      "last": "2026-09-20T19:24:59.239328+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T19:24:59.239328+00:00",
+          "outcome": "useful",
+          "q": "Where should a Jev decision dashboard live across the repository fleet, and how should it integrate with Mission Control?"
+        }
+      ],
+      "score": 0.954634131,
+      "source_file": "src/lib/github-sync-engine.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_lib_group_sessions": {
+      "code_fingerprint": "4d4b8ffd8d075efef43afcd208cd47024bf228343e4d13c63aaf40c090d79724",
+      "label": "group-sessions.ts",
+      "last": "2026-09-21T17:06:30.349509+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-21T17:06:30.349509+00:00",
+          "outcome": "useful",
+          "q": "How is Mission Control set up for client-isolated connectors, shared harnesses, Doppler and Supabase?"
+        }
+      ],
+      "score": 0.974779331,
+      "source_file": "src/lib/group-sessions.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_lib_navigation": {
+      "code_fingerprint": "8bd059358153fd1dbea4ef9e0269c6988f30cf11b78ee9b357805eb475949987",
+      "label": "navigation.ts",
+      "last": "2026-09-20T20:51:25.733749+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T20:51:25.733749+00:00",
+          "outcome": "useful",
+          "q": "Implement complete repo-agnostic Jev by TypeSafe frontend and backend in Mission Control with advanced tests and secure rollout"
+        }
+      ],
+      "score": 0.95595909,
+      "source_file": "src/lib/navigation.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_lib_provider_subscriptions": {
+      "code_fingerprint": "ddcf89add782f7377080d4d75ed8cce2c891956b79f6efb7f941261ecc3a11e5",
+      "label": "provider-subscriptions.ts",
+      "last": "2026-09-20T19:24:59.239328+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T19:24:59.239328+00:00",
+          "outcome": "useful",
+          "q": "Where should a Jev decision dashboard live across the repository fleet, and how should it integrate with Mission Control?"
+        }
+      ],
+      "score": 0.954634131,
+      "source_file": "src/lib/provider-subscriptions.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_lib_runs": {
+      "code_fingerprint": "10a8f1061b149924273b00c02a3e8fd7248c07a75fd31eab3bbdd1dbc13e6507",
+      "label": "runs.ts",
+      "last": "2026-09-20T20:51:25.733749+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T20:51:25.733749+00:00",
+          "outcome": "useful",
+          "q": "Implement complete repo-agnostic Jev by TypeSafe frontend and backend in Mission Control with advanced tests and secure rollout"
+        },
+        {
+          "date": "2026-09-20T19:24:59.239328+00:00",
+          "outcome": "useful",
+          "q": "Where should a Jev decision dashboard live across the repository fleet, and how should it integrate with Mission Control?"
+        }
+      ],
+      "score": 1.910593222,
+      "source_file": "src/lib/runs.ts",
+      "status": "preferred",
+      "uses": 2
+    },
+    "src_lib_workspace_isolation": {
+      "code_fingerprint": "75f4237fad1fa4a25c61910ae4c7f9be159f046342b5afd2d12ea154f70771f1",
+      "label": "workspace-isolation.ts",
+      "last": "2026-09-20T20:51:25.733749+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-20T20:51:25.733749+00:00",
+          "outcome": "useful",
+          "q": "Implement complete repo-agnostic Jev by TypeSafe frontend and backend in Mission Control with advanced tests and secure rollout"
+        }
+      ],
+      "score": 0.95595909,
+      "source_file": "src/lib/workspace-isolation.ts",
+      "status": "tentative",
+      "uses": 1
+    }
+  },
+  "version": 1
+}

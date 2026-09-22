@@ -3,8 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { readLimiter, mutationLimiter } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { MEMORY_ALLOWED_PREFIXES } from '@/lib/memory-path'
-import { searchMemory, rebuildIndex } from '@/lib/memory-search'
-import { getDatabase } from '@/lib/db'
+import { searchMemory } from '@/lib/memory-search'
+import { rebuildFleetMemoryIndex, searchFleetMemory } from '@/lib/fleet-memory-search'
 import { resolveWorkspaceMemoryAccess } from '@/lib/workspace-isolation'
 
 /**
@@ -36,7 +36,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await searchMemory(memoryAccess.root, MEMORY_ALLOWED_PREFIXES, query, { limit, scope: memoryAccess.scope })
+    const response = await searchFleetMemory(query, limit)
+    if (response.results.length === 0) {
+      const fallback = await searchMemory(memoryAccess.root, MEMORY_ALLOWED_PREFIXES, query, {
+        limit,
+        scope: memoryAccess.scope,
+      })
+      return NextResponse.json(fallback)
+    }
     return NextResponse.json(response)
   } catch (err) {
     logger.error({ err }, 'Memory search API error')
@@ -65,7 +72,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     if (body.action === 'rebuild') {
-      const result = await rebuildIndex(memoryAccess.root, MEMORY_ALLOWED_PREFIXES, memoryAccess.scope)
+      const result = await rebuildFleetMemoryIndex()
       return NextResponse.json({
         success: true,
         message: `Rebuilt FTS index: ${result.indexed} files in ${result.duration}ms`,

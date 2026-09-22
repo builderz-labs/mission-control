@@ -46,14 +46,18 @@ function parseForwardedHost(forwarded: string | null): string[] {
 
 function getRequestHostCandidates(request: NextRequest): string[] {
   const rawCandidates = [
-    ...(request.headers.get('x-forwarded-host') || '').split(','),
-    ...(request.headers.get('x-original-host') || '').split(','),
-    ...(request.headers.get('x-forwarded-server') || '').split(','),
-    ...parseForwardedHost(request.headers.get('forwarded')),
     request.headers.get('host') || '',
     request.nextUrl.host || '',
     request.nextUrl.hostname || '',
   ]
+  if (process.env.MC_TRUST_FORWARDED_HOSTS === '1' || process.env.MC_TRUST_FORWARDED_HOSTS === 'true') {
+    rawCandidates.push(
+      ...(request.headers.get('x-forwarded-host') || '').split(','),
+      ...(request.headers.get('x-original-host') || '').split(','),
+      ...(request.headers.get('x-forwarded-server') || '').split(','),
+      ...parseForwardedHost(request.headers.get('forwarded')),
+    )
+  }
 
   return [...new Set(rawCandidates.map(normalizeHostname).filter(Boolean))]
 }

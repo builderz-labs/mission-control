@@ -76,9 +76,10 @@ export function UpdateBanner() {
   const isbusy = state === 'updating' || state === 'restarting'
 
   return (
-    <div className="mx-4 mt-3 mb-0 flex items-center gap-3 px-4 py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-sm">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-      <p className="flex-1 text-xs text-emerald-300">
+    <div className="mx-4 mt-3 mb-0 flex flex-col gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-sm sm:flex-row sm:items-center">
+      <div className="flex w-full min-w-0 items-start gap-3 sm:flex-1">
+        <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
+        <p className="min-w-0 flex-1 text-xs text-emerald-300">
         {state === 'updating' && (
           <span className="font-medium text-amber-300">{t('updating')}</span>
         )}
@@ -96,10 +97,12 @@ export function UpdateBanner() {
             {t('newerVersionAvailable')}
           </>
         )}
-      </p>
+        </p>
+      </div>
       {!isbusy && (
-        <>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <button
+            type="button"
             onClick={handleUpdate}
             disabled={isbusy}
             className="shrink-0 text-2xs font-medium text-emerald-900 bg-emerald-500 hover:bg-emerald-400 px-2.5 py-1 rounded transition-colors"
@@ -120,12 +123,13 @@ export function UpdateBanner() {
             onClick={() => dismissUpdate(updateAvailable.latestVersion)}
             className="shrink-0 text-emerald-400/60 hover:text-emerald-300 hover:bg-transparent"
             title={tc('dismiss')}
+            aria-label={tc('dismiss')}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M4 4l8 8M12 4l-8 8" />
             </svg>
           </Button>
-        </>
+        </div>
       )}
       {isbusy && (
         <svg className="w-4 h-4 animate-spin text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none">

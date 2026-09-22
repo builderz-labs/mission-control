@@ -109,7 +109,7 @@ export function ExecApprovalPanel() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
+          <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
           {pendingCount > 0 && (
             <span className="inline-flex items-center rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400 animate-pulse">
               {t('pendingBadge', { count: pendingCount })}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { EngineLogo, LlmLabel } from '@/components/brand/engine-logo'
 
 interface RuntimeSetupModalProps {
   runtime: 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
@@ -482,8 +483,10 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                     : 'border-border/20 bg-secondary/10 text-muted-foreground hover:border-border/40'
                 }`}
               >
-                <span className="font-medium text-[11px]">{p.label}</span>
-                <span className="block text-[10px] text-muted-foreground/50">{p.hint}</span>
+                <LlmLabel text={`${p.label} ${p.hint}`} size={15} className="font-medium text-[11px]">
+                  {p.label}
+                </LlmLabel>
+                <span className="block pl-[21px] text-[10px] text-muted-foreground/50">{p.hint}</span>
               </button>
             ))}
           </div>
@@ -503,7 +506,7 @@ function HermesSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
                       : 'bg-black/15 border border-border/10 text-muted-foreground/60 hover:text-foreground hover:border-border/30'
                   }`}
                 >
-                  {m}
+                  <LlmLabel text={m} size={12} textClassName="truncate" />
                 </button>
               ))}
             </div>
@@ -1052,9 +1055,12 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold">Set Up Claude Code</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Authenticate the Anthropic CLI agent</p>
+        <div className="flex items-center gap-2.5">
+          <EngineLogo engine="claude" size={32} decorative />
+          <div>
+            <h3 className="text-lg font-semibold">Set Up Claude Code</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Authenticate the Anthropic CLI agent</p>
+          </div>
         </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
           <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
@@ -1088,7 +1094,7 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
         <div className="space-y-4">
           <div className="p-4 rounded-lg border border-border/30 bg-secondary/20">
             <p className="text-sm font-medium">Checking authentication status...</p>
-            <p className="text-xs text-muted-foreground mt-1">Verifying Claude Code credentials.</p>
+            <p className="mt-1 text-xs text-muted-foreground"><LlmLabel text="Claude Code" size={12}>Verifying Claude Code credentials.</LlmLabel></p>
           </div>
           {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -1100,14 +1106,14 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
           <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-3">
             <p className="text-sm font-medium text-amber-400">Authentication Required</p>
             <p className="text-xs text-muted-foreground">
-              Claude Code {version ? `(v${version})` : ''} is installed but not authenticated.
+              <LlmLabel text="Claude Code" size={13} /> {version ? `(v${version})` : ''} is installed but not authenticated.
             </p>
             <div className="p-3 rounded bg-black/20 border border-border/20">
               <p className="text-xs text-muted-foreground mb-1.5">Run this command in your terminal:</p>
               <code className="block font-mono text-sm text-foreground select-all">claude login</code>
             </div>
             <p className="text-xs text-muted-foreground">
-              This opens a browser for OAuth login with your Anthropic account, or you can set <code className="text-[11px] bg-black/20 px-1 rounded">ANTHROPIC_API_KEY</code> in your environment.
+              This opens a browser for OAuth login with your <LlmLabel text="Anthropic" size={12} /> account, or you can set <code className="text-[11px] bg-black/20 px-1 rounded">ANTHROPIC_API_KEY</code> in your environment.
             </p>
           </div>
 
@@ -1123,8 +1129,8 @@ function ClaudeSetup({ onClose, onComplete }: { onClose: () => void; onComplete:
       {step === 'done' && (
         <div className="space-y-4">
           <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5 text-center space-y-2">
-            <div className="text-2xl">+</div>
-            <p className="text-sm font-medium text-green-400">Claude Code is ready</p>
+            <div className="flex justify-center"><EngineLogo engine="claude" size={40} decorative /></div>
+            <p className="text-sm font-medium text-green-400"><LlmLabel text="Claude Code" size={15}>Claude Code is ready</LlmLabel></p>
             <p className="text-xs text-muted-foreground">Authenticated and available for agent tasks.</p>
             {version && <p className="text-2xs text-muted-foreground/60">v{version}</p>}
           </div>
@@ -1176,9 +1182,12 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold">Set Up Codex CLI</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Authenticate the OpenAI CLI agent</p>
+        <div className="flex items-center gap-2.5">
+          <EngineLogo engine="codex" size={32} decorative />
+          <div>
+            <h3 className="text-lg font-semibold">Set Up Codex CLI</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Authenticate the OpenAI CLI agent</p>
+          </div>
         </div>
         <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
           <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
@@ -1212,7 +1221,7 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
         <div className="space-y-4">
           <div className="p-4 rounded-lg border border-border/30 bg-secondary/20">
             <p className="text-sm font-medium">Checking authentication status...</p>
-            <p className="text-xs text-muted-foreground mt-1">Verifying Codex CLI credentials.</p>
+            <p className="mt-1 text-xs text-muted-foreground"><LlmLabel text="Codex CLI" size={12}>Verifying Codex CLI credentials.</LlmLabel></p>
           </div>
           {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -1224,14 +1233,14 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
           <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-3">
             <p className="text-sm font-medium text-amber-400">Authentication Required</p>
             <p className="text-xs text-muted-foreground">
-              Codex CLI {version ? `(v${version})` : ''} is installed but not authenticated.
+              <LlmLabel text="Codex CLI" size={13} /> {version ? `(v${version})` : ''} is installed but not authenticated.
             </p>
             <div className="p-3 rounded bg-black/20 border border-border/20">
               <p className="text-xs text-muted-foreground mb-1.5">Run this command in your terminal:</p>
               <code className="block font-mono text-sm text-foreground select-all">codex auth</code>
             </div>
             <p className="text-xs text-muted-foreground">
-              This authenticates with your OpenAI account, or you can set <code className="text-[11px] bg-black/20 px-1 rounded">OPENAI_API_KEY</code> in your environment.
+              This authenticates with your <LlmLabel text="OpenAI" size={12} /> account, or you can set <code className="text-[11px] bg-black/20 px-1 rounded">OPENAI_API_KEY</code> in your environment.
             </p>
           </div>
 
@@ -1247,8 +1256,8 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
       {step === 'done' && (
         <div className="space-y-4">
           <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5 text-center space-y-2">
-            <div className="text-2xl">+</div>
-            <p className="text-sm font-medium text-green-400">Codex CLI is ready</p>
+            <div className="flex justify-center"><EngineLogo engine="codex" size={40} decorative /></div>
+            <p className="text-sm font-medium text-green-400"><LlmLabel text="Codex CLI" size={15}>Codex CLI is ready</LlmLabel></p>
             <p className="text-xs text-muted-foreground">Authenticated and available for agent tasks.</p>
             {version && <p className="text-2xs text-muted-foreground/60">v{version}</p>}
           </div>
