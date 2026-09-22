@@ -36,7 +36,7 @@ export function JevFlowSteps({
   return (
     <nav
       aria-label="Jev session steps"
-      className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-current/15 pb-3 text-current"
+      className="jev-flow-steps mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-current/15 pb-3 text-current"
     >
       {onBack ? (
         <button

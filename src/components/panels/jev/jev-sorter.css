@@ -62,3 +62,10 @@
 .jev-sorter-empty { padding: 2rem; text-align: center; }
 @media (max-width: 1250px) { .jev-sorter-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .jev-sorter-questions { width: 12rem; } .jev-sorter-main { padding: 1rem; } }
 @media (max-width: 760px) { .jev-sorter-body { display: block; overflow-y: auto; } .jev-sorter-questions { width: 100%; max-height: 16rem; border-right: 0; border-bottom: 1px solid #e0e4e8; } .jev-sorter-main { overflow: visible; } .jev-sorter-cards { grid-template-columns: 1fr; } .jev-sorter-heading { align-items: start; } .jev-sorter-updated { text-align: left; } .jev-sorter .jev-sorter-bucket { min-height: 2.75rem; } .jev-sorter select { max-width: 100%; } .jev-sorter-toolbar .jev-sorter-actions { min-width: 0; width: 100%; } }
+
+/* Keep the session steps and Back control reachable while results scroll.
+   .jev-sorter-main is the scrollport, so without this the only route back to
+   setup disappears as soon as the user scrolls down to read results. */
+.jev-sorter-main .jev-flow-steps { position: sticky; top: 0; z-index: 2; background: #f6f7f9; margin: -1.4rem -1.4rem 0; padding: 1.4rem 1.4rem .6rem; box-shadow: 0 6px 6px -6px rgb(37 43 48 / .18); }
+@media (max-width: 1250px) { .jev-sorter-main .jev-flow-steps { margin: -1rem -1rem 0; padding: 1rem 1rem .6rem; } }
+@media (max-width: 760px) { .jev-sorter-main .jev-flow-steps { position: static; margin: 0; padding: 0 0 .6rem; } }

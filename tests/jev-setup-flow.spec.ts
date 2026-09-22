@@ -157,6 +157,18 @@ test('novice setup through reviewed Jev result', async ({ page }, testInfo) => {
   await expect(result).toBeVisible()
   await result.scrollIntoViewIfNeeded()
   await shot(page, testInfo, '05-evaluation-result')
+
+  // The session steps and the route back to setup must survive scrolling to
+  // the results, otherwise the only way back disappears exactly when a user
+  // has finished reading a run and wants to change the questions.
+  const steps = page.getByRole('navigation', { name: 'Jev session steps' })
+  const back = page.getByRole('button', { name: '\u2190 Back to setup' })
+  await expect(steps).toBeInViewport()
+  await expect(back).toBeInViewport()
+  await back.click()
+  await expect(page.getByRole('region', { name: 'Jev sorter workspace' })).toBeHidden()
+  await expect(page.getByText('Review before saving the policy')).toBeVisible()
+  await shot(page, testInfo, '06-back-to-setup')
 })
 
 test('adaptive clarification survives chat selection and supports visual editing', async ({ page }, testInfo) => {
