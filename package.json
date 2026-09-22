@@ -20,7 +20,7 @@
     "start:standalone": "pnpm run verify:node && bash scripts/start-standalone.sh",
     "deploy:standalone": "pnpm run verify:node && bash scripts/deploy-standalone.sh",
     "lint": "pnpm run verify:node && eslint .",
-    "typecheck": "pnpm run verify:node && tsc --noEmit",
+    "typecheck": "pnpm run verify:node && NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit",
     "test": "pnpm run verify:node && node --test scripts/e2e-openclaw/stage-standalone-assets.test.mjs && node scripts/run-tests-with-diagnostics.mjs",
     "test:security-audit": "bash scripts/security-audit.test.sh",
     "test:security-shell": "bash scripts/security-audit.test.sh && bash scripts/load-env.test.sh && bash scripts/process-title.test.sh && bash scripts/reap-controller.test.sh && bash scripts/doppler-runtime.test.sh",
