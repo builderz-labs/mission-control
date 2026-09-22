@@ -297,6 +297,7 @@ export function GitHubSyncPanel() {
   if (loading) {
     return (
       <div className="p-6 flex flex-col items-center justify-center gap-3 min-h-[200px]">
+        <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
         <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         <span className="text-sm text-muted-foreground">{t('loading')}</span>
       </div>
@@ -308,7 +309,7 @@ export function GitHubSyncPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">{t('title')}</h2>
+          <h1 className="text-lg font-semibold text-foreground">{t('title')}</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t('subtitle')}
           </p>
@@ -374,6 +375,7 @@ export function GitHubSyncPanel() {
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">{t('labelRepository')}</label>
               <input
+                aria-label="GitHub repository owner"
                 type="text"
                 value={repo}
                 onChange={e => setRepo(e.target.value)}
@@ -386,6 +388,7 @@ export function GitHubSyncPanel() {
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">{t('labelLabels')}</label>
               <input
+                aria-label="GitHub repository name"
                 type="text"
                 value={labelFilter}
                 onChange={e => setLabelFilter(e.target.value)}
@@ -398,6 +401,7 @@ export function GitHubSyncPanel() {
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">{t('labelState')}</label>
               <select
+                aria-label={t('labelState')}
                 value={stateFilter}
                 onChange={e => setStateFilter(e.target.value as any)}
                 className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
@@ -412,6 +416,7 @@ export function GitHubSyncPanel() {
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">{t('labelAssignAgent')}</label>
               <select
+                aria-label={t('labelAssignAgent')}
                 value={assignAgent}
                 onChange={e => setAssignAgent(e.target.value)}
                 className="w-full px-3 py-1.5 text-sm rounded-md border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"

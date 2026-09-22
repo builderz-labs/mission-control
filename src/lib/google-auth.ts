@@ -1,3 +1,5 @@
+import { fetchWithRetry } from './fetch-with-retry'
+
 export interface GoogleIdTokenPayload {
   sub: string
   email: string
@@ -15,12 +17,12 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdToke
   }
 
   const url = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`
-  const res = await fetch(url, { method: 'GET' })
+  const res = await fetchWithRetry(url, { method: 'GET' }, { timeoutMs: 5_000 })
   if (!res.ok) {
     throw new Error('Invalid Google token')
   }
 
-  const payload = await res.json() as any
+  const payload = await res.json() as Partial<GoogleIdTokenPayload>
   const audExpected = String(process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '').trim()
   if (audExpected && payload.aud !== audExpected) {
     throw new Error('Google token audience mismatch')

@@ -3,7 +3,7 @@ name: Quality Gate
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 concurrency:
   group: quality-gate-${{ github.ref }}
@@ -57,17 +57,54 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Desktop unit and packaging contract tests
+        run: pnpm test:desktop
+
       - name: Prepare E2E environment
         run: cp .env.test .env
 
       - name: Build
         run: pnpm build
+        env:
+          NEXT_PUBLIC_COORDINATOR_AGENT: ${{ vars.NEXT_PUBLIC_COORDINATOR_AGENT }}
+          NEXT_PUBLIC_GATEWAY_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GATEWAY_CLIENT_ID }}
+          NEXT_PUBLIC_GATEWAY_PORT: ${{ vars.NEXT_PUBLIC_GATEWAY_PORT }}
 
       - name: Verify standalone artifact boundaries
         run: pnpm artifact:check
+
+      - name: Package clean desktop runtime
+        # Browser tests can write test-only settings beside server.js. Capture
+        # the checked runtime first; publish it only after those tests pass.
+        run: |
+          cp -R .next/static .next/standalone/.next/
+          printf '%s\n' "$GITHUB_SHA" > .next/RELEASE_SHA
+          tar -czf mission-control-standalone.tar.gz -C .next standalone RELEASE_SHA
+          sha256sum mission-control-standalone.tar.gz > mission-control-standalone.tar.gz.sha256
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
 
       - name: E2E tests
         run: pnpm test:e2e
+
+      - name: Upload verified desktop runtime
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mission-control-standalone-${{ github.sha }}
+          path: |
+            mission-control-standalone.tar.gz
+            mission-control-standalone.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: jev-browser-evidence-${{ github.sha }}
+          path: |
+            test-results/**
+            playwright-report/**
+          if-no-files-found: warn
+          retention-days: 14

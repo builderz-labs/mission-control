@@ -7,6 +7,7 @@ const requiredFiles = [
   'openapi.json',
   'ops/templates/openclaw-gateway@.service',
   'src/lib/schema.sql',
+  'public/brand/mc-logo-128.png',
 ]
 const allowedRoots = new Set([
   '.next',

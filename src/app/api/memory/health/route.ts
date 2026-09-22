@@ -7,6 +7,9 @@ import { runHealthDiagnostics } from '@/lib/memory-utils'
 import { logger } from '@/lib/logger'
 import { resolveWorkspaceMemoryAccess } from '@/lib/workspace-isolation'
 import { MEMORY_ALLOWED_PREFIXES } from '@/lib/memory-path'
+import { fleetMemoryRoots } from '@/lib/memory-roots'
+import { collectFleetWikiStems } from '@/lib/memory-stems'
+import { runVaultWikiDoctor } from '@/lib/vault-health'
 
 function mergeReports(reports: Awaited<ReturnType<typeof runHealthDiagnostics>>[]) {
   const allCategories = reports.flatMap((report) => report.categories)
@@ -49,6 +52,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    if (memoryAccess.isolation === 'shared') {
+      const extraStems = collectFleetWikiStems()
+      const reports = []
+      for (const root of fleetMemoryRoots()) {
+        const folders = root.prefixes.length ? root.prefixes : ['']
+        for (const folder of folders) {
+          const fullPath = folder ? join(root.root, folder) : root.root
+          if (!existsSync(fullPath)) continue
+          reports.push(await runHealthDiagnostics(fullPath, { extraStems }))
+        }
+      }
+      const vault = fleetMemoryRoots().find((root) => root.id === 'omnia-vault')
+      const merged = reports.length > 0 ? mergeReports(reports) : await runHealthDiagnostics(memoryAccess.root)
+      if (vault) {
+        const doctor = await runVaultWikiDoctor(vault.root)
+        merged.categories.unshift(doctor)
+        merged.overallScore = Math.round(
+          merged.categories.reduce((sum, category) => sum + category.score, 0) / merged.categories.length,
+        )
+        merged.overall = merged.overallScore >= 70 ? 'healthy' : merged.overallScore >= 40 ? 'warning' : 'critical'
+      }
+      return NextResponse.json(merged)
+    }
     if (MEMORY_ALLOWED_PREFIXES.length) {
       const reports = []
       for (const prefix of MEMORY_ALLOWED_PREFIXES) {

@@ -12,6 +12,9 @@ vi.mock('@/lib/auth', () => ({
 vi.mock('@/lib/workspace-isolation', () => ({
   denyUnscopedResourceForStrictWorkspace: vi.fn(() => null),
 }))
+vi.mock('@/lib/rate-limit', () => ({
+  heavyLimiter: vi.fn(() => null),
+}))
 
 vi.mock('@/lib/command', () => ({
   runCommand: mocks.runCommand,
@@ -36,8 +39,8 @@ describe('OpenCode session continue route', () => {
     expect(response.status).not.toBe(400)
     expect(mocks.runCommand).toHaveBeenCalledWith(
       '/custom/bin/opencode',
-      ['run', '--session', 'ses_open_1', 'continue'],
-      expect.objectContaining({ timeoutMs: 180000 }),
+      ['run', '--session', 'ses_open_1'],
+      expect.objectContaining({ timeoutMs: 180000, input: 'continue' }),
     )
   })
 

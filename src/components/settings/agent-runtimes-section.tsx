@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { RuntimeSetupModal } from '@/components/onboarding/runtime-setup-modal'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { LlmLabel } from '@/components/brand/engine-logo'
 
 interface RuntimeCapabilities {
   dispatch: boolean
@@ -239,7 +240,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs font-medium text-foreground">{rt.name}</p>
+                        <LlmLabel text={rt.name} size={16} className="text-xs font-medium text-foreground" />
                         <p className="text-2xs text-emerald-400/70">Installing...</p>
                       </div>
                     </div>
@@ -255,7 +256,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                   <>
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{rt.name}</span>
+                        <LlmLabel text={rt.name} size={16} className="text-sm font-medium" />
                         {rt.installed || justInstalled ? (
                           <span className="text-2xs px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
                             {rt.version ? `v${rt.version}` : 'Installed'}
@@ -340,7 +341,7 @@ export function AgentRuntimesSection({ showFeedback }: Props) {
                         onClick={() => setSetupRuntime(rt.id as 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode')}
                         className="text-2xs mt-1.5 px-2 py-1 rounded border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                       >
-                        Configure {rt.name}
+                        Configure <LlmLabel text={rt.name} size={13} />
                       </button>
                     )}
 

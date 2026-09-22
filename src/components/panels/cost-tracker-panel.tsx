@@ -7,6 +7,9 @@ import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
 import { apiFetch } from '@/lib/api-client'
+import { CLAUDE_FLEET_PLANS, type ClaudeFleetPlanStatus } from '@/lib/claude-fleet-plans'
+import { CostFleetPlans } from '@/components/panels/cost-fleet-plans'
+import { EngineLogoForText } from '@/components/brand/engine-logo'
 import {
   PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, BarChart, Bar,
@@ -108,6 +111,15 @@ export function CostTrackerPanel() {
   const [sessionCosts, setSessionCosts] = useState<SessionCostEntry[]>([])
   const [sessionSort, setSessionSort] = useState<'cost' | 'tokens' | 'requests' | 'recent'>('cost')
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
+  const [fleetPlans, setFleetPlans] = useState<ClaudeFleetPlanStatus[]>(() =>
+    CLAUDE_FLEET_PLANS.map((plan) => ({
+      ...plan,
+      provider: 'anthropic',
+      isolatedHome: `~/${plan.homeName}`,
+      isolatedHomeExists: false,
+      authStatus: 'needs_login',
+    })),
+  )
 
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -118,16 +130,28 @@ export function CostTrackerPanel() {
   const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
-      const [statsJson, trendJson, byAgentJson, taskJson] = await Promise.all([
+      const [statsJson, trendJson, byAgentJson, taskJson, capabilities] = await Promise.all([
         apiFetch<UsageStats>(`/api/tokens?action=stats&timeframe=${timeframe}`),
         apiFetch<TrendData>(`/api/tokens?action=trends&timeframe=${timeframe}`),
         apiFetch<ByAgentResponse>(`/api/tokens/by-agent?days=${timeframeToDays(timeframe)}`),
         apiFetch<TaskCostsResponse>(`/api/tokens?action=task-costs&timeframe=${timeframe}`),
+        apiFetch<{ claudeFleetPlans?: ClaudeFleetPlanStatus[] }>('/api/status?action=capabilities').catch(() => null),
       ])
       setUsageStats(statsJson)
       setTrendData(trendJson)
       setByAgentData(byAgentJson)
       setTaskData(taskJson)
+      if (Array.isArray(capabilities?.claudeFleetPlans) && capabilities.claudeFleetPlans.length > 0) {
+        setFleetPlans(capabilities.claudeFleetPlans)
+      } else {
+        setFleetPlans(CLAUDE_FLEET_PLANS.map((plan) => ({
+          ...plan,
+          provider: 'anthropic',
+          isolatedHome: `~/${plan.homeName}`,
+          isolatedHomeExists: false,
+          authStatus: 'needs_login',
+        })))
+      }
     } catch (err) {
       log.error('Failed to load cost data:', err)
     } finally {
@@ -198,7 +222,7 @@ export function CostTrackerPanel() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       {/* Header */}
       <div className="border-b border-border pb-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -206,13 +230,15 @@ export function CostTrackerPanel() {
             <h1 className="text-3xl font-bold text-foreground">{t('title')}</h1>
             <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
             {/* View tabs */}
-            <div className="flex rounded-lg border border-border overflow-hidden">
+            <div aria-label="Cost views" className="grid min-w-0 grid-cols-4 overflow-hidden rounded-lg border border-border" role="tablist">
               {(['overview', 'agents', 'sessions', 'tasks'] as const).map(v => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
+                  aria-selected={view === v}
+                  role="tab"
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                     view === v ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:text-foreground'
                   }`}
@@ -222,7 +248,7 @@ export function CostTrackerPanel() {
               ))}
             </div>
             {/* Timeframe */}
-            <div className="flex space-x-1">
+            <div aria-label="Cost timeframe" className="grid min-w-0 grid-cols-4 gap-1">
               {(['hour', 'day', 'week', 'month'] as const).map(tf => (
                 <Button key={tf} onClick={() => setTimeframe(tf)} variant={timeframe === tf ? 'default' : 'secondary'} size="sm">
                   {tf.charAt(0).toUpperCase() + tf.slice(1)}
@@ -232,6 +258,8 @@ export function CostTrackerPanel() {
           </div>
         </div>
       </div>
+
+      <CostFleetPlans plans={fleetPlans} />
 
       {isLoading && !usageStats ? (
         <Loader variant="panel" label={t('loadingCostData')} />
@@ -422,7 +450,10 @@ function OverviewView({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="bg-secondary rounded-lg p-4">
               <div className="text-xs text-muted-foreground mb-1">{t('mostEfficientModel')}</div>
-              <div className="text-lg font-bold text-green-500">{mostEfficient ? getModelDisplayName(mostEfficient[0]) : '-'}</div>
+              <div className="flex items-center gap-2 text-lg font-bold text-green-500">
+                {mostEfficient && <EngineLogoForText text={mostEfficient[0]} size={18} decorative />}
+                {mostEfficient ? getModelDisplayName(mostEfficient[0]) : '-'}
+              </div>
               {mostEfficient && <div className="text-xs text-muted-foreground">${(efficientCostPerToken * 1000).toFixed(4)}/1K tokens</div>}
             </div>
             <div className="bg-secondary rounded-lg p-4">
@@ -442,7 +473,10 @@ function OverviewView({
               const maxCostPer1k = Math.max(...modelData.map(d => d.cost / Math.max(1, d.tokens) * 1000), 0.0001)
               return (
                 <div key={m.fullName} className="flex items-center text-sm">
-                  <div className="w-32 truncate text-muted-foreground">{m.name}</div>
+                  <div className="flex w-32 items-center gap-1.5 truncate text-muted-foreground">
+                    <EngineLogoForText text={m.fullName || m.name} size={14} decorative />
+                    <span className="truncate">{m.name}</span>
+                  </div>
                   <div className="flex-1 mx-3">
                     <div className="w-full bg-secondary rounded-full h-2">
                       <div className="bg-green-500 h-2 rounded-full" style={{ width: `${(costPer1k / maxCostPer1k) * 100}%` }} />

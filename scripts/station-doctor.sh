@@ -67,9 +67,11 @@ fi
 
 # ── 3. API health ─────────────────────────────────────────────────────────────
 # Try unauthenticated — will get 401 but proves the server is up
-http_code=$(curl -sf -o /dev/null -w "%{http_code}" "http://localhost:$MC_PORT/api/status?action=health" 2>/dev/null || echo "000")
+http_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$MC_PORT/api/status?action=health" 2>/dev/null || echo "000")
 if [[ "$http_code" == "200" ]]; then
   pass "Health API responding (200)"
+elif [[ "$http_code" == "503" ]]; then
+  warn "Health API reachable but unhealthy (HTTP 503)"
 elif [[ "$http_code" == "401" ]]; then
   pass "Health API responding (auth required — expected)"
 elif [[ "$http_code" == "000" ]]; then

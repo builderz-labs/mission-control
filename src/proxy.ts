@@ -22,7 +22,10 @@ function envFlag(name: string): boolean {
 }
 
 function normalizeHostname(raw: string): string {
-  return raw.trim().replace(/^\[|\]$/g, '').split(':')[0].replace(/\.$/, '').toLowerCase()
+  const value = raw.trim().toLowerCase()
+  if (value.startsWith('[')) return value.slice(1, value.indexOf(']'))
+  if ((value.match(/:/g) || []).length > 1) return value
+  return value.split(':')[0].replace(/\.$/, '')
 }
 
 function parseForwardedHost(forwarded: string | null): string[] {
@@ -37,14 +40,18 @@ function parseForwardedHost(forwarded: string | null): string[] {
 
 function getRequestHostCandidates(request: NextRequest): string[] {
   const rawCandidates = [
-    ...(request.headers.get('x-forwarded-host') || '').split(','),
-    ...(request.headers.get('x-original-host') || '').split(','),
-    ...(request.headers.get('x-forwarded-server') || '').split(','),
-    ...parseForwardedHost(request.headers.get('forwarded')),
     request.headers.get('host') || '',
     request.nextUrl.host || '',
     request.nextUrl.hostname || '',
   ]
+  if (envFlag('MC_TRUST_FORWARDED_HOSTS')) {
+    rawCandidates.push(
+      ...(request.headers.get('x-forwarded-host') || '').split(','),
+      ...(request.headers.get('x-original-host') || '').split(','),
+      ...(request.headers.get('x-forwarded-server') || '').split(','),
+      ...parseForwardedHost(request.headers.get('forwarded')),
+    )
+  }
 
   const candidates = rawCandidates
     .map(normalizeHostname)
@@ -114,6 +121,7 @@ function nextResponseWithNonce(request: NextRequest): { response: NextResponse; 
     headers: request.headers,
     nonce,
     googleEnabled,
+    allowUnsafeEval: process.env.NODE_ENV !== 'production',
   })
   const response = NextResponse.next({
     request: {
@@ -125,16 +133,27 @@ function nextResponseWithNonce(request: NextRequest): { response: NextResponse; 
   return { response, nonce }
 }
 
-function addSecurityHeaders(response: NextResponse, _request: NextRequest, nonce?: string): NextResponse {
+function addSecurityHeaders(response: NextResponse, request: NextRequest, nonce?: string): NextResponse {
   const requestId = crypto.randomUUID()
   response.headers.set('X-Request-Id', requestId)
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), geolocation=(), microphone=()')
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+  response.headers.set('X-Permitted-Cross-Domain-Policies', 'none')
+  const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  if (forwardedProtocol === 'https' || request.nextUrl.protocol === 'https:') {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
 
   const googleEnabled = !!(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
   const effectiveNonce = nonce || crypto.randomBytes(16).toString('base64')
-  response.headers.set('Content-Security-Policy', buildMissionControlCsp({ nonce: effectiveNonce, googleEnabled }))
+  response.headers.set('Content-Security-Policy', buildMissionControlCsp({
+    nonce: effectiveNonce,
+    googleEnabled,
+    allowUnsafeEval: process.env.NODE_ENV !== 'production',
+  }))
 
   return response
 }
@@ -156,6 +175,10 @@ function extractApiKeyFromRequest(request: NextRequest): string {
 }
 
 export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const isPublicHealthProbe = pathname === '/api/status' && request.nextUrl.searchParams.get('action') === 'health'
+  const isPublicHealthRoute = pathname === '/api/health' || pathname === '/health'
+
   // Network access control.
   // In production: default-deny unless explicitly allowed.
   // In dev/test: allow all hosts unless overridden.
@@ -182,8 +205,6 @@ export function proxy(request: NextRequest) {
     return addSecurityHeaders(new NextResponse('Forbidden', { status: 403 }), request)
   }
 
-  const { pathname } = request.nextUrl
-
   // CSRF Origin validation for mutating requests
   const method = request.method.toUpperCase()
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
@@ -198,9 +219,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Allow login, setup, auth API, docs, and container health probes without session
-  const isPublicHealthProbe = pathname === '/api/status' && request.nextUrl.searchParams.get('action') === 'health'
   // Exact-match only (no prefix/wildcard) so this exempts just the two health routes.
-  const isPublicHealthRoute = pathname === '/api/health' || pathname === '/health'
   if (pathname === '/login' || pathname === '/setup' || pathname.startsWith('/api/auth/') || pathname === '/api/setup' || pathname === '/api/docs' || pathname === '/docs' || isPublicHealthProbe || isPublicHealthRoute) {
     const { response, nonce } = nextResponseWithNonce(request)
     return addSecurityHeaders(response, request, nonce)

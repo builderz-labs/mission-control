@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { isDoctorTitleLine, isInformationalDoctorLine, stripDoctorGutter } from '@/lib/openclaw-doctor-info'
 
 export type OpenClawDoctorLevel = 'healthy' | 'warning' | 'error'
 export type OpenClawDoctorCategory = 'config' | 'state' | 'security' | 'general'
@@ -14,10 +15,7 @@ export interface OpenClawDoctorStatus {
 }
 
 function normalizeLine(line: string): string {
-  return line
-    .replace(/\u001b\[[0-9;]*m/g, '')
-    .replace(/^[\s│┃║┆┊╎╏]+/, '')
-    .trim()
+  return stripDoctorGutter(line)
 }
 
 function isSessionAgingLine(line: string): boolean {
@@ -28,11 +26,15 @@ function isPositiveOrInstructionalLine(line: string): boolean {
   return /^no .* warnings? detected/i.test(line) ||
     /^no issues/i.test(line) ||
     /^run:\s/i.test(line) ||
+    /^fix:\s/i.test(line) ||
     /^all .* (healthy|ok|valid|passed)/i.test(line)
 }
 
 function isDecorativeLine(line: string): boolean {
-  return /^[▄█▀░\s]+$/.test(line) || /openclaw doctor/i.test(line) || /🦞\s*openclaw\s*🦞/i.test(line)
+  return /^[▄█▀░\s]+$/.test(line) ||
+    /openclaw doctor/i.test(line) ||
+    /🦞\s*openclaw\s*🦞/i.test(line) ||
+    isDoctorTitleLine(line)
 }
 
 function isStateDirectoryListLine(line: string): boolean {
@@ -137,19 +139,18 @@ export function parseOpenClawDoctorOutput(
   const issues = lines
     .filter(line => /^[-*]\s+/.test(line))
     .map(line => line.replace(/^[-*]\s+/, '').trim())
-    .filter(line => !isSessionAgingLine(line) && !isStateDirectoryListLine(line) && !isPositiveOrInstructionalLine(line))
+    .filter(line =>
+      !isSessionAgingLine(line) &&
+      !isStateDirectoryListLine(line) &&
+      !isPositiveOrInstructionalLine(line) &&
+      !isInformationalDoctorLine(line)
+    )
 
-  // Strip positive/negated phrases before checking for warning keywords
-  const rawForWarningCheck = raw.replace(/\bno\s+\w+\s+(?:security\s+)?warnings?\s+detected\b/gi, '')
-  const mentionsWarnings = /\bwarning|warnings|problem|problems|invalid config|fix\b/i.test(rawForWarningCheck)
-  const mentionsHealthy = /\bok\b|\bhealthy\b|\bno issues\b|\bno\b.*\bwarnings?\s+detected\b|\bvalid\b/i.test(raw)
-
+  const findingText = issues.join('\n')
   let level: OpenClawDoctorLevel = 'healthy'
-  if (exitCode !== 0 || /invalid config|failed|error/i.test(raw)) {
+  if (issues.length > 0 && (exitCode !== 0 || /invalid config/i.test(findingText))) {
     level = 'error'
-  } else if (issues.length > 0 || mentionsWarnings) {
-    level = 'warning'
-  } else if (!mentionsHealthy && lines.length > 0) {
+  } else if (issues.length > 0) {
     level = 'warning'
   }
 
@@ -167,7 +168,7 @@ export function parseOpenClawDoctorOutput(
         ) ||
         'OpenClaw doctor reported configuration issues.'
 
-  const canFix = level !== 'healthy' || /openclaw doctor --fix/i.test(raw)
+  const canFix = level !== 'healthy'
 
   return {
     level,

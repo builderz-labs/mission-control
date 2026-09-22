@@ -11,9 +11,10 @@
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { homedir } from 'node:os'
 import { getDatabase } from './db'
 import { logger } from './logger'
+import { parseSkillDescription } from './skill-frontmatter'
+import { ALIAS_SKILL_SOURCES, LOCAL_SKILL_SOURCES, listExtraSkillRoots, listSkillRoots } from './skill-roots'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,42 +50,8 @@ function sha256(content: string): string {
   return createHash('sha256').update(content, 'utf8').digest('hex')
 }
 
-function extractDescription(content: string): string | undefined {
-  const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
-  const first = lines.find(l => !l.startsWith('#'))
-  if (!first) return undefined
-  return first.length > 220 ? `${first.slice(0, 217)}...` : first
-}
-
-function getSkillRoots(): Array<{ source: string; path: string }> {
-  const home = homedir()
-  const cwd = process.cwd()
-  const openclawState = process.env.OPENCLAW_STATE_DIR || process.env.OPENCLAW_HOME || join(home, '.openclaw')
-  const roots: Array<{ source: string; path: string }> = [
-    { source: 'user-agents', path: process.env.MC_SKILLS_USER_AGENTS_DIR || join(home, '.agents', 'skills') },
-    { source: 'user-codex', path: process.env.MC_SKILLS_USER_CODEX_DIR || join(home, '.codex', 'skills') },
-    { source: 'project-agents', path: process.env.MC_SKILLS_PROJECT_AGENTS_DIR || join(cwd, '.agents', 'skills') },
-    { source: 'project-codex', path: process.env.MC_SKILLS_PROJECT_CODEX_DIR || join(cwd, '.codex', 'skills') },
-    { source: 'openclaw', path: process.env.MC_SKILLS_OPENCLAW_DIR || join(openclawState, 'skills') },
-    { source: 'workspace', path: process.env.MC_SKILLS_WORKSPACE_DIR || join(process.env.OPENCLAW_WORKSPACE_DIR || process.env.MISSION_CONTROL_WORKSPACE_DIR || join(openclawState, 'workspace'), 'skills') },
-  ]
-
-  // Dynamic: scan for workspace-<agent> directories
-  try {
-    const entries = readdirSync(openclawState)
-    for (const entry of entries) {
-      if (!entry.startsWith('workspace-')) continue
-      const skillsDir = join(openclawState, entry, 'skills')
-      if (existsSync(skillsDir)) {
-        const agentName = entry.replace('workspace-', '')
-        roots.push({ source: `workspace-${agentName}`, path: skillsDir })
-      }
-    }
-  } catch {
-    // openclawBase may not exist
-  }
-
-  return roots
+function getSkillRoots() {
+  return [...listSkillRoots(), ...listExtraSkillRoots()]
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +83,7 @@ function scanDiskSkills(): DiskSkill[] {
           name: entry,
           source: root.source,
           path: skillPath,
-          description: extractDescription(content),
+          description: parseSkillDescription(content),
           contentHash: sha256(content),
         })
       } catch {
@@ -144,7 +111,7 @@ export async function syncSkillsFromDisk(): Promise<{ ok: boolean; message: stri
     }
 
     // Fetch current DB rows (only local sources, not registry-installed via slug)
-    const localSources = ['user-agents', 'user-codex', 'project-agents', 'project-codex', 'openclaw', 'workspace']
+    const localSources = [...LOCAL_SKILL_SOURCES, 'grok-bundled', 'openclaw-plugin']
     // Also include any dynamic workspace-* sources from disk
     for (const s of diskSkills) {
       if (s.source.startsWith('workspace-') && !localSources.includes(s.source)) {
@@ -181,11 +148,21 @@ export async function syncSkillsFromDisk(): Promise<{ ok: boolean; message: stri
         if (!existing) {
           insertStmt.run(disk.name, disk.source, disk.path, disk.description || null, disk.contentHash, now, now)
           created++
-        } else if (existing.content_hash !== disk.contentHash) {
-          // Disk wins: content changed on disk since last sync
+        } else if (
+          existing.content_hash !== disk.contentHash
+          || existing.description !== (disk.description || null)
+        ) {
+          // Disk wins: content or parsed description changed since last sync
           updateStmt.run(disk.path, disk.description || null, disk.contentHash, now, disk.source, disk.name)
           updated++
         }
+      }
+
+      for (const source of ALIAS_SKILL_SOURCES) {
+        const gone = db.prepare(
+          'DELETE FROM skills WHERE source = ? AND registry_slug IS NULL',
+        ).run(source)
+        deleted += Number(gone.changes || 0)
       }
 
       // DB → Disk: detect removals (skill deleted from disk since last sync)

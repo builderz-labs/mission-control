@@ -33,9 +33,11 @@ function evictOldest(store: Map<string, RateLimitEntry>) {
 }
 
 // Trusted proxy IPs (comma-separated). Only parse XFF when behind known proxies.
-const TRUSTED_PROXIES = new Set(
-  (process.env.MC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean)
-)
+function trustedProxies(): Set<string> {
+  return new Set(
+    (process.env.MC_TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean)
+  )
+}
 
 // Re-export for external consumers
 export { extractClientIpFromTrusted } from './request'
@@ -44,7 +46,7 @@ export { extractClientIpFromTrusted } from './request'
  * Extract client IP using the global MC_TRUSTED_PROXIES set.
  */
 export function extractClientIp(request: Request): string {
-  return extractClientIpFromTrusted(request, TRUSTED_PROXIES)
+  return extractClientIpFromTrusted(request, trustedProxies())
 }
 
 export function createRateLimiter(options: RateLimiterOptions) {
@@ -92,6 +94,22 @@ export const loginLimiter = createRateLimiter({
   windowMs: 60_000,
   maxRequests: 5,
   message: 'Too many login attempts. Try again in a minute.',
+  critical: true,
+})
+
+/** Desktop-approved browser login creation: 10 attempts per five minutes per IP. */
+export const desktopBrowserRequestLimiter = createRateLimiter({
+  windowMs: 5 * 60_000,
+  maxRequests: 10,
+  message: 'Too many browser sign-in requests. Try again in five minutes.',
+  critical: true,
+})
+
+/** Browser polling: permits the documented two-second interval for five minutes. */
+export const desktopBrowserPollLimiter = createRateLimiter({
+  windowMs: 5 * 60_000,
+  maxRequests: 160,
+  message: 'Too many browser sign-in checks. Start a new sign-in request.',
   critical: true,
 })
 
@@ -230,6 +248,14 @@ export const passwordChangeLimiter = createKeyedRateLimiter({
   windowMs: 60_000,
   maxRequests: 5,
   message: 'Too many password change attempts. Try again in a minute.',
+  critical: true,
+})
+
+/** Desktop code approval: 10 attempts per five minutes per authenticated user. */
+export const desktopBrowserApprovalLimiter = createKeyedRateLimiter({
+  windowMs: 5 * 60_000,
+  maxRequests: 10,
+  message: 'Too many browser sign-in approval attempts. Try again in five minutes.',
   critical: true,
 })
 

@@ -43,6 +43,18 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  experimental: {
+    webpackMemoryOptimizations: true,
+    cpus: 1,
+  },
+  webpack: (config) => {
+    config.parallelism = 1
+    return config
+  },
+  // Keep native modules external so standalone Node resolves the binary built
+  // for the host ABI instead of searching for it beside bundled server chunks.
+  // `ws` also conditionally loads native acceleration that bundling can shim.
+  serverExternalPackages: ['better-sqlite3', 'node-pty', 'ws'],
   // Transpile ESM-only packages so they resolve correctly in all environments
   transpilePackages: ['react-markdown', 'remark-gfm'],
   

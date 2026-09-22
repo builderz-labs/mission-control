@@ -2,47 +2,16 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
+import { usePermissionMode } from '@/components/chat/use-permission-mode'
 import { useMissionControl, type ExecApprovalRequest } from '@/store'
 import { useWebSocket } from '@/lib/websocket'
 import { apiFetch, ApiError } from '@/lib/api-client'
-
-const RISK_BORDER: Record<ExecApprovalRequest['risk'], string> = {
-  low: 'border-l-green-500',
-  medium: 'border-l-yellow-500',
-  high: 'border-l-orange-500',
-  critical: 'border-l-red-500',
-}
-
-const RISK_BADGE: Record<ExecApprovalRequest['risk'], string> = {
-  low: 'bg-green-500/20 text-green-400',
-  medium: 'bg-yellow-500/20 text-yellow-400',
-  high: 'bg-orange-500/20 text-orange-400',
-  critical: 'bg-red-500/20 text-red-400',
-}
-
-function formatRemaining(ms: number): string {
-  const remaining = Math.max(0, ms)
-  const totalSeconds = Math.floor(remaining / 1000)
-  if (totalSeconds < 60) return `${totalSeconds}s`
-  const minutes = Math.floor(totalSeconds / 60)
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  return `${hours}h`
-}
-
-function MetaRow({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null
-  return (
-    <div className="flex justify-between text-xs py-0.5">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-mono text-foreground truncate ml-4 max-w-[300px]">{value}</span>
-    </div>
-  )
-}
+import { formatRemaining, MetaRow, RISK_BADGE, RISK_BORDER } from './exec-approval-ui'
 
 export function ExecApprovalOverlay() {
   const { execApprovals, updateExecApproval } = useMissionControl()
   const { sendMessage } = useWebSocket()
+  const permission = usePermissionMode()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, setTick] = useState(0)
@@ -113,6 +82,11 @@ export function ExecApprovalOverlay() {
     updateExecApproval(active.id, { status: newStatus as ExecApprovalRequest['status'] })
     setBusy(false)
   }, [active, busy, sendMessage, updateExecApproval])
+
+  useEffect(() => {
+    if (permission.mode !== 'bypass' || !active || busy || error) return
+    void handleDecision('allow-once')
+  }, [permission.mode, active, busy, error, handleDecision])
 
   if (!active) return null
 
