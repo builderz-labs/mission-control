@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const policy = db.prepare('SELECT COUNT(*) AS count FROM jev_policies WHERE workspace_id=?')
       .get(workspaceId) as { count: number }
 
-    const assistantOptions = jevAssistantOptions(isJevAssistantAvailable())
+    const assistantOptions = jevAssistantOptions(await isJevAssistantAvailable())
     const assistantDefault = resolveJevAssistantProvider()
     return NextResponse.json({ status: {
       configured: health.configured,
