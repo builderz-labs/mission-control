@@ -1,0 +1,64 @@
+name: config integrity
+
+# Fails when build/tool config files carry an appended hidden payload (long whitespace
+# run before code, obfuscator string arrays, campaign tag assignments) or when a VS Code
+# task is set to run automatically on folder open. See SECURITY.md.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Scan config files for hidden payloads
+        run: |
+          status=0
+          files=$(git ls-files | grep -E '(^|/)[^/]*\.config\.(js|mjs|cjs|ts|mts|cts)$' || true)
+          for f in $files; do
+            if grep -nE '[[:space:]]{200,}[^[:space:]]' "$f" >/dev/null; then
+              echo "::error file=$f::whitespace-padded code (hidden payload shape)"; status=1
+            fi
+            # A later variant drops the padding and simply appends the payload, so the
+            # file gains one enormous line. grep/git grep reject {1000,} (255 limit).
+            if awk 'length($0) > 1000 { found = 1 } END { exit !found }' "$f"; then
+              echo "::error file=$f::line over 1000 chars (appended payload shape)"; status=1
+            fi
+            if grep -nE "global(\[['\"][!_A-Za-z]{1,3}['\"]\]|\.i) ?= ?['\"][A-Z]?[0-9]{1,3}-[0-9*][0-9A-Za-z*-]{0,12}" "$f" >/dev/null; then
+              echo "::error file=$f::campaign tag assignment"; status=1
+            fi
+            if [ "$(grep -oE '_0x[0-9a-f]{4,}' "$f" | sort -u | wc -l)" -ge 5 ]; then
+              echo "::error file=$f::obfuscator identifiers"; status=1
+            fi
+          done
+          exit $status
+
+      - name: Reject auto-run VS Code tasks
+        run: |
+          status=0
+          for f in $(git ls-files | grep -E '(^|/)\.vscode/tasks\.json$' || true); do
+            if grep -q '"folderOpen"' "$f"; then
+              echo "::error file=$f::task runs automatically on folder open"; status=1
+            fi
+          done
+          exit $status
+
+      - name: Reject font files that are not fonts
+        run: |
+          status=0
+          for f in $(git ls-files | grep -iE '\.(woff2?|ttf|otf)$' || true); do
+            magic=$(head -c 4 "$f" | od -An -tx1 | tr -d ' \n')
+            case "$magic" in
+              774f4632|774f4646|00010000|4f54544f|74727565|74746366) ;;
+              *) echo "::error file=$f::not a real font file (magic $magic)"; status=1 ;;
+            esac
+          done
+          exit $status
