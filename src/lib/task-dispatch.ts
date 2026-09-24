@@ -14,7 +14,7 @@ import { config } from './config'
 import { getAllGatewaySessions } from './sessions'
 import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from './transcript-parser'
 import { syncTaskOutbound } from './github-sync-engine'
-import { classifyModelProvider, getDispatchModelId, getModelByAlias } from './models'
+import { classifyModelProvider, getDispatchModelId, getModelByAlias, getModelByName } from './models'
 import { getMiniMaxApiKey, resolveMiniMaxEndpoint } from './minimax'
 import type Database from 'better-sqlite3'
 
@@ -641,6 +641,10 @@ function getAnthropicApiKey(): string | null {
   return (process.env.ANTHROPIC_API_KEY || '').trim() || null
 }
 
+function getAtlasCloudApiKey(): string | null {
+  return (process.env.ATLASCLOUD_API_KEY || '').trim() || null
+}
+
 function isGatewayAvailable(): boolean {
   // `config.openclawHome` defaults to `~/.openclaw` even when OpenClaw is not
   // installed, so a truthy path string alone is not evidence that a gateway
@@ -821,7 +825,9 @@ async function callClaudeDirectly(
 //   anything else (incl. "claude-*")                      → Anthropic
 // ---------------------------------------------------------------------------
 
-export type DirectProvider = 'anthropic' | 'openai' | 'local' | 'minimax'
+export type DirectProvider = 'anthropic' | 'openai' | 'atlascloud' | 'local' | 'minimax'
+
+const ATLASCLOUD_API_BASE = 'https://api.atlascloud.ai/v1'
 
 function getOpenAIApiKey(): string | null {
   return (process.env.OPENAI_API_KEY || '').trim() || null
@@ -851,6 +857,7 @@ export function pickProvider(model: string): DirectProvider {
   if (catalogProvider === 'openai') return 'openai'
   if (catalogProvider === 'ollama') return 'local'
   if (catalogProvider === 'minimax') return 'minimax'
+  if (catalogProvider === 'atlascloud') return 'atlascloud'
 
   // Prefix-match fallback for models not in the catalog — behavior for
   // unknown IDs is unchanged (default remains 'anthropic').
@@ -858,11 +865,12 @@ export function pickProvider(model: string): DirectProvider {
   if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
   if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
   if (m.startsWith('minimax/')) return 'minimax'
+  if (m.startsWith('atlascloud/')) return 'atlascloud'
   return 'anthropic'
 }
 
 function stripProviderPrefix(model: string): string {
-  return model.replace(/^(openai|local|ollama|lmstudio|litellm|anthropic|minimax)\//i, '')
+  return model.replace(/^(openai|atlascloud|local|ollama|lmstudio|litellm|anthropic|minimax)\//i, '')
 }
 
 /**
@@ -969,8 +977,9 @@ function isDirectDispatchAvailable(provider?: DirectProvider): boolean {
   if (provider === 'openai') return !!getOpenAIApiKey() || isCodexCliAvailable()
   if (provider === 'local') return !!getLocalEndpoint()
   if (provider === 'minimax') return !!getMiniMaxApiKey()
+  if (provider === 'atlascloud') return !!getAtlasCloudApiKey()
   return !!getAnthropicApiKey() || !!getOpenAIApiKey() || !!getLocalEndpoint()
-    || !!getMiniMaxApiKey() || isClaudeCliAvailable() || isCodexCliAvailable()
+    || !!getMiniMaxApiKey() || !!getAtlasCloudApiKey() || isClaudeCliAvailable() || isCodexCliAvailable()
 }
 
 /**
@@ -1261,6 +1270,12 @@ async function callMiniMaxAnthropicCompatible(
   return { text, sessionId: null }
 }
 
+async function callAtlasCloudDirectly(task: DispatchableTask, prompt: string, model: string): Promise<AgentResponseParsed> {
+  const apiKey = getAtlasCloudApiKey()
+  if (!apiKey) throw new Error('ATLASCLOUD_API_KEY not set — cannot dispatch to Atlas Cloud without gateway')
+  return callOpenAICompatible(task, prompt, ATLASCLOUD_API_BASE, apiKey, stripProviderPrefix(model), 'atlascloud')
+}
+
 async function callMiniMaxDirectly(
   task: DispatchableTask,
   prompt: string,
@@ -1370,6 +1385,7 @@ async function callDirectly(task: DispatchableTask, prompt: string): Promise<Age
   const model = classifyDirectModel(task)
   const provider = pickProvider(model)
   if (provider === 'minimax') return callMiniMaxDirectly(task, prompt, model)
+  if (provider === 'atlascloud') return callAtlasCloudDirectly(task, prompt, model)
   if (provider === 'openai') return callOpenAIDirectly(task, prompt, model)
   if (provider === 'local') return callLocalDirectly(task, prompt, model)
   // Anthropic: prefer the host Claude Code CLI when available — it uses the
