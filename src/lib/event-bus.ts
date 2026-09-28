@@ -47,6 +47,8 @@ export type EventType =
   | 'run.eval_attached'
   | 'task.escalated'
   | 'session.updated'
+  | 'handoff.created'
+  | 'handoff.consumed'
 
 class ServerEventBus extends EventEmitter {
   private static instance: ServerEventBus | null = null

@@ -485,6 +485,57 @@ const TOOLS = [
     },
   },
 
+  // --- Handoffs ---
+  {
+    name: 'mc_get_handoff',
+    description: 'Get the latest unconsumed handoff brief addressed to an agent (call at session start to pick up context from another agent/runtime)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        to_agent: { type: 'string', description: 'Agent name the brief is addressed to' },
+        task_id: { type: 'number', description: 'Optional: scope to a specific task' },
+      },
+      required: ['to_agent'],
+    },
+    handler: async ({ to_agent, task_id }) => {
+      let qs = `?to_agent=${encodeURIComponent(to_agent)}`;
+      if (task_id != null) qs += `&task_id=${task_id}`;
+      return api('GET', `/api/handoffs${qs}`);
+    },
+  },
+  {
+    name: 'mc_create_handoff',
+    description: 'Create a structured handoff brief when handing a task to another agent/runtime (e.g. Claude Code handing back to Hermes/Telegram)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from_agent: { type: 'string', description: 'Agent creating the handoff' },
+        to_agent: { type: 'string', description: 'Agent the handoff is addressed to' },
+        task_id: { type: 'number', description: 'Related task ID, if any' },
+        task_summary: { type: 'string', description: 'What the task is' },
+        decisions_made: { type: 'array', items: { type: 'string' }, description: 'Key decisions made so far' },
+        key_context: { type: 'string', description: 'Any other context the receiving agent needs' },
+        next_steps: { type: 'array', items: { type: 'string' }, description: 'What to do next' },
+        open_questions: { type: 'array', items: { type: 'string' }, description: 'Unresolved questions' },
+        refs: { type: 'array', items: { type: 'string' }, description: 'File paths, URLs, or other references' },
+      },
+      required: ['from_agent', 'task_summary'],
+    },
+    handler: async (args) => api('POST', '/api/handoffs', args),
+  },
+  {
+    name: 'mc_consume_handoff',
+    description: 'Mark a handoff brief as consumed so it is not re-injected into a later session',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Handoff brief ID' },
+      },
+      required: ['id'],
+    },
+    handler: async ({ id }) => api('POST', `/api/handoffs/${id}/consume`, {}),
+  },
+
   // --- Connections ---
   {
     name: 'mc_list_connections',
