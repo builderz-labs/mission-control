@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { APP_VERSION } from '@/lib/version'
 import { getPluginNavItems } from '@/lib/plugins'
 import { apiFetch } from '@/lib/api-client'
+import { groupProjects } from '@/lib/project-groups'
 
 interface NavItem {
   id: string
@@ -720,6 +721,45 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
   onNewProject: () => void
 }) {
   const tcs = useTranslations('contextSwitcher')
+  const groupedProjects = groupProjects(projects)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const toggleGroup = (groupName: string) => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(groupName)) next.delete(groupName)
+      else next.add(groupName)
+      return next
+    })
+  }
+
+  const projectRow = (project: import('@/store').Project) => (
+    <Button
+      key={project.id}
+      variant="ghost"
+      onClick={() => onSwitchProject(project)}
+      className={`w-full flex items-center gap-2 px-2 py-1 h-auto rounded-md text-[11px] justify-start ${
+        activeProject?.id === project.id ? 'text-primary bg-primary/5 hover:bg-primary/10' : 'text-foreground hover:bg-secondary/60'
+      }`}
+    >
+      <div
+        className={`w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold shrink-0 ${
+          !project.color ? (project.status === 'active' ? 'bg-blue-500/20 text-blue-400' : 'bg-muted-foreground/10 text-muted-foreground') : ''
+        }`}
+        style={project.color ? { backgroundColor: `${project.color}33`, color: project.color } : undefined}
+      >{project.ticket_prefix?.slice(0, 2) || project.name?.[0]?.toUpperCase() || 'P'}</div>
+      <span className="truncate">{project.name}</span>
+      <div className="flex items-center gap-1 ml-auto shrink-0">
+        {typeof project.task_count === 'number' && project.task_count > 0 && (
+          <span className="text-[9px] bg-white/10 px-1 rounded text-muted-foreground/50">{project.task_count}</span>
+        )}
+        {project.deadline && project.deadline < Math.floor(Date.now() / 1000) && (
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="Overdue" />
+        )}
+        <span className="text-muted-foreground/30 text-[10px]">{project.ticket_prefix}</span>
+      </div>
+    </Button>
+  )
+
   return (
     <div>
       <Button
@@ -754,33 +794,27 @@ function OrgRow({ label, initial, active, colorClass, onClick, isActiveOrg, proj
             </div>
             {tcs('all')}
           </Button>
-          {projects.map((project) => (
-            <Button
-              key={project.id}
-              variant="ghost"
-              onClick={() => onSwitchProject(project)}
-              className={`w-full flex items-center gap-2 px-2 py-1 h-auto rounded-md text-[11px] justify-start ${
-                activeProject?.id === project.id ? 'text-primary bg-primary/5 hover:bg-primary/10' : 'text-foreground hover:bg-secondary/60'
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold shrink-0 ${
-                  !project.color ? (project.status === 'active' ? 'bg-blue-500/20 text-blue-400' : 'bg-muted-foreground/10 text-muted-foreground') : ''
-                }`}
-                style={project.color ? { backgroundColor: `${project.color}33`, color: project.color } : undefined}
-              >{project.ticket_prefix?.slice(0, 2) || project.name?.[0]?.toUpperCase() || 'P'}</div>
-              <span className="truncate">{project.name}</span>
-              <div className="flex items-center gap-1 ml-auto shrink-0">
-                {typeof project.task_count === 'number' && project.task_count > 0 && (
-                  <span className="text-[9px] bg-white/10 px-1 rounded text-muted-foreground/50">{project.task_count}</span>
-                )}
-                {project.deadline && project.deadline < Math.floor(Date.now() / 1000) && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="Overdue" />
-                )}
-                <span className="text-muted-foreground/30 text-[10px]">{project.ticket_prefix}</span>
+          {groupedProjects.ungrouped.map(projectRow)}
+          {groupedProjects.groups.map((group) => {
+            const collapsed = collapsedGroups.has(group.name)
+            return (
+              <div key={group.name} className="mt-0.5">
+                <button
+                  type="button"
+                  aria-expanded={!collapsed}
+                  onClick={() => toggleGroup(group.name)}
+                  className="w-full flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground rounded-md"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 transition-transform ${collapsed ? '-rotate-90' : ''}`}>
+                    <polyline points="4,6 8,10 12,6" />
+                  </svg>
+                  <span className="truncate">{group.name}</span>
+                  <span className="ml-auto text-[9px] text-muted-foreground/50">{group.projects.length}</span>
+                </button>
+                {!collapsed && <div className="pl-2">{group.projects.map(projectRow)}</div>}
               </div>
-            </Button>
-          ))}
+            )
+          })}
           <Button
             variant="ghost"
             onClick={onNewProject}

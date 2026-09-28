@@ -1,0 +1,62 @@
+export interface GroupableProject {
+  name: string
+  group_name?: string | null
+}
+
+/** Query value used by task filters for projects without a group. */
+export const UNGROUPED_PROJECT_GROUP = '__ungrouped__'
+
+export interface ProjectGroupIdentity {
+  key: string
+  name: string | null
+  isUngrouped: boolean
+}
+
+/** Stable UI identity; a real group named like the API sentinel remains distinct. */
+export function projectGroupIdentity(groupName?: string | null): ProjectGroupIdentity {
+  const name = normalizedProjectGroup(groupName)
+  return name
+    ? { key: `group:${name}`, name, isUngrouped: false }
+    : { key: UNGROUPED_PROJECT_GROUP, name: null, isUngrouped: true }
+}
+
+export interface ProjectGroup<T> {
+  name: string
+  projects: T[]
+}
+
+function compareNames(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { sensitivity: 'base' })
+}
+
+export function normalizedProjectGroup(groupName?: string | null): string | null {
+  const normalized = groupName?.trim()
+  return normalized || null
+}
+
+export function groupProjects<T extends GroupableProject>(projects: T[]): {
+  ungrouped: T[]
+  groups: ProjectGroup<T>[]
+} {
+  const ungrouped: T[] = []
+  const grouped = new Map<string, T[]>()
+
+  for (const project of projects) {
+    const groupName = project.group_name?.trim()
+    if (!groupName) {
+      ungrouped.push(project)
+      continue
+    }
+    const current = grouped.get(groupName) || []
+    current.push(project)
+    grouped.set(groupName, current)
+  }
+
+  ungrouped.sort((a, b) => compareNames(a.name, b.name))
+  const groups = Array.from(grouped, ([name, groupedProjects]) => ({
+    name,
+    projects: groupedProjects.sort((a, b) => compareNames(a.name, b.name)),
+  })).sort((a, b) => compareNames(a.name, b.name))
+
+  return { ungrouped, groups }
+}
