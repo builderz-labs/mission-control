@@ -95,9 +95,367 @@
     {
       "name": "Docs",
       "description": "API documentation"
+    },
+    {
+      "name": "A2A",
+      "description": "Agent-to-agent messaging: threads, inboxes and push delivery to agent runtimes"
     }
   ],
   "paths": {
+    "/api/a2a/messages": {
+      "get": {
+        "tags": [
+          "A2A"
+        ],
+        "summary": "Read an agent inbox",
+        "description": "Messages addressed to the agent, newest first. Agent-scoped API keys can only read their own inbox; other callers pass `agent` or the X-Agent-Name header.",
+        "operationId": "getA2AInbox",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agent whose inbox to read"
+          },
+          {
+            "name": "unread",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Set to 1 for unread messages only"
+          },
+          {
+            "name": "mark_read",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Set to 1 to mark the returned messages read"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Only messages after this unix timestamp"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Max messages (default 50, max 200)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inbox",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agent": {
+                      "type": "string"
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/A2AMessage"
+                      }
+                    },
+                    "unread": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "A2A"
+        ],
+        "summary": "Send a message to another agent",
+        "description": "Stores the message in the recipient inbox and pushes it to the recipient runtime when one is reachable (Hermes webhook or OpenClaw session). Content is scanned for prompt injection.",
+        "operationId": "sendA2AMessage",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "description": "Recipient agent (optional when reply_to is set)"
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "message",
+                      "request",
+                      "handoff",
+                      "reply"
+                    ]
+                  },
+                  "subject": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "thread_id": {
+                    "type": "string",
+                    "description": "Continue an existing thread"
+                  },
+                  "reply_to": {
+                    "type": "integer",
+                    "description": "Message id being answered; implies thread and recipient"
+                  },
+                  "task_id": {
+                    "type": "integer"
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "Sender agent; ignored for agent-scoped keys unless it matches"
+                  }
+                },
+                "required": [
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Message sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/A2AMessage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "description": "Blocked by the prompt-injection filter"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/a2a/messages/read": {
+      "post": {
+        "tags": [
+          "A2A"
+        ],
+        "summary": "Mark inbox messages read",
+        "description": "Marks messages addressed to the agent as read, by id, by thread, or the whole inbox.",
+        "operationId": "markA2AMessagesRead",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string"
+                  },
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "thread_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Messages marked read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agent": {
+                      "type": "string"
+                    },
+                    "updated": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/a2a/threads": {
+      "get": {
+        "tags": [
+          "A2A"
+        ],
+        "summary": "List A2A threads",
+        "operationId": "listA2AThreads",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only threads this agent takes part in"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Max threads (default 50)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Threads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "threads": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/A2AThreadSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/a2a/threads/{id}": {
+      "get": {
+        "tags": [
+          "A2A"
+        ],
+        "summary": "Get an A2A thread",
+        "operationId": "getA2AThread",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Thread id, with or without the a2a: prefix"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Max messages (default 500)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread messages, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "thread_id": {
+                      "type": "string"
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/A2AMessage"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/activities": {
       "get": {
         "tags": [
@@ -11820,6 +12178,118 @@
       }
     },
     "schemas": {
+      "A2AMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "thread_id": {
+            "type": "string",
+            "description": "Thread id, `a2a:<id>`"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "message",
+              "request",
+              "handoff",
+              "reply"
+            ]
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reply_to": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "task_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "delivery": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "inbox",
+                  "hermes",
+                  "openclaw"
+                ]
+              },
+              "delivered": {
+                "type": "boolean",
+                "description": "Pushed to a live runtime (the inbox copy is always stored)"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "at": {
+                "type": "integer"
+              }
+            }
+          },
+          "read_at": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "integer"
+          }
+        }
+      },
+      "A2AThreadSummary": {
+        "type": "object",
+        "properties": {
+          "thread_id": {
+            "type": "string"
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "message_count": {
+            "type": "integer"
+          },
+          "unread_count": {
+            "type": "integer"
+          },
+          "last_message": {
+            "$ref": "#/components/schemas/A2AMessage"
+          }
+        }
+      },
       "Error": {
         "type": "object",
         "required": [
