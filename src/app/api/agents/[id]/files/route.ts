@@ -67,7 +67,7 @@ export async function GET(
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
     const agentConfig = agent.config ? JSON.parse(agent.config) : {}
-    const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name)
+    const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name, agent.workspace_path)
     if (candidates.length === 0) {
       return NextResponse.json({ error: 'Agent workspace is not configured' }, { status: 400 })
     }
@@ -130,7 +130,7 @@ export async function PUT(
     if (!agent) return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
 
     const agentConfig = agent.config ? JSON.parse(agent.config) : {}
-    const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name)
+    const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name, agent.workspace_path)
     const safeWorkspace = candidates[0]
     if (!safeWorkspace) {
       return NextResponse.json({ error: 'Agent workspace is not configured' }, { status: 400 })
