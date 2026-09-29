@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { THEMES, THEME_IDS, isThemeDark } from '../themes'
+import { DEFAULT_THEME, LIGHT_THEME_IDS, THEMES, THEME_IDS, isThemeDark } from '../themes'
 
 describe('THEMES', () => {
   it('has entries', () => {
@@ -54,5 +54,19 @@ describe('isThemeDark', () => {
   it('returns correct value for known themes', () => {
     expect(isThemeDark('light')).toBe(false)
     expect(isThemeDark('void')).toBe(true)
+  })
+})
+
+describe('default theme', () => {
+  it('is the Swiss light theme', () => {
+    expect(DEFAULT_THEME).toBe('swiss')
+    expect(THEME_IDS).toContain(DEFAULT_THEME)
+    expect(isThemeDark(DEFAULT_THEME)).toBe(false)
+  })
+
+  it('lists exactly the light themes for the pre-paint script', () => {
+    expect(LIGHT_THEME_IDS).toEqual(THEMES.filter(t => t.group === 'light').map(t => t.id))
+    expect(LIGHT_THEME_IDS).toContain('swiss')
+    expect(LIGHT_THEME_IDS).not.toContain('void')
   })
 })

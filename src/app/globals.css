@@ -1068,6 +1068,219 @@
   --surface-3: 40 20% 82%;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Swiss — light neobrutalist theme.
+   International Typographic Style meets neobrutalism: warm paper, pure-ink
+   rules, Swiss red, square corners, hard offset shadows, no blur or glow.
+   Everything is scoped to `.swiss` so other themes are unaffected.
+   ───────────────────────────────────────────────────────────────────────── */
+.swiss {
+  --background: 45 22% 94%;
+  --foreground: 0 0% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 4%;
+  --primary: 350 100% 45%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 18% 89%;
+  --secondary-foreground: 0 0% 4%;
+  --muted: 45 16% 88%;
+  --muted-foreground: 0 0% 30%;
+  --accent: 51 100% 50%;
+  --accent-foreground: 0 0% 4%;
+  --destructive: 350 100% 42%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 4%;
+  --input: 0 0% 4%;
+  --ring: 350 100% 45%;
+  --void-cyan: 226 100% 42%;
+  --void-mint: 150 100% 26%;
+  --void-amber: 36 100% 38%;
+  --void-violet: 263 70% 42%;
+  --void-crimson: 350 100% 45%;
+  --success: 150 100% 26%;
+  --success-foreground: 0 0% 100%;
+  --warning: 45 100% 50%;
+  --warning-foreground: 0 0% 4%;
+  --info: 226 100% 45%;
+  --info-foreground: 0 0% 100%;
+  --surface-0: 45 22% 94%;
+  --surface-1: 0 0% 100%;
+  --surface-2: 45 18% 90%;
+  --surface-3: 45 14% 84%;
+
+  /* Square corners everywhere except true circles (rounded-full). */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius: 0px;
+
+  /* Flat: no frosted glass. */
+  --blur-xs: 0px;
+  --blur-sm: 0px;
+  --blur-md: 0px;
+  --blur-lg: 0px;
+  --blur-xl: 0px;
+  --blur-2xl: 0px;
+  --blur-3xl: 0px;
+
+  --swiss-ink: hsl(0 0% 4%);
+  --swiss-shadow-sm: 2px 2px 0 0 var(--swiss-ink);
+  --swiss-shadow: 4px 4px 0 0 var(--swiss-ink);
+  --swiss-shadow-lg: 6px 6px 0 0 var(--swiss-ink);
+
+  color-scheme: light;
+}
+
+.swiss ::selection {
+  background: hsl(51 100% 50%);
+  color: hsl(0 0% 4%);
+}
+
+/* Utilities Tailwind inlines rather than reading from variables. */
+.swiss .rounded,
+.swiss .rounded-sm,
+.swiss .rounded-xs {
+  border-radius: 0;
+}
+.swiss [class*='backdrop-blur'] {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.swiss .shadow-xs,
+.swiss .shadow-sm { --tw-shadow: var(--swiss-shadow-sm); }
+.swiss .shadow,
+.swiss .shadow-md { --tw-shadow: var(--swiss-shadow); }
+.swiss .shadow-lg,
+.swiss .shadow-xl,
+.swiss .shadow-2xl { --tw-shadow: var(--swiss-shadow-lg); }
+
+/* Typography: tight, heavy headings; tracked caps. */
+.swiss h1,
+.swiss h2,
+.swiss h3 {
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+.swiss h1 { letter-spacing: -0.035em; }
+.swiss .uppercase { letter-spacing: 0.08em; }
+.swiss .font-mono { letter-spacing: 0; }
+
+/* Cards and dialogs: 2px ink frame + hard offset shadow. */
+.swiss .bg-card.border,
+.swiss .rounded-xl.border,
+.swiss [role='dialog'] {
+  border-width: 2px;
+  box-shadow: var(--swiss-shadow);
+}
+.swiss [role='dialog'] { box-shadow: var(--swiss-shadow-lg); }
+
+/* Form fields: ink frame, red focus, no glow. */
+.swiss input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.swiss textarea,
+.swiss select {
+  border-color: var(--swiss-ink);
+  background-color: hsl(0 0% 100%);
+}
+.swiss input:focus-visible,
+.swiss textarea:focus-visible,
+.swiss select:focus-visible,
+.swiss button:focus-visible,
+.swiss a:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  --tw-ring-shadow: 0 0 #0000;
+}
+
+/* Buttons: blocky, pressable. */
+.swiss [data-slot='button'] {
+  font-weight: 700;
+  transition-property: transform, box-shadow, background-color, color;
+}
+.swiss [data-slot='button'][data-variant='default'],
+.swiss [data-slot='button'][data-variant='outline'],
+.swiss [data-slot='button'][data-variant='secondary'],
+.swiss [data-slot='button'][data-variant='destructive'],
+.swiss [data-slot='button'][data-variant='success'] {
+  border: 2px solid var(--swiss-ink);
+  box-shadow: var(--swiss-shadow-sm);
+}
+.swiss [data-slot='button'][data-variant='outline'],
+.swiss [data-slot='button'][data-variant='secondary'] {
+  background-color: hsl(0 0% 100%);
+  color: var(--swiss-ink);
+}
+.swiss [data-slot='button'][data-variant='default']:hover { background-color: hsl(var(--primary)); }
+.swiss [data-slot='button'][data-variant='outline']:hover,
+.swiss [data-slot='button'][data-variant='secondary']:hover,
+.swiss [data-slot='button'][data-variant='ghost']:hover {
+  background-color: hsl(var(--accent));
+  color: var(--swiss-ink);
+}
+.swiss [data-slot='button'][data-variant='destructive'] {
+  background-color: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+}
+.swiss [data-slot='button'][data-variant='success'] {
+  background-color: hsl(var(--success));
+  color: hsl(var(--success-foreground));
+}
+.swiss [data-slot='button']:not(:disabled):hover {
+  transform: translate(-1px, -1px);
+}
+.swiss [data-slot='button'][data-variant='default']:not(:disabled):hover,
+.swiss [data-slot='button'][data-variant='outline']:not(:disabled):hover,
+.swiss [data-slot='button'][data-variant='secondary']:not(:disabled):hover,
+.swiss [data-slot='button'][data-variant='destructive']:not(:disabled):hover,
+.swiss [data-slot='button'][data-variant='success']:not(:disabled):hover {
+  box-shadow: 3px 3px 0 0 var(--swiss-ink);
+}
+.swiss [data-slot='button']:not(:disabled):active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+/* Links read as links. */
+.swiss a.text-primary:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Scrollbars: thin ink bars on paper. */
+.swiss * { scrollbar-color: hsl(0 0% 4% / 0.55) transparent; }
+
+/* Dark-theme accent text (text-*-200/300/400) is too faint on paper;
+   map it to ink-strength tones of the same hue. */
+.swiss .text-red-200, .swiss .text-red-300, .swiss .text-red-400 { color: #C8001F; }
+.swiss .text-rose-200, .swiss .text-rose-300, .swiss .text-rose-400 { color: #C8001F; }
+.swiss .text-pink-200, .swiss .text-pink-300, .swiss .text-pink-400 { color: #B0005A; }
+.swiss .text-emerald-200, .swiss .text-emerald-300, .swiss .text-emerald-400 { color: #007A3D; }
+.swiss .text-green-200, .swiss .text-green-300, .swiss .text-green-400 { color: #007A3D; }
+.swiss .text-lime-200, .swiss .text-lime-300, .swiss .text-lime-400 { color: #3F7A00; }
+.swiss .text-teal-200, .swiss .text-teal-300, .swiss .text-teal-400 { color: #00706A; }
+.swiss .text-amber-200, .swiss .text-amber-300, .swiss .text-amber-400 { color: #9A5700; }
+.swiss .text-yellow-200, .swiss .text-yellow-300, .swiss .text-yellow-400 { color: #8A6400; }
+.swiss .text-orange-200, .swiss .text-orange-300, .swiss .text-orange-400 { color: #B34700; }
+.swiss .text-blue-200, .swiss .text-blue-300, .swiss .text-blue-400 { color: #0033CC; }
+.swiss .text-sky-200, .swiss .text-sky-300, .swiss .text-sky-400 { color: #0060B0; }
+.swiss .text-cyan-200, .swiss .text-cyan-300, .swiss .text-cyan-400 { color: #006C8A; }
+.swiss .text-indigo-200, .swiss .text-indigo-300, .swiss .text-indigo-400 { color: #2F2FB8; }
+.swiss .text-violet-200, .swiss .text-violet-300, .swiss .text-violet-400 { color: #5B21B6; }
+.swiss .text-purple-200, .swiss .text-purple-300, .swiss .text-purple-400 { color: #6B1FA8; }
+.swiss .text-fuchsia-200, .swiss .text-fuchsia-300, .swiss .text-fuchsia-400 { color: #9A1A8E; }
+.swiss .text-gray-200, .swiss .text-gray-300, .swiss .text-gray-400 { color: #4D4D4D; }
+.swiss .text-slate-200, .swiss .text-slate-300, .swiss .text-slate-400 { color: #4A5361; }
+.swiss .text-zinc-200, .swiss .text-zinc-300, .swiss .text-zinc-400 { color: #4D4D4D; }
+.swiss .text-neutral-200, .swiss .text-neutral-300, .swiss .text-neutral-400 { color: #4D4D4D; }
+
+@media (prefers-reduced-motion: reduce) {
+  .swiss [data-slot='button'] { transition: none; }
+  .swiss [data-slot='button']:not(:disabled):hover,
+  .swiss [data-slot='button']:not(:disabled):active { transform: none; }
+}
+
 /* Themed backgrounds */
 .synthwave-bg {
   background-image:

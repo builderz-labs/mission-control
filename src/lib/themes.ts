@@ -16,9 +16,16 @@ export const THEMES: ThemeMeta[] = [
   { id: 'nord', label: 'Nord', group: 'dark', swatch: '#88C0D0' },
   { id: 'vercel', label: 'Vercel', group: 'dark', swatch: '#EDEDED' },
   { id: 'retro-terminal', label: 'Retro Terminal', group: 'dark', swatch: '#00FF41', background: 'terminal-bg' },
+  { id: 'swiss', label: 'Swiss', group: 'light', swatch: '#E4002B' },
   { id: 'light', label: 'Light', group: 'light', swatch: '#6B7280' },
   { id: 'paper', label: 'Paper', group: 'light', swatch: '#8B6914' },
 ]
+
+/** Theme used when the user has not picked one. */
+export const DEFAULT_THEME = 'swiss'
+
+/** Light theme IDs; every other theme gets the `dark` class on <html>. */
+export const LIGHT_THEME_IDS = THEMES.filter(t => t.group === 'light').map(t => t.id)
 
 /** All theme IDs for the next-themes `themes` prop. */
 export const THEME_IDS = THEMES.map(t => t.id)
