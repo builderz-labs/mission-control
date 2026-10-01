@@ -12,6 +12,10 @@ const DEFAULT_MODEL_PRICING: ModelPricing = {
   outputPerMTok: 15.0,
 }
 
+// Ollama serves models on the user's own hardware, so any model it runs is free --
+// not only the few listed in MODEL_PRICING below.
+const LOCAL_MODEL_PRICING: ModelPricing = { inputPerMTok: 0, outputPerMTok: 0 }
+
 const MODEL_PRICING: Record<string, ModelPricing> = {
   'anthropic/claude-3-5-haiku-latest': { inputPerMTok: 0.8, outputPerMTok: 4.0 },
   // Opus 4.5/4.6/4.7 = $5/$25 (only the older Opus 4.1/4 line is $15/$75);
@@ -68,6 +72,7 @@ function normalizedModelName(modelName: string): string {
 export function getModelPricing(modelName: string): ModelPricing {
   const normalized = normalizedModelName(modelName)
   if (MODEL_PRICING[normalized] !== undefined) return MODEL_PRICING[normalized]
+  if (getProviderFromModel(normalized) === 'ollama') return LOCAL_MODEL_PRICING
 
   for (const [model, pricing] of Object.entries(MODEL_PRICING)) {
     const shortName = model.split('/').pop() || model
