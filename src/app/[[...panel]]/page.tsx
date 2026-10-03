@@ -38,6 +38,8 @@ import { NodesPanel } from '@/components/panels/nodes-panel'
 import { ExecApprovalPanel } from '@/components/panels/exec-approval-panel'
 import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
+import { DomainWorkspacePanel } from '@/components/panels/domain-workspace-panel'
+import { ProjectsOverviewPanel } from '@/components/panels/projects-overview-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
@@ -99,7 +101,7 @@ export default function Home() {
   const tb = useTranslations('boot')
   const tp = useTranslations('page')
   const tc = useTranslations('common')
-  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setLocalSessionsAvailable, setCapabilitiesChecked, setSubscription, setDefaultOrgName, setUpdateAvailable, setOpenclawUpdate, showOnboarding, setShowOnboarding, liveFeedOpen, toggleLiveFeed, showProjectManagerModal, setShowProjectManagerModal, fetchProjects, setChatPanelOpen, bootComplete, setBootComplete, setAgents, setSessions, setProjects, setInterfaceMode, setMemoryGraphAgents, setSkillsData } = useMissionControl()
+  const { activeTab, setActiveTab, setCurrentUser, setDashboardMode, setGatewayAvailable, setLocalSessionsAvailable, setCapabilitiesChecked, setSubscription, setDefaultOrgName, setUpdateAvailable, setOpenclawUpdate, showOnboarding, setShowOnboarding, liveFeedOpen, toggleLiveFeed, showProjectManagerModal, setShowProjectManagerModal, fetchProjects, setChatPanelOpen, bootComplete, setBootComplete, setAgents, setSessions, setProjects, setTasks, setInterfaceMode, setMemoryGraphAgents, setSkillsData } = useMissionControl()
 
   // Sync URL → Zustand activeTab
   const pathname = usePathname()
@@ -420,6 +422,10 @@ export default function Home() {
           if (projectsData?.projects) setProjects(projectsData.projects as Parameters<typeof setProjects>[0])
         })
         .finally(() => { markStep('projects') }),
+      apiFetch<{ tasks?: unknown }>('/api/tasks?limit=200')
+        .then((tasksData) => {
+          if (tasksData?.tasks) setTasks(tasksData.tasks as Parameters<typeof setTasks>[0])
+        }),
       // Memory graph can be slow — don't block boot
       (() => {
         markStep('memory')
@@ -436,7 +442,7 @@ export default function Home() {
     ]).catch(() => { /* panels will lazy-load as fallback */ })
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- boot once on mount, not on every pathname change
-  }, [connect, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setLocalSessionsAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable, setShowOnboarding, setAgents, setSessions, setProjects, setInterfaceMode, setMemoryGraphAgents, setSkillsData])
+  }, [connect, router, setCurrentUser, setDashboardMode, setGatewayAvailable, setLocalSessionsAvailable, setCapabilitiesChecked, setSubscription, setUpdateAvailable, setShowOnboarding, setAgents, setSessions, setProjects, setTasks, setInterfaceMode, setMemoryGraphAgents, setSkillsData])
 
   if (!isClient || !bootComplete) {
     return <Loader variant="page" steps={isClient ? initSteps : undefined} />
@@ -517,7 +523,8 @@ export default function Home() {
 }
 
 const ESSENTIAL_PANELS = new Set([
-  'overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings',
+  'overview', 'projects', 'marketing', 'development', 'agents', 'tasks', 'chat',
+  'activity', 'logs', 'usage', 'skills', 'automations', 'settings',
 ])
 
 function ContentRouter({ tab }: { tab: string }) {
@@ -569,6 +576,12 @@ function ContentRouter({ tab }: { tab: string }) {
           )}
         </>
       )
+    case 'projects':
+      return <ProjectsOverviewPanel />
+    case 'marketing':
+      return <DomainWorkspacePanel domain="marketing" />
+    case 'development':
+      return <DomainWorkspacePanel domain="development" />
     case 'tasks':
       return <TaskBoardPanel />
     case 'agents':
@@ -588,9 +601,11 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'logs':
       return <LogViewerPanel />
     case 'cron':
+    case 'automations':
       return <CronManagementPanel />
     case 'memory':
       return <MemoryBrowserPanel />
+    case 'usage':
     case 'cost-tracker':
     case 'tokens':
     case 'agent-costs':

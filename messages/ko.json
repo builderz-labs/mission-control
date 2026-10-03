@@ -78,7 +78,7 @@
     "testConnection": "연결 테스트"
   },
   "nav": {
-    "overview": "개요",
+    "overview": "홈",
     "agents": "에이전트",
     "tasks": "작업",
     "chat": "채팅",

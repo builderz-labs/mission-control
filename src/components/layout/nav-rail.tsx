@@ -30,54 +30,34 @@ const navGroups: NavGroup[] = [
   {
     id: 'core',
     items: [
-      { id: 'overview', label: 'Overview', icon: <OverviewIcon />, priority: true, essential: true },
-      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: true, essential: true },
-      { id: 'tasks', label: 'Tasks', icon: <TasksIcon />, priority: true, essential: true },
-      { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false, essential: true },
-      { id: 'channels', label: 'Channels', icon: <ChannelsIcon />, priority: false },
-      { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false },
-      { id: 'memory', label: 'Memory', icon: <MemoryIcon />, priority: false },
+      { id: 'overview', label: 'Home', icon: <OverviewIcon />, priority: true, essential: true },
+      { id: 'projects', label: 'Projects', icon: <TasksIcon />, priority: true, essential: true },
+      { id: 'marketing', label: 'Marketing', icon: <ChannelsIcon />, priority: true, essential: true },
+      { id: 'development', label: 'Development', icon: <NodesIcon />, priority: true, essential: true },
     ],
   },
   {
-    id: 'observe',
-    label: 'OBSERVE',
+    id: 'operate',
+    label: 'OPERATE',
     items: [
-      { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: true, essential: true },
-      { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false, essential: true },
-      { id: 'cost-tracker', label: 'Cost Tracker', icon: <TokensIcon />, priority: false },
-      { id: 'nodes', label: 'Nodes', icon: <NodesIcon />, priority: false },
-      { id: 'exec-approvals', label: 'Approvals', icon: <ApprovalsIcon />, priority: false },
-      { id: 'office', label: 'Office', icon: <OfficeIcon />, priority: false },
-      { id: 'monitor', label: 'Monitor', icon: <MonitorIcon />, priority: false },
+      { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: false, essential: true },
+      { id: 'usage', label: 'Usage', icon: <TokensIcon />, priority: false, essential: true },
+      { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false, essential: true },
+      { id: 'automations', label: 'Automations', icon: <CronIcon />, priority: false, essential: true },
+      { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: false, essential: true },
+      { id: 'tasks', label: 'All Tasks', icon: <TasksIcon />, priority: false, essential: true },
     ],
   },
   {
-    id: 'automate',
-    label: 'AUTOMATE',
+    id: 'advanced',
+    label: 'ADVANCED',
     items: [
-      { id: 'cron', label: 'Cron', icon: <CronIcon />, priority: false },
-      { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon />, priority: false },
-      { id: 'alerts', label: 'Alerts', icon: <AlertIcon />, priority: false },
+      { id: 'chat', label: 'Chat', icon: <ChatIcon />, priority: false },
+      { id: 'logs', label: 'Logs', icon: <LogsIcon />, priority: false },
       { id: 'github', label: 'GitHub', icon: <GitHubIcon />, priority: false },
-    ],
-  },
-  {
-    id: 'admin',
-    label: 'ADMIN',
-    items: [
-      { id: 'security', label: 'Security', icon: <SecurityIcon />, priority: false },
-      { id: 'users', label: 'Users', icon: <UsersIcon />, priority: false },
-      { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
-      {
-        id: 'gateway-parent', label: 'Gateway', icon: <GatewaysIcon />, priority: false,
-        children: [
-          { id: 'gateways', label: 'Gateways', icon: <GatewaysIcon />, priority: false },
-          { id: 'gateway-config', label: 'Config', icon: <GatewayConfigIcon />, priority: false },
-        ],
-      },
       { id: 'integrations', label: 'Integrations', icon: <IntegrationsIcon />, priority: false },
-      { id: 'debug', label: 'Debug', icon: <DebugIcon />, priority: false },
+      { id: 'security', label: 'Security', icon: <SecurityIcon />, priority: false },
+      { id: 'audit', label: 'Audit', icon: <AuditIcon />, priority: false },
       { id: 'settings', label: 'Settings', icon: <SettingsIcon />, priority: false, essential: true },
     ],
   },
@@ -255,7 +235,7 @@ export function NavRail() {
           </div>
           {sidebarExpanded && (
             <div className="flex items-baseline gap-2 truncate flex-1 min-w-0">
-              <span className="text-sm font-semibold text-foreground truncate">Mission Control</span>
+              <span className="text-sm font-semibold text-foreground truncate">AI Ops Hub</span>
               <span className="text-2xs text-muted-foreground font-mono-tight shrink-0">v{APP_VERSION}</span>
             </div>
           )}
@@ -945,7 +925,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                   onClick={async () => {
                     if (interfaceMode === 'essential') return
                     setInterfaceMode('essential')
-                    const essentialIds = new Set(['overview', 'agents', 'tasks', 'chat', 'activity', 'logs', 'settings'])
+                    const essentialIds = new Set(['overview', 'projects', 'marketing', 'development', 'agents', 'tasks', 'chat', 'activity', 'logs', 'usage', 'skills', 'automations', 'settings'])
                     if (!essentialIds.has(activeTab)) navigateToPanel('overview')
                     try { await apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify({ settings: { 'general.interface_mode': 'essential' } }) }) } catch {}
                   }}
