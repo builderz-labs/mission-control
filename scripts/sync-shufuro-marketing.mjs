@@ -74,7 +74,15 @@ async function upsertTask(project, queuePath, row, existingTasks) {
     return metadata.source_ref === row.episode && metadata.workflow === 'shufuro.content_publish'
   })
 
+  const existingMeta = existing?.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+    ? existing.metadata
+    : {}
+  const pendingDecision = row.status === 'REVIEW' && ['approved', 'changes_requested', 'held'].includes(existingMeta.human_approval)
+    ? existingMeta.human_approval
+    : null
+
   const metadata = {
+    ...existingMeta,
     domain: 'marketing',
     project_slug: 'shufuro',
     workflow: 'shufuro.content_publish',
@@ -88,14 +96,15 @@ async function upsertTask(project, queuePath, row, existingTasks) {
     timing: row.timing,
     selected_format: row.format,
     next_action: mapped.nextAction,
-    ...(mapped.approvalType ? { approval_type: mapped.approvalType } : {}),
+    approval_type: mapped.approvalType || null,
     ...(mapped.humanApproval ? { human_approval: mapped.humanApproval } : {}),
+    ...(pendingDecision ? { human_approval: pendingDecision } : {}),
   }
 
   const payload = {
     title: `Shufuro ${row.episode} — ${row.title}`,
     description: `Content OS order ${row.order}. Source status: ${row.status}. Format: ${row.format}.`,
-    status: mapped.status,
+    status: pendingDecision && existing ? existing.status : mapped.status,
     priority: 'high',
     project_id: project.id,
     tags: ['marketing', 'shufuro', 'content-os'],
