@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  runCommand: vi.fn(async () => ({ stdout: '', stderr: '', code: 0 })),
+  runCommand: vi.fn(
+    async (
+      _bin: string,
+      _args: string[],
+      _options: { env: Record<string, string>; timeoutMs: number },
+    ): Promise<{ stdout: string; stderr: string; code: number }> => ({ stdout: '', stderr: '', code: 0 }),
+  ),
   launch: null as null | { bin: string; prefixArgs: string[]; env: Record<string, string> },
 }))
 
