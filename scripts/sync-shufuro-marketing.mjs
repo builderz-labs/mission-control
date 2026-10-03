@@ -16,9 +16,7 @@ async function request(path, init = {}) {
   const text = await response.text()
   let body = {}
   try { body = text ? JSON.parse(text) : {} } catch {}
-  if (!response.ok) {
-    throw new Error(`${init.method || 'GET'} ${path} -> ${response.status}: ${text.slice(0, 300)}`)
-  }
+  if (!response.ok) throw new Error(`${init.method || 'GET'} ${path} -> ${response.status}: ${text.slice(0, 300)}`)
   return body
 }
 
@@ -27,56 +25,90 @@ function parseQueue(markdown) {
   for (const raw of markdown.split(/\r?\n/)) {
     const line = raw.trim()
     if (!/^\|\s*\d{3}\s*\|/.test(line)) continue
-    const cells = line
-      .split('|')
-      .slice(1, -1)
-      .map((cell) => cell.trim())
+    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim())
     if (cells.length < 9) continue
     const [order, type, series, episode, title, layer, timing, format, status] = cells
-    rows.push({
-      order,
-      type,
-      series,
-      episode,
-      title,
-      layer,
-      timing,
-      format,
-      status: status.toUpperCase(),
-    })
+    rows.push({ order, type, series, episode, title, layer, timing, format, status: status.toUpperCase() })
   }
   return rows
 }
 
 function mapTaskState(row) {
-  if (row.status === 'REVIEW') {
-    return {
-      status: 'review',
-      humanApproval: null,
-      approvalType: 'content',
-      nextAction: 'Founder review: approve, request changes, or hold',
-    }
+  if (row.status === 'REVIEW') return {
+    status: 'review',
+    approvalType: 'content',
+    humanApproval: null,
+    nextAction: 'Founder review: approve, request changes, or hold',
   }
-
-  if (row.status === 'READY') {
-    return {
-      status: 'in_progress',
-      humanApproval: 'approved',
-      approvalType: null,
-      nextAction: 'Render the selected format and run QA',
-    }
+  if (row.status === 'READY') return {
+    status: 'in_progress',
+    approvalType: null,
+    humanApproval: 'approved',
+    nextAction: 'Render the selected format and run QA',
   }
-
-  if (row.status === 'RENDERED') {
-    return {
-      status: 'in_progress',
-      humanApproval: 'approved',
-      approvalType: null,
-      nextAction: 'Publish the rendered asset and verify the final URL',
-    }
+  if (row.status === 'RENDERED') return {
+    status: 'in_progress',
+    approvalType: null,
+    humanApproval: 'approved',
+    nextAction: 'Publish the rendered asset and verify the final URL',
   }
-
   return null
+}
+
+function chooseActiveRows(rows) {
+  const currentExecution = rows.find((row) => row.status === 'READY' || row.status === 'RENDERED')
+  const nextReview = rows.find((row) => row.status === 'REVIEW')
+  const chosen = []
+  for (const row of [currentExecution, nextReview]) {
+    if (row && !chosen.some((item) => item.episode === row.episode)) chosen.push(row)
+  }
+  return chosen
+}
+
+async function upsertTask(project, queuePath, row, existingTasks) {
+  const mapped = mapTaskState(row)
+  if (!mapped) return null
+
+  const existing = existingTasks.find((task) => {
+    const metadata = task?.metadata && typeof task.metadata === 'object' ? task.metadata : {}
+    return metadata.source_ref === row.episode && metadata.workflow === 'shufuro.content_publish'
+  })
+
+  const metadata = {
+    domain: 'marketing',
+    project_slug: 'shufuro',
+    workflow: 'shufuro.content_publish',
+    source_ref: row.episode,
+    source_order: row.order,
+    source_status: row.status,
+    source_queue_path: queuePath,
+    content_type: row.type,
+    series: row.series,
+    layer: row.layer,
+    timing: row.timing,
+    selected_format: row.format,
+    next_action: mapped.nextAction,
+    ...(mapped.approvalType ? { approval_type: mapped.approvalType } : {}),
+    ...(mapped.humanApproval ? { human_approval: mapped.humanApproval } : {}),
+  }
+
+  const payload = {
+    title: `Shufuro ${row.episode} — ${row.title}`,
+    description: `Content OS order ${row.order}. Source status: ${row.status}. Format: ${row.format}.`,
+    status: mapped.status,
+    priority: 'high',
+    project_id: project.id,
+    tags: ['marketing', 'shufuro', 'content-os'],
+    metadata,
+  }
+
+  if (existing) {
+    const body = await request(`/api/tasks/${existing.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+    return { state: 'updated', taskId: body.task?.id || existing.id, sourceRef: row.episode, sourceStatus: row.status }
+  }
+
+  const body = await request('/api/tasks', { method: 'POST', body: JSON.stringify(payload) })
+  return { state: 'created', taskId: body.task?.id || null, sourceRef: row.episode, sourceStatus: row.status }
 }
 
 async function main() {
@@ -88,23 +120,10 @@ async function main() {
   const queuePath = shufuro?.paths?.marketingQueue
   if (!shufuro || !queuePath) throw new Error('Shufuro marketingQueue is not configured.')
 
-  const markdown = await readFile(queuePath, 'utf8')
-  const rows = parseQueue(markdown)
-  const firstOpen = rows.find((row) => !['POSTED', 'MEASURED', 'ARCHIVED'].includes(row.status))
-
-  if (!firstOpen) {
-    console.log(JSON.stringify({ state: 'idle', message: 'No open Shufuro marketing queue item.' }))
-    return
-  }
-
-  const mapped = mapTaskState(firstOpen)
-  if (!mapped) {
-    console.log(JSON.stringify({
-      state: 'waiting_content_os',
-      sourceRef: firstOpen.episode,
-      sourceStatus: firstOpen.status,
-      message: 'The earliest open queue item is not ready for human review or execution.',
-    }))
+  const rows = parseQueue(await readFile(queuePath, 'utf8'))
+  const activeRows = chooseActiveRows(rows)
+  if (activeRows.length === 0) {
+    console.log(JSON.stringify({ state: 'idle', message: 'No READY, RENDERED, or REVIEW Shufuro content item.' }))
     return
   }
 
@@ -113,63 +132,14 @@ async function main() {
   if (!project) throw new Error('Shufuro project does not exist in AI Ops Hub. Run pnpm aiops:bootstrap first.')
 
   const tasksBody = await request(`/api/tasks?project_id=${project.id}&limit=200`)
-  const existing = (tasksBody.tasks || []).find((task) => {
-    const metadata = task?.metadata && typeof task.metadata === 'object' ? task.metadata : {}
-    return metadata.source_ref === firstOpen.episode && metadata.workflow === 'shufuro.content_publish'
-  })
+  const existingTasks = tasksBody.tasks || []
 
-  const metadata = {
-    domain: 'marketing',
-    project_slug: 'shufuro',
-    workflow: 'shufuro.content_publish',
-    source_ref: firstOpen.episode,
-    source_order: firstOpen.order,
-    source_status: firstOpen.status,
-    source_queue_path: queuePath,
-    content_type: firstOpen.type,
-    series: firstOpen.series,
-    layer: firstOpen.layer,
-    timing: firstOpen.timing,
-    selected_format: firstOpen.format,
-    next_action: mapped.nextAction,
-    ...(mapped.approvalType ? { approval_type: mapped.approvalType } : {}),
-    ...(mapped.humanApproval ? { human_approval: mapped.humanApproval } : {}),
+  const results = []
+  for (const row of activeRows) {
+    const result = await upsertTask(project, queuePath, row, existingTasks)
+    if (result) results.push(result)
   }
-
-  const payload = {
-    title: `Shufuro ${firstOpen.episode} — ${firstOpen.title}`,
-    description: `Content OS order ${firstOpen.order}. Source status: ${firstOpen.status}. Format: ${firstOpen.format}.`,
-    status: mapped.status,
-    priority: 'high',
-    project_id: project.id,
-    tags: ['marketing', 'shufuro', 'content-os'],
-    metadata,
-  }
-
-  if (existing) {
-    const body = await request(`/api/tasks/${existing.id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    })
-    console.log(JSON.stringify({
-      state: 'updated',
-      taskId: body.task?.id || existing.id,
-      sourceRef: firstOpen.episode,
-      sourceStatus: firstOpen.status,
-    }))
-    return
-  }
-
-  const body = await request('/api/tasks', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-  console.log(JSON.stringify({
-    state: 'created',
-    taskId: body.task?.id || null,
-    sourceRef: firstOpen.episode,
-    sourceStatus: firstOpen.status,
-  }))
+  console.log(JSON.stringify({ state: 'synced', items: results }))
 }
 
 main().catch((error) => {

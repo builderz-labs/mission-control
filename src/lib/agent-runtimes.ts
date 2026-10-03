@@ -486,23 +486,53 @@ function detectBinary(bins: string[], versionFlag = '--version'): { installed: b
   const homedir = require('node:os').homedir()
   const path = require('node:path')
 
-  // Expand bare binary names with common install locations that may not be on PATH
+  // Expand bare binary names with common install locations that may not be on PATH.
+  // On Windows, npm/nvm CLIs are often .cmd shims, which spawnSync cannot reliably
+  // resolve from the extensionless command name. Resolve them through where.exe first.
   const candidates: string[] = []
   for (const bin of bins) {
-    if (!bin.includes('/')) {
-      candidates.push(
-        path.join(homedir, '.local', 'bin', bin),
-        path.join('/usr', 'local', 'bin', bin),
-        path.join(homedir, 'Library', 'pnpm', bin),  // macOS pnpm global
-        path.join(homedir, '.npm-global', 'bin', bin),
-      )
+    const isBare = !bin.includes('/') && !bin.includes('\\')
+    if (isBare) {
+      if (process.platform === 'win32') {
+        try {
+          const where = spawnSync('where.exe', [bin], { stdio: 'pipe', timeout: 3000 })
+          if (where.status === 0) {
+            for (const resolved of (where.stdout?.toString() || '').split(/\r?\n/)) {
+              const value = resolved.trim()
+              if (value) candidates.push(value)
+            }
+          }
+        } catch {
+          // Continue with conventional Windows install locations.
+        }
+
+        const appData = process.env.APPDATA || ''
+        const nvmSymlink = process.env.NVM_SYMLINK || ''
+        if (appData) {
+          candidates.push(path.join(appData, 'npm', bin), path.join(appData, 'npm', `${bin}.cmd`))
+        }
+        if (nvmSymlink) {
+          candidates.push(path.join(nvmSymlink, bin), path.join(nvmSymlink, `${bin}.cmd`))
+        }
+        candidates.push(
+          path.join(homedir, '.local', 'bin', `${bin}.exe`),
+          path.join(homedir, '.local', 'bin', bin),
+        )
+      } else {
+        candidates.push(
+          path.join(homedir, '.local', 'bin', bin),
+          path.join('/usr', 'local', 'bin', bin),
+          path.join(homedir, 'Library', 'pnpm', bin),  // macOS pnpm global
+          path.join(homedir, '.npm-global', 'bin', bin),
+        )
+      }
     }
     candidates.push(bin)
   }
 
   for (const bin of candidates) {
     try {
-      const result = spawnSync(bin, [versionFlag], { stdio: 'pipe', timeout: 3000 })
+      const result = spawnSync(bin, [versionFlag], { stdio: 'pipe', timeout: 3000, shell: process.platform === 'win32' })
       if (result.status === 0) {
         // Extract first meaningful line as version (skip wrapper/logging noise like [lacp])
         const rawOutput = (result.stdout?.toString() || '').trim()

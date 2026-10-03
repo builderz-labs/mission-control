@@ -7,7 +7,7 @@ Normal operation should require only human decisions, not terminal commands.
 2. Open http://127.0.0.1:3000
 3. Home shows Approval Inbox first.
 4. Approve / request changes / hold.
-5. Runner continues allowed workflow steps in the background.
+5. Runner continues allowed workflow steps in the background and re-syncs Shufuro Content OS approximately once per minute.
 
 ## First-time setup
 1. Start the hub:

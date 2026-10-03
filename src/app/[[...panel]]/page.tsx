@@ -40,6 +40,8 @@ import { SystemMonitorPanel } from '@/components/panels/system-monitor-panel'
 import { ChatPagePanel } from '@/components/panels/chat-page-panel'
 import { DomainWorkspacePanel } from '@/components/panels/domain-workspace-panel'
 import { ProjectsOverviewPanel } from '@/components/panels/projects-overview-panel'
+import { AiOpsAgentsPanel } from '@/components/panels/ai-ops-agents-panel'
+import { AiOpsUsagePanel } from '@/components/panels/ai-ops-usage-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
@@ -585,13 +587,7 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'tasks':
       return <TaskBoardPanel />
     case 'agents':
-      return (
-        <>
-          <OrchestrationBar />
-          {isLocal && <LocalAgentsDocPanel />}
-          <AgentSquadPanelPhase3 />
-        </>
-      )
+      return <AiOpsAgentsPanel />
     case 'notifications':
       return <NotificationsPanel />
     case 'standup':
@@ -606,6 +602,7 @@ function ContentRouter({ tab }: { tab: string }) {
     case 'memory':
       return <MemoryBrowserPanel />
     case 'usage':
+      return <AiOpsUsagePanel />
     case 'cost-tracker':
     case 'tokens':
     case 'agent-costs':
