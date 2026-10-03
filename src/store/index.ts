@@ -243,7 +243,7 @@ export interface Conversation {
     prefKey?: string
     sessionId: string
     sessionKey?: string
-    sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+    sessionKind: 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'zcode' | 'gateway'
     agent?: string
     displayName?: string
     colorTag?: string

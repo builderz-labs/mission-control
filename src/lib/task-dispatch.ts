@@ -7,6 +7,12 @@ import {
   ensureClaudeBaseSession,
   markClaudeBaseSessionMaterialized,
 } from './claude-code-sessions'
+import {
+  auditZcodeSessionDispatch,
+  getZcodeBaseSession,
+  saveZcodeBaseSession,
+} from './zcode-agent-sessions'
+import { getZcodeLaunch, isZcodeInstalled } from './zcode-sessions'
 import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
@@ -1155,6 +1161,211 @@ async function dispatchViaClaudeSession(
   }
 }
 
+/**
+ * ZCode writes its JSON payload after unrelated startup noise, so the result is
+ * the last balanced object in the stream rather than the whole stdout.
+ */
+function parseTrailingJsonObject(stdout: string): Record<string, unknown> | null {
+  const text = stdout.trim()
+  if (!text) return null
+  try {
+    const direct = JSON.parse(text)
+    return direct && typeof direct === 'object' ? direct as Record<string, unknown> : null
+  } catch { /* fall through to suffix scan */ }
+
+  const end = text.lastIndexOf('}')
+  if (end === -1) return null
+  for (let start = text.lastIndexOf('{', end); start !== -1; start = text.lastIndexOf('{', start - 1)) {
+    try {
+      const candidate = JSON.parse(text.slice(start, end + 1))
+      if (candidate && typeof candidate === 'object') return candidate as Record<string, unknown>
+    } catch { /* keep scanning earlier openers */ }
+  }
+  return null
+}
+
+/** Prose carried by a ZCode JSON payload, or null when the payload has none. */
+function zcodeReplyText(parsed: Record<string, unknown>): string | null {
+  if (typeof parsed.response === 'string') return parsed.response
+  if (typeof parsed.result === 'string') return parsed.result
+  return null
+}
+
+/**
+ * Reply text for a ZCode headless run, shared by task dispatch and
+ * /api/sessions/continue so both read the payload the same way.
+ */
+export function zcodeReplyFromStdout(stdout: string): string | null {
+  const parsed = parseTrailingJsonObject(stdout)
+  const text = parsed ? zcodeReplyText(parsed) : null
+  return text || stdout.trim() || null
+}
+
+const ZCODE_CLI_MAX_OUTPUT_BYTES = 1_000_000
+const ZCODE_CLI_MAX_PROMPT_CHARS = 16_000
+const ZCODE_PERMISSION_MODES = new Set(['build', 'edit', 'plan', 'yolo'])
+
+function zcodePermissionMode(task: DispatchableTask): string {
+  const meta = safeParseMetadata(task.metadata)
+  const agentCfg = (() => {
+    try {
+      const parsed = JSON.parse(task.agent_config || '{}')
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, any> : {}
+    } catch { return {} as Record<string, any> }
+  })()
+  const requested = String(meta.dispatchMode ?? meta.dispatch_mode ?? agentCfg.dispatchMode ?? 'build').toLowerCase()
+  return ZCODE_PERMISSION_MODES.has(requested) ? requested : 'build'
+}
+
+function buildZcodeDispatchArgs(
+  task: DispatchableTask,
+  prompt: string,
+  sandbox: CliDispatchSandboxOptions,
+  session?: { resume?: string },
+): string[] {
+  const soul = getAgentSoulContent(task)
+  const args = ['--json', '--mode', zcodePermissionMode(task)]
+  if (session?.resume) args.push('--resume', session.resume)
+  if (sandbox.cwd) args.push('--cwd', sandbox.cwd)
+  args.push('-p', soul ? `${soul}\n\n---\n\n${prompt}` : prompt)
+  return args
+}
+
+/**
+ * Dispatch via the host ZCode CLI using the operator's Z.AI OAuth login (no API key).
+ * `-p --json` returns { sessionId, response, usage }, which is what makes resume
+ * chaining and token receipts possible; there is no per-run model or budget flag.
+ */
+async function callZcodeViaCli(
+  task: DispatchableTask,
+  prompt: string,
+  session?: { resume?: string },
+): Promise<AgentResponseParsed> {
+  const launch = getZcodeLaunch()
+  if (!launch) throw new Error('ZCode CLI not available')
+
+  if (prompt.length > ZCODE_CLI_MAX_PROMPT_CHARS) {
+    throw new Error(
+      `ZCode CLI takes the prompt as an argv value; ${prompt.length} chars exceeds the ${ZCODE_CLI_MAX_PROMPT_CHARS} char dispatch limit`,
+    )
+  }
+
+  const sandbox = resolveCliSandboxOptions(task)
+  const mode = zcodePermissionMode(task)
+  const args = buildZcodeDispatchArgs(task, prompt, sandbox, session)
+
+  logger.info(
+    {
+      taskId: task.id, agent: task.agent_name, mode,
+      ...(session?.resume ? { sessionResume: session.resume } : {}),
+      ...(sandbox.cwd ? { sandbox: { cwd: sandbox.cwd } } : {}),
+    },
+    'Dispatching task via ZCode CLI',
+  )
+
+  return await new Promise<AgentResponseParsed>((resolve, reject) => {
+    const proc = spawn(launch.bin, [...launch.prefixArgs, ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...launch.env, CI: '1' },
+    })
+
+    let stdout = ''
+    let stderr = ''
+    let outputBytes = 0
+    const timeoutMs = 300_000
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM')
+      reject(new Error(`ZCode CLI timed out after ${timeoutMs / 1000}s`))
+    }, timeoutMs)
+    const guardOutput = (chunk: Buffer) => {
+      outputBytes += chunk.length
+      if (outputBytes > ZCODE_CLI_MAX_OUTPUT_BYTES) {
+        clearTimeout(timer)
+        proc.kill('SIGKILL')
+        reject(new Error(`ZCode CLI output exceeded ${ZCODE_CLI_MAX_OUTPUT_BYTES} bytes`))
+        return false
+      }
+      return true
+    }
+
+    proc.stdout.on('data', (d) => { if (guardOutput(d)) stdout += d.toString() })
+    proc.stderr.on('data', (d) => { if (guardOutput(d)) stderr += d.toString() })
+    proc.on('error', (err) => { clearTimeout(timer); reject(err) })
+    proc.on('close', (code) => {
+      clearTimeout(timer)
+      if (code !== 0) {
+        return reject(new Error(`zcode CLI exited ${code}: ${stderr.slice(0, 500) || stdout.slice(0, 500)}`))
+      }
+      const parsed = parseTrailingJsonObject(stdout)
+      if (!parsed) {
+        // Unparseable output is a failed dispatch, not prose to be scraped — the
+        // session id would be lost and the agent's resume chain would silently break.
+        return reject(new Error(`zcode CLI returned no JSON payload: ${stdout.slice(0, 300)}`))
+      }
+
+      const text = zcodeReplyText(parsed)
+      const sessionId = typeof parsed.sessionId === 'string' && parsed.sessionId ? parsed.sessionId : null
+      const usage = parsed.usage && typeof parsed.usage === 'object' ? parsed.usage as Record<string, unknown> : null
+      if (usage) {
+        recordDispatchTokenUsage({
+          model: typeof parsed.model === 'string' ? parsed.model : 'zcode',
+          sessionId: sessionId || `task-${task.id}`,
+          inputTokens: Number(usage.inputTokens ?? usage.input_tokens) || 0,
+          outputTokens: Number(usage.outputTokens ?? usage.output_tokens) || 0,
+          workspaceId: task.workspace_id,
+        })
+      }
+
+      resolve({ text: text || stdout.trim() || null, sessionId })
+    })
+  })
+}
+
+/**
+ * Dispatch through the agent's ZCode base session. The first successful run captures
+ * the id the CLI minted; every later run resumes it. Failures are never re-routed to a
+ * less restrictive provider.
+ */
+async function dispatchViaZcodeSession(
+  task: DispatchableTask,
+  prompt: string,
+): Promise<AgentResponseParsed> {
+  if (!isZcodeInstalled()) {
+    auditZcodeSessionDispatch({
+      agentId: task.agent_id,
+      taskId: task.id,
+      outcome: 'failed',
+      error: 'zcode CLI unavailable for runtime_type=zcode agent',
+    })
+    throw new Error(
+      `zcode runtime dispatch: CLI unavailable for agent ${task.agent_name}; refusing to fall back to a less restrictive provider`,
+    )
+  }
+
+  const base = getZcodeBaseSession(task.agent_id)
+
+  try {
+    const response = await callZcodeViaCli(task, prompt, base ? { resume: base } : undefined)
+    if (response.sessionId) saveZcodeBaseSession(task.agent_id, response.sessionId)
+    auditZcodeSessionDispatch({
+      agentId: task.agent_id,
+      taskId: task.id,
+      outcome: base ? 'resumed' : 'created',
+      sessionId: response.sessionId,
+    })
+    return response
+  } catch (err) {
+    auditZcodeSessionDispatch({
+      agentId: task.agent_id,
+      taskId: task.id,
+      outcome: 'failed',
+      sessionId: base,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    throw err
+  }
+}
+
 async function callOpenAICompatible(
   task: DispatchableTask,
   prompt: string,
@@ -1823,6 +2034,10 @@ export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: s
         // and callDirectly — a claude-runtime agent never falls back to a
         // less restrictive provider; failures surface as dispatch failures.
         agentResponse = await dispatchViaClaudeSession(task, prompt)
+      } else if (String(task.agent_runtime_type || '').toLowerCase() === 'zcode') {
+        // ZCode runtime agents follow the same no-fallback rule as #602: they run
+        // through the operator's ZCode login and never reroute to an API-key provider.
+        agentResponse = await dispatchViaZcodeSession(task, prompt)
       } else if (useDirectApi && !targetSession) {
         // Direct API dispatch — provider chosen by `dispatchModel`. No gateway needed.
         agentResponse = await callDirectly(task, prompt)
@@ -2244,4 +2459,11 @@ export async function autoRouteInboxTasks(): Promise<{ ok: boolean; message: str
       ? `Auto-routed ${routed}/${inboxTasks.length} inbox task(s)`
       : `${inboxTasks.length} inbox task(s), no suitable agents found`,
   }
+}
+
+export const __testables = {
+  parseTrailingJsonObject,
+  buildZcodeDispatchArgs,
+  zcodePermissionMode,
+  callZcodeViaCli,
 }

@@ -6,6 +6,8 @@ import { config } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { getOpenCodeDbCandidates, epochMsToIso } from '@/lib/opencode-sessions'
+import { getZcodeRolloutDir, isZcodeSessionId } from '@/lib/zcode-sessions'
+import { parseJsonlTranscript, parseGatewayHistoryTranscript } from '@/lib/transcript-parser'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
 type MessageContentPart =
@@ -452,9 +454,46 @@ function readHermesTranscript(sessionId: string, limit: number): TranscriptMessa
 }
 
 /**
+ * ZCode writes one `model-io-sess_<uuid>.jsonl` per session. The record shape is
+ * owned upstream, so the OpenClaw line format is tried first and a tolerant
+ * normalization covers the rest; unknown shapes yield an empty transcript rather
+ * than invented content.
+ */
+function readZcodeTranscript(sessionId: string, limit: number): TranscriptMessage[] {
+  if (!isZcodeSessionId(sessionId)) return []
+  const filePath = path.join(getZcodeRolloutDir(), `model-io-${sessionId}.jsonl`)
+  if (!fs.existsSync(filePath)) return []
+
+  let raw: string
+  try {
+    raw = fs.readFileSync(filePath, 'utf-8')
+  } catch (error) {
+    logger.warn({ error, sessionId }, 'Failed to read ZCode transcript')
+    return []
+  }
+
+  const structured = parseJsonlTranscript(raw, limit)
+  if (structured.length > 0) return structured
+
+  const entries = raw
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line)
+      } catch {
+        return null
+      }
+    })
+    .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+
+  return parseGatewayHistoryTranscript(entries, limit)
+}
+
+/**
  * GET /api/sessions/transcript
  * Query params:
- *   kind=claude-code|codex-cli|hermes|opencode
+ *   kind=claude-code|codex-cli|hermes|opencode|zcode
  *   id=<session-id>
  *   limit=40
  */
@@ -470,7 +509,7 @@ export async function GET(request: NextRequest) {
     const sessionId = searchParams.get('id') || ''
     const limit = Math.min(parseInt(searchParams.get('limit') || '40', 10), 200)
 
-    if (!sessionId || (kind !== 'claude-code' && kind !== 'codex-cli' && kind !== 'hermes' && kind !== 'opencode')) {
+    if (!sessionId || (kind !== 'claude-code' && kind !== 'codex-cli' && kind !== 'hermes' && kind !== 'opencode' && kind !== 'zcode')) {
       return NextResponse.json({ error: 'kind and id are required' }, { status: 400 })
     }
 
@@ -480,7 +519,9 @@ export async function GET(request: NextRequest) {
         ? readCodexTranscript(sessionId, limit)
         : kind === 'hermes'
           ? readHermesTranscript(sessionId, limit)
-          : readOpenCodeTranscript(sessionId, limit)
+          : kind === 'opencode'
+            ? readOpenCodeTranscript(sessionId, limit)
+            : readZcodeTranscript(sessionId, limit)
 
     return NextResponse.json({ messages })
   } catch (error) {
@@ -489,4 +530,4 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export const __testables = { readHermesTranscriptFromDbPath, readOpenCodeTranscript }
+export const __testables = { readHermesTranscriptFromDbPath, readOpenCodeTranscript, readZcodeTranscript }

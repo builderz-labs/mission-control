@@ -4,6 +4,7 @@ import { eventBus } from '@/lib/event-bus';
 import { getTemplate, buildAgentConfig } from '@/lib/agent-templates';
 import { writeAgentToConfig, enrichAgentConfigFromWorkspace } from '@/lib/agent-sync';
 import { rotateClaudeBaseSession } from '@/lib/claude-code-sessions';
+import { rotateZcodeBaseSession } from '@/lib/zcode-agent-sessions';
 import { logAuditEvent } from '@/lib/db';
 import { requireRole } from '@/lib/auth';
 import { mutationLimiter } from '@/lib/rate-limit';
@@ -438,7 +439,7 @@ export async function PUT(request: NextRequest) {
 
       if (runtime_type !== undefined) {
         // Same vocabulary as createAgentSchema; empty string clears the field.
-        const allowedRuntimes = ['hermes', 'openclaw', 'claude', 'codex', 'custom'];
+        const allowedRuntimes = ['hermes', 'openclaw', 'claude', 'codex', 'zcode', 'custom'];
         if (runtime_type !== null && runtime_type !== '' && !allowedRuntimes.includes(runtime_type)) {
           return NextResponse.json({ error: 'Invalid runtime_type' }, { status: 400 });
         }
@@ -448,6 +449,9 @@ export async function PUT(request: NextRequest) {
         // authority is the opt-in, so the session must not outlive it.
         if ((agent as { runtime_type?: string | null }).runtime_type === 'claude' && runtime_type !== 'claude') {
           rotateClaudeBaseSession(agent.id, auth.user.username || 'operator', 'runtime_type changed away from claude');
+        }
+        if ((agent as { runtime_type?: string | null }).runtime_type === 'zcode' && runtime_type !== 'zcode') {
+          rotateZcodeBaseSession(agent.id, auth.user.username || 'operator', 'runtime_type changed away from zcode');
         }
       }
       

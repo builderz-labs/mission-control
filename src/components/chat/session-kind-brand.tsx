@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 
-type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'zcode' | 'gateway'
 
 const SESSION_KIND_META: Record<SessionKind, {
   label: string
@@ -36,6 +36,11 @@ const SESSION_KIND_META: Record<SessionKind, {
     label: 'OpenCode',
     shortLabel: 'OC',
     pillClassName: 'bg-fuchsia-500/15 text-fuchsia-300/80',
+  },
+  zcode: {
+    label: 'ZCode',
+    shortLabel: 'ZC',
+    pillClassName: 'bg-emerald-500/15 text-emerald-300/80',
   },
   gateway: {
     label: 'Gateway',

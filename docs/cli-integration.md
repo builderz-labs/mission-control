@@ -119,3 +119,36 @@ DELETE /api/connect  →  Agent set offline (if no other connections)
 - Each agent can only have one active connection at a time. A new `POST /api/connect` for the same agent deactivates the previous connection.
 - The `sessionId` format for token reporting follows `{agentName}:{chatType}` convention (e.g., `my-agent:chat`, `my-agent:cli`).
 - Heartbeat responses include pending work items (assigned tasks, mentions, notifications) so CLI tools can act on them.
+
+## Host CLI runtimes
+
+Some runtimes are driven by Mission Control instead of calling in: the scheduler launches the
+CLI on the same host, reads back its structured result, and records the session for the next run.
+Claude Code and Codex CLI work this way, and so does ZCode.
+
+### ZCode
+
+Set an agent's runtime to `ZCode` (Agents → runtime type) and Mission Control dispatches every
+task assigned to it through the ZCode CLI:
+
+```bash
+zcode --json --mode build --resume sess_… --cwd <workdir> -p <prompt>
+```
+
+- **Requirements.** ZCode installed on the same host as Mission Control, and signed in with Z.AI
+  OAuth (`zcode login`) — dispatch reuses the operator login, so there is no API key to store.
+  If the `zcode` command is not on `PATH`, point `ZCODE_CLI_BIN` at the installed bundle
+  (`zcode.cjs`); Mission Control launches bundles through `node` and supplies the built-in
+  provider config the bundle expects.
+- **Sessions.** ZCode mints its own session ids, so Mission Control captures the id from the first
+  successful run and resumes that session for the agent thereafter. Switching the agent away from
+  the ZCode runtime retires the captured session. History is read from
+  `~/.zcode/cli/rollout/model-io-sess_*.jsonl`, so ZCode sessions appear in the session list and
+  transcript viewer without any hook or gateway.
+- **Tuning.** `dispatchMode` (agent config or task metadata) selects the permission mode —
+  `build`, `edit`, `plan`, or `yolo`; `dispatchCwd` scopes the working directory. Token usage from
+  each run is written to the spend dashboard.
+- **What is not claimed.** ZCode exposes a tool *deny*list rather than an allowlist, has no
+  per-run budget cap flag, and has no attachable PTY, so those capability cells stay off in
+  Settings → Agent Runtimes. It also ships as a desktop installer rather than a package, so
+  Mission Control detects it but never installs it, and there is no Docker sidecar for it.

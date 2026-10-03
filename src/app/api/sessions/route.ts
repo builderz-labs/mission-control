@@ -4,6 +4,7 @@ import { syncClaudeSessions } from '@/lib/claude-sessions'
 import { scanCodexSessions } from '@/lib/codex-sessions'
 import { scanHermesSessions } from '@/lib/hermes-sessions'
 import { scanOpenCodeSessions } from '@/lib/opencode-sessions'
+import { scanZcodeSessions } from '@/lib/zcode-sessions'
 import { getDatabase, db_helpers } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { callOpenClawGateway } from '@/lib/openclaw-gateway'
@@ -32,7 +33,8 @@ export async function GET(request: NextRequest) {
     const codexSessions = getLocalCodexSessions()
     const hermesSessions = getLocalHermesSessions()
     const opencodeSessions = getLocalOpenCodeSessions()
-    const localMerged = mergeLocalSessions(claudeSessions, codexSessions, hermesSessions, opencodeSessions)
+    const zcodeSessions = getLocalZcodeSessions()
+    const localMerged = mergeLocalSessions(claudeSessions, codexSessions, hermesSessions, opencodeSessions, zcodeSessions)
 
     if (mappedGatewaySessions.length === 0 && localMerged.length === 0) {
       return NextResponse.json({ sessions: [] })
@@ -361,13 +363,49 @@ function getLocalOpenCodeSessions() {
   }
 }
 
+function getLocalZcodeSessions() {
+  try {
+    const rows = scanZcodeSessions(100)
+
+    return rows.map((s) => {
+      const effectiveLastActivity = s.isActive && s.lastMessageAt ? Date.now() : (s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0)
+      return {
+        id: s.sessionId,
+        key: s.sessionId,
+        agent: 'zcode',
+        kind: 'zcode',
+        age: s.isActive && s.lastMessageAt ? 'now' : formatAge(effectiveLastActivity),
+        model: s.model || 'zcode',
+        tokens: `${formatTokens(s.inputTokens)}/${formatTokens(s.outputTokens)}`,
+        channel: 'local',
+        flags: [],
+        active: s.isActive,
+        startTime: effectiveLastActivity,
+        lastActivity: effectiveLastActivity,
+        source: 'local' as const,
+        userMessages: s.userMessages,
+        assistantMessages: s.assistantMessages,
+        toolUses: 0,
+        estimatedCost: 0,
+        lastUserPrompt: null,
+        totalTokens: s.totalTokens,
+        workingDir: null,
+      }
+    })
+  } catch (err) {
+    logger.warn({ err }, 'Failed to read local ZCode sessions')
+    return []
+  }
+}
+
 function mergeLocalSessions(
   claudeSessions: Array<Record<string, any>>,
   codexSessions: Array<Record<string, any>>,
   hermesSessions: Array<Record<string, any>> = [],
   opencodeSessions: Array<Record<string, any>> = [],
+  zcodeSessions: Array<Record<string, any>> = [],
 ) {
-  const merged = [...claudeSessions, ...codexSessions, ...hermesSessions, ...opencodeSessions]
+  const merged = [...claudeSessions, ...codexSessions, ...hermesSessions, ...opencodeSessions, ...zcodeSessions]
   return dedupeAndSortSessions(merged)
 }
 
