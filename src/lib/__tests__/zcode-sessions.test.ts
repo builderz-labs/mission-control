@@ -1,84 +1,111 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { isZcodeSessionId, scanZcodeSessions } from '@/lib/zcode-sessions'
+import { getZcodeDbPath, isZcodeSessionId, scanZcodeSessions } from '@/lib/zcode-sessions'
+import { createZcodeSessionDb, type FixtureSession } from './fixtures/zcode-session-db'
 
-const SESSION_A = 'sess_11111111-1111-4111-8111-111111111111'
-const SESSION_B = 'sess_22222222-2222-4222-8222-222222222222'
+const ACTIVE = 'sess_11111111-1111-4111-8111-111111111111'
+const CHILD = 'sess_22222222-2222-4222-8222-222222222222'
+const SIDE = 'sess_99999999-9999-4999-8999-999999999999'
+const ARCHIVED = 'sess_33333333-3333-4333-8333-333333333333'
+const RECENT = 'sess_44444444-4444-4444-8444-444444444444'
+const STALE = 'sess_55555555-5555-4555-8555-555555555555'
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000
 
 let dir: string
+let dbPath: string
 
-function writeSession(fileName: string, lines: string[]): void {
-  writeFileSync(join(dir, fileName), `${lines.join('\n')}\n`, 'utf8')
+function fixture(now: number): FixtureSession[] {
+  return [
+    {
+      id: ACTIVE,
+      updatedMs: now - 60_000,
+      directory: 'E:\\work\\api',
+      usage: { input: 120, output: 30, lastMs: now - 45_000 },
+      models: ['glm-5.2', 'glm-5.3'],
+      messages: [
+        { role: 'user', text: 'do the thing', createdMs: now - 60_000 },
+        { role: 'user', text: 'and again', createdMs: now - 50_000 },
+        { role: 'assistant', text: 'done', createdMs: now - 45_000 },
+      ],
+    },
+    // Neither a spawned child run nor a side-agent row is a resumable entry point, and
+    // the two are excluded by different columns, so both stay in the fixture.
+    { id: CHILD, updatedMs: now - 30_000, parentId: ACTIVE },
+    { id: SIDE, updatedMs: now - 25_000, taskType: 'subagent_child' },
+    { id: ARCHIVED, updatedMs: now - 20_000, archivedMs: now },
+    { id: RECENT, updatedMs: now - 30 * 1000 },
+    { id: STALE, updatedMs: now - THREE_DAYS_MS, usage: { lastMs: now - THREE_DAYS_MS } },
+  ]
 }
 
 beforeAll(() => {
-  dir = mkdtempSync(join(tmpdir(), 'mc-zcode-rollout-'))
-  process.env.ZCODE_ROLLOUT_DIR = dir
-
-  writeSession(`${SESSION_A}.jsonl`, [
-    JSON.stringify({ role: 'user', content: 'do the thing', timestamp: '2026-10-01T10:00:00.000Z' }),
-    'not json at all',
-    JSON.stringify({
-      role: 'assistant',
-      model: 'glm-5.3',
-      usage: { input_tokens: 120, output_tokens: 30 },
-      timestamp: '2026-10-01T10:00:20.000Z',
-    }),
-    JSON.stringify({ role: 'assistant', usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 } }),
-  ])
-
-  writeSession(`${SESSION_B}.jsonl`, [
-    JSON.stringify({
-      type: 'message',
-      message: { role: 'user', content: 'fresh' },
-      timestamp: new Date().toISOString(),
-    }),
-  ])
-
-  // Rollouts that are not session transcripts stay out of the inventory.
-  writeSession('model-io-debug.jsonl', [JSON.stringify({ role: 'user', content: 'ignored' })])
+  dir = mkdtempSync(join(tmpdir(), 'mc-zcode-db-'))
+  dbPath = join(dir, 'db.sqlite')
+  const db = new Database(dbPath)
+  createZcodeSessionDb(db, fixture(Date.now()))
+  db.close()
+  process.env.ZCODE_DB_PATH = dbPath
 })
 
 afterAll(() => {
-  delete process.env.ZCODE_ROLLOUT_DIR
+  delete process.env.ZCODE_DB_PATH
   rmSync(dir, { recursive: true, force: true })
 })
 
 describe('scanZcodeSessions', () => {
-  it('reads one row per session rollout and skips unrelated files', () => {
-    const sessions = scanZcodeSessions(50)
-    expect(sessions.map((s) => s.sessionId).sort()).toEqual([SESSION_A, SESSION_B].sort())
+  it('lists top-level sessions newest first, without children or archived runs', () => {
+    expect(scanZcodeSessions(50).map((s) => s.sessionId)).toEqual([RECENT, ACTIVE, STALE])
   })
 
-  it('sums message counts and token usage across tolerant line parsing', () => {
-    const session = scanZcodeSessions(50).find((s) => s.sessionId === SESSION_A)
-    expect(session).toBeDefined()
-    expect(session?.userMessages).toBe(1)
-    expect(session?.assistantMessages).toBe(2)
-    expect(session?.inputTokens).toBe(125)
-    expect(session?.outputTokens).toBe(35)
+  it('maps working dir, latest model, message counts and token sums from the database', () => {
+    const session = scanZcodeSessions(50).find((s) => s.sessionId === ACTIVE)
+    expect(session?.workingDir).toBe('E:\\work\\api')
     expect(session?.model).toBe('glm-5.3')
-    expect(session?.lastMessageAt).toBe('2026-10-01T10:00:20.000Z')
-    expect(session?.isActive).toBe(false)
+    expect(session?.userMessages).toBe(2)
+    expect(session?.assistantMessages).toBe(1)
+    expect(session?.inputTokens).toBe(120)
+    expect(session?.outputTokens).toBe(30)
+    expect(session?.totalTokens).toBe(150)
   })
 
-  it('marks a session active when its newest entry is inside the activity window', () => {
-    const session = scanZcodeSessions(50).find((s) => s.sessionId === SESSION_B)
-    expect(session?.isActive).toBe(true)
+  it('takes the newest request completion as the activity timestamp', () => {
+    const session = scanZcodeSessions(50).find((s) => s.sessionId === ACTIVE)
+    const lastMs = session?.lastMessageAt ? Date.parse(session.lastMessageAt) : 0
+    expect(Math.abs(lastMs - (Date.now() - 45_000))).toBeLessThan(5_000)
   })
 
-  it('returns nothing when the rollout directory does not exist', () => {
-    process.env.ZCODE_ROLLOUT_DIR = join(dir, 'missing')
+  it('marks only sessions inside the activity window active', () => {
+    const byId = new Map(scanZcodeSessions(50).map((s) => [s.sessionId, s.isActive]))
+    expect(byId.get(ACTIVE)).toBe(true)
+    expect(byId.get(STALE)).toBe(false)
+  })
+
+  it('resolves the database under the ZCode state dir and honors the override', () => {
+    delete process.env.ZCODE_DB_PATH
+    expect(getZcodeDbPath('/home/operator')).toBe(join('/home/operator', '.zcode', 'cli', 'db', 'db.sqlite'))
+    process.env.ZCODE_DB_PATH = dbPath
+    expect(getZcodeDbPath('/home/operator')).toBe(dbPath)
+  })
+
+  it('yields no sessions when the database is absent or has no session table', () => {
+    const override = process.env.ZCODE_DB_PATH
+    delete process.env.ZCODE_DB_PATH
+    expect(scanZcodeSessions(50, join(dir, 'no-such-home'))).toEqual([])
+    process.env.ZCODE_DB_PATH = override
+    const foreign = join(dir, 'foreign.sqlite')
+    new Database(foreign).exec('CREATE TABLE unrelated (id TEXT);').close()
+    process.env.ZCODE_DB_PATH = foreign
     expect(scanZcodeSessions(50)).toEqual([])
-    process.env.ZCODE_ROLLOUT_DIR = dir
+    process.env.ZCODE_DB_PATH = dbPath
   })
 })
 
 describe('isZcodeSessionId', () => {
   it('accepts only ZCode-shaped session ids', () => {
-    expect(isZcodeSessionId(SESSION_A)).toBe(true)
+    expect(isZcodeSessionId(ACTIVE)).toBe(true)
     expect(isZcodeSessionId('11111111-1111-4111-8111-111111111111')).toBe(false)
     expect(isZcodeSessionId('sess_../etc/passwd')).toBe(false)
     expect(isZcodeSessionId(null)).toBe(false)

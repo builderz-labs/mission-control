@@ -6,7 +6,7 @@ import { config } from '@/lib/config'
 import { requireRole } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { getOpenCodeDbCandidates, epochMsToIso } from '@/lib/opencode-sessions'
-import { getZcodeRolloutDir, isZcodeSessionId } from '@/lib/zcode-sessions'
+import { getZcodeDbPath, getZcodeRolloutFilePath, isZcodeSessionId } from '@/lib/zcode-sessions'
 import { parseJsonlTranscript, parseGatewayHistoryTranscript } from '@/lib/transcript-parser'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 
@@ -454,14 +454,86 @@ function readHermesTranscript(sessionId: string, limit: number): TranscriptMessa
 }
 
 /**
- * ZCode writes one `model-io-sess_<uuid>.jsonl` per session. The record shape is
- * owned upstream, so the OpenClaw line format is tried first and a tolerant
- * normalization covers the rest; unknown shapes yield an empty transcript rather
- * than invented content.
+ * ZCode keeps a conversation in its session database: `message` rows carry the role and
+ * `part` rows the content (`text`, `tool`, `reasoning`, …). The
+ * `rollout/model-io-sess_<uuid>.jsonl` captures hold raw model traffic for only the
+ * sessions that had capture enabled, so they stay a fallback for anything the database
+ * no longer has.
  */
 function readZcodeTranscript(sessionId: string, limit: number): TranscriptMessage[] {
   if (!isZcodeSessionId(sessionId)) return []
-  const filePath = path.join(getZcodeRolloutDir(), `model-io-${sessionId}.jsonl`)
+  const fromDb = readZcodeTranscriptFromDbPath(getZcodeDbPath(), sessionId, limit)
+  if (fromDb.length > 0) return fromDb
+  return readZcodeRolloutTranscript(sessionId, limit)
+}
+
+function readZcodeTranscriptFromDbPath(dbPath: string, sessionId: string, limit: number): TranscriptMessage[] {
+  if (!dbPath || !fs.existsSync(dbPath)) return []
+
+  let db: Database.Database | null = null
+  try {
+    db = new Database(dbPath, { readonly: true, fileMustExist: true })
+    db.pragma('busy_timeout = 2000')
+
+    const messages = db.prepare(
+      `SELECT id, json_extract(data, '$.role') AS role, json_extract(data, '$.time.created') AS createdMs
+       FROM message WHERE session_id = ? ORDER BY sequence DESC LIMIT @limit`,
+    ).all(sessionId, { limit: Math.max(1, limit) }) as Array<{ id?: string; role?: string; createdMs?: number }>
+    messages.reverse()
+
+    const ids = messages.map((message) => message.id).filter((id): id is string => typeof id === 'string')
+    if (ids.length === 0) return []
+
+    const placeholders = ids.map(() => '?').join(',')
+    const partRows = db.prepare(
+      `SELECT message_id AS messageId, data FROM part WHERE message_id IN (${placeholders}) ORDER BY sequence`,
+    ).all(...ids) as Array<{ messageId?: string; data?: string }>
+
+    const partsByMessage = new Map<string, MessageContentPart[]>()
+    for (const row of partRows) {
+      const messageId = row.messageId
+      if (typeof messageId !== 'string') continue
+      let entry: Record<string, unknown> | null = null
+      try {
+        entry = JSON.parse(String(row.data)) as Record<string, unknown>
+      } catch {
+        continue
+      }
+      if (!entry || typeof entry !== 'object') continue
+
+      const list = partsByMessage.get(messageId) ?? []
+      if (entry.type === 'text' && typeof entry.text === 'string') {
+        const text = textPart(entry.text)
+        if (text) list.push(text)
+      } else if (entry.type === 'tool') {
+        const state = entry.state && typeof entry.state === 'object' ? entry.state as Record<string, unknown> : {}
+        list.push({
+          type: 'tool_use',
+          id: typeof entry.callID === 'string' ? entry.callID : '',
+          name: typeof entry.tool === 'string' ? entry.tool : 'tool',
+          input: JSON.stringify(state.input ?? {}).slice(0, 4000),
+        })
+      }
+      if (list.length > 0) partsByMessage.set(messageId, list)
+    }
+
+    const out: TranscriptMessage[] = []
+    for (const message of messages) {
+      const role = message.role === 'user' || message.role === 'assistant' ? message.role : null
+      if (!role || typeof message.id !== 'string') continue
+      pushMessage(out, role, partsByMessage.get(message.id) ?? [], epochMsToIso(message.createdMs ?? null) ?? undefined)
+    }
+    return out.slice(-limit)
+  } catch (error) {
+    logger.warn({ error, dbPath, sessionId }, 'Failed to read ZCode transcript from session database')
+    return []
+  } finally {
+    try { db?.close() } catch { /* noop */ }
+  }
+}
+
+function readZcodeRolloutTranscript(sessionId: string, limit: number): TranscriptMessage[] {
+  const filePath = getZcodeRolloutFilePath(sessionId)
   if (!fs.existsSync(filePath)) return []
 
   let raw: string

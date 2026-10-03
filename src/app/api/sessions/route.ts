@@ -389,7 +389,7 @@ function getLocalZcodeSessions() {
         estimatedCost: 0,
         lastUserPrompt: null,
         totalTokens: s.totalTokens,
-        workingDir: null,
+        workingDir: s.workingDir ?? null,
       }
     })
   } catch (err) {
