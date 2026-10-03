@@ -57,6 +57,42 @@ MC_ALLOWED_HOSTS=localhost,127.0.0.1
 
 Deploy behind a reverse proxy with TLS (Caddy, nginx, Tailscale Funnel) for any network-accessible deployment.
 
+#### Loopback auto-login (`MC_AUTO_LOGIN`) — read this before enabling
+
+`MC_AUTO_LOGIN=1` lets the local CLI start a browser session without typing a password. Run:
+
+```bash
+pnpm mc auth open --next /chat
+```
+
+The CLI generates a 256-bit one-time token, atomically writes it to
+`$MISSION_CONTROL_DATA_DIR/auto-login-token.json` with mode `0600`, and opens
+`/api/auth/auto-login?t=...`. The file expires after 60 seconds and is deleted when consumed.
+The command refuses non-loopback URLs. Use `--no-open --json` only when an integrating desktop
+launcher needs the URL; that output contains the one-time secret.
+
+The route is opt-in and redirects to `/login` unless **every** check passes:
+
+| Check | How it is verified |
+|---|---|
+| Flag is set to `1/true/yes/on` | `MC_AUTO_LOGIN` read on each request |
+| Navigation comes from the user | `Sec-Fetch-Site` is exactly `none` or `same-origin`; cross-site, same-site, and missing values are denied |
+| Request targets this machine | `Host` header is `localhost`, `::1`, or `127.0.0.0/8` — an absolute-form host, not a resolved name |
+| The port is not reachable off-box | **Measured**: `net.connect` to the bound port on every non-loopback interface address. A `0.0.0.0` bind, a port-forward, or a proxy on a LAN address all trip this and disable auto-login. Configuration is not trusted here. |
+| One-time token is valid | The `0600` file is a regular file, its expiry is at most five minutes away, the supplied `t` value is compared in constant time, and successful use unlinks the file exactly once |
+| The account is a real local admin | `AUTH_USER` (default `admin`) exists, `provider = local`, `is_approved = 1` |
+| The redirect target is same-origin | `next` must be a single-slash path; `//host`, `/\\host`, and scheme URLs fall back to `/` |
+
+Two consequences worth knowing:
+
+- Auto-login requires an issued URL. Visiting an ordinary page while unsigned still redirects to
+  `/login`; the proxy does not mint or hand off sessions.
+- `auto_login` is written to the audit log (`action=auto_login`, `ip_address=127.0.0.1`), so a
+  session that was not obtained with a password is visible in `/api/audit`.
+
+Do not enable it on a host that also serves the dashboard to other users, and do not pair it with
+`MC_ALLOW_ANY_HOST=1`.
+
 ### 3. HTTPS & Cookies
 
 For HTTPS deployments:

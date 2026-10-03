@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { execFile } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
 import { promisify } from 'node:util'
 import path from 'node:path'
 import { API_KEY_HEADER, createTestAgent, deleteTestAgent, createTestTask, deleteTestTask } from './helpers'
@@ -48,6 +50,31 @@ test.describe('CLI Integration', () => {
     const { exitCode, parsed } = await mc('agents', 'get')
     expect(exitCode).toBe(2)
     expect(parsed.error).toContain('--id')
+  })
+
+  test('auth open writes a one-time token and emits a loopback URL', async () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-cli-auto-login-'))
+    try {
+      const { stdout } = await execFileAsync('node', [CLI, 'auth', 'open', '--no-open', '--json', '--url', BASE_URL], {
+        timeout: 15000,
+        env: { ...process.env, MISSION_CONTROL_DATA_DIR: dataDir },
+      })
+      const result = JSON.parse(stdout)
+      const url = new URL(result.data.url)
+      const tokenFile = path.join(dataDir, 'auto-login-token.json')
+      const record = JSON.parse(fs.readFileSync(tokenFile, 'utf8'))
+
+      expect(result.data.opened).toBe(false)
+      expect(url.hostname).toBe('127.0.0.1')
+      expect(url.searchParams.get('next')).toBe('/')
+      expect(url.searchParams.get('t')).toBe(record.token)
+      expect(record.token.length).toBeGreaterThanOrEqual(43)
+      if (process.platform !== 'win32') {
+        expect(fs.statSync(tokenFile).mode & 0o777).toBe(0o600)
+      }
+    } finally {
+      fs.rmSync(dataDir, { recursive: true, force: true })
+    }
   })
 
   // --- Status ---

@@ -33,6 +33,8 @@ node scripts/mc-cli.cjs sessions control --id <session-id> --action terminate
 ### auth
 - login --username --password
 - logout
+- open [--next /path] [--no-open] — issue a 60-second one-time token and open the loopback
+  auto-login URL; `--no-open --json` exposes the one-time URL for a desktop launcher
 - whoami
 
 ### agents
