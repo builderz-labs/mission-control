@@ -23,6 +23,7 @@ function fixture(now: number): FixtureSession[] {
       id: ACTIVE,
       updatedMs: now - 60_000,
       directory: 'E:\\work\\api',
+      title: 'fix the login flow',
       usage: { input: 120, output: 30, lastMs: now - 45_000 },
       models: ['glm-5.2', 'glm-5.3'],
       messages: [
@@ -37,7 +38,7 @@ function fixture(now: number): FixtureSession[] {
     { id: SIDE, updatedMs: now - 25_000, taskType: 'subagent_child' },
     { id: ARCHIVED, updatedMs: now - 20_000, archivedMs: now },
     { id: RECENT, updatedMs: now - 30 * 1000 },
-    { id: STALE, updatedMs: now - THREE_DAYS_MS, usage: { lastMs: now - THREE_DAYS_MS } },
+    { id: STALE, updatedMs: now - THREE_DAYS_MS, title: '   ', usage: { lastMs: now - THREE_DAYS_MS } },
   ]
 }
 
@@ -63,6 +64,7 @@ describe('scanZcodeSessions', () => {
   it('maps working dir, latest model, message counts and token sums from the database', () => {
     const session = scanZcodeSessions(50).find((s) => s.sessionId === ACTIVE)
     expect(session?.workingDir).toBe('E:\\work\\api')
+    expect(session?.title).toBe('fix the login flow')
     expect(session?.model).toBe('glm-5.3')
     expect(session?.userMessages).toBe(2)
     expect(session?.assistantMessages).toBe(1)
@@ -75,6 +77,10 @@ describe('scanZcodeSessions', () => {
     const session = scanZcodeSessions(50).find((s) => s.sessionId === ACTIVE)
     const lastMs = session?.lastMessageAt ? Date.parse(session.lastMessageAt) : 0
     expect(Math.abs(lastMs - (Date.now() - 45_000))).toBeLessThan(5_000)
+  })
+
+  it('falls back to null when the stored title is blank', () => {
+    expect(scanZcodeSessions(50).find((s) => s.sessionId === STALE)?.title).toBeNull()
   })
 
   it('marks only sessions inside the activity window active', () => {

@@ -13,6 +13,7 @@ export interface FixtureSession {
   id: string
   updatedMs: number
   directory?: string | null
+  title?: string | null
   parentId?: string | null
   taskType?: string | null
   archivedMs?: number | null
@@ -59,7 +60,7 @@ export function createZcodeSessionDb(db: Database.Database, sessions: FixtureSes
       session.id,
       session.parentId ?? null,
       session.directory ?? null,
-      `title:${session.id}`,
+      session.title !== undefined ? session.title : `title:${session.id}`,
       session.updatedMs - 1000,
       session.updatedMs,
       session.taskType ?? 'interactive',

@@ -371,7 +371,7 @@ function getLocalZcodeSessions() {
       const effectiveLastActivity = s.isActive && s.lastMessageAt ? Date.now() : (s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0)
       return {
         id: s.sessionId,
-        key: s.sessionId,
+        key: s.title || s.sessionId,
         agent: 'zcode',
         kind: 'zcode',
         age: s.isActive && s.lastMessageAt ? 'now' : formatAge(effectiveLastActivity),
@@ -387,7 +387,7 @@ function getLocalZcodeSessions() {
         assistantMessages: s.assistantMessages,
         toolUses: 0,
         estimatedCost: 0,
-        lastUserPrompt: null,
+        lastUserPrompt: s.title || null,
         totalTokens: s.totalTokens,
         workingDir: s.workingDir ?? null,
       }

@@ -21,6 +21,7 @@ export interface ZcodeLaunch {
 
 export interface ZcodeSessionStats {
   sessionId: string
+  title: string | null
   workingDir: string | null
   model: string | null
   userMessages: number
@@ -171,6 +172,7 @@ interface SessionRow {
   sessionId: string
   workingDir: string | null
   updatedMs: number
+  title: string | null
 }
 
 interface UsageRow {
@@ -205,6 +207,7 @@ function readSessions(db: Database.Database, limit: number): SessionRow[] {
     'id AS sessionId',
     'time_updated AS updatedMs',
     columns.has('directory') ? 'directory AS workingDir' : 'NULL AS workingDir',
+    columns.has('title') ? "NULLIF(TRIM(title), '') AS title" : 'NULL AS title',
   ]
   // Sub-agent runs and side chats are children of the session that spawned them and are
   // not resumable entry points, so the inventory stays at the top level.
@@ -317,6 +320,7 @@ export function scanZcodeSessions(limit = 100, homeDir: string = config.homeDir)
       const lastMs = Math.max(session.updatedMs, u.lastActivityMs)
       return {
         sessionId: session.sessionId,
+        title: session.title ?? null,
         workingDir: session.workingDir ?? null,
         model: models.get(session.sessionId) ?? null,
         userMessages: m.userMessages,

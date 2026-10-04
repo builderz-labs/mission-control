@@ -52,4 +52,26 @@ describe('runCommand', () => {
 
     await expect(promise).resolves.toEqual({ stdout: 'hello', stderr: 'warn', code: 0 })
   })
+
+  it('does not re-wrap a command that is itself the node binary', async () => {
+    const child = new FakeChild()
+    spawnMock.mockReturnValue(child as any)
+
+    const promise = runCommand(process.execPath, ['-e', 'console.log("ok")'])
+    child.emit('close', 0)
+    await promise
+
+    expect(spawnMock).toHaveBeenCalledWith(process.execPath, ['-e', 'console.log("ok")'], expect.anything())
+  })
+
+  it('prepends node only for a .mjs command', async () => {
+    const child = new FakeChild()
+    spawnMock.mockReturnValue(child as any)
+
+    const promise = runCommand('C:/scripts/tool.mjs', ['--flag'])
+    child.emit('close', 0)
+    await promise
+
+    expect(spawnMock).toHaveBeenCalledWith(process.execPath, ['C:/scripts/tool.mjs', '--flag'], expect.anything())
+  })
 })
