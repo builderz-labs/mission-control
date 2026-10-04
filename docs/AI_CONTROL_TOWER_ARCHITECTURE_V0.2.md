@@ -1,9 +1,26 @@
 # AI Control Tower Architecture v0.2 — Modular Factories + Low-Cost Learning
 
 Date: 2026-10-04 (Asia/Tokyo)
-Status: ARCHITECTURE FROZEN FOR IMPLEMENTATION PLANNING
+Status: ARCHITECTURE FROZEN; IMPLEMENTATION BASELINE ACTIVE
 Scope: AI Ops Hub control plane, Product Factory adapter, Shufuro Marketing/Creative proof, low-cost self-improvement
-Implementation note: This document changes architecture only. Product Factory remains untouched and authoritative.
+Implementation note: Product Factory remains untouched and authoritative. Implementation status is tracked against this frozen architecture rather than rewriting native Factory truth.
+
+Current local baseline: `2f8e925 feat: add operational control tower learning signals` on `feat/ai-ops-hub-v0.1`.
+
+Implemented and verified at the targeted-regression/UI-smoke level:
+- Product/Marketing/Creative Factory projections and dedicated approval lifecycle.
+- guarded symbolic command path with stale-revision/concurrency protections.
+- Shufuro cross-process file lock and isolated REVIEW → READY regression path.
+- Experience Store deterministic aggregation.
+- typed `learning_evidence` storage/read flow and deterministic candidate signals.
+- Home operational ordering: NEEDS YOUR DECISION → RUNNING → BLOCKED → LEARNING.
+- Factories runtime axes: Native stage / Process stage / Quality readiness / Freshness / Human gates / Blockers / Independent reviews.
+- authenticated Edge smoke for Home / Factories / Learning without residual auth boot stall.
+
+Not yet claimed as live/production verified:
+- a real Product Factory gate approval from the Control Tower,
+- a full production build/typecheck of the latest `2f8e925` baseline,
+- automatic L2 AI reflection or any higher-level self-promotion.
 
 ## 1. Executive decision
 
@@ -841,74 +858,70 @@ LEARNING
 
 Learning should not dominate Home over real work. Approval Inbox remains first.
 
-## 20. Migration plan v0.2
+## 20. Migration plan v0.2 — current implementation status
 
-### Phase 0 — architecture/fixtures
-- Freeze Factory Contract/Snapshot v1.
-- Freeze Approval lifecycle and symbolic command protocol.
-- Add cost/learning policy schemas.
-- Capture legacy Product Factory fixtures.
-- No native mutation.
+### Phase 0 — architecture/fixtures — COMPLETE
+- Factory Contract/Snapshot v1 frozen.
+- Approval lifecycle and symbolic command protocol frozen.
+- Cost/learning policies defined.
+- legacy Product Factory projection covered without false readiness claims.
+- no native mutation required for representation.
 
-Exit:
-- current Product Factory can be represented without false stage/readiness claims.
+### Phase 1 — Product Factory adapter/projection — COMPLETE
+- Registry entry and instance discovery implemented.
+- `status`, `quality-status`, `process-audit`, and `claude-queue` mapped.
+- snapshot freshness/provenance persisted.
+- UI projection separates native stage, process stage, and quality readiness.
 
-### Phase 1 — Product Factory read-only adapter
-- Registry entry.
-- Instance discovery.
-- `status`, `quality-status`, `process-audit`, `claude-queue`.
-- Snapshot persistence/freshness.
-- UI projection.
-- No write command.
+### Phase 2 — dedicated Factory Approval Inbox — COMPLETE
+- separate approval storage/API implemented.
+- Factory approvals visually merge with operator attention without becoming generic tasks.
+- scheduler does not treat Factory approvals as ordinary routable work.
 
-Exit:
-- Hub mirrors Product Factory correctly and cannot alter it.
+### Phase 3 — one controlled Product write path — IMPLEMENTED / LIVE APPLY UNVERIFIED
+- symbolic `approve-gate` path exists.
+- exact gate, expected revision, human decision, native refresh, and postcondition verification are required.
+- stale/concurrent decisions are rejected or marked stale.
+- `APPLIED` is not inferred from button click or sync alone.
+- no real Product Factory gate has been approved from the Control Tower yet.
 
-### Phase 2 — dedicated Factory Approval Inbox
-- Separate approval table/API.
-- Merge visually with legacy task approvals.
-- Generic task scheduler cannot dispatch Factory approvals.
-- Still no native mutation.
+### Phase 4 — Experience Store — COMPLETE BASELINE
+- passive snapshot/decision observations implemented.
+- deterministic aggregation implemented.
+- zero-model-call operation verified by tests.
 
-### Phase 3 — one controlled Product write path
-- Allow only symbolic `approve-gate`.
-- Require exact gate, note, expected revision, human confirmation.
-- Background command job.
-- Refresh native source.
-- Mark `APPLIED` only after verification.
+### Phase 5 — low-cost Learning Engine — PARTIAL
+Implemented:
+- typed `learning_evidence`.
+- workspace isolation.
+- deterministic candidate signals.
+- threshold rules and Improvement Queue display.
+- evidence counts exposed to Home/Learning UI.
 
-### Phase 4 — Experience Store
-- Passive logging of snapshots, command runs, checks, metrics, reviews and costs.
-- No AI reflection yet.
-- Deterministic aggregation only.
+Deferred by policy:
+- automatic L2 AI reflection.
+- automatic promotion.
+- automatic optimizer execution.
 
-### Phase 5 — low-cost Learning Engine
-- Threshold-based evidence bundles.
-- Improvement Queue.
-- Batched reflection.
-- Eval plan and rollback metadata.
-- Claude review only for high-value/risky candidates.
+### Phase 6 — skillmem compatibility adapter — PARTIAL / READ ONLY
+- Windows-local skillmem install/DB health is surfaced read-only.
+- auto-trust, hooks, MCP wiring, semantic embeddings, and reinforcement automation remain OFF.
+- controlled learn/reinforce is deferred until external-evidence policy is proven in normal use.
 
-### Phase 6 — skillmem compatibility adapter
-- Read-only health/list/search first.
-- Verify Windows install/config behavior.
-- Map provenance/trust/strength into Skills UI.
-- Then controlled learn/reinforce.
-- Do not auto-trust.
+### Phase 7 — Shufuro as second Factory proof — IMPLEMENTED BASELINE
+- existing Content OS remains native Source of Truth.
+- Marketing and Creative projections exist.
+- isolated Marketing REVIEW → READY fixture path is covered.
+- revision checks, rollback, and cross-process file lock are implemented.
+- original Shufuro Content OS is not used as a destructive regression fixture.
 
-### Phase 7 — Shufuro as second Factory proof
-- Migrate current Shufuro bridge into Factory Contract/Snapshot/Approval lifecycle.
-- Split strategy/measurement into Marketing projection.
-- Split rendering/asset QA into Creative projection.
-- Keep existing Content OS as native SoT during migration.
-
-### Phase 8 — cross-Factory feedback
-Only after Product + Shufuro use the same contract successfully:
+### Phase 8 — cross-Factory feedback — NOT STARTED
+Only after the current Product + Shufuro contract proves stable in normal use:
 - add typed feedback proposals,
 - evidence links,
 - acceptance routing.
 
-Growth/VOC/Revenue remain stubs until needed.
+Growth/VOC/Revenue remain stubs until a real workflow requires them.
 
 ## 21. Overengineering guardrails
 
@@ -953,24 +966,32 @@ v0.2 architecture is considered successfully implemented only when:
 13. Marketing and Creative can be separated while preserving the existing Shufuro Content OS during migration.
 14. A promoted improvement has an evidence trail and rollback target.
 
+Current acceptance snapshot at `2f8e925`:
+- Criteria 1–5, 7–8, and 12–13 are implemented at the current targeted-regression/control-plane level.
+- Criteria 9–10 are enforced as conservative policy/default behavior, but a real learned-rule promotion and optional-model budget-block flow have not yet been exercised end-to-end.
+- Criterion 11 remains **partial**: skillmem health/read-only integration exists, but full installed/trusted/candidate/stale lifecycle presentation is not implemented yet.
+- Criterion 6 remains **live-unverified** because no real Product Factory gate has been applied from the Control Tower.
+- Criterion 14 remains **not yet demonstrated with a real promoted improvement** because L2+ promotion is intentionally not auto-running.
+- The latest baseline still requires a successful full production build/typecheck before it can be called production-build-verified.
+
 ## 23. Immediate implementation order
+
+The original v0.2 foundation through Product/Marketing/Creative projection and deterministic Learning is now present in the local baseline.
 
 The next code work is deliberately narrow:
 
 ```text
-1. Contract/Snapshot schemas + fixtures
-2. ProductFactoryAdapter READ ONLY
-3. Product Factory projection UI
-4. Dedicated Factory approvals
-5. approve-gate write path
-6. Experience Store
-7. Learning candidate schema/queue
-8. skillmem read-only adapter
-9. Shufuro contract migration
-10. Marketing / Creative split
+1. Keep 2f8e925 as the stable local control-plane baseline
+2. Isolate/fix latest-commit production build + typecheck resource behavior
+3. Accumulate real typed evidence through normal Factory use
+4. Add L2 batched reflection only when evidence thresholds become meaningful
+5. Add eval/rollback flow for the first real Improvement Candidate
+6. Add typed cross-Factory feedback proposals
+7. Prove a real guarded Product approval only with explicit human approval
+8. Expand Growth / VOC / Revenue only when a real workflow requires it
 ```
 
-Do not begin with optimizer integration.
+Do not begin with optimizer integration, automatic reflection, or broad new Factory implementation.
 
 ## 24. External integration notes
 
