@@ -221,6 +221,34 @@ Current Learning level remains conservative:
 
 Self-improvement remains evidence-driven; agent self-opinion does not count as promotion evidence.
 
+### Live Learning pipeline proof — 2026-10-04
+
+A real Control Tower Factory refresh was executed against the normal local AI Ops database while keeping Product Factory and Shufuro native sources read-only.
+
+Observed immediately after refresh:
+
+```text
+POST /api/factories: 200
+snapshots returned: 3
+
+experience_events: 4
+learning_evidence: 23
+candidate_signals: 23
+candidate_ready: 0
+improvement_candidates: 0
+
+learning evidence:
+- deterministic_check: 23
+- positive: 12
+- negative: 11
+```
+
+A second refresh of unchanged native revisions left the counts unchanged, confirming evidence idempotency.
+
+The 23 evidence subjects currently each have one observation, so no L2 reflection threshold is met. Do not manufacture duplicate evidence to force readiness. Future evidence should come from real native revision changes and normal Factory refresh/use.
+
+These counts are a runtime observation, not a permanent architecture constant.
+
 ## Remaining verification / implementation gates
 
 1. **Live Product approval end-to-end gate**
