@@ -1,0 +1,78 @@
+import type { FactoryDefinition } from '../types'
+
+const stages = [
+  ['M00', 'Product / Market Context'],
+  ['M01', 'Audience Evidence'],
+  ['M02', 'JTBD / Psychology'],
+  ['M03', 'Positioning'],
+  ['M04', 'Channel Strategy'],
+  ['M05', 'Campaign / Content Strategy'],
+  ['M06', 'Creative Angles'],
+  ['M07', 'Hook / Message / Offer'],
+  ['M08', 'Creative Brief'],
+  ['M09', 'Distribution Plan'],
+  ['M10', 'Publish / Launch'],
+  ['M11', 'Measurement'],
+  ['M12', 'Diagnosis'],
+  ['M13', 'Learn / Kill / Iterate / Scale'],
+] as const
+
+export const marketingFactoryDefinition: FactoryDefinition = {
+  contract_version: '1.0',
+  module: {
+    id: 'marketing-factory',
+    name: 'Marketing Factory',
+    purpose: 'Evidence-backed positioning, campaign, distribution and performance learning.',
+    definition_version: '0.1-shufuro-compat',
+    state_authority: 'external',
+    adapter_kind: 'content-os-files',
+  },
+  capabilities: {
+    discover_instances: true,
+    read_snapshot: true,
+    request_approval: true,
+    execute_commands: false,
+    read_metrics: true,
+    emit_experience: true,
+  },
+  stages: stages.map(([id, label], index) => ({
+    id,
+    label,
+    objective: label,
+    human_gates: id === 'M08' ? ['content_ready'] : id === 'M10' ? ['publish'] : [],
+    next: index < stages.length - 1 ? [stages[index + 1][0]] : [],
+  })),
+  gates: [
+    {
+      id: 'content_ready',
+      stage_id: 'M08',
+      decision_owner: 'human',
+      blocking: true,
+      decisions: ['approve', 'revise', 'hold'],
+      apply_command: 'approve-content',
+    },
+    {
+      id: 'publish',
+      stage_id: 'M10',
+      decision_owner: 'human',
+      blocking: true,
+      decisions: ['approve', 'hold'],
+      apply_command: null,
+    },
+  ],
+  commands: [
+    { id: 'refresh', mode: 'read_only', risk: 'low', description: 'Read current Marketing Content OS state.', human_confirmation: 'never' },
+    { id: 'approve-content', mode: 'mutating', risk: 'medium', description: 'Promote one reviewed content packet to READY after human approval.', human_confirmation: 'always' },
+  ],
+  cost_policy: {
+    mode: 'economical',
+    paid_api_default_hard_cap_usd_per_day: 0,
+    reflection_batch_min_evidence: 5,
+  },
+  learning_policy: {
+    passive_logging: true,
+    deterministic_analysis: true,
+    performance_ground_truth: ['save_rate', 'share_rate', 'completion_rate', 'follow_conversion'],
+    optimizer_auto_run: false,
+  },
+}

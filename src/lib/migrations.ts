@@ -1550,6 +1550,151 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE agents ADD COLUMN claude_base_session_created_at TEXT DEFAULT NULL`)
       }
     }
+  },
+  {
+    id: '056_ai_ops_factory_control_plane',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS factory_instances (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          instance_id TEXT NOT NULL,
+          module_id TEXT NOT NULL,
+          adapter_id TEXT NOT NULL,
+          native_id TEXT NOT NULL,
+          root_path TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          config TEXT NOT NULL DEFAULT '{}',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, instance_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS factory_snapshots (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          instance_id TEXT NOT NULL,
+          snapshot_version TEXT NOT NULL,
+          source_revision TEXT,
+          observed_at INTEGER NOT NULL,
+          freshness_state TEXT NOT NULL,
+          snapshot TEXT NOT NULL,
+          last_error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        CREATE TABLE IF NOT EXISTS factory_approval_requests (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          request_id TEXT NOT NULL,
+          instance_id TEXT NOT NULL,
+          gate_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          state TEXT NOT NULL DEFAULT 'OPEN',
+          decision TEXT,
+          decision_note TEXT,
+          decision_by TEXT,
+          decision_at INTEGER,
+          expected_revision TEXT,
+          evidence_refs TEXT NOT NULL DEFAULT '[]',
+          native_result TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, request_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS factory_command_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          run_id TEXT NOT NULL,
+          instance_id TEXT NOT NULL,
+          command_id TEXT NOT NULL,
+          arguments TEXT NOT NULL DEFAULT '{}',
+          risk TEXT NOT NULL,
+          state TEXT NOT NULL,
+          requested_by TEXT,
+          before_revision TEXT,
+          after_revision TEXT,
+          stdout_excerpt TEXT,
+          stderr_excerpt TEXT,
+          error TEXT,
+          started_at INTEGER,
+          completed_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, run_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS experience_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          experience_id TEXT NOT NULL,
+          project_id TEXT,
+          factory_instance_id TEXT,
+          stage_id TEXT,
+          action_type TEXT NOT NULL,
+          worker_kind TEXT,
+          worker_identity TEXT,
+          inputs TEXT NOT NULL DEFAULT '[]',
+          artifact_refs TEXT NOT NULL DEFAULT '[]',
+          checks TEXT NOT NULL DEFAULT '[]',
+          metrics TEXT NOT NULL DEFAULT '[]',
+          outcome TEXT,
+          cost TEXT NOT NULL DEFAULT '{}',
+          evidence_refs TEXT NOT NULL DEFAULT '[]',
+          source_revision TEXT,
+          observed_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, experience_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS improvement_candidates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          candidate_id TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          target TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'PROPOSED',
+          hypothesis TEXT NOT NULL,
+          evidence_refs TEXT NOT NULL DEFAULT '[]',
+          sample_size INTEGER NOT NULL DEFAULT 0,
+          confidence_label TEXT,
+          expected_effect TEXT NOT NULL DEFAULT '{}',
+          eval_plan TEXT NOT NULL DEFAULT '{}',
+          review_policy TEXT,
+          promotion_state TEXT NOT NULL DEFAULT 'UNTESTED',
+          change_ref TEXT,
+          rollback_target TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, candidate_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_evidence (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          evidence_id TEXT NOT NULL,
+          evidence_type TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL,
+          candidate_id TEXT,
+          skill_ref TEXT,
+          result TEXT,
+          payload TEXT NOT NULL DEFAULT '{}',
+          observed_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, evidence_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_factory_instances_module ON factory_instances(workspace_id, module_id);
+        CREATE INDEX IF NOT EXISTS idx_factory_snapshots_instance_observed ON factory_snapshots(workspace_id, instance_id, observed_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_factory_approvals_state ON factory_approval_requests(workspace_id, state, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_factory_commands_instance ON factory_command_runs(workspace_id, instance_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_experience_factory_observed ON experience_events(workspace_id, factory_instance_id, observed_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_improvement_status ON improvement_candidates(workspace_id, status, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_learning_evidence_candidate ON learning_evidence(workspace_id, candidate_id, observed_at DESC);
+      `)
+    }
   }
 ]
 

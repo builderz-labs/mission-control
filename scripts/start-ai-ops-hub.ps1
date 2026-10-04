@@ -40,10 +40,6 @@ $bootstrapLog = Join-Path $Logs 'bootstrap.log'
 $bootstrapErr = Join-Path $Logs 'bootstrap.err.log'
 Start-Process -FilePath 'cmd.exe' -ArgumentList '/d','/c','pnpm.cmd aiops:bootstrap' -WorkingDirectory $Root -WindowStyle Hidden -Wait -RedirectStandardOutput $bootstrapLog -RedirectStandardError $bootstrapErr
 
-$syncLog = Join-Path $Logs 'shufuro-sync.log'
-$syncErr = Join-Path $Logs 'shufuro-sync.err.log'
-Start-Process -FilePath 'cmd.exe' -ArgumentList '/d','/c','pnpm.cmd aiops:sync:shufuro' -WorkingDirectory $Root -WindowStyle Hidden -Wait -RedirectStandardOutput $syncLog -RedirectStandardError $syncErr
-
 $runnerExists = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
   $_.Name -eq 'node.exe' -and $_.CommandLine -like '*ai-ops-runner.mjs*'
 } | Select-Object -First 1

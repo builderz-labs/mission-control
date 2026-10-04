@@ -42,6 +42,8 @@ import { DomainWorkspacePanel } from '@/components/panels/domain-workspace-panel
 import { ProjectsOverviewPanel } from '@/components/panels/projects-overview-panel'
 import { AiOpsAgentsPanel } from '@/components/panels/ai-ops-agents-panel'
 import { AiOpsUsagePanel } from '@/components/panels/ai-ops-usage-panel'
+import { FactoriesPanel } from '@/components/panels/factories-panel'
+import { LearningPanel } from '@/components/panels/learning-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
@@ -525,8 +527,8 @@ export default function Home() {
 }
 
 const ESSENTIAL_PANELS = new Set([
-  'overview', 'projects', 'marketing', 'development', 'agents', 'tasks', 'chat',
-  'activity', 'logs', 'usage', 'skills', 'automations', 'settings',
+  'overview', 'projects', 'factories', 'marketing', 'development', 'agents', 'tasks', 'chat',
+  'activity', 'logs', 'usage', 'skills', 'learning', 'automations', 'settings',
 ])
 
 function ContentRouter({ tab }: { tab: string }) {
@@ -580,6 +582,8 @@ function ContentRouter({ tab }: { tab: string }) {
       )
     case 'projects':
       return <ProjectsOverviewPanel />
+    case 'factories':
+      return <FactoriesPanel />
     case 'marketing':
       return <DomainWorkspacePanel domain="marketing" />
     case 'development':
@@ -603,6 +607,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <MemoryBrowserPanel />
     case 'usage':
       return <AiOpsUsagePanel />
+    case 'learning':
+      return <LearningPanel />
     case 'cost-tracker':
     case 'tokens':
     case 'agent-costs':

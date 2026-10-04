@@ -1,12 +1,29 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '@/lib/api-client'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { type JsonValue, type Task, useMissionControl } from '@/store'
 import { Button } from '@/components/ui/button'
 
-type ApprovalDecision = 'approved' | 'changes_requested' | 'held'
+type TaskApprovalDecision = 'approved' | 'changes_requested' | 'held'
+type FactoryDecision = 'approve' | 'revise' | 'hold'
+
+interface FactoryApprovalView {
+  id: number
+  request_id: string
+  instance_id: string
+  gate_id: string
+  title: string
+  description: string | null
+  state: 'OPEN' | 'DECISION_RECORDED' | 'APPLYING' | 'APPLIED' | 'FAILED' | 'STALE'
+  decision: string | null
+  expected_revision: string | null
+  native_stage: string | null
+  freshness: string | null
+  can_apply: boolean
+  block_reason: string | null
+}
 
 function metadataRecord(value: JsonValue | undefined): Record<string, unknown> {
   if (!value || Array.isArray(value) || typeof value !== 'object') return {}
@@ -30,6 +47,7 @@ function attentionRank(task: Task): number {
 }
 
 function isHumanAttention(task: Task): boolean {
+  if (readMeta(task, 'workflow') === 'shufuro.content_publish') return false
   if (task.status === 'awaiting_owner' || task.status === 'review' || task.status === 'quality_review') return true
   if (readMeta(task, 'human_approval') !== null) return false
   return readMeta(task, 'human_required') === 'true' || readMeta(task, 'approval_type') !== null
@@ -38,10 +56,11 @@ function isHumanAttention(task: Task): boolean {
 export function ApprovalInboxWidget() {
   const { tasks, updateTask, setSelectedTask } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
-  const [busyId, setBusyId] = useState<number | null>(null)
+  const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [factoryApprovals, setFactoryApprovals] = useState<FactoryApprovalView[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const approvals = useMemo(
+  const taskApprovals = useMemo(
     () => tasks
       .filter(isHumanAttention)
       .sort((a, b) => attentionRank(a) - attentionRank(b)
@@ -51,8 +70,25 @@ export function ApprovalInboxWidget() {
     [tasks],
   )
 
-  async function decide(task: Task, decision: ApprovalDecision) {
-    setBusyId(task.id)
+  const loadFactoryApprovals = useCallback(async () => {
+    try {
+      const body = await apiFetch<{ approvals?: FactoryApprovalView[] }>(
+        '/api/factory-approvals?state=OPEN,DECISION_RECORDED,APPLYING',
+      )
+      setFactoryApprovals(body.approvals || [])
+    } catch {
+      // Factory control plane may be unavailable during migration; legacy task approvals still render.
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadFactoryApprovals()
+    const timer = window.setInterval(() => { void loadFactoryApprovals() }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [loadFactoryApprovals])
+
+  async function decideTask(task: Task, decision: TaskApprovalDecision) {
+    setBusyKey(`task:${task.id}`)
     setError(null)
 
     const currentMetadata = metadataRecord(task.metadata)
@@ -63,7 +99,6 @@ export function ApprovalInboxWidget() {
       human_approval_at: now,
       human_approval_source: 'ai-ops-hub',
     }
-
     const status: Task['status'] = decision === 'held'
       ? 'backlog'
       : task.assigned_to ? 'assigned' : 'in_progress'
@@ -78,7 +113,35 @@ export function ApprovalInboxWidget() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval update failed')
     } finally {
-      setBusyId(null)
+      setBusyKey(null)
+    }
+  }
+
+  async function decideFactory(approval: FactoryApprovalView, decision: FactoryDecision) {
+    if (!approval.expected_revision) {
+      setError('Factory revision이 없어 승인할 수 없습니다. Factories에서 새로고침하세요.')
+      return
+    }
+    setBusyKey(`factory:${approval.id}`)
+    setError(null)
+    try {
+      await apiFetch(`/api/factory-approvals/${encodeURIComponent(approval.request_id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision,
+          note: 'Decision recorded from AI Ops Hub Approval Inbox.',
+          expected_revision: approval.expected_revision,
+        }),
+      })
+      if (decision === 'approve') {
+        await apiFetch('/api/factory-approvals/process', { method: 'POST', body: '{}' })
+      }
+      await loadFactoryApprovals()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Factory approval update failed')
+    } finally {
+      setBusyKey(null)
     }
   }
 
@@ -87,6 +150,8 @@ export function ApprovalInboxWidget() {
     navigateToPanel('tasks')
   }
 
+  const total = factoryApprovals.length + taskApprovals.length
+
   return (
     <section className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
       <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-border bg-gradient-to-r from-amber-500/10 via-card to-card">
@@ -94,43 +159,80 @@ export function ApprovalInboxWidget() {
           <div className="flex items-center gap-2">
             <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.65)]" />
             <h2 className="text-base font-semibold text-foreground">Approval Inbox</h2>
-            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-500">
-              {approvals.length}
-            </span>
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-500">{total}</span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            지금 내가 결정해야 하는 일. 승인 후에는 Runner가 다음 단계로 넘깁니다.
+            내가 결정해야 하는 일. Factory 승인은 native Source of Truth 적용이 확인된 뒤에만 완료됩니다.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigateToPanel('tasks')}>
-          전체 작업
-        </Button>
+        <Button variant="outline" size="sm" onClick={() => navigateToPanel('factories')}>Factories</Button>
       </div>
 
       {error && (
-        <div className="mx-5 mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-          {error}
-        </div>
+        <div className="mx-5 mt-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>
       )}
 
-      {approvals.length === 0 ? (
+      {total === 0 ? (
         <div className="px-5 py-9 text-center">
           <div className="text-sm font-medium text-foreground">지금 승인할 일이 없습니다.</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            새 REVIEW / awaiting_owner 작업이 생기면 여기에 먼저 표시됩니다.
-          </div>
+          <div className="mt-1 text-xs text-muted-foreground">새 Factory gate 또는 REVIEW 작업이 생기면 여기에 표시됩니다.</div>
         </div>
       ) : (
         <div className="divide-y divide-border">
-          {approvals.map((task) => {
+          {factoryApprovals.map((approval) => {
+            const busy = busyKey === `factory:${approval.id}`
+            const pendingApply = approval.state === 'DECISION_RECORDED' || approval.state === 'APPLYING'
+            return (
+              <article key={approval.request_id} className="px-5 py-4 bg-amber-500/[0.025] hover:bg-muted/30 transition-colors">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <button type="button" onClick={() => navigateToPanel('factories')} className="min-w-0 text-left">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-md bg-violet-500/10 px-2 py-1 font-medium text-violet-400">Factory Gate</span>
+                      <span className="text-muted-foreground">{approval.instance_id}</span>
+                      {approval.native_stage && <span className="font-mono text-muted-foreground">{approval.native_stage}</span>}
+                      <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-500">
+                        {approval.state.replaceAll('_', ' ')}
+                      </span>
+                    </div>
+                    <h3 className="mt-2 truncate text-sm font-semibold text-foreground">{approval.title}</h3>
+                    <p className="mt-1 line-clamp-2 max-w-3xl text-xs leading-5 text-muted-foreground">
+                      {approval.block_reason || approval.description || `Native gate ${approval.gate_id} requires a decision.`}
+                    </p>
+                  </button>
+
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Button variant="ghost" size="sm" disabled={busy} onClick={() => navigateToPanel('factories')}>보기</Button>
+                    {pendingApply ? (
+                      <Button size="sm" disabled>Native 적용 대기</Button>
+                    ) : (
+                      <>
+                        <Button variant="outline" size="sm" disabled={busy} onClick={() => decideFactory(approval, 'hold')}>보류</Button>
+                        <Button variant="outline" size="sm" disabled={busy} onClick={() => decideFactory(approval, 'revise')}>수정 요청</Button>
+                        <Button
+                          size="sm"
+                          disabled={busy || !approval.can_apply}
+                          title={!approval.can_apply ? approval.block_reason || '현재 native gate 적용 조건을 충족하지 않습니다.' : undefined}
+                          onClick={() => decideFactory(approval, 'approve')}
+                        >
+                          {busy ? '처리 중…' : '승인'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+
+          {taskApprovals.map((task) => {
             const domain = domainLabel(task)
             const sourceRef = readMeta(task, 'source_ref')
             const nextAction = readMeta(task, 'next_action')
             const selectedFormat = readMeta(task, 'selected_format')
-            const isBusy = busyId === task.id
+            const busy = busyKey === `task:${task.id}`
 
             return (
-              <article key={task.id} className="px-5 py-4 hover:bg-muted/30 transition-colors">
+              <article key={`task:${task.id}`} className="px-5 py-4 hover:bg-muted/30 transition-colors">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                   <button type="button" onClick={() => openTask(task)} className="min-w-0 text-left">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -149,12 +251,10 @@ export function ApprovalInboxWidget() {
                   </button>
 
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <Button variant="ghost" size="sm" disabled={isBusy} onClick={() => openTask(task)}>보기</Button>
-                    <Button variant="outline" size="sm" disabled={isBusy} onClick={() => decide(task, 'held')}>보류</Button>
-                    <Button variant="outline" size="sm" disabled={isBusy} onClick={() => decide(task, 'changes_requested')}>수정 요청</Button>
-                    <Button size="sm" disabled={isBusy} onClick={() => decide(task, 'approved')}>
-                      {isBusy ? '처리 중…' : '승인'}
-                    </Button>
+                    <Button variant="ghost" size="sm" disabled={busy} onClick={() => openTask(task)}>보기</Button>
+                    <Button variant="outline" size="sm" disabled={busy} onClick={() => decideTask(task, 'held')}>보류</Button>
+                    <Button variant="outline" size="sm" disabled={busy} onClick={() => decideTask(task, 'changes_requested')}>수정 요청</Button>
+                    <Button size="sm" disabled={busy} onClick={() => decideTask(task, 'approved')}>{busy ? '처리 중…' : '승인'}</Button>
                   </div>
                 </div>
               </article>

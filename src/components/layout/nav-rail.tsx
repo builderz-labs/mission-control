@@ -32,6 +32,7 @@ const navGroups: NavGroup[] = [
     items: [
       { id: 'overview', label: 'Home', icon: <OverviewIcon />, priority: true, essential: true },
       { id: 'projects', label: 'Projects', icon: <TasksIcon />, priority: true, essential: true },
+      { id: 'factories', label: 'Factories', icon: <OverviewIcon />, priority: false, essential: true },
       { id: 'marketing', label: 'Marketing', icon: <ChannelsIcon />, priority: true, essential: true },
       { id: 'development', label: 'Development', icon: <NodesIcon />, priority: true, essential: true },
     ],
@@ -43,6 +44,7 @@ const navGroups: NavGroup[] = [
       { id: 'agents', label: 'Agents', icon: <AgentsIcon />, priority: false, essential: true },
       { id: 'usage', label: 'Usage', icon: <TokensIcon />, priority: false, essential: true },
       { id: 'skills', label: 'Skills', icon: <SkillsIcon />, priority: false, essential: true },
+      { id: 'learning', label: 'Learning', icon: <MemoryIcon />, priority: false, essential: true },
       { id: 'automations', label: 'Automations', icon: <CronIcon />, priority: false, essential: true },
       { id: 'activity', label: 'Activity', icon: <ActivityIcon />, priority: false, essential: true },
       { id: 'tasks', label: 'All Tasks', icon: <TasksIcon />, priority: false, essential: true },
@@ -925,7 +927,7 @@ function ContextSwitcher({ currentUser, isAdmin, isLocal, isConnected, tenants, 
                   onClick={async () => {
                     if (interfaceMode === 'essential') return
                     setInterfaceMode('essential')
-                    const essentialIds = new Set(['overview', 'projects', 'marketing', 'development', 'agents', 'tasks', 'chat', 'activity', 'logs', 'usage', 'skills', 'automations', 'settings'])
+                    const essentialIds = new Set(['overview', 'projects', 'factories', 'marketing', 'development', 'agents', 'tasks', 'chat', 'activity', 'logs', 'usage', 'skills', 'learning', 'automations', 'settings'])
                     if (!essentialIds.has(activeTab)) navigateToPanel('overview')
                     try { await apiFetch('/api/settings', { method: 'PUT', body: JSON.stringify({ settings: { 'general.interface_mode': 'essential' } }) }) } catch {}
                   }}
