@@ -154,7 +154,7 @@ export function FactoriesPanel() {
                       <div className="mt-1 text-sm font-medium text-foreground">{snapshot?.lifecycle.process_stage_id || 'Unknown'}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Quality</div>
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Quality readiness</div>
                       <div className="mt-1 text-sm font-medium text-foreground">{checks.length ? `${pass}/${checks.length}` : '—'}</div>
                     </div>
                     <div>
@@ -174,7 +174,7 @@ export function FactoriesPanel() {
                   ) : null}
 
                   <div>
-                    <div className="text-xs font-semibold text-foreground">Open human gates</div>
+                    <div className="text-xs font-semibold text-foreground">Human gates</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {openGates.length === 0
                         ? <span className="text-xs text-muted-foreground">None</span>
@@ -187,7 +187,7 @@ export function FactoriesPanel() {
                   </div>
 
                   <div>
-                    <div className="text-xs font-semibold text-foreground">Quality blockers</div>
+                    <div className="text-xs font-semibold text-foreground">Blockers</div>
                     <div className="mt-2 space-y-1.5">
                       {checks.filter((check) => !check.ok).length === 0
                         ? <div className="text-xs text-muted-foreground">No failed checks</div>
@@ -201,7 +201,7 @@ export function FactoriesPanel() {
                   </div>
 
                   <div>
-                    <div className="text-xs font-semibold text-foreground">Independent review queue</div>
+                    <div className="text-xs font-semibold text-foreground">Independent reviews</div>
                     <div className="mt-2 space-y-1.5">
                       {pendingReviews.length === 0
                         ? <div className="text-xs text-muted-foreground">No pending review</div>

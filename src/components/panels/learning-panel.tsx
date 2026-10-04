@@ -66,9 +66,37 @@ interface DeterministicAnalysis {
   }>
 }
 
+interface CandidateSignal {
+  subject_key: string
+  evidence_count: number
+  positive: number
+  negative: number
+  mixed: number
+  informational: number
+  unique_sources: number
+  evidence_types: string[]
+  last_observed_at: number
+  has_active_candidate: boolean
+  candidate_ready: boolean
+  evidence_needed: number
+}
+
+interface LearningEvidenceRow {
+  evidence_id: string
+  evidence_type: string
+  source_type: string
+  source_ref: string
+  candidate_id: string | null
+  skill_ref: string | null
+  result: string | null
+  observed_at: number
+}
+
 interface LearningPayload {
   summary: LearningSummary
   analysis: DeterministicAnalysis
+  candidate_signals: CandidateSignal[]
+  evidence: LearningEvidenceRow[]
   experiences: ExperienceRow[]
   candidates: CandidateRow[]
 }
@@ -256,6 +284,55 @@ export function LearningPanel() {
               {data?.analysis.recurring_check_failures.filter((item) => item.recurring).map((item) => (
                 <span key={item.check_id} className="rounded-md border border-red-500/20 bg-red-500/5 px-2 py-1 text-xs text-red-400">
                   {item.check_id} × {item.count}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground">Candidate Signals</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Typed evidence가 같은 subject에 5개 이상, 문제 신호가 2개 이상, 서로 다른 source가 2개 이상일 때만 후보 생성 준비 상태로 표시합니다.
+          </p>
+        </div>
+        {!data?.candidate_signals.length ? (
+          <div className="px-5 py-10 text-center text-sm text-muted-foreground">아직 candidate signal이 없습니다.</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {data.candidate_signals.map((signal) => (
+              <div key={signal.subject_key} className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_160px_170px] md:items-center">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">{signal.subject_key}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    positive {signal.positive} · negative {signal.negative} · mixed {signal.mixed} · sources {signal.unique_sources}
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground md:text-right">{signal.evidence_types.join(', ')}</div>
+                <div className="md:text-right">
+                  {signal.candidate_ready ? (
+                    <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-500">
+                      Candidate ready
+                    </span>
+                  ) : signal.has_active_candidate ? (
+                    <span className="text-xs text-muted-foreground">Active candidate exists</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{signal.evidence_needed} more to threshold</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {Boolean(data?.evidence.length) && (
+          <div className="border-t border-border px-5 py-4">
+            <div className="text-xs font-semibold text-foreground">Recent typed evidence</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {data?.evidence.slice(0, 8).map((item) => (
+                <span key={item.evidence_id} className="rounded-md border border-border bg-muted/20 px-2 py-1 text-xs text-muted-foreground">
+                  {item.evidence_type} · {item.result || 'observed'}
                 </span>
               ))}
             </div>

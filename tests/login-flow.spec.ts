@@ -81,4 +81,40 @@ test.describe('Login Flow', () => {
     expect(typeof body.user?.workspace_id).toBe('number')
     expect(typeof body.user?.tenant_id).toBe('number')
   })
+
+  test('authenticated Control Tower renders Home, Factories, and Learning without auth boot stall', async ({ page, request }) => {
+    const syncRes = await request.post('/api/factories', {
+      headers: { 'x-api-key': TEST_API_KEY },
+    })
+    expect(syncRes.ok()).toBeTruthy()
+
+    await page.goto('/login')
+    await page.locator('#username').fill(TEST_USER)
+    await page.locator('#password').fill(TEST_PASS)
+    await page.locator('button[type="submit"]').click()
+
+    const skipSetup = page.getByRole('button').filter({ hasText: /설정 건너뛰기|Skip setup/i }).first()
+    if (await skipSetup.waitFor({ state: 'visible', timeout: 8_000 }).then(() => true).catch(() => false)) {
+      await skipSetup.click()
+    }
+
+    await expect(page.getByText('NEEDS YOUR DECISION', { exact: true })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('RUNNING', { exact: true })).toBeVisible()
+    await expect(page.getByText('BLOCKED', { exact: true })).toBeVisible()
+    await expect(page.getByText('LEARNING', { exact: true })).toBeVisible()
+    await expect(page.getByText('운영자 인증 중', { exact: true })).toHaveCount(0)
+
+    await page.goto('/factories')
+    await expect(page.locator('h1').filter({ hasText: /^Factories$/ })).toBeVisible()
+    for (const label of ['Native stage', 'Process stage', 'Quality readiness', 'Freshness', 'Human gates', 'Blockers', 'Independent reviews']) {
+      await expect(page.getByText(label, { exact: true }).first()).toBeVisible()
+    }
+
+    await page.goto('/learning')
+    await expect(page.locator('h1').filter({ hasText: /^Learning$/ })).toBeVisible()
+    await expect(page.getByText('Deterministic Signals', { exact: true })).toBeVisible()
+    await expect(page.getByText('Candidate Signals', { exact: true })).toBeVisible()
+    await expect(page.getByText('Improvement Queue', { exact: true })).toBeVisible()
+    await expect(page.getByText('Skill Memory', { exact: true })).toBeVisible()
+  })
 })

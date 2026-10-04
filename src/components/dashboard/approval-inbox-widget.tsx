@@ -25,6 +25,18 @@ interface FactoryApprovalView {
   block_reason: string | null
 }
 
+interface FactoryInstanceSummary {
+  latest_snapshot: {
+    lifecycle: { status: string }
+  } | null
+}
+
+interface LearningOverview {
+  summary?: { active_candidates?: number; evidence?: number }
+  analysis?: { factory_rollups?: Array<{ reflection_eligible?: boolean }> }
+  candidate_signals?: Array<{ candidate_ready?: boolean }>
+}
+
 function metadataRecord(value: JsonValue | undefined): Record<string, unknown> {
   if (!value || Array.isArray(value) || typeof value !== 'object') return {}
   return { ...(value as Record<string, unknown>) }
@@ -58,6 +70,8 @@ export function ApprovalInboxWidget() {
   const navigateToPanel = useNavigateToPanel()
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [factoryApprovals, setFactoryApprovals] = useState<FactoryApprovalView[]>([])
+  const [factoryInstances, setFactoryInstances] = useState<FactoryInstanceSummary[]>([])
+  const [learningOverview, setLearningOverview] = useState<LearningOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const taskApprovals = useMemo(
@@ -71,14 +85,17 @@ export function ApprovalInboxWidget() {
   )
 
   const loadFactoryApprovals = useCallback(async () => {
-    try {
-      const body = await apiFetch<{ approvals?: FactoryApprovalView[] }>(
+    const [approvalResult, factoryResult, learningResult] = await Promise.allSettled([
+      apiFetch<{ approvals?: FactoryApprovalView[] }>(
         '/api/factory-approvals?state=OPEN,DECISION_RECORDED,APPLYING',
-      )
-      setFactoryApprovals(body.approvals || [])
-    } catch {
-      // Factory control plane may be unavailable during migration; legacy task approvals still render.
-    }
+      ),
+      apiFetch<{ instances?: FactoryInstanceSummary[] }>('/api/factories'),
+      apiFetch<LearningOverview>('/api/learning?limit=1'),
+    ])
+
+    if (approvalResult.status === 'fulfilled') setFactoryApprovals(approvalResult.value.approvals || [])
+    if (factoryResult.status === 'fulfilled') setFactoryInstances(factoryResult.value.instances || [])
+    if (learningResult.status === 'fulfilled') setLearningOverview(learningResult.value)
   }, [])
 
   useEffect(() => {
@@ -151,6 +168,14 @@ export function ApprovalInboxWidget() {
   }
 
   const total = factoryApprovals.length + taskApprovals.length
+  const runningCount = tasks.filter((task) => task.status === 'in_progress').length
+    + factoryInstances.filter((instance) => instance.latest_snapshot?.lifecycle.status === 'running').length
+    + factoryApprovals.filter((approval) => approval.state === 'DECISION_RECORDED' || approval.state === 'APPLYING').length
+  const blockedCount = tasks.filter((task) => task.status === 'failed').length
+    + factoryInstances.filter((instance) => instance.latest_snapshot?.lifecycle.status === 'blocked').length
+  const candidateReadyCount = learningOverview?.candidate_signals?.filter((signal) => signal.candidate_ready).length || 0
+  const reflectionEligibleCount = learningOverview?.analysis?.factory_rollups?.filter((rollup) => rollup.reflection_eligible).length || 0
+  const learningEvidenceCount = learningOverview?.summary?.evidence || 0
 
   return (
     <section className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
@@ -158,14 +183,38 @@ export function ApprovalInboxWidget() {
         <div>
           <div className="flex items-center gap-2">
             <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.65)]" />
-            <h2 className="text-base font-semibold text-foreground">Approval Inbox</h2>
+            <h2 className="text-base font-semibold text-foreground">NEEDS YOUR DECISION</h2>
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-500">{total}</span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            내가 결정해야 하는 일. Factory 승인은 native Source of Truth 적용이 확인된 뒤에만 완료됩니다.
+            Approval Inbox · Factory 승인은 native Source of Truth 적용이 확인된 뒤에만 완료됩니다.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => navigateToPanel('factories')}>Factories</Button>
+      </div>
+
+      <div className="grid gap-2 border-b border-border px-5 py-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+          <div className="text-[11px] font-semibold tracking-wide text-cyan-500">RUNNING</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">{runningCount}</div>
+          <div className="text-[11px] text-muted-foreground">tasks · factory jobs</div>
+        </div>
+        <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
+          <div className="text-[11px] font-semibold tracking-wide text-red-400">BLOCKED</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">{blockedCount}</div>
+          <div className="text-[11px] text-muted-foreground">failed work · native blockers</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigateToPanel('learning')}
+          className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-left hover:bg-violet-500/10 transition-colors"
+        >
+          <div className="text-[11px] font-semibold tracking-wide text-violet-400">LEARNING</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">{candidateReadyCount}</div>
+          <div className="text-[11px] text-muted-foreground">
+            candidate-ready · reflection {reflectionEligibleCount} · typed evidence {learningEvidenceCount}
+          </div>
+        </button>
       </div>
 
       {error && (
