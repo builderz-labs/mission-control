@@ -5,7 +5,9 @@ Status: ARCHITECTURE FROZEN; IMPLEMENTATION BASELINE ACTIVE
 Scope: AI Ops Hub control plane, Product Factory adapter, Shufuro Marketing/Creative proof, low-cost self-improvement
 Implementation note: Product Factory remains untouched and authoritative. Implementation status is tracked against this frozen architecture rather than rewriting native Factory truth.
 
-Current local baseline: `2f8e925 feat: add operational control tower learning signals` on `feat/ai-ops-hub-v0.1`.
+Current local baseline: `12a61bb build: use turbopack for production builds` on `feat/ai-ops-hub-v0.1`.
+
+The control-plane feature baseline is `2f8e925`; `12a61bb` changes the production build engine from Webpack to Turbopack after local A/B verification showed the Webpack path was the resource bottleneck.
 
 Implemented and verified at the targeted-regression/UI-smoke level:
 - Product/Marketing/Creative Factory projections and dedicated approval lifecycle.
@@ -17,10 +19,16 @@ Implemented and verified at the targeted-regression/UI-smoke level:
 - Factories runtime axes: Native stage / Process stage / Quality readiness / Freshness / Human gates / Blockers / Independent reviews.
 - authenticated Edge smoke for Home / Factories / Learning without residual auth boot stall.
 
-Not yet claimed as live/production verified:
+Not yet claimed as live verified:
 - a real Product Factory gate approval from the Control Tower,
-- a full production build/typecheck of the latest `2f8e925` baseline,
 - automatic L2 AI reflection or any higher-level self-promotion.
+
+Production build/typecheck status:
+- clean `tsc --noEmit --extendedDiagnostics`: PASS in 69.89s, ~1.33 GB reported memory.
+- official cold `pnpm build` using Turbopack: PASS in ~172s including TypeScript, static generation, and standalone artifact preparation.
+- 120/120 static pages generated.
+- standalone artifact check: PASS.
+- Turbopack currently emits 81 NFT whole-project tracing warnings tied to the Hermes route import trace. These warnings are non-blocking technical debt because the build exits 0 and the standalone artifact boundary check passes.
 
 ## 1. Executive decision
 
@@ -966,13 +974,13 @@ v0.2 architecture is considered successfully implemented only when:
 13. Marketing and Creative can be separated while preserving the existing Shufuro Content OS during migration.
 14. A promoted improvement has an evidence trail and rollback target.
 
-Current acceptance snapshot at `2f8e925`:
+Current acceptance snapshot at `12a61bb`:
 - Criteria 1–5, 7–8, and 12–13 are implemented at the current targeted-regression/control-plane level.
 - Criteria 9–10 are enforced as conservative policy/default behavior, but a real learned-rule promotion and optional-model budget-block flow have not yet been exercised end-to-end.
 - Criterion 11 remains **partial**: skillmem health/read-only integration exists, but full installed/trusted/candidate/stale lifecycle presentation is not implemented yet.
 - Criterion 6 remains **live-unverified** because no real Product Factory gate has been applied from the Control Tower.
 - Criterion 14 remains **not yet demonstrated with a real promoted improvement** because L2+ promotion is intentionally not auto-running.
-- The latest baseline still requires a successful full production build/typecheck before it can be called production-build-verified.
+- The latest baseline is **production-build-verified locally on Windows** using Turbopack. NFT whole-project tracing warnings remain technical debt, not a current build blocker.
 
 ## 23. Immediate implementation order
 
@@ -981,13 +989,13 @@ The original v0.2 foundation through Product/Marketing/Creative projection and d
 The next code work is deliberately narrow:
 
 ```text
-1. Keep 2f8e925 as the stable local control-plane baseline
-2. Isolate/fix latest-commit production build + typecheck resource behavior
-3. Accumulate real typed evidence through normal Factory use
-4. Add L2 batched reflection only when evidence thresholds become meaningful
-5. Add eval/rollback flow for the first real Improvement Candidate
-6. Add typed cross-Factory feedback proposals
-7. Prove a real guarded Product approval only with explicit human approval
+1. Keep 12a61bb as the production-build-verified local baseline
+2. Accumulate real typed evidence through normal Factory use
+3. Add L2 batched reflection only when evidence thresholds become meaningful
+4. Add eval/rollback flow for the first real Improvement Candidate
+5. Add typed cross-Factory feedback proposals
+6. Prove a real guarded Product approval only with explicit human approval
+7. Investigate Hermes/NFT whole-project tracing warnings as non-blocking build debt
 8. Expand Growth / VOC / Revenue only when a real workflow requires it
 ```
 

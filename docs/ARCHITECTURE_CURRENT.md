@@ -8,8 +8,9 @@ Current implementation handoff:
 
 Current local implementation baseline:
 - branch: `feat/ai-ops-hub-v0.1`
-- commit: `2f8e925 feat: add operational control tower learning signals`
-- status at handoff: clean working tree, no GitHub push
+- commit: `12a61bb build: use turbopack for production builds`
+- production build/typecheck: verified locally on Windows
+- status at handoff: clean working tree after implementation commits, no GitHub push
 
 Historical design:
 - `AI_OPS_HUB_V0.1.md`

@@ -7,12 +7,18 @@ Canonical architecture: `ARCHITECTURE_CURRENT.md` → `AI_CONTROL_TOWER_ARCHITEC
 Latest implementation commit:
 
 ```text
+12a61bb build: use turbopack for production builds
+```
+
+Control-plane feature baseline:
+
+```text
 2f8e925 feat: add operational control tower learning signals
 ```
 
 Branch: `feat/ai-ops-hub-v0.1`.
 
-The AI Ops Hub working tree was clean after this commit. No GitHub push was performed.
+The AI Ops Hub working tree was clean after the implementation commit before this documentation refresh. No GitHub push was performed.
 
 Product Factory remained authoritative and untouched:
 
@@ -128,6 +134,43 @@ The Playwright Control Tower smoke config is included at:
 
 and the current login-flow spec is discoverable as 6 tests.
 
+### Production build / typecheck
+
+Latest Windows verification:
+
+```text
+clean tsc --noEmit --extendedDiagnostics
+PASS
+Files: 3321
+Memory used: ~1.33 GB
+Total time: 69.89s
+
+official cold pnpm build
+PASS
+engine: Next.js 16.2.11 Turbopack
+total runtime: ~172s
+static pages: 120/120
+artifact:prepare: PASS
+artifact:check: PASS
+```
+
+The previous Webpack path was measured as a build-performance bottleneck:
+- compile remained active beyond 20 minutes,
+- process working set approached ~4.7 GB,
+- process private memory approached ~5.0 GB,
+- no functional source error was observed before the run was stopped as a performance regression.
+
+The production build script now uses Turbopack via commit `12a61bb`.
+
+Turbopack emits 81 NFT whole-project tracing warnings, with a repeated Hermes route import trace. These warnings are currently classified as **non-blocking technical debt** because:
+- the official build exits 0,
+- TypeScript completes,
+- 120/120 pages generate,
+- the standalone artifact is prepared,
+- the standalone boundary check reports `status: ok`.
+
+Do not claim the warning is fixed. Do not revert to Webpack merely to avoid the warning without a measured alternative.
+
 ## Current observed Factory projections
 
 These are projections captured through the adapter and are not promises of live freshness after this handoff.
@@ -180,20 +223,21 @@ Self-improvement remains evidence-driven; agent self-opinion does not count as p
 
 ## Remaining verification / implementation gates
 
-1. **Latest-commit production build gate**
-   - A historical v0.2 production build passed before the latest learning/UI changes.
-   - A full production build and full typecheck were not completed on `2f8e925` because the current Windows machine showed excessive resource use during those checks.
-   - Do not report `2f8e925` as production-build-verified until that gate is rerun successfully.
-
-2. **Live Product approval end-to-end gate**
+1. **Live Product approval end-to-end gate**
    - The guarded path and isolated regression coverage exist.
    - No real Product Factory gate has been approved from the Control Tower.
    - Keep live Product gate mutation behind explicit human approval.
 
-3. **Learning L2 reflection**
+2. **Learning L2 reflection**
    - Typed evidence and deterministic candidate readiness now exist.
    - AI reflection remains intentionally disabled until enough real evidence exists.
    - Do not add automatic reflection merely because the schema/UI are ready.
+
+3. **Hermes / NFT tracing debt**
+   - The current production build is verified and passes.
+   - 81 Turbopack NFT whole-project tracing warnings remain.
+   - Treat this as performance/artifact hygiene debt, not as a current release blocker.
+   - Any fix must preserve Hermes runtime behavior and standalone artifact integrity.
 
 4. **Factory expansion**
    - Do not implement Growth / VOC / Revenue all at once.
@@ -202,12 +246,13 @@ Self-improvement remains evidence-driven; agent self-opinion does not count as p
 ## Recommended next development order
 
 ```text
-1. Keep 2f8e925 as the verified local control-plane baseline
-2. Solve or isolate the latest-commit production build/typecheck resource issue
-3. Accumulate real typed evidence through normal Factory use
-4. Add L2 batched reflection only after evidence threshold is meaningful
-5. Add cross-Factory feedback proposals
-6. Expand to Growth / VOC / Revenue only when a real workflow demands it
+1. Keep 12a61bb as the production-build-verified local baseline
+2. Accumulate real typed evidence through normal Factory use
+3. Add L2 batched reflection only after evidence threshold is meaningful
+4. Add eval/rollback flow for the first real Improvement Candidate
+5. Add typed cross-Factory feedback proposals
+6. Investigate Hermes/NFT tracing debt without destabilizing the verified build
+7. Expand to Growth / VOC / Revenue only when a real workflow demands it
 ```
 
 Do not trade the current safety properties for faster autonomy.
