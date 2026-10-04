@@ -11,6 +11,7 @@ import type {
   FactoryHealth,
 } from './factory-adapter'
 import {
+  acquireShufuroWriteLock,
   contentRevision,
   findEpisodePacket,
   frontmatterValue,
@@ -210,40 +211,74 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
       }
     }
 
-    const queueBefore = readText(queuePath)
-    const packetBefore = readText(packetPath)
-    let queueAfter: string
-    let packetAfter: string
+    let releaseLock: (() => void) | null = null
     try {
-      queueAfter = updateQueueStatus(queueBefore, episode, 'REVIEW', 'READY')
-      packetAfter = updatePacketStatus(packetBefore, 'REVIEW', 'READY')
-      writeFileSync(packetPath, packetAfter, 'utf8')
-      writeFileSync(queuePath, queueAfter, 'utf8')
+      releaseLock = acquireShufuroWriteLock(root, `approve-content:${episode}`)
     } catch (error) {
-      try { writeFileSync(packetPath, packetBefore, 'utf8') } catch {}
-      try { writeFileSync(queuePath, queueBefore, 'utf8') } catch {}
       return {
         state: 'FAILED',
         before_revision: before.source.revision,
         after_revision: before.source.revision,
         stdout_excerpt: '',
         stderr_excerpt: '',
-        error: error instanceof Error ? error.message : 'Failed to promote Content OS episode.',
+        error: error instanceof Error ? error.message : 'Shufuro Content OS write lock unavailable.',
         snapshot: before,
       }
     }
 
-    const after = await this.getSnapshot(instance)
-    const rowReady = parseQueue(readText(queuePath)).some((row) => row.episode === episode && row.status === 'READY')
-    const packetReady = frontmatterValue(readText(packetPath), 'status')?.toUpperCase() === 'READY'
-    return {
-      state: rowReady && packetReady ? 'APPLIED' : 'UNKNOWN',
-      before_revision: before.source.revision,
-      after_revision: after.source.revision,
-      stdout_excerpt: rowReady && packetReady ? `${episode} promoted REVIEW → READY.` : '',
-      stderr_excerpt: '',
-      error: rowReady && packetReady ? null : 'Source files were written but READY confirmation was incomplete.',
-      snapshot: after,
+    try {
+      // Re-read after the lock is acquired so another AI Ops writer cannot slip
+      // a mutation between the approval revision check and the two-file commit.
+      const lockedBefore = await this.getSnapshot(instance)
+      if (!request.expected_revision || lockedBefore.source.revision !== request.expected_revision) {
+        return {
+          state: 'STALE',
+          before_revision: lockedBefore.source.revision,
+          after_revision: null,
+          stdout_excerpt: '',
+          stderr_excerpt: '',
+          error: 'Marketing Content OS changed before the write lock was acquired.',
+          snapshot: lockedBefore,
+        }
+      }
+
+      const queueBefore = readText(queuePath)
+      const packetBefore = readText(packetPath)
+      let queueAfter: string
+      let packetAfter: string
+      try {
+        queueAfter = updateQueueStatus(queueBefore, episode, 'REVIEW', 'READY')
+        packetAfter = updatePacketStatus(packetBefore, 'REVIEW', 'READY')
+        writeFileSync(packetPath, packetAfter, 'utf8')
+        writeFileSync(queuePath, queueAfter, 'utf8')
+      } catch (error) {
+        try { writeFileSync(packetPath, packetBefore, 'utf8') } catch {}
+        try { writeFileSync(queuePath, queueBefore, 'utf8') } catch {}
+        return {
+          state: 'FAILED',
+          before_revision: lockedBefore.source.revision,
+          after_revision: lockedBefore.source.revision,
+          stdout_excerpt: '',
+          stderr_excerpt: '',
+          error: error instanceof Error ? error.message : 'Failed to promote Content OS episode.',
+          snapshot: lockedBefore,
+        }
+      }
+
+      const after = await this.getSnapshot(instance)
+      const rowReady = parseQueue(readText(queuePath)).some((row) => row.episode === episode && row.status === 'READY')
+      const packetReady = frontmatterValue(readText(packetPath), 'status')?.toUpperCase() === 'READY'
+      return {
+        state: rowReady && packetReady ? 'APPLIED' : 'UNKNOWN',
+        before_revision: lockedBefore.source.revision,
+        after_revision: after.source.revision,
+        stdout_excerpt: rowReady && packetReady ? `${episode} promoted REVIEW → READY.` : '',
+        stderr_excerpt: '',
+        error: rowReady && packetReady ? null : 'Source files were written but READY confirmation was incomplete.',
+        snapshot: after,
+      }
+    } finally {
+      releaseLock?.()
     }
   }
 

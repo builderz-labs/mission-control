@@ -18,7 +18,7 @@ export interface SkillMemoryHealth {
   detail: string | null
 }
 
-const ROOT = process.cwd()
+const ROOT = resolve(process.env.AI_OPS_ROOT || process.cwd())
 const DEFAULT_EXE = resolve(ROOT, '.venv-skillmem', 'Scripts', 'skillmem.exe')
 const DEFAULT_DB = resolve(ROOT, '.data', 'skillmem', 'skillmem.db')
 const TIMEOUT_MS = 15_000

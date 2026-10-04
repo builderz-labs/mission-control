@@ -1,37 +1,75 @@
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { FactorySnapshot } from './types'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let db: Database.Database
 vi.mock('@/lib/db', () => ({ getDatabase: () => db }))
-import { recordFactorySnapshotExperience } from './learning-store'
+import { deterministicLearningAggregates, recordExperience } from './learning-store'
 
 beforeEach(() => {
   db = new Database(':memory:')
-  db.exec(`CREATE TABLE experience_events (
-    id INTEGER PRIMARY KEY, workspace_id INTEGER, experience_id TEXT, project_id TEXT,
-    factory_instance_id TEXT, stage_id TEXT, action_type TEXT, worker_kind TEXT, worker_identity TEXT,
-    inputs TEXT, artifact_refs TEXT, checks TEXT, metrics TEXT, outcome TEXT, cost TEXT,
-    evidence_refs TEXT, source_revision TEXT, observed_at INTEGER, created_at INTEGER,
-    UNIQUE(workspace_id, experience_id)
-  )`)
+  db.exec(`
+    CREATE TABLE experience_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workspace_id INTEGER NOT NULL,
+      experience_id TEXT NOT NULL,
+      project_id TEXT,
+      factory_instance_id TEXT,
+      stage_id TEXT,
+      action_type TEXT NOT NULL,
+      worker_kind TEXT,
+      worker_identity TEXT,
+      inputs TEXT NOT NULL DEFAULT '[]',
+      artifact_refs TEXT NOT NULL DEFAULT '[]',
+      checks TEXT NOT NULL DEFAULT '[]',
+      metrics TEXT NOT NULL DEFAULT '[]',
+      outcome TEXT,
+      cost TEXT NOT NULL DEFAULT '{}',
+      evidence_refs TEXT NOT NULL DEFAULT '[]',
+      source_revision TEXT,
+      observed_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      UNIQUE(workspace_id, experience_id)
+    )
+  `)
 })
+
 afterEach(() => db.close())
 
-it('deduplicates passive snapshot evidence within a workspace and revision', () => {
-  const snapshot = {
-    snapshot_version: '1.0', instance_id: 'marketing:fixture', module_id: 'marketing-factory',
-    observed_at: new Date().toISOString(),
-    source: { authority: 'fixture', native_id: 'fixture', revision: 'revision-a', adapter_version: '1' },
-    freshness: { state: 'fresh', last_success_at: new Date().toISOString(), last_error: null },
-    lifecycle: { process_stage_id: null, native_stage: 'REVIEW', canonical_phase: 'design', status: 'blocked' },
-    compatibility: { native_version: '1', contract_coverage: 'partial', warnings: [] },
-    gates: [], checks: [], artifacts: [], review_queues: [], next_actions: [],
-    blockers: [], risks: [], metrics: [], available_commands: [],
-  } satisfies FactorySnapshot
-  recordFactorySnapshotExperience(1, snapshot)
-  recordFactorySnapshotExperience(1, snapshot)
-  recordFactorySnapshotExperience(2, snapshot)
-  const rows = db.prepare('SELECT workspace_id, COUNT(*) AS count FROM experience_events GROUP BY workspace_id').all()
-  expect(rows).toEqual([{ workspace_id: 1, count: 1 }, { workspace_id: 2, count: 1 }])
+describe('deterministic learning aggregation', () => {
+  it('deduplicates a source revision and isolates workspaces', () => {
+    recordExperience({ workspaceId: 1, experienceId: 'snapshot:one:r1', factoryInstanceId: 'one', actionType: 'factory_snapshot', outcome: 'mixed', observedAt: 1001 })
+    recordExperience({ workspaceId: 1, experienceId: 'snapshot:one:r1', factoryInstanceId: 'one', actionType: 'factory_snapshot', outcome: 'mixed', observedAt: 1002 })
+    recordExperience({ workspaceId: 2, experienceId: 'snapshot:one:r1', factoryInstanceId: 'one', actionType: 'factory_snapshot', outcome: 'success', observedAt: 1003 })
+    expect(deterministicLearningAggregates(1).factory_rollups[0]).toMatchObject({ events: 1, mixed: 1, success: 0, reflection_eligible: false, evidence_needed: 4 })
+    expect(deterministicLearningAggregates(2).factory_rollups[0]).toMatchObject({ events: 1, success: 1 })
+  })
+  it('marks reflection eligibility only after the evidence threshold and counts recurring failed checks', () => {
+    for (let i = 1; i <= 5; i += 1) {
+      recordExperience({
+        workspaceId: 1,
+        experienceId: 'e' + i,
+        factoryInstanceId: 'marketing:shufuro',
+        actionType: 'factory_snapshot',
+        outcome: i === 1 ? 'mixed' : 'success',
+        checks: [{ id: 'hook_density', ok: i > 2 }],
+        observedAt: 1000 + i,
+      })
+    }
+
+    const analysis = deterministicLearningAggregates(1)
+    expect(analysis.factory_rollups).toHaveLength(1)
+    expect(analysis.factory_rollups[0]).toMatchObject({
+      factory_instance_id: 'marketing:shufuro',
+      events: 5,
+      success: 4,
+      mixed: 1,
+      reflection_eligible: true,
+      evidence_needed: 0,
+    })
+    expect(analysis.recurring_check_failures[0]).toMatchObject({
+      check_id: 'hook_density',
+      count: 2,
+      recurring: true,
+    })
+  })
 })

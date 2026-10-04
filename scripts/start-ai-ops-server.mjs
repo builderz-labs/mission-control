@@ -26,6 +26,7 @@ async function syncRuntimeAssets() {
 process.env.HOSTNAME ||= '127.0.0.1'
 process.env.PORT ||= '3000'
 process.env.MISSION_CONTROL_DATA_DIR ||= resolve(repoRoot, '.data')
+process.env.AI_OPS_ROOT ||= repoRoot
 
 await syncRuntimeAssets()
 process.chdir(standaloneRoot)

@@ -44,8 +44,31 @@ interface CandidateRow {
   updated_at: number
 }
 
+interface DeterministicAnalysis {
+  window_events: number
+  reflection_threshold: number
+  factory_rollups: Array<{
+    factory_instance_id: string
+    events: number
+    success: number
+    mixed: number
+    failure: number
+    last_observed_at: number
+    reflection_eligible: boolean
+    evidence_needed: number
+  }>
+  recurring_check_failures: Array<{
+    check_id: string
+    count: number
+    factories: string[]
+    last_observed_at: number
+    recurring: boolean
+  }>
+}
+
 interface LearningPayload {
   summary: LearningSummary
+  analysis: DeterministicAnalysis
   experiences: ExperienceRow[]
   candidates: CandidateRow[]
 }
@@ -191,6 +214,53 @@ export function LearningPanel() {
         <div className="mt-3 text-xs text-muted-foreground">
           Semantic retrieval: {skillMemory?.health.semantic_status || '—'} · auto-trust OFF · external evidence required
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground">Deterministic Signals</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            AI 호출 없이 Experience를 집계합니다. evidence threshold에 도달해도 reflection은 자동 실행하지 않습니다.
+          </p>
+        </div>
+        {!data?.analysis.factory_rollups.length ? (
+          <div className="px-5 py-10 text-center text-sm text-muted-foreground">집계할 Experience가 없습니다.</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {data.analysis.factory_rollups.map((rollup) => (
+              <div key={rollup.factory_instance_id} className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_90px_170px] md:items-center">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">{rollup.factory_instance_id}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    success {rollup.success} · mixed {rollup.mixed} · failure {rollup.failure}
+                  </div>
+                </div>
+                <div className="text-sm md:text-right">{rollup.events} evidence</div>
+                <div className="md:text-right">
+                  {rollup.reflection_eligible ? (
+                    <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-500">
+                      Reflection eligible
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{rollup.evidence_needed} more to threshold</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {Boolean(data?.analysis.recurring_check_failures.some((item) => item.recurring)) && (
+          <div className="border-t border-border px-5 py-4">
+            <div className="text-xs font-semibold text-foreground">Recurring failed checks</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {data?.analysis.recurring_check_failures.filter((item) => item.recurring).map((item) => (
+                <span key={item.check_id} className="rounded-md border border-red-500/20 bg-red-500/5 px-2 py-1 text-xs text-red-400">
+                  {item.check_id} × {item.count}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-border bg-card overflow-hidden">

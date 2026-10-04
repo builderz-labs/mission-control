@@ -1,6 +1,43 @@
-import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { createHash, randomUUID } from 'node:crypto'
+import { closeSync, existsSync, openSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
+
+const WRITE_LOCK_NAME = '.ai-ops-content.lock'
+const LOCKED = 'Shufuro Content OS is locked by another writer.'
+
+export function acquireShufuroWriteLock(root: string, owner = 'ai-ops-hub'): () => void {
+  const lockPath = join(root, WRITE_LOCK_NAME)
+  const token = randomUUID()
+  const payload = JSON.stringify({ owner, pid: process.pid, token, created_at: new Date().toISOString() })
+  const tryAcquire = () => {
+    const fd = openSync(lockPath, 'wx')
+    try {
+      writeFileSync(fd, payload, 'utf8')
+    } catch (error) {
+      try { unlinkSync(lockPath) } catch {}
+      throw error
+    } finally {
+      closeSync(fd)
+    }
+  }
+
+  try {
+    tryAcquire()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(LOCKED)
+    throw error
+  }
+
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    try {
+      const current = JSON.parse(readFileSync(lockPath, 'utf8')) as { token?: string }
+      if (current.token === token) unlinkSync(lockPath)
+    } catch {}
+  }
+}
 
 export interface ShufuroQueueRow {
   order: string

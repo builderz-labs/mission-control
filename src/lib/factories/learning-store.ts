@@ -181,6 +181,103 @@ export function createImprovementCandidate(input: {
   `).get(input.workspaceId, candidateId) as ImprovementCandidateRow
 }
 
+
+export function deterministicLearningAggregates(workspaceId: number, limit = 500) {
+  const db = getDatabase()
+  const rows = db.prepare(`
+    SELECT factory_instance_id, action_type, outcome, checks, metrics, observed_at
+    FROM experience_events
+    WHERE workspace_id = ?
+    ORDER BY observed_at DESC, id DESC
+    LIMIT ?
+  `).all(workspaceId, Math.max(1, Math.min(2000, limit))) as Array<{
+    factory_instance_id: string | null
+    action_type: string
+    outcome: string | null
+    checks: string
+    metrics: string
+    observed_at: number
+  }>
+
+  const byFactory = new Map<string, {
+    factory_instance_id: string
+    events: number
+    success: number
+    mixed: number
+    failure: number
+    last_observed_at: number
+  }>()
+  const checkFailures = new Map<string, {
+    check_id: string
+    count: number
+    factories: Set<string>
+    last_observed_at: number
+  }>()
+
+  for (const row of rows) {
+    const factory = row.factory_instance_id || 'unscoped'
+    const rollup = byFactory.get(factory) || {
+      factory_instance_id: factory,
+      events: 0,
+      success: 0,
+      mixed: 0,
+      failure: 0,
+      last_observed_at: 0,
+    }
+    rollup.events += 1
+    if (row.outcome === 'success') rollup.success += 1
+    else if (row.outcome === 'mixed') rollup.mixed += 1
+    else if (row.outcome === 'failure') rollup.failure += 1
+    rollup.last_observed_at = Math.max(rollup.last_observed_at, row.observed_at || 0)
+    byFactory.set(factory, rollup)
+
+    try {
+      const checks = JSON.parse(row.checks || '[]') as Array<{ id?: string; ok?: boolean }>
+      for (const check of checks) {
+        if (check?.ok !== false || !check.id) continue
+        const item = checkFailures.get(check.id) || {
+          check_id: check.id,
+          count: 0,
+          factories: new Set<string>(),
+          last_observed_at: 0,
+        }
+        item.count += 1
+        item.factories.add(factory)
+        item.last_observed_at = Math.max(item.last_observed_at, row.observed_at || 0)
+        checkFailures.set(check.id, item)
+      }
+    } catch {
+      // Malformed historical evidence is ignored by deterministic aggregation.
+    }
+  }
+
+  const reflectionThreshold = 5
+  const factoryRollups = Array.from(byFactory.values())
+    .sort((a, b) => b.last_observed_at - a.last_observed_at)
+    .map((item) => ({
+      ...item,
+      reflection_eligible: item.events >= reflectionThreshold,
+      evidence_needed: Math.max(0, reflectionThreshold - item.events),
+    }))
+
+  const recurringFailures = Array.from(checkFailures.values())
+    .map((item) => ({
+      check_id: item.check_id,
+      count: item.count,
+      factories: Array.from(item.factories).sort(),
+      last_observed_at: item.last_observed_at,
+      recurring: item.count >= 2,
+    }))
+    .sort((a, b) => b.count - a.count || b.last_observed_at - a.last_observed_at)
+
+  return {
+    window_events: rows.length,
+    reflection_threshold: reflectionThreshold,
+    factory_rollups: factoryRollups,
+    recurring_check_failures: recurringFailures,
+  }
+}
+
 export function learningSummary(workspaceId: number) {
   const db = getDatabase()
   const events = (db.prepare(`SELECT COUNT(*) as count FROM experience_events WHERE workspace_id = ?`).get(workspaceId) as { count: number }).count

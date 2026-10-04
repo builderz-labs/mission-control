@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth'
 import { requireWorkspaceId } from '@/lib/enforcement/workspace-scope'
 import {
+  deterministicLearningAggregates,
   learningSummary,
   listExperienceEvents,
   listImprovementCandidates,
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit') || 30)))
   return NextResponse.json({
     summary: learningSummary(ws.workspaceId),
+    analysis: deterministicLearningAggregates(ws.workspaceId),
     experiences: listExperienceEvents(ws.workspaceId, limit),
     candidates: listImprovementCandidates(ws.workspaceId, limit),
   })
