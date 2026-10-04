@@ -20,7 +20,7 @@ Product Factory `C:\Dev\product-factory` remained clean and read-only throughout
 - `pnpm typecheck`: passed.
 - Relevant ESLint: passed.
 - `git diff --cached --check`: passed before commit.
-- `pnpm build`: running at handoff; check final result before relying on production artifact.
+- `pnpm build`: passed (webpack compiled in 17.1 minutes; TypeScript, 120 static pages, and standalone artifact preparation completed; exit 0).
 
 ## Current observed state
 
@@ -28,10 +28,9 @@ Product `sonpo-tax-drill`: native `TESTFLIGHT_UPLOADED`, process stage unknown/l
 
 ## Next work
 
-1. Confirm build result; investigate if the large Windows webpack build stalls.
-2. Run authenticated API/UI smoke QA for Home ordering, Factories freshness, and Learning display.
-3. Add regression for command-run state/postcondition and concurrent Shufuro writer behavior; avoid original Content OS writes.
-4. Add deterministic experience aggregations and typed evidence links before any automated reflection.
-5. Keep skillmem read-only, paid API cap $0/day, optimizer off, and Product Factory native source untouched.
+1. Run authenticated API/UI smoke QA for Home ordering, Factories freshness, and Learning display.
+2. Add regression for command-run state/postcondition and concurrent Shufuro writer behavior; avoid original Content OS writes.
+3. Add deterministic experience aggregations and typed evidence links before any automated reflection.
+4. Keep skillmem read-only, paid API cap $0/day, optimizer off, and Product Factory native source untouched.
 
 Known limitation: Shufuro's two-file REVIEW → READY update is guarded by revision and rollback but has no cross-process file lock; do not run concurrent writers until this is addressed.
