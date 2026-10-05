@@ -41,6 +41,14 @@ interface CandidateRow {
   sample_size: number
   confidence_label: string | null
   promotion_state: string
+  change_ref: string | null
+  rollback_target: string | null
+  evidence_count: number
+  eval_ready: boolean
+  has_rollback_target: boolean
+  review_required: boolean
+  approval_required: boolean
+  under_observation: boolean
   updated_at: number
 }
 
@@ -358,9 +366,22 @@ export function LearningPanel() {
                   <span>{candidate.target}</span>
                   <span>n={candidate.sample_size}</span>
                   <span>{candidate.confidence_label || 'unrated'}</span>
+                  <span className="rounded-md border border-border px-2 py-1 text-foreground">{candidate.status}</span>
                   <span>{candidate.promotion_state}</span>
+                  <span>evidence {candidate.evidence_count}</span>
+                  <span>eval {candidate.eval_ready ? 'ready' : 'pending'}</span>
+                  <span>rollback {candidate.has_rollback_target ? 'set' : 'missing'}</span>
+                  {candidate.review_required && <span>review required</span>}
+                  {candidate.approval_required && <span>approval required</span>}
+                  {candidate.under_observation && <span>under observation</span>}
                 </div>
                 <div className="mt-2 text-sm font-medium text-foreground">{candidate.hypothesis}</div>
+                {(candidate.change_ref || candidate.rollback_target) && (
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
+                    {candidate.change_ref && <span>change: {candidate.change_ref}</span>}
+                    {candidate.rollback_target && <span>rollback: {candidate.rollback_target}</span>}
+                  </div>
+                )}
               </div>
             ))}
           </div>

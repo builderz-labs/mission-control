@@ -1695,6 +1695,32 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_learning_evidence_candidate ON learning_evidence(workspace_id, candidate_id, observed_at DESC);
       `)
     }
+  },
+  {
+    id: '057_cross_factory_feedback_proposals',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS cross_factory_feedback_proposals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          feedback_id TEXT NOT NULL,
+          from_factory TEXT NOT NULL,
+          from_stage TEXT NOT NULL,
+          to_factory TEXT NOT NULL,
+          to_input TEXT NOT NULL,
+          signal TEXT NOT NULL,
+          evidence_refs TEXT NOT NULL DEFAULT '[]',
+          confidence_label TEXT NOT NULL,
+          requires_acceptance INTEGER NOT NULL DEFAULT 1,
+          status TEXT NOT NULL DEFAULT 'PROPOSED',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, feedback_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cross_factory_feedback_status
+          ON cross_factory_feedback_proposals(workspace_id, status, created_at DESC);
+      `)
+    }
   }
 ]
 

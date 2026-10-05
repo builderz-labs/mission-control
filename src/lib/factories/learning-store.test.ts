@@ -4,11 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 let db: Database.Database
 vi.mock('@/lib/db', () => ({ getDatabase: () => db }))
 import {
+  createImprovementCandidate,
   deterministicCandidateSignals,
   deterministicLearningAggregates,
   listLearningEvidence,
   recordExperience,
+  recordImprovementEvaluation,
+  proposeReadyImprovementCandidate,
   recordLearningEvidence,
+  transitionImprovementCandidate,
 } from './learning-store'
 
 beforeEach(() => {
@@ -217,5 +221,318 @@ describe('typed learning evidence', () => {
       has_active_candidate: true,
       candidate_ready: false,
     })
+  })
+})
+
+
+describe('improvement candidate lifecycle', () => {
+  const evalPlan = { metric: 'hook_density', baseline: 10, direction: 'decrease' as const, minimum_effect: 1, method: 'deterministic fixture' }
+
+  function seedEvidence() {
+    return Array.from({ length: 5 }, (_, index) => recordLearningEvidence({
+      workspaceId: 1,
+      evidenceId: `seed-${index}`,
+      evidenceType: 'deterministic_check',
+      sourceType: 'snapshot',
+      sourceRef: `revision-${index}`,
+      result: index < 2 ? 'negative' : 'positive',
+      subjectKey: 'marketing:shufuro:hook-density',
+    }))
+  }
+
+  it('rejects invalid or stale transitions', () => {
+    const candidate = createImprovementCandidate({
+      workspaceId: 1,
+      scope: 'check',
+      target: 'marketing:shufuro:hook-density',
+      hypothesis: 'Reduce repeated hook-density failures',
+      evidenceRefs: seedEvidence(),
+      sampleSize: 5,
+      evalPlan,
+    })
+
+    expect(() => transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'PROPOSED',
+      toStatus: 'PROMOTED',
+      actor: 'owner',
+      reason: 'skip ahead',
+      changeRef: 'change:1',
+      rollbackTarget: 'rollback:1',
+    })).toThrow(/transition/i)
+
+    transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'PROPOSED',
+      toStatus: 'EVAL_READY',
+      actor: 'owner',
+      reason: 'eval plan is ready',
+    })
+
+    expect(() => transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'PROPOSED',
+      toStatus: 'EVALUATING',
+      actor: 'owner',
+      reason: 'stale client',
+    })).toThrow(/changed before transition/i)
+  })
+
+  it('requires evaluation evidence and rollback metadata before promotion', () => {
+    const candidate = createImprovementCandidate({
+      workspaceId: 1,
+      scope: 'check',
+      target: 'marketing:shufuro:hook-density',
+      hypothesis: 'Reduce repeated hook-density failures',
+      evidenceRefs: seedEvidence(),
+      sampleSize: 5,
+      confidenceLabel: 'medium',
+      evalPlan,
+      reviewPolicy: 'human',
+    })
+
+    const ready = transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'PROPOSED',
+      toStatus: 'EVAL_READY',
+      actor: 'owner',
+      reason: 'evaluation plan accepted',
+    })
+    expect(ready).toMatchObject({ status: 'EVAL_READY', promotion_state: 'UNTESTED' })
+
+    const evaluating = transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'EVAL_READY',
+      toStatus: 'EVALUATING',
+      actor: 'owner',
+      reason: 'start deterministic eval',
+    })
+    expect(evaluating).toMatchObject({ status: 'EVALUATING', promotion_state: 'EVALUATING' })
+
+    expect(() => transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'EVALUATING',
+      toStatus: 'REVIEW_REQUIRED',
+      actor: 'owner',
+      reason: 'eval completed',
+    })).toThrow(/evaluation evidence/i)
+
+    const evaluation = recordImprovementEvaluation({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      after: 8,
+      sourceRef: 'vitest:eval-pass',
+      actor: 'owner',
+    })
+    expect(evaluation).toMatchObject({ passed: true, effect: 2 })
+
+    const reviewed = transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'EVALUATING',
+      toStatus: 'REVIEW_REQUIRED',
+      actor: 'owner',
+      reason: 'eval passed',
+      evidenceRefs: [evaluation.evidenceId],
+    })
+    expect(reviewed).toMatchObject({ status: 'REVIEW_REQUIRED', promotion_state: 'EVAL_PASSED' })
+    expect(listLearningEvidence(1).find((row) => row.evidence_id === evaluation.evidenceId)?.candidate_id).toBe(candidate.candidate_id)
+
+    const approval = transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'REVIEW_REQUIRED',
+      toStatus: 'APPROVAL_REQUIRED',
+      actor: 'reviewer',
+      reason: 'review accepted',
+    })
+    expect(approval.status).toBe('APPROVAL_REQUIRED')
+
+    expect(() => transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'APPROVAL_REQUIRED',
+      toStatus: 'PROMOTED',
+      actor: 'admin',
+      reason: 'approve',
+      changeRef: 'change:hook-density-v2',
+    })).toThrow(/rollback target/i)
+
+    const promoted = transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'APPROVAL_REQUIRED',
+      toStatus: 'PROMOTED',
+      actor: 'admin',
+      reason: 'approved after eval',
+      changeRef: 'change:hook-density-v2',
+      rollbackTarget: 'change:hook-density-v1',
+    })
+    expect(promoted).toMatchObject({
+      status: 'PROMOTED',
+      promotion_state: 'PROMOTED',
+      change_ref: 'change:hook-density-v2',
+      rollback_target: 'change:hook-density-v1',
+    })
+  })
+
+  it('records an auditable rollback from observation', () => {
+    recordLearningEvidence({
+      workspaceId: 1,
+      evidenceId: 'rollback-signal',
+      evidenceType: 'real_metric',
+      sourceType: 'metric',
+      sourceRef: 'metric:after-promotion',
+      result: 'negative',
+      subjectKey: 'marketing:shufuro:hook-density',
+      observedAt: 5001,
+    })
+
+    const candidate = createImprovementCandidate({
+      workspaceId: 1,
+      scope: 'check',
+      target: 'marketing:shufuro:hook-density',
+      hypothesis: 'Reduce repeated hook-density failures',
+      evidenceRefs: seedEvidence(),
+      sampleSize: 5,
+      evalPlan,
+      rollbackTarget: 'change:hook-density-v1',
+    })
+
+    for (const [from, to] of [
+      ['PROPOSED', 'EVAL_READY'],
+      ['EVAL_READY', 'EVALUATING'],
+    ] as const) {
+      transitionImprovementCandidate({
+        workspaceId: 1,
+        candidateId: candidate.candidate_id,
+        expectedStatus: from,
+        toStatus: to,
+        actor: 'owner',
+        reason: 'advance',
+      })
+    }
+
+    const evaluation = recordImprovementEvaluation({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      after: 8,
+      sourceRef: 'vitest:rollback-eval',
+      actor: 'owner',
+    })
+    transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'EVALUATING',
+      toStatus: 'REVIEW_REQUIRED',
+      actor: 'owner',
+      reason: 'eval passed',
+      evidenceRefs: [evaluation.evidenceId],
+    })
+    transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'REVIEW_REQUIRED',
+      toStatus: 'APPROVAL_REQUIRED',
+      actor: 'reviewer',
+      reason: 'review accepted',
+    })
+    transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'APPROVAL_REQUIRED',
+      toStatus: 'PROMOTED',
+      actor: 'admin',
+      reason: 'promote',
+      changeRef: 'change:hook-density-v2',
+    })
+    transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'PROMOTED',
+      toStatus: 'OBSERVING',
+      actor: 'owner',
+      reason: 'observe real outcomes',
+    })
+
+    expect(() => transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'OBSERVING',
+      toStatus: 'ROLLED_BACK',
+      actor: 'admin',
+      reason: '',
+    })).toThrow(/reason/i)
+
+    const rolledBack = transitionImprovementCandidate({
+      workspaceId: 1,
+      candidateId: candidate.candidate_id,
+      expectedStatus: 'OBSERVING',
+      toStatus: 'ROLLED_BACK',
+      actor: 'admin',
+      reason: 'real metric regressed',
+      evidenceRefs: ['rollback-signal'],
+    })
+    expect(rolledBack).toMatchObject({ status: 'ROLLED_BACK', promotion_state: 'ROLLED_BACK' })
+
+    const auditRows = db.prepare(`
+      SELECT action_type, worker_kind, worker_identity, inputs
+      FROM experience_events
+      WHERE workspace_id = 1 AND action_type = 'improvement_candidate_transition'
+      ORDER BY id
+    `).all() as Array<{ action_type: string; worker_kind: string; worker_identity: string; inputs: string }>
+    expect(auditRows.length).toBeGreaterThanOrEqual(6)
+    expect(auditRows.at(-1)).toMatchObject({ worker_kind: 'human', worker_identity: 'admin' })
+    expect(JSON.parse(auditRows.at(-1)!.inputs)[0]).toMatchObject({
+      candidate_id: candidate.candidate_id,
+      from_status: 'OBSERVING',
+      to_status: 'ROLLED_BACK',
+      reason: 'real metric regressed',
+    })
+  })
+
+  it('proposes only when real typed evidence meets the deterministic threshold', () => {
+    const input = {
+      workspaceId: 1,
+      scope: 'check' as const,
+      target: 'marketing:shufuro:hook-density',
+      hypothesis: 'Reduce repeated hook-density failures',
+      evalPlan,
+    }
+    expect(() => proposeReadyImprovementCandidate(input)).toThrow(/threshold/i)
+    seedEvidence()
+    const candidate = proposeReadyImprovementCandidate(input)
+    expect(candidate.sample_size).toBe(5)
+    expect(JSON.parse(candidate.evidence_refs)).toHaveLength(5)
+    expect(() => proposeReadyImprovementCandidate(input)).toThrow(/threshold/i)
+  })
+
+  it('holds failed evaluations and requires an independent reviewer for high-risk scope', () => {
+    const candidate = createImprovementCandidate({
+      workspaceId: 1,
+      scope: 'workflow',
+      target: 'marketing:shufuro:hook-density',
+      hypothesis: 'Improve workflow checks',
+      evidenceRefs: seedEvidence(),
+      sampleSize: 5,
+      evalPlan,
+    })
+    expect(candidate.review_policy).toBe('independent_and_human')
+    for (const [from, to] of [['PROPOSED', 'EVAL_READY'], ['EVAL_READY', 'EVALUATING']] as const) {
+      transitionImprovementCandidate({ workspaceId: 1, candidateId: candidate.candidate_id, expectedStatus: from, toStatus: to, actor: 'builder', reason: 'advance' })
+    }
+    const failed = recordImprovementEvaluation({ workspaceId: 1, candidateId: candidate.candidate_id, after: 10, sourceRef: 'fixture:failed', actor: 'builder' })
+    expect(failed.passed).toBe(false)
+    expect(() => transitionImprovementCandidate({ workspaceId: 1, candidateId: candidate.candidate_id, expectedStatus: 'EVALUATING', toStatus: 'REVIEW_REQUIRED', actor: 'builder', evidenceRefs: [failed.evidenceId] })).toThrow(/Passing evaluation evidence/)
+    const passed = recordImprovementEvaluation({ workspaceId: 1, candidateId: candidate.candidate_id, after: 8, sourceRef: 'fixture:passed', actor: 'builder' })
+    transitionImprovementCandidate({ workspaceId: 1, candidateId: candidate.candidate_id, expectedStatus: 'EVALUATING', toStatus: 'REVIEW_REQUIRED', actor: 'builder', evidenceRefs: [passed.evidenceId] })
+    expect(() => transitionImprovementCandidate({ workspaceId: 1, candidateId: candidate.candidate_id, expectedStatus: 'REVIEW_REQUIRED', toStatus: 'APPROVAL_REQUIRED', actor: 'builder', reason: 'self-review' })).toThrow(/independent review/i)
+    expect(transitionImprovementCandidate({ workspaceId: 1, candidateId: candidate.candidate_id, expectedStatus: 'REVIEW_REQUIRED', toStatus: 'APPROVAL_REQUIRED', actor: 'reviewer', reason: 'independent review' }).status).toBe('APPROVAL_REQUIRED')
   })
 })

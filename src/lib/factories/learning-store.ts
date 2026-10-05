@@ -45,6 +45,63 @@ export interface ImprovementCandidateRow {
   updated_at: number
 }
 
+export interface CandidateEvalPlan {
+  metric: string
+  baseline: number
+  direction: 'increase' | 'decrease'
+  minimum_effect: number
+  method: string
+}
+
+const HIGH_RISK_SCOPES = new Set(['workflow', 'policy', 'business_rule', 'security', 'release', 'permission'])
+
+function parseEvalPlan(value: string): CandidateEvalPlan | null {
+  try {
+    const plan = JSON.parse(value) as CandidateEvalPlan
+    if (!plan || typeof plan.metric !== 'string' || !plan.metric.trim()
+      || typeof plan.method !== 'string' || !plan.method.trim()
+      || !Number.isFinite(plan.baseline) || !Number.isFinite(plan.minimum_effect)
+      || plan.minimum_effect < 0 || !['increase', 'decrease'].includes(plan.direction)) return null
+    return plan
+  } catch {
+    return null
+  }
+}
+
+export const IMPROVEMENT_CANDIDATE_STATUSES = [
+  'PROPOSED',
+  'EVAL_READY',
+  'EVALUATING',
+  'REVIEW_REQUIRED',
+  'APPROVAL_REQUIRED',
+  'PROMOTED',
+  'REJECTED',
+  'HELD',
+  'OBSERVING',
+  'REINFORCED',
+  'ROLLED_BACK',
+  'DECAYING',
+  'ARCHIVED',
+] as const
+
+export type ImprovementCandidateStatus = typeof IMPROVEMENT_CANDIDATE_STATUSES[number]
+
+const IMPROVEMENT_CANDIDATE_TRANSITIONS: Record<ImprovementCandidateStatus, readonly ImprovementCandidateStatus[]> = {
+  PROPOSED: ['EVAL_READY', 'REJECTED', 'HELD'],
+  EVAL_READY: ['EVALUATING', 'REJECTED', 'HELD'],
+  EVALUATING: ['REVIEW_REQUIRED', 'REJECTED', 'HELD'],
+  REVIEW_REQUIRED: ['APPROVAL_REQUIRED', 'REJECTED', 'HELD'],
+  APPROVAL_REQUIRED: ['PROMOTED', 'REJECTED', 'HELD'],
+  PROMOTED: ['OBSERVING', 'ROLLED_BACK'],
+  REJECTED: ['ARCHIVED'],
+  HELD: ['EVAL_READY', 'REJECTED', 'ARCHIVED'],
+  OBSERVING: ['REINFORCED', 'ROLLED_BACK', 'DECAYING'],
+  REINFORCED: ['OBSERVING', 'ROLLED_BACK', 'DECAYING'],
+  ROLLED_BACK: ['ARCHIVED'],
+  DECAYING: ['OBSERVING', 'ROLLED_BACK', 'ARCHIVED'],
+  ARCHIVED: [],
+}
+
 export const LEARNING_EVIDENCE_TYPES = [
   'deterministic_check',
   'deterministic_test',
@@ -342,14 +399,14 @@ export function deterministicCandidateSignals(workspaceId: number, limit = 500) 
 
 export function createImprovementCandidate(input: {
   workspaceId: number
-  scope: 'skill' | 'prompt' | 'routing' | 'check' | 'workflow' | 'policy'
+  scope: 'skill' | 'prompt' | 'routing' | 'check' | 'workflow' | 'policy' | 'business_rule' | 'security' | 'release' | 'permission'
   target: string
   hypothesis: string
   evidenceRefs: string[]
   sampleSize: number
   confidenceLabel?: 'low' | 'medium' | 'high'
   expectedEffect?: Record<string, unknown>
-  evalPlan?: Record<string, unknown>
+  evalPlan?: CandidateEvalPlan
   reviewPolicy?: string | null
   rollbackTarget?: string | null
 }): ImprovementCandidateRow {
@@ -372,12 +429,272 @@ export function createImprovementCandidate(input: {
     input.confidenceLabel || null,
     JSON.stringify(input.expectedEffect || {}),
     JSON.stringify(input.evalPlan || {}),
-    input.reviewPolicy || null,
+    HIGH_RISK_SCOPES.has(input.scope) ? 'independent_and_human' : 'human',
     input.rollbackTarget || null,
   )
   return db.prepare(`
     SELECT * FROM improvement_candidates WHERE workspace_id = ? AND candidate_id = ?
   `).get(input.workspaceId, candidateId) as ImprovementCandidateRow
+}
+
+export function proposeReadyImprovementCandidate(input: {
+  workspaceId: number
+  scope: Parameters<typeof createImprovementCandidate>[0]['scope']
+  target: string
+  hypothesis: string
+  evalPlan: CandidateEvalPlan
+  rollbackTarget?: string
+}): ImprovementCandidateRow {
+  const db = getDatabase()
+  return db.transaction(() => {
+    const signal = deterministicCandidateSignals(input.workspaceId).find((item) => item.subject_key === input.target)
+    if (!signal?.candidate_ready) throw new Error('Candidate evidence threshold is not met.')
+    const refs = db.prepare(`
+      SELECT evidence_id FROM learning_evidence
+      WHERE workspace_id = ? AND candidate_id IS NULL AND json_extract(payload, '$.subject_key') = ?
+      ORDER BY observed_at DESC, id DESC LIMIT 500
+    `).all(input.workspaceId, input.target) as Array<{ evidence_id: string }>
+    return createImprovementCandidate({
+      ...input,
+      evidenceRefs: refs.map((row) => row.evidence_id),
+      sampleSize: refs.length,
+      confidenceLabel: refs.length >= 10 ? 'medium' : 'low',
+    })
+  })()
+}
+
+
+function candidatePromotionState(status: ImprovementCandidateStatus): string {
+  if (status === 'PROPOSED' || status === 'EVAL_READY') return 'UNTESTED'
+  if (status === 'EVALUATING') return 'EVALUATING'
+  if (status === 'REVIEW_REQUIRED' || status === 'APPROVAL_REQUIRED') return 'EVAL_PASSED'
+  return status
+}
+
+function parseCandidateEvidenceRefs(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value || '[]')
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : []
+  } catch {
+    return []
+  }
+}
+
+function hasCandidateEvalPlan(value: string): boolean {
+  return parseEvalPlan(value) !== null
+}
+
+export function recordImprovementEvaluation(input: {
+  workspaceId: number
+  candidateId: string
+  after: number
+  sourceRef: string
+  actor: string
+}): { evidenceId: string; passed: boolean; effect: number } {
+  if (!Number.isFinite(input.after) || !input.sourceRef.trim() || !input.actor.trim()) {
+    throw new Error('Evaluation requires a finite result, source reference, and actor.')
+  }
+  const db = getDatabase()
+  return db.transaction(() => {
+    const candidate = getImprovementCandidate(input.workspaceId, input.candidateId)
+    if (!candidate || candidate.status !== 'EVALUATING') throw new Error('Candidate must be EVALUATING.')
+    const plan = parseEvalPlan(candidate.eval_plan)
+    if (!plan) throw new Error('Evaluation plan is required.')
+    const effect = plan.direction === 'increase' ? input.after - plan.baseline : plan.baseline - input.after
+    const passed = effect >= plan.minimum_effect
+    const evidenceId = `candidate-eval:${input.candidateId}:${randomUUID()}`
+    recordLearningEvidence({
+      workspaceId: input.workspaceId,
+      evidenceId,
+      evidenceType: 'deterministic_test',
+      sourceType: 'candidate_evaluation',
+      sourceRef: input.sourceRef,
+      candidateId: input.candidateId,
+      result: passed ? 'positive' : 'negative',
+      subjectKey: candidate.target,
+      payload: { candidate_eval: { ...plan, after: input.after, effect, passed, evaluated_by: input.actor } },
+    })
+    return { evidenceId, passed, effect }
+  })()
+}
+
+export function getImprovementCandidate(workspaceId: number, candidateId: string): ImprovementCandidateRow | null {
+  return (getDatabase().prepare(`
+    SELECT * FROM improvement_candidates
+    WHERE workspace_id = ? AND candidate_id = ?
+  `).get(workspaceId, candidateId) as ImprovementCandidateRow | undefined) || null
+}
+
+export function transitionImprovementCandidate(input: {
+  workspaceId: number
+  candidateId: string
+  expectedStatus: ImprovementCandidateStatus
+  toStatus: ImprovementCandidateStatus
+  actor: string
+  reason?: string
+  evidenceRefs?: string[]
+  changeRef?: string | null
+  rollbackTarget?: string | null
+}): ImprovementCandidateRow {
+  const actor = input.actor.trim()
+  if (!actor) throw new Error('Improvement candidate transition requires an actor.')
+
+  const reason = (input.reason || '').trim()
+  const evidenceRefs = Array.from(new Set(
+    (input.evidenceRefs || []).map((ref) => ref.trim()).filter(Boolean),
+  ))
+  const db = getDatabase()
+
+  return db.transaction(() => {
+    const current = db.prepare(`
+      SELECT * FROM improvement_candidates
+      WHERE workspace_id = ? AND candidate_id = ?
+    `).get(input.workspaceId, input.candidateId) as ImprovementCandidateRow | undefined
+
+    if (!current) throw new Error('Improvement candidate not found.')
+    if (current.status !== input.expectedStatus) {
+      throw new Error(
+        `Improvement candidate changed before transition. Expected ${input.expectedStatus}, found ${current.status}.`,
+      )
+    }
+
+    const fromStatus = current.status as ImprovementCandidateStatus
+    if (!IMPROVEMENT_CANDIDATE_STATUSES.includes(fromStatus)) {
+      throw new Error(`Unsupported improvement candidate status: ${current.status}`)
+    }
+    if (!IMPROVEMENT_CANDIDATE_TRANSITIONS[fromStatus].includes(input.toStatus)) {
+      throw new Error(`Invalid improvement candidate transition: ${fromStatus} -> ${input.toStatus}`)
+    }
+
+    if (input.toStatus === 'EVAL_READY' && !hasCandidateEvalPlan(current.eval_plan)) {
+      throw new Error('Evaluation plan is required before EVAL_READY.')
+    }
+    const allRefs = Array.from(new Set([...parseCandidateEvidenceRefs(current.evidence_refs), ...evidenceRefs]))
+    const evalRows = allRefs.map((ref) => db.prepare(`
+      SELECT evidence_type, result, payload, candidate_id FROM learning_evidence
+      WHERE workspace_id = ? AND evidence_id = ?
+    `).get(input.workspaceId, ref) as { evidence_type: string; result: string | null; payload: string; candidate_id: string | null } | undefined)
+    const passedEval = evalRows.find((row) => {
+      if (row?.evidence_type !== 'deterministic_test' || row.result !== 'positive'
+        || row.candidate_id !== input.candidateId) return false
+      try {
+        const evaluation = JSON.parse(row.payload).candidate_eval
+        return evaluation?.passed === true && Number.isFinite(evaluation.baseline)
+          && Number.isFinite(evaluation.after) && Number.isFinite(evaluation.effect)
+      } catch { return false }
+    })
+    if ((input.toStatus === 'REVIEW_REQUIRED' || input.toStatus === 'PROMOTED') && !passedEval) {
+      throw new Error('Passing evaluation evidence with baseline comparison is required.')
+    }
+    if (input.toStatus === 'APPROVAL_REQUIRED' && HIGH_RISK_SCOPES.has(current.scope)) {
+      const evaluation = JSON.parse(passedEval?.payload || '{}').candidate_eval
+      if (!evaluation || evaluation.evaluated_by === actor) {
+        throw new Error('High-risk candidate requires independent review.')
+      }
+    }
+    if (input.toStatus === 'REINFORCED' && evidenceRefs.length === 0) {
+      throw new Error('Observation evidence is required before REINFORCED.')
+    }
+
+    const changeRef = input.changeRef?.trim() || current.change_ref
+    const rollbackTarget = input.rollbackTarget?.trim() || current.rollback_target
+
+    if (input.toStatus === 'PROMOTED') {
+      if (!reason) throw new Error('Promotion requires an approval reason.')
+      if (!changeRef) throw new Error('Promotion requires a change reference.')
+      if (!rollbackTarget) throw new Error('Promotion requires a rollback target.')
+      const seedRows = evalRows.filter((row) => row && row.candidate_id !== input.candidateId)
+      if (seedRows.length === 0) throw new Error('Promotion requires original learning evidence.')
+      const review = db.prepare(`
+        SELECT worker_identity FROM experience_events
+        WHERE workspace_id = ? AND action_type = 'improvement_candidate_transition'
+          AND stage_id = 'APPROVAL_REQUIRED' AND json_extract(inputs, '$[0].candidate_id') = ?
+        ORDER BY id DESC LIMIT 1
+      `).get(input.workspaceId, input.candidateId) as { worker_identity: string | null } | undefined
+      if (!review?.worker_identity) throw new Error('Promotion requires human review.')
+    }
+    if (input.toStatus === 'ROLLED_BACK') {
+      if (!reason) throw new Error('Rollback requires a reason.')
+      if (!rollbackTarget) throw new Error('Rollback requires a rollback target.')
+    }
+
+    for (const evidenceRef of evidenceRefs) {
+      const linked = db.prepare(`
+        SELECT candidate_id FROM learning_evidence
+        WHERE workspace_id = ? AND evidence_id = ?
+      `).get(input.workspaceId, evidenceRef) as { candidate_id: string | null } | undefined
+
+      if (!linked) throw new Error(`Learning evidence not found: ${evidenceRef}`)
+      if (linked.candidate_id && linked.candidate_id !== input.candidateId) {
+        throw new Error(`Learning evidence is already assigned to another candidate: ${evidenceRef}`)
+      }
+    }
+
+    const combinedEvidenceRefs = Array.from(new Set([
+      ...parseCandidateEvidenceRefs(current.evidence_refs),
+      ...evidenceRefs,
+    ]))
+    const promotionState = candidatePromotionState(input.toStatus)
+    const updated = db.prepare(`
+      UPDATE improvement_candidates
+      SET status = ?,
+          promotion_state = ?,
+          evidence_refs = ?,
+          change_ref = ?,
+          rollback_target = ?,
+          updated_at = unixepoch()
+      WHERE workspace_id = ? AND candidate_id = ? AND status = ?
+    `).run(
+      input.toStatus,
+      promotionState,
+      JSON.stringify(combinedEvidenceRefs),
+      changeRef || null,
+      rollbackTarget || null,
+      input.workspaceId,
+      input.candidateId,
+      fromStatus,
+    )
+
+    if (updated.changes !== 1) {
+      throw new Error('Improvement candidate changed before transition.')
+    }
+
+    for (const evidenceRef of evidenceRefs) {
+      db.prepare(`
+        UPDATE learning_evidence
+        SET candidate_id = ?
+        WHERE workspace_id = ? AND evidence_id = ?
+          AND (candidate_id IS NULL OR candidate_id = ?)
+      `).run(input.candidateId, input.workspaceId, evidenceRef, input.candidateId)
+    }
+
+    recordExperience({
+      workspaceId: input.workspaceId,
+      experienceId: `candidate-transition:${input.candidateId}:${randomUUID()}`,
+      stageId: input.toStatus,
+      actionType: 'improvement_candidate_transition',
+      workerKind: 'human',
+      workerIdentity: actor,
+      inputs: [{
+        candidate_id: input.candidateId,
+        from_status: fromStatus,
+        to_status: input.toStatus,
+        reason,
+        change_ref: changeRef || null,
+        rollback_target: rollbackTarget || null,
+      }],
+      evidenceRefs,
+      outcome: 'success',
+      cost: { paid_usd: 0, local_compute: true },
+    })
+
+    return db.prepare(`
+      SELECT * FROM improvement_candidates
+      WHERE workspace_id = ? AND candidate_id = ?
+    `).get(input.workspaceId, input.candidateId) as ImprovementCandidateRow
+  })()
 }
 
 
