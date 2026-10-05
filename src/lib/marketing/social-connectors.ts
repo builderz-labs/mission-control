@@ -61,7 +61,7 @@ export const socialConnectorRegistry: readonly SocialConnectorProfile[] = [
   },
   {
     channel: 'linkedin',
-    current_readiness: 'MANUAL_OR_EXPORT',
+    current_readiness: 'READY_FOR_CREDENTIALS',
     preferred_source: 'official_api',
     official_surface: 'LinkedIn Community Management / Member & Organization analytics APIs',
     credential_requirements: ['LinkedIn developer app', 'approved Community Management/member analytics access', 'required admin/member scopes'],
