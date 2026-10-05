@@ -1,11 +1,42 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { type JsonValue, type Task, useMissionControl } from '@/store'
 import { useNavigateToPanel } from '@/lib/navigation'
 import { Button } from '@/components/ui/button'
 
 type Domain = 'marketing' | 'development'
+type SocialChannel = 'instagram' | 'tiktok' | 'linkedin' | 'x' | 'threads'
+
+interface SocialRollup {
+  channel: SocialChannel
+  snapshots: number
+  unique_posts: number
+  latest_captured_at: number
+  views: number
+  impressions: number
+  reach: number
+  profile_visits: number
+  link_clicks: number
+  website_visits: number
+  website_unique_visitors: number
+  likes: number
+  comments: number
+  shares: number
+  saves: number
+  follows: number
+  signup: number
+  activation: number
+  conversion: number
+  ctr: number | null
+  click_to_visit_rate: number | null
+  visitor_to_signup_rate: number | null
+  signup_conversion: number | null
+  activation_conversion: number | null
+}
+
+const SOCIAL_CHANNELS: SocialChannel[] = ['instagram', 'tiktok', 'linkedin', 'x', 'threads']
+const nf = new Intl.NumberFormat('ko-KR')
 
 function meta(value: JsonValue | undefined): Record<string, unknown> {
   if (!value || Array.isArray(value) || typeof value !== 'object') return {}
@@ -49,9 +80,33 @@ const DOMAIN_COPY: Record<Domain, {
   },
 }
 
+function pct(value: number | null): string {
+  return value == null ? '—' : `${(value * 100).toFixed(1)}%`
+}
+
 export function DomainWorkspacePanel({ domain }: { domain: Domain }) {
   const { tasks, projects, setSelectedTask } = useMissionControl()
   const navigateToPanel = useNavigateToPanel()
+  const [socialRollups, setSocialRollups] = useState<SocialRollup[]>([])
+  const [socialLoading, setSocialLoading] = useState(false)
+
+  useEffect(() => {
+    if (domain !== 'marketing') return
+    let cancelled = false
+    setSocialLoading(true)
+    fetch('/api/marketing/social-metrics')
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error('social metrics unavailable')))
+      .then((data: { rollups?: SocialRollup[] }) => {
+        if (!cancelled) setSocialRollups(Array.isArray(data.rollups) ? data.rollups : [])
+      })
+      .catch(() => {
+        if (!cancelled) setSocialRollups([])
+      })
+      .finally(() => {
+        if (!cancelled) setSocialLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [domain])
 
   const domainTasks = useMemo(
     () => tasks
@@ -66,6 +121,11 @@ export function DomainWorkspacePanel({ domain }: { domain: Domain }) {
     failed: domainTasks.filter((t) => t.status === 'failed').length,
     done: domainTasks.filter((t) => t.status === 'done').length,
   }), [domainTasks])
+
+  const socialByChannel = useMemo(
+    () => new Map(socialRollups.map((item) => [item.channel, item])),
+    [socialRollups],
+  )
 
   const copy = DOMAIN_COPY[domain]
 
@@ -100,6 +160,52 @@ export function DomainWorkspacePanel({ domain }: { domain: Domain }) {
           ))}
         </div>
       </section>
+
+      {domain === 'marketing' && (
+        <section className="rounded-2xl border border-border bg-card overflow-hidden">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-sm font-semibold text-foreground">Social Measurement</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Instagram · TikTok · LinkedIn · X · Threads. 플랫폼이 제공하지 않는 값은 추정하지 않습니다.
+            </p>
+          </div>
+          <div className="grid gap-3 p-5 xl:grid-cols-5">
+            {SOCIAL_CHANNELS.map((channel) => {
+              const item = socialByChannel.get(channel)
+              return (
+                <div key={channel} className="rounded-xl border border-border bg-background/50 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold capitalize text-foreground">{channel}</div>
+                    <span className="text-[11px] text-muted-foreground">
+                      {item ? `${item.unique_posts} posts` : socialLoading ? 'loading' : 'no data'}
+                    </span>
+                  </div>
+                  {item ? (
+                    <div className="mt-3 space-y-1.5 text-xs">
+                      <div className="flex justify-between"><span className="text-muted-foreground">Views</span><span>{nf.format(item.views)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Reach</span><span>{nf.format(item.reach)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Profile visits</span><span>{nf.format(item.profile_visits)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Link clicks</span><span>{nf.format(item.link_clicks)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Website visits</span><span>{nf.format(item.website_visits)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Likes</span><span>{nf.format(item.likes)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">CTR</span><span>{pct(item.ctr)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Visitor→signup</span><span>{pct(item.visitor_to_signup_rate)}</span></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Signup conv.</span><span>{pct(item.signup_conversion)}</span></div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 text-xs leading-5 text-muted-foreground">
+                      계정/API 또는 공식 export가 연결되면 여기에 실제 지표가 표시됩니다.
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div className="border-t border-border px-5 py-3 text-[11px] text-muted-foreground">
+            Snapshot은 게시물별 최신 누적값만 집계합니다. 같은 게시물의 과거 snapshot을 중복 합산하지 않습니다.
+          </div>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-border bg-card overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
