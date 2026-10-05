@@ -1722,6 +1722,112 @@ const migrations: Migration[] = [
       `)
     }
   }
+,
+  {
+    id: '058_revenue_opportunity_store',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS revenue_scanner_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          run_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          sources TEXT NOT NULL DEFAULT '[]',
+          query_count INTEGER NOT NULL DEFAULT 0,
+          fetched_count INTEGER NOT NULL DEFAULT 0,
+          inserted_count INTEGER NOT NULL DEFAULT 0,
+          error_count INTEGER NOT NULL DEFAULT 0,
+          errors TEXT NOT NULL DEFAULT '[]',
+          started_at INTEGER NOT NULL,
+          completed_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, run_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS market_signals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          signal_id TEXT NOT NULL,
+          source_id TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL,
+          source_url TEXT,
+          title TEXT NOT NULL,
+          body_excerpt TEXT NOT NULL DEFAULT '',
+          author TEXT,
+          published_at INTEGER,
+          query_text TEXT,
+          portfolio_bucket TEXT NOT NULL,
+          domain_hint TEXT,
+          pain_terms TEXT NOT NULL DEFAULT '[]',
+          content_hash TEXT NOT NULL,
+          raw_payload TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'NEW',
+          opportunity_id TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, signal_id),
+          UNIQUE(workspace_id, source_id, source_ref)
+        );
+
+        CREATE TABLE IF NOT EXISTS revenue_opportunities (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          opportunity_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          domain TEXT,
+          workflow TEXT,
+          pain TEXT NOT NULL,
+          target_user TEXT,
+          buyer TEXT,
+          status TEXT NOT NULL DEFAULT 'DISCOVERED',
+          portfolio_bucket TEXT NOT NULL,
+          evidence_confidence TEXT NOT NULL DEFAULT 'D',
+          judge_decision TEXT,
+          primary_payment_trigger TEXT,
+          scores TEXT NOT NULL DEFAULT '{}',
+          founder_advantage TEXT NOT NULL DEFAULT '{}',
+          facts TEXT NOT NULL DEFAULT '[]',
+          inferences TEXT NOT NULL DEFAULT '[]',
+          assumptions TEXT NOT NULL DEFAULT '[]',
+          validation TEXT NOT NULL DEFAULT '{}',
+          source_count INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, opportunity_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS opportunity_evidence (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          evidence_id TEXT NOT NULL,
+          opportunity_id TEXT NOT NULL,
+          signal_id TEXT,
+          kind TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL,
+          source_url TEXT,
+          claim TEXT NOT NULL,
+          confidence TEXT,
+          payload TEXT NOT NULL DEFAULT '{}',
+          observed_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, evidence_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_revenue_scanner_runs_created
+          ON revenue_scanner_runs(workspace_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_market_signals_status
+          ON market_signals(workspace_id, status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_market_signals_bucket
+          ON market_signals(workspace_id, portfolio_bucket, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_revenue_opportunities_status
+          ON revenue_opportunities(workspace_id, status, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_opportunity_evidence_opportunity
+          ON opportunity_evidence(workspace_id, opportunity_id, observed_at DESC);
+      `)
+    }
+  }
 ]
 
 export function runMigrations(db: Database.Database) {

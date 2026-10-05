@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
+import { RevenueOpportunityPanel } from '@/components/panels/revenue-opportunity-panel'
 import type { FactoryDefinition, FactorySnapshot } from '@/lib/factories/types'
 
 interface FactoryInstanceView {
@@ -115,6 +116,8 @@ export function FactoriesPanel() {
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>
       )}
+
+      <RevenueOpportunityPanel />
 
       {data.instances.length === 0 ? (
         <section className="rounded-2xl border border-dashed border-border bg-card px-6 py-14 text-center">
