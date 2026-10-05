@@ -8,7 +8,7 @@ describe('social connector registry', () => {
     for (const channel of SOCIAL_CHANNELS) {
       const profile = getSocialConnectorProfile(channel)
       expect(profile.preferred_source).toBe('official_api')
-      expect(profile.current_readiness).toBe(['instagram', 'tiktok', 'linkedin', 'x'].includes(channel) ? 'READY_FOR_CREDENTIALS' : 'MANUAL_OR_EXPORT')
+      expect(profile.current_readiness).toBe(['instagram', 'tiktok', 'linkedin', 'x', 'reddit'].includes(channel) ? 'READY_FOR_CREDENTIALS' : 'MANUAL_OR_EXPORT')
       expect(profile.credential_requirements.length).toBeGreaterThan(0)
     }
   })

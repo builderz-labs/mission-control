@@ -111,7 +111,7 @@ export const socialConnectorRegistry: readonly SocialConnectorProfile[] = [
   },
   {
     channel: 'reddit',
-    current_readiness: 'MANUAL_OR_EXPORT',
+    current_readiness: 'READY_FOR_CREDENTIALS',
     preferred_source: 'official_api',
     official_surface: 'Reddit API for owned post/community metadata plus first-party UTM analytics',
     credential_requirements: ['Reddit developer app/account authorization where API access is used'],
