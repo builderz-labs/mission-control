@@ -14,6 +14,7 @@ export const BRAIN_ROUTES = {
   career: '10 Projects/28卒 Job Hunting/00_CAREER_HUB.md',
   hennge_english: '10 Projects/HENNGE English/00_HENNGE_ENGLISH_HUB.md',
   app_scout: '20 Areas/AI Company OS/Playbooks/APP_OPPORTUNITY_SCOUT.md',
+  revenue_factory: '20 Areas/AI Company OS/Playbooks/APP_OPPORTUNITY_SCOUT.md',
 } as const
 
 function safePath(relativePath: string): string {

@@ -2,6 +2,7 @@ import type { FactoryAdapter } from './adapters/factory-adapter'
 import { productFactoryAdapter } from './adapters/product-factory-adapter'
 import { shufuroMarketingAdapter } from './adapters/shufuro-marketing-adapter'
 import { shufuroCreativeAdapter } from './adapters/shufuro-creative-adapter'
+import { revenueOpportunityFactoryDefinition } from './modules/revenue-opportunity-factory.v1'
 
 const adapters = new Map<string, FactoryAdapter>([
   [productFactoryAdapter.id, productFactoryAdapter],
@@ -19,4 +20,11 @@ export function getFactoryAdapter(adapterId: string): FactoryAdapter | null {
 
 export function getFactoryAdapterForModule(moduleId: string): FactoryAdapter | null {
   return listFactoryAdapters().find((adapter) => adapter.moduleId === moduleId) || null
+}
+
+export function listFactoryDefinitions() {
+  return [
+    ...listFactoryAdapters().map((adapter) => adapter.getDefinition()),
+    revenueOpportunityFactoryDefinition,
+  ]
 }
