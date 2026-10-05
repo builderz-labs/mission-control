@@ -109,6 +109,17 @@ interface LearningPayload {
   candidates: CandidateRow[]
 }
 
+interface BrainStatus {
+  connected: boolean
+  readable: boolean
+  root: string
+  entry: string
+  entry_path: string
+  modified: number | null
+  size: number | null
+  routes: Record<string, string>
+}
+
 interface SkillMemoryPayload {
   health: {
     installed: boolean
@@ -143,18 +154,21 @@ function outcomeTone(outcome: string | null) {
 export function LearningPanel() {
   const [data, setData] = useState<LearningPayload | null>(null)
   const [skillMemory, setSkillMemory] = useState<SkillMemoryPayload | null>(null)
+  const [brain, setBrain] = useState<BrainStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
     setBusy(true)
     try {
-      const [learningData, skillMemoryData] = await Promise.all([
+      const [learningData, skillMemoryData, brainData] = await Promise.all([
         apiFetch<LearningPayload>('/api/learning?limit=40'),
         apiFetch<SkillMemoryPayload>('/api/skill-memory'),
+        apiFetch<BrainStatus>('/api/organizational-brain'),
       ])
       setData(learningData)
       setSkillMemory(skillMemoryData)
+      setBrain(brainData)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Learning data load failed')
@@ -215,6 +229,26 @@ export function LearningPanel() {
       </section>
 
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
+
+      <section className="rounded-2xl border border-border bg-card p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Organizational Brain</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Obsidian AGENT_BRAIN.md를 공통 entry point로 사용합니다. 전체 Vault를 무차별 ingest하지 않고 관련 Project/Department만 선택적으로 읽습니다.
+            </p>
+          </div>
+          <span className={"rounded-md border px-2 py-1 text-xs font-medium " + (brain?.readable ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500' : 'border-red-500/30 bg-red-500/10 text-red-400')}>
+            {brain?.readable ? 'Connected' : 'Unavailable'}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl bg-muted/30 px-3 py-3"><div className="text-sm font-semibold text-foreground">{brain?.entry || 'AGENT_BRAIN.md'}</div><div className="text-[11px] text-muted-foreground">Entry point</div></div>
+          <div className="rounded-xl bg-muted/30 px-3 py-3"><div className="truncate text-sm font-semibold text-foreground">{brain?.root || '—'}</div><div className="text-[11px] text-muted-foreground">Obsidian root</div></div>
+          <div className="rounded-xl bg-muted/30 px-3 py-3"><div className="text-sm font-semibold text-foreground">{brain?.modified ? new Date(brain.modified).toLocaleString() : '—'}</div><div className="text-[11px] text-muted-foreground">Last modified</div></div>
+        </div>
+        <div className="mt-3 text-xs text-muted-foreground">Read-only bridge · selective retrieval · writes require explicit approved action</div>
+      </section>
 
       <section className="rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
