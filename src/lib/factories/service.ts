@@ -98,9 +98,18 @@ export async function processFactoryApproval(workspaceId: number, requestId: str
   if (!commandDefinition || commandDefinition.mode !== 'mutating') {
     throw new Error('Factory gate apply command is not a registered mutating command')
   }
+  const storedDecision = approval.native_result ? (() => {
+    try { return JSON.parse(approval.native_result) as { publish_evidence?: unknown } } catch { return {} }
+  })() : {}
+  const publishEvidence = approval.gate_id.startsWith('publish:') ? storedDecision.publish_evidence : undefined
+  const commandArguments = {
+    gate: approval.gate_id,
+    note: approval.decision_note || '',
+    ...(approval.gate_id.startsWith('publish:') ? { publish_evidence: publishEvidence, human_approved: true } : {}),
+  }
   const executeRequest = {
     command_id: commandId,
-    arguments: { gate: approval.gate_id, note: approval.decision_note || '' },
+    arguments: commandArguments,
     expected_revision: approval.expected_revision,
     requested_by: approval.decision_by || 'local-owner',
   }
@@ -131,7 +140,7 @@ export async function processFactoryApproval(workspaceId: number, requestId: str
     runId,
     instanceId: instance.instance_id,
     commandId,
-    arguments: { gate: approval.gate_id, note: approval.decision_note || '' },
+    arguments: commandArguments,
     risk: commandDefinition.risk,
     requestedBy: approval.decision_by || 'local-owner',
     beforeRevision: approval.expected_revision,
@@ -177,16 +186,16 @@ export async function processFactoryApproval(workspaceId: number, requestId: str
     experienceId: `command:${runId}`,
     factoryInstanceId: instance.instance_id,
     stageId: result.snapshot?.lifecycle.process_stage_id || result.snapshot?.lifecycle.native_stage || null,
-    actionType: 'factory_command',
+    actionType: approval.gate_id.startsWith('publish:') ? 'distribution_publish' : 'factory_command',
     workerKind: 'deterministic',
     workerIdentity: instance.adapter_id,
-    inputs: [{ command_id: commandId, gate: approval.gate_id }],
+    inputs: [{ command_id: commandId, gate: approval.gate_id, ...(publishEvidence ? { publish_evidence: publishEvidence } : {}) }],
     artifactRefs: [],
     checks: result.snapshot?.checks || [],
     metrics: result.snapshot?.metrics || [],
     outcome: result.state === 'APPLIED' ? 'success' : result.state === 'STALE' ? 'mixed' : 'failure',
     cost: { paid_usd: 0, local_compute: true },
-    evidenceRefs: [`approval:${requestId}`],
+    evidenceRefs: [`approval:${requestId}`, ...(publishEvidence && typeof publishEvidence === 'object' && 'evidence_ref' in publishEvidence ? [String(publishEvidence.evidence_ref)] : [])],
     sourceRevision: result.after_revision || result.before_revision,
   })
 

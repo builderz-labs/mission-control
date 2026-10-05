@@ -57,12 +57,13 @@ export const marketingFactoryDefinition: FactoryDefinition = {
       decision_owner: 'human',
       blocking: true,
       decisions: ['approve', 'hold'],
-      apply_command: null,
+      apply_command: 'publish-content',
     },
   ],
   commands: [
     { id: 'refresh', mode: 'read_only', risk: 'low', description: 'Read current Marketing Content OS state.', human_confirmation: 'never' },
     { id: 'approve-content', mode: 'mutating', risk: 'medium', description: 'Promote one reviewed content packet to READY after human approval.', human_confirmation: 'always' },
+    { id: 'publish-content', mode: 'mutating', risk: 'high', description: 'Record human-verified manual publication evidence; never calls a social provider.', human_confirmation: 'always' },
   ],
   cost_policy: {
     mode: 'economical',

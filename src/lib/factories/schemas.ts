@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { distributionVerificationEvidenceSchema } from '@/lib/marketing/content-distribution'
 
 export const factoryCommandRiskSchema = z.enum(['low', 'medium', 'high', 'critical'])
 export const factoryFreshnessSchema = z.enum(['fresh', 'stale', 'error'])
@@ -143,6 +144,7 @@ export const factoryApprovalDecisionSchema = z.object({
   decision: z.enum(['approve', 'revise', 'hold']),
   note: z.string().max(4000).optional().default(''),
   expected_revision: z.string().min(1),
+  publish_evidence: distributionVerificationEvidenceSchema.optional(),
 })
 
 export const factoryRefreshRequestSchema = z.object({

@@ -1,4 +1,10 @@
 export type CapabilityAdoptionState = 'ACTIVE' | 'CANDIDATE' | 'HOLD' | 'REJECTED'
+export type CapabilityBenchmarkStatus = 'NOT_RUN' | 'PASS' | 'FAIL' | 'INCONCLUSIVE'
+
+export interface ExternalCapabilityAssessment {
+  benchmark_status: CapabilityBenchmarkStatus
+  benchmark_result?: string
+}
 
 export interface ExternalCapabilityCandidate {
   id: string
@@ -9,6 +15,21 @@ export interface ExternalCapabilityCandidate {
   adoption_state: CapabilityAdoptionState
   why: string
   guardrails: string[]
+  /** Optional extension keeps existing candidate records source-compatible. */
+  pinned_version?: string | null
+  pinned_commit?: string | null
+  capabilities?: string[]
+  triggers?: string[]
+  compatible_departments?: string[]
+  compatible_projects?: string[]
+  permissions?: { read: boolean; write: boolean; network: boolean; shell: boolean }
+  auth_required?: boolean
+  external_data_transfer?: boolean
+  cost_hints?: { api?: string; token?: string; local_compute?: string }
+  risk_hints?: { security?: string; privacy?: string; account?: string }
+  overlaps_with?: string[]
+  fallback?: string | null
+  benchmark?: ExternalCapabilityAssessment
 }
 
 export const externalCapabilityCandidates: readonly ExternalCapabilityCandidate[] = [

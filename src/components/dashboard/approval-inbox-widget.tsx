@@ -73,6 +73,7 @@ export function ApprovalInboxWidget() {
   const [factoryInstances, setFactoryInstances] = useState<FactoryInstanceSummary[]>([])
   const [learningOverview, setLearningOverview] = useState<LearningOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [publishEvidenceInputs, setPublishEvidenceInputs] = useState<Record<string, { channel: string; post_id: string; post_url: string }>>({})
 
   const taskApprovals = useMemo(
     () => tasks
@@ -142,6 +143,18 @@ export function ApprovalInboxWidget() {
     setBusyKey(`factory:${approval.id}`)
     setError(null)
     try {
+      const publishInput = publishEvidenceInputs[approval.request_id]
+      const publish_evidence = approval.gate_id.startsWith('publish:') && decision === 'approve'
+        ? {
+            provider: 'manual',
+            channel: publishInput?.channel?.trim(),
+            ...(publishInput?.post_id?.trim() ? { post_id: publishInput.post_id.trim() } : {}),
+            ...(publishInput?.post_url?.trim() ? { post_url: publishInput.post_url.trim() } : {}),
+            published_at: new Date().toISOString(),
+            verification_state: 'verified',
+            evidence_ref: `manual:${approval.gate_id}:${Date.now()}`,
+          }
+        : undefined
       await apiFetch(`/api/factory-approvals/${encodeURIComponent(approval.request_id)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -149,6 +162,7 @@ export function ApprovalInboxWidget() {
           decision,
           note: 'Decision recorded from AI Ops Hub Approval Inbox.',
           expected_revision: approval.expected_revision,
+          ...(publish_evidence ? { publish_evidence } : {}),
         }),
       })
       if (decision === 'approve') {
@@ -231,6 +245,8 @@ export function ApprovalInboxWidget() {
           {factoryApprovals.map((approval) => {
             const busy = busyKey === `factory:${approval.id}`
             const pendingApply = approval.state === 'DECISION_RECORDED' || approval.state === 'APPLYING'
+            const publishInput = publishEvidenceInputs[approval.request_id]
+            const publishEvidenceReady = Boolean(publishInput?.channel.trim() && (publishInput.post_id.trim() || publishInput.post_url.trim()))
             return (
               <article key={approval.request_id} className="px-5 py-4 bg-amber-500/[0.025] hover:bg-muted/30 transition-colors">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -259,7 +275,7 @@ export function ApprovalInboxWidget() {
                         <Button variant="outline" size="sm" disabled={busy} onClick={() => decideFactory(approval, 'revise')}>수정 요청</Button>
                         <Button
                           size="sm"
-                          disabled={busy || !approval.can_apply}
+                          disabled={busy || !approval.can_apply || (approval.gate_id.startsWith('publish:') && !publishEvidenceReady)}
                           title={!approval.can_apply ? approval.block_reason || '현재 native gate 적용 조건을 충족하지 않습니다.' : undefined}
                           onClick={() => decideFactory(approval, 'approve')}
                         >
@@ -269,6 +285,26 @@ export function ApprovalInboxWidget() {
                     )}
                   </div>
                 </div>
+                {approval.gate_id.startsWith('publish:') && !pendingApply && (
+                  <div className="mt-3 grid gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 sm:grid-cols-3">
+                    <p className="text-xs text-amber-600 sm:col-span-3">After you publish manually, enter the channel and external post ID or canonical URL. Control Tower records this evidence; it does not publish.</p>
+                    <label className="text-xs text-muted-foreground">Channel
+                      <input className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground" placeholder="instagram, x, tiktok…"
+                        value={publishEvidenceInputs[approval.request_id]?.channel || ''}
+                        onChange={(event) => setPublishEvidenceInputs((current) => ({ ...current, [approval.request_id]: { channel: event.target.value, post_id: current[approval.request_id]?.post_id || '', post_url: current[approval.request_id]?.post_url || '' } }))} />
+                    </label>
+                    <label className="text-xs text-muted-foreground">External post ID
+                      <input className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground" placeholder="Post ID (or provide URL)"
+                        value={publishEvidenceInputs[approval.request_id]?.post_id || ''}
+                        onChange={(event) => setPublishEvidenceInputs((current) => ({ ...current, [approval.request_id]: { channel: current[approval.request_id]?.channel || '', post_id: event.target.value, post_url: current[approval.request_id]?.post_url || '' } }))} />
+                    </label>
+                    <label className="text-xs text-muted-foreground">Canonical post URL
+                      <input className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground" placeholder="https://… (or provide post ID)"
+                        value={publishEvidenceInputs[approval.request_id]?.post_url || ''}
+                        onChange={(event) => setPublishEvidenceInputs((current) => ({ ...current, [approval.request_id]: { channel: current[approval.request_id]?.channel || '', post_id: current[approval.request_id]?.post_id || '', post_url: event.target.value } }))} />
+                    </label>
+                  </div>
+                )}
               </article>
             )
           })}

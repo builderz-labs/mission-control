@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ShufuroMarketingAdapter } from './shufuro-marketing-adapter'
 import { acquireShufuroWriteLock } from './shufuro-content-os'
+import { contentIntelligenceSchema, distributionVerificationEvidenceSchema } from '@/lib/marketing/content-distribution'
+import { externalCapabilityCandidates } from '@/lib/departments/external-capabilities'
 
 const adapter = new ShufuroMarketingAdapter()
 let root: string
@@ -11,6 +13,8 @@ const queue = () => join(root, '03_PUBLISH_QUEUE.md')
 const packet = () => join(root, 'Episodes', 'EP002_fixture.md')
 const source = '| 002 | reel | S1 | EP002 | Test | awareness | now | reel | REVIEW |\n'
 const initialPacket = '---\nstatus: REVIEW\n---\n# EP002\n'
+const renderedQueue = () => source.replace('REVIEW', 'RENDERED')
+const renderedPacket = '---\nstatus: RENDERED\n---\n# EP002\n'
 const instance = () => ({
   instance_id: 'marketing:shufuro', module_id: 'marketing-factory',
   adapter_id: adapter.id, native_id: 'shufuro', root_path: root, config: {},
@@ -78,5 +82,82 @@ describe('isolated Shufuro approval', () => {
     expect(unknown.state).toBe('FAILED')
     expect(readFileSync(queue(), 'utf8')).toBe(source)
     expect(readFileSync(packet(), 'utf8')).toBe(initialPacket)
+  })
+})
+
+describe('provider-independent manual distribution', () => {
+  beforeEach(() => {
+    writeFileSync(queue(), renderedQueue())
+    writeFileSync(packet(), renderedPacket)
+  })
+
+  const evidence = {
+    provider: 'manual', channel: 'instagram', post_id: 'ig-123',
+    published_at: '2026-10-05T00:00:00.000Z', verification_state: 'verified', evidence_ref: 'manual:fixture:1',
+  }
+
+  it('opens the M10 human publish gate for RENDERED content', async () => {
+    const snapshot = await adapter.getSnapshot(instance())
+    expect(snapshot.gates).toContainEqual(expect.objectContaining({ id: 'publish:EP002', state: 'open', blocking: true }))
+    expect(snapshot.blockers.map((blocker) => blocker.id)).toContain('publish_pending:EP002')
+    expect(snapshot.available_commands.find((command) => command.command_id === 'publish-content')?.available).toBe(true)
+    expect(adapter.getDefinition().gates.find((gate) => gate.id === 'publish')?.apply_command).toBe('publish-content')
+  })
+
+  it('does not progress without approval, current revision, or verified external identity', async () => {
+    const before = await adapter.getSnapshot(instance())
+    const base = { command_id: 'publish-content', arguments: { gate: 'publish:EP002', publish_evidence: evidence }, expected_revision: before.source.revision, requested_by: 'owner' }
+    const unapproved = await adapter.execute(instance(), { ...base, arguments: { ...base.arguments, human_approved: false } })
+    const stale = await adapter.execute(instance(), { ...base, arguments: { ...base.arguments, human_approved: true }, expected_revision: 'old' })
+    const missing = await adapter.execute(instance(), { ...base, arguments: { ...base.arguments, human_approved: true, publish_evidence: undefined } })
+    const unverified = await adapter.execute(instance(), { ...base, arguments: { ...base.arguments, human_approved: true, publish_evidence: { ...evidence, verification_state: 'unverified' } } })
+    expect(unapproved.state).toBe('FAILED')
+    expect(stale.state).toBe('STALE')
+    expect(missing.state).toBe('FAILED')
+    expect(unverified.state).toBe('FAILED')
+    expect(readFileSync(queue(), 'utf8')).toContain('| RENDERED |')
+    expect(readFileSync(packet(), 'utf8')).toContain('status: RENDERED')
+    expect((await adapter.getSnapshot(instance())).gates.map((gate) => gate.id)).toContain('publish:EP002')
+  })
+
+  it('records verified manual evidence and transitions only to POSTED without network publishing', async () => {
+    const before = await adapter.getSnapshot(instance())
+    const result = await adapter.execute(instance(), {
+      command_id: 'publish-content',
+      arguments: { gate: 'publish:EP002', publish_evidence: evidence, human_approved: true },
+      expected_revision: before.source.revision,
+      requested_by: 'owner',
+    })
+    expect(result.state).toBe('APPLIED')
+    expect(readFileSync(queue(), 'utf8')).toContain('| POSTED |')
+    expect(readFileSync(packet(), 'utf8')).toContain('publish_verification: verified')
+    const after = await adapter.getSnapshot(instance())
+    expect(after.lifecycle.canonical_phase).toBe('operate')
+    expect(after.blockers.some((blocker) => blocker.id.startsWith('publish_pending:'))).toBe(false)
+    expect(after.artifacts[2]).toEqual(expect.objectContaining({ distribution: expect.objectContaining({ post_id: 'ig-123', verification_state: 'verified' }) }))
+    expect(result.stdout_excerpt).toContain('manual evidence')
+  })
+
+  it('does not project a bare native POSTED label into operate without publication evidence', async () => {
+    writeFileSync(queue(), renderedQueue().replace('RENDERED', 'POSTED'))
+    writeFileSync(packet(), '---\nstatus: POSTED\n---\n# EP002\n')
+    const snapshot = await adapter.getSnapshot(instance())
+    expect(snapshot.lifecycle.canonical_phase).toBe('release')
+    expect(snapshot.blockers.map((blocker) => blocker.id)).toContain('publish_unverified:EP002')
+  })
+})
+
+describe('reusable content and capability contracts', () => {
+  it('normalizes descriptive content fields and rejects invalid values without metrics', () => {
+    expect(contentIntelligenceSchema.parse({ topic: '  creator onboarding  ', hook: 'Start here' })).toEqual({ topic: 'creator onboarding', hook: 'Start here' })
+    expect(contentIntelligenceSchema.safeParse({ topic: ' ' }).success).toBe(false)
+    expect(contentIntelligenceSchema.safeParse({ views: 12 }).success).toBe(false)
+  })
+  it('validates verified identity and leaves existing capability rows backward compatible', () => {
+    expect(distributionVerificationEvidenceSchema.safeParse({ ...{
+      provider: 'manual', channel: 'x', post_url: 'https://x.com/user/status/1', published_at: '2026-10-05T00:00:00.000Z', verification_state: 'verified', evidence_ref: 'human:1',
+    } }).success).toBe(true)
+    expect(externalCapabilityCandidates.every((candidate) => candidate.category && candidate.source && candidate.adoption_state)).toBe(true)
+    expect(externalCapabilityCandidates.find((candidate) => candidate.id === 'skillmem')?.permissions).toBeUndefined()
   })
 })

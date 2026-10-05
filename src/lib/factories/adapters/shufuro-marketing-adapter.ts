@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { marketingFactoryDefinition } from '../modules/marketing-factory.v1'
 import { factorySnapshotSchema } from '../schemas'
+import { distributionVerificationEvidenceSchema } from '@/lib/marketing/content-distribution'
+import type { DistributionVerificationEvidence } from '@/lib/marketing/content-distribution'
 import type { FactoryActionAvailability, FactorySnapshot } from '../types'
 import type {
   FactoryAdapter,
@@ -23,17 +25,18 @@ import {
 const ADAPTER_ID = 'shufuro-marketing-content-os-v1'
 const MODULE_ID = 'marketing-factory'
 
-function stageForStatus(status: string): string {
+function stageForStatus(status: string, verifiedPosted = true): string {
   if (status === 'REVIEW') return 'M08'
   if (status === 'READY') return 'M08'
   if (status === 'RENDERED') return 'M10'
-  if (status === 'POSTED') return 'M11'
+  if (status === 'POSTED') return verifiedPosted ? 'M11' : 'M10'
   if (status === 'MEASURED') return 'M12'
   return 'M05'
 }
 
-function canonicalForStatus(status: string) {
-  if (status === 'POSTED' || status === 'MEASURED') return 'operate' as const
+function canonicalForStatus(status: string, verifiedPosted = true) {
+  if (status === 'POSTED') return verifiedPosted ? 'operate' as const : 'release' as const
+  if (status === 'MEASURED') return 'operate' as const
   if (status === 'RENDERED') return 'release' as const
   if (status === 'READY' || status === 'REVIEW') return 'design' as const
   return 'research' as const
@@ -72,6 +75,30 @@ function updatePacketStatus(markdown: string, expected: string, next: string): s
     return lines.join(eol)
   }
   throw new Error('Episode packet status field not found.')
+}
+
+function updatePacketPublishEvidence(markdown: string, evidence: DistributionVerificationEvidence): string {
+  const eol = markdown.includes('\r\n') ? '\r\n' : '\n'
+  const lines = markdown.split(/\r?\n/)
+  if (lines[0]?.trim() !== '---') throw new Error('Episode packet has no frontmatter.')
+  const fields: Record<string, string> = {
+    publish_provider: evidence.provider,
+    publish_channel: evidence.channel,
+    publish_verification: evidence.verification_state,
+    published_at: evidence.published_at,
+    publish_evidence_ref: evidence.evidence_ref,
+  }
+  if (evidence.post_id) fields.publish_post_id = evidence.post_id
+  if (evidence.post_url) fields.publish_post_url = evidence.post_url
+  let end = lines.findIndex((line, index) => index > 0 && line.trim() === '---')
+  if (end < 0) throw new Error('Episode packet frontmatter is not closed.')
+  for (const [key, value] of Object.entries(fields)) {
+    const index = lines.findIndex((line, lineIndex) => lineIndex > 0 && lineIndex < end && line.startsWith(key + ':'))
+    const serialized = `${key}: ${value.replace(/[\r\n]/g, '')}`
+    if (index >= 0) lines[index] = serialized
+    else { lines.splice(end, 0, serialized); end += 1 }
+  }
+  return lines.join(eol)
 }
 
 export class ShufuroMarketingAdapter implements FactoryAdapter {
@@ -128,22 +155,34 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
         risk: 'medium',
         reason: readyGate ? null : 'No REVIEW episode is waiting for Founder approval.',
       },
+      {
+        command_id: 'publish-content',
+        available: snapshot.gates.some((gate) => gate.id.startsWith('publish:') && gate.state === 'open'),
+        risk: 'high',
+        reason: snapshot.gates.some((gate) => gate.id.startsWith('publish:') && gate.state === 'open') ? null : 'No RENDERED episode is waiting for verified manual publication evidence.',
+      },
     ]
   }
 
   canExecute(snapshot: FactorySnapshot, request: FactoryCommandRequest): FactoryActionAvailability {
-    if (request.command_id !== 'approve-content') {
+    if (request.command_id !== 'approve-content' && request.command_id !== 'publish-content') {
       const known = this.getAvailableCommands(snapshot).find((item) => item.command_id === request.command_id)
       return known || { command_id: request.command_id, available: false, risk: 'critical', reason: 'Unknown symbolic command.' }
     }
     const gate = String(request.arguments.gate || '')
     const nativeGate = snapshot.gates.find((item) => item.id === gate)
+    if (request.command_id === 'publish-content') {
+      return nativeGate?.state === 'open' && gate.startsWith('publish:')
+        ? { command_id: 'publish-content', available: true, risk: 'high' }
+        : { command_id: 'publish-content', available: false, risk: 'high', reason: 'Requested publish gate is not open.' }
+    }
     return nativeGate?.state === 'open'
       ? { command_id: 'approve-content', available: true, risk: 'medium' }
       : { command_id: 'approve-content', available: false, risk: 'medium', reason: 'Requested content gate is not open.' }
   }
 
   async execute(instance: FactoryDiscoveredInstance, request: FactoryCommandRequest): Promise<FactoryCommandResult> {
+    if (request.command_id === 'publish-content') return this.executePublish(instance, request)
     if (request.command_id !== 'approve-content') {
       return {
         state: 'FAILED',
@@ -282,6 +321,78 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
     }
   }
 
+  private async executePublish(instance: FactoryDiscoveredInstance, request: FactoryCommandRequest): Promise<FactoryCommandResult> {
+    const gate = String(request.arguments.gate || '')
+    const episode = gate.startsWith('publish:') ? gate.slice('publish:'.length) : ''
+    const evidenceResult = distributionVerificationEvidenceSchema.safeParse(request.arguments.publish_evidence)
+    const before = await this.getSnapshot(instance)
+    if (request.arguments.human_approved !== true) return {
+      state: 'FAILED', before_revision: before.source.revision, after_revision: before.source.revision,
+      stdout_excerpt: '', stderr_excerpt: '', error: 'Human approval is required before recording publication evidence.', snapshot: before,
+    }
+    if (!/^(EP|TIP)\d{3}$/i.test(episode) || !evidenceResult.success
+      || (evidenceResult.success && evidenceResult.data.provider === 'mock' && process.env.NODE_ENV !== 'test')) return {
+      state: 'FAILED', before_revision: before.source.revision, after_revision: before.source.revision,
+      stdout_excerpt: '', stderr_excerpt: '', error: 'Missing or invalid verified manual publication evidence.', snapshot: before,
+    }
+    const evidence = evidenceResult.data
+    if (!request.expected_revision || before.source.revision !== request.expected_revision) return {
+      state: 'STALE', before_revision: before.source.revision, after_revision: null,
+      stdout_excerpt: '', stderr_excerpt: '', error: 'Marketing Content OS changed after the publish approval request was opened.', snapshot: before,
+    }
+    if (!before.gates.some((item) => item.id === gate && item.state === 'open')) return {
+      state: 'STALE', before_revision: before.source.revision, after_revision: before.source.revision,
+      stdout_excerpt: '', stderr_excerpt: '', error: 'Episode is no longer waiting for publication evidence.', snapshot: before,
+    }
+
+    let releaseLock: (() => void) | null = null
+    try { releaseLock = acquireShufuroWriteLock(instance.root_path, `publish-content:${episode}`) }
+    catch (error) { return {
+      state: 'FAILED', before_revision: before.source.revision, after_revision: before.source.revision,
+      stdout_excerpt: '', stderr_excerpt: '', error: error instanceof Error ? error.message : 'Shufuro Content OS write lock unavailable.', snapshot: before,
+    } }
+    let rollbackQueue: { path: string; contents: string } | null = null
+    let rollbackPacket: { path: string; contents: string } | null = null
+    try {
+      const lockedBefore = await this.getSnapshot(instance)
+      if (lockedBefore.source.revision !== request.expected_revision) return {
+        state: 'STALE', before_revision: lockedBefore.source.revision, after_revision: null,
+        stdout_excerpt: '', stderr_excerpt: '', error: 'Marketing Content OS changed before the publish write lock was acquired.', snapshot: lockedBefore,
+      }
+      const queuePath = join(instance.root_path, '03_PUBLISH_QUEUE.md')
+      const packetPath = findEpisodePacket(instance.root_path, episode)
+      if (!packetPath) throw new Error('Episode packet was not found.')
+      const queueBefore = readText(queuePath)
+      const packetBefore = readText(packetPath)
+      rollbackQueue = { path: queuePath, contents: queueBefore }
+      rollbackPacket = { path: packetPath, contents: packetBefore }
+      try {
+        const queueAfter = updateQueueStatus(queueBefore, episode, 'RENDERED', 'POSTED')
+        const packetAfter = updatePacketPublishEvidence(updatePacketStatus(packetBefore, 'RENDERED', 'POSTED'), evidence)
+        writeFileSync(packetPath, packetAfter, 'utf8')
+        writeFileSync(queuePath, queueAfter, 'utf8')
+      } catch (error) {
+        try { writeFileSync(packetPath, packetBefore, 'utf8') } catch {}
+        try { writeFileSync(queuePath, queueBefore, 'utf8') } catch {}
+        throw error
+      }
+      const after = await this.getSnapshot(instance)
+      const verified = parseQueue(readText(queuePath)).some((row) => row.episode === episode && row.status === 'POSTED')
+        && frontmatterValue(readText(packetPath), 'publish_verification') === 'verified'
+        && (frontmatterValue(readText(packetPath), 'publish_post_id') || frontmatterValue(readText(packetPath), 'publish_post_url'))
+      return {
+        state: verified ? 'APPLIED' : 'UNKNOWN', before_revision: lockedBefore.source.revision, after_revision: after.source.revision,
+        stdout_excerpt: verified ? `${episode} recorded as POSTED with verified ${evidence.provider} evidence.` : '',
+        stderr_excerpt: '', error: verified ? null : 'Publication evidence confirmation was incomplete.', snapshot: after,
+      }
+    } catch (error) {
+      if (rollbackPacket) { try { writeFileSync(rollbackPacket.path, rollbackPacket.contents, 'utf8') } catch {} }
+      if (rollbackQueue) { try { writeFileSync(rollbackQueue.path, rollbackQueue.contents, 'utf8') } catch {} }
+      return { state: 'FAILED', before_revision: before.source.revision, after_revision: before.source.revision,
+        stdout_excerpt: '', stderr_excerpt: '', error: error instanceof Error ? error.message : 'Failed to record publication evidence.', snapshot: before }
+    } finally { releaseLock?.() }
+  }
+
   async getSnapshot(instance: FactoryDiscoveredInstance): Promise<FactorySnapshot> {
     const root = instance.root_path
     const queuePath = join(root, '03_PUBLISH_QUEUE.md')
@@ -296,11 +407,22 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
       || null
     const review = rows.find((row) => row.status === 'REVIEW') || null
 
+    const currentPacketPath = current ? findEpisodePacket(root, current.episode) : null
+    const currentPacketText = currentPacketPath ? readText(currentPacketPath) : null
+    const storedDistributionEvidence = current?.status === 'POSTED' && currentPacketText
+      ? distributionVerificationEvidenceSchema.safeParse({
+          provider: frontmatterValue(currentPacketText, 'publish_provider'),
+          channel: frontmatterValue(currentPacketText, 'publish_channel'),
+          post_id: frontmatterValue(currentPacketText, 'publish_post_id') || undefined,
+          post_url: frontmatterValue(currentPacketText, 'publish_post_url') || undefined,
+          published_at: frontmatterValue(currentPacketText, 'published_at'),
+          verification_state: frontmatterValue(currentPacketText, 'publish_verification'),
+          evidence_ref: frontmatterValue(currentPacketText, 'publish_evidence_ref'),
+        })
+      : null
+    const verifiedPosted = storedDistributionEvidence?.success === true
     const packetParts: string[] = []
-    if (current) {
-      const packet = findEpisodePacket(root, current.episode)
-      if (packet) packetParts.push(readText(packet))
-    }
+    if (currentPacketText) packetParts.push(currentPacketText)
     if (review && review.episode !== current?.episode) {
       const packet = findEpisodePacket(root, review.episode)
       if (packet) packetParts.push(readText(packet))
@@ -315,6 +437,13 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
       note: `${review.episode} Founder content review required.`,
       evidence_refs: [`episode:${review.episode}`, `queue:${review.order}`],
     }] : []
+    if (current?.status === 'RENDERED') gates.push({
+      id: 'publish:' + current.episode,
+      state: 'open' as const,
+      blocking: true,
+      note: `${current.episode} requires human approval and verified manual publication evidence.`,
+      evidence_refs: [`episode:${current.episode}`, `queue:${current.order}`],
+    })
 
     const checks = [
       { id: 'content_os_queue', ok: rows.length > 0, detail: `${rows.length} queue rows parsed` },
@@ -330,6 +459,12 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
         source: 'content-os',
       })
     }
+    if (current?.status === 'POSTED' && !verifiedPosted) blockers.push({
+      id: 'publish_unverified:' + current.episode,
+      label: `${current.episode} is marked POSTED without verifiable publication identity`,
+      detail: 'A verified provider/channel and external post ID or canonical URL are required for operate state.',
+      source: 'content-os',
+    })
 
     const snapshot: FactorySnapshot = {
       snapshot_version: '1.0',
@@ -344,9 +479,9 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
       },
       freshness: { state: 'fresh', last_success_at: now, last_error: null },
       lifecycle: {
-        process_stage_id: current ? stageForStatus(current.status) : null,
+        process_stage_id: current ? stageForStatus(current.status, verifiedPosted) : null,
         native_stage: current ? `${current.episode}:${current.status}` : null,
-        canonical_phase: current ? canonicalForStatus(current.status) : 'unknown',
+        canonical_phase: current ? canonicalForStatus(current.status, verifiedPosted) : 'unknown',
         status: blockers.length > 0 ? 'blocked' : review ? 'blocked' : 'ready',
       },
       compatibility: {
@@ -359,7 +494,14 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
       artifacts: [
         { id: 'content_os_hub', path: hubPath },
         { id: 'publish_queue', path: queuePath },
-        ...(current ? [{ id: 'current_episode', episode: current.episode, status: current.status, format: current.format }] : []),
+        ...(current ? [{
+          id: 'current_episode', episode: current.episode, status: current.status, format: current.format,
+          ...(current.status === 'POSTED' && storedDistributionEvidence?.success ? {
+            distribution: {
+              ...storedDistributionEvidence.data,
+            },
+          } : {}),
+        }] : []),
         ...(review ? [{ id: 'next_review', episode: review.episode, status: review.status, format: review.format }] : []),
       ],
       review_queues: [],

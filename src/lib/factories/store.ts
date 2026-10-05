@@ -250,6 +250,7 @@ export function recordFactoryApprovalDecision(input: {
   note: string
   actor: string
   expectedRevision: string
+  nativeResult?: Record<string, unknown> | null
 }): FactoryApprovalRequest {
   const db = getDatabase()
   const current = getFactoryApproval(input.workspaceId, input.requestId)
@@ -265,7 +266,7 @@ export function recordFactoryApprovalDecision(input: {
     ? 'DECISION_RECORDED'
     : input.decision === 'hold' ? 'HELD' : 'REVISION_REQUESTED'
   const nativeResult = input.decision === 'approve'
-    ? null
+    ? input.nativeResult ? JSON.stringify(input.nativeResult) : null
     : JSON.stringify({ local_decision_only: true, decision: input.decision, pending_native_change: false })
 
   const changed = db.prepare(`

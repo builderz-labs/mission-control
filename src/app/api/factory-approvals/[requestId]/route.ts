@@ -36,10 +36,16 @@ export async function POST(
       const gateDefinition = adapter?.getDefinition().gates.find((gate) =>
         current.gate_id === gate.id || current.gate_id.startsWith(gate.id + ':'),
       )
+      if (current.gate_id.startsWith('publish:') && !parsed.data.publish_evidence) {
+        return NextResponse.json({ error: 'Verified manual publication evidence is required to approve this publish gate.' }, { status: 400 })
+      }
+      if (!current.gate_id.startsWith('publish:') && parsed.data.publish_evidence) {
+        return NextResponse.json({ error: 'Publication evidence is only accepted for publish gates.' }, { status: 400 })
+      }
       const commandId = gateDefinition?.apply_command || null
       const requestForGate = commandId ? {
         command_id: commandId,
-        arguments: { gate: current.gate_id, note: parsed.data.note || '' },
+        arguments: { gate: current.gate_id, note: parsed.data.note || '', ...(parsed.data.publish_evidence ? { publish_evidence: parsed.data.publish_evidence } : {}) },
         expected_revision: current.expected_revision,
         requested_by: auth.user.username,
       } : null
@@ -62,6 +68,9 @@ export async function POST(
       note: parsed.data.note,
       actor: auth.user.username,
       expectedRevision: parsed.data.expected_revision,
+      nativeResult: parsed.data.decision === 'approve' && parsed.data.publish_evidence
+        ? { publish_evidence: parsed.data.publish_evidence }
+        : null,
     })
     try {
       recordExperience({
