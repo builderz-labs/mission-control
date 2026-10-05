@@ -38,9 +38,9 @@ export const socialConnectorRegistry: readonly SocialConnectorProfile[] = [
   },
   {
     channel: 'tiktok',
-    current_readiness: 'MANUAL_OR_EXPORT',
+    current_readiness: 'READY_FOR_CREDENTIALS',
     preferred_source: 'official_api',
-    official_surface: 'TikTok Display API + eligible creator/business analytics surfaces',
+    official_surface: 'TikTok Display API v2 /v2/video/query with video.list scope',
     credential_requirements: ['TikTok developer app', 'Login Kit/API approval for selected scopes', 'eligible account/API product'],
     organic_metrics: ['public video metadata/counts where exposed', 'views', 'likes', 'comments', 'shares', 'creator analytics via eligible surfaces/export'],
     open_source_candidates: [
