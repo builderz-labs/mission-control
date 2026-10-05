@@ -1827,6 +1827,58 @@ const migrations: Migration[] = [
           ON opportunity_evidence(workspace_id, opportunity_id, observed_at DESC);
       `)
     }
+  },
+  {
+    id: '059_social_metric_history_v2',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS social_metric_snapshots (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          snapshot_id TEXT NOT NULL,
+          channel TEXT NOT NULL,
+          account_ref TEXT NOT NULL,
+          post_id TEXT NOT NULL,
+          post_url TEXT,
+          content_id TEXT NOT NULL,
+          campaign_id TEXT,
+          published_at INTEGER,
+          captured_at INTEGER NOT NULL,
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL,
+          measurement_window TEXT,
+          raw_platform_metrics TEXT NOT NULL DEFAULT '{}',
+          creative_variant TEXT,
+          hook_variant TEXT,
+          cta_variant TEXT,
+          metrics TEXT NOT NULL DEFAULT '{}',
+          derived_metrics TEXT NOT NULL DEFAULT '{}',
+          attribution TEXT NOT NULL DEFAULT '{}',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, snapshot_id)
+        );
+      `)
+      const columns = new Set(
+        (db.prepare('PRAGMA table_info(social_metric_snapshots)').all() as Array<{ name: string }>)
+          .map((column) => column.name),
+      )
+      const additions = [
+        ['post_url', 'TEXT'],
+        ['measurement_window', 'TEXT'],
+        ['raw_platform_metrics', "TEXT NOT NULL DEFAULT '{}'"],
+      ] as const
+      for (const [name, ddl] of additions) {
+        if (!columns.has(name)) db.exec(`ALTER TABLE social_metric_snapshots ADD COLUMN ${name} ${ddl}`)
+      }
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_social_metric_channel_captured
+          ON social_metric_snapshots(workspace_id, channel, captured_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_social_metric_content_captured
+          ON social_metric_snapshots(workspace_id, content_id, captured_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_social_metric_post_history
+          ON social_metric_snapshots(workspace_id, channel, post_id, captured_at ASC);
+      `)
+    }
   }
 ]
 

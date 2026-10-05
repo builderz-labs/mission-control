@@ -8,12 +8,15 @@ export interface SocialMetricSnapshotRow {
   channel: string
   account_ref: string
   post_id: string
+  post_url: string | null
   content_id: string
   campaign_id: string | null
   published_at: number | null
   captured_at: number
   source_type: string
   source_ref: string
+  measurement_window: string | null
+  raw_platform_metrics: string
   creative_variant: string | null
   hook_variant: string | null
   cta_variant: string | null
@@ -33,12 +36,15 @@ function ensureSocialMetricTable() {
       channel TEXT NOT NULL,
       account_ref TEXT NOT NULL,
       post_id TEXT NOT NULL,
+      post_url TEXT,
       content_id TEXT NOT NULL,
       campaign_id TEXT,
       published_at INTEGER,
       captured_at INTEGER NOT NULL,
       source_type TEXT NOT NULL,
       source_ref TEXT NOT NULL,
+      measurement_window TEXT,
+      raw_platform_metrics TEXT NOT NULL DEFAULT '{}',
       creative_variant TEXT,
       hook_variant TEXT,
       cta_variant TEXT,
@@ -52,6 +58,25 @@ function ensureSocialMetricTable() {
       ON social_metric_snapshots(workspace_id, channel, captured_at DESC);
     CREATE INDEX IF NOT EXISTS idx_social_metric_content_captured
       ON social_metric_snapshots(workspace_id, content_id, captured_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_social_metric_post_history
+      ON social_metric_snapshots(workspace_id, channel, post_id, captured_at ASC);
+  `)
+
+  const columns = new Set(
+    (db.prepare('PRAGMA table_info(social_metric_snapshots)').all() as Array<{ name: string }>)
+      .map((column) => column.name),
+  )
+  const additions = [
+    ['post_url', 'TEXT'],
+    ['measurement_window', 'TEXT'],
+    ['raw_platform_metrics', "TEXT NOT NULL DEFAULT '{}'"],
+  ] as const
+  for (const [name, ddl] of additions) {
+    if (!columns.has(name)) db.exec(`ALTER TABLE social_metric_snapshots ADD COLUMN ${name} ${ddl}`)
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_social_metric_post_history
+      ON social_metric_snapshots(workspace_id, channel, post_id, captured_at ASC);
   `)
   return db
 }
@@ -64,22 +89,25 @@ export function recordSocialMetricSnapshot(workspaceId: number, raw: SocialMetri
 
   db.prepare(`
     INSERT OR IGNORE INTO social_metric_snapshots (
-      workspace_id, snapshot_id, channel, account_ref, post_id, content_id, campaign_id,
-      published_at, captured_at, source_type, source_ref, creative_variant, hook_variant,
-      cta_variant, metrics, derived_metrics, attribution
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      workspace_id, snapshot_id, channel, account_ref, post_id, post_url, content_id, campaign_id,
+      published_at, captured_at, source_type, source_ref, measurement_window, raw_platform_metrics,
+      creative_variant, hook_variant, cta_variant, metrics, derived_metrics, attribution
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     workspaceId,
     snapshotId,
     input.channel,
     input.account_ref,
     input.post_id,
+    input.post_url || null,
     input.content_id,
     input.campaign_id || null,
     input.published_at ?? null,
     input.captured_at,
     input.source_type,
     input.source_ref,
+    input.measurement_window || null,
+    JSON.stringify(input.raw_platform_metrics || {}),
     input.creative_variant || null,
     input.hook_variant || null,
     input.cta_variant || null,
@@ -101,6 +129,42 @@ export function listSocialMetricSnapshots(workspaceId: number, limit = 100): Soc
     ORDER BY captured_at DESC, id DESC
     LIMIT ?
   `).all(workspaceId, Math.max(1, Math.min(500, limit))) as SocialMetricSnapshotRow[]
+}
+
+
+export function listSocialMetricHistory(
+  workspaceId: number,
+  filter: {
+    channel?: string
+    postId?: string
+    contentId?: string
+    measurementWindow?: string
+    limit?: number
+  } = {},
+): SocialMetricSnapshotRow[] {
+  const db = ensureSocialMetricTable()
+  const channel = filter.channel?.trim() || null
+  const postId = filter.postId?.trim() || null
+  const contentId = filter.contentId?.trim() || null
+  const measurementWindow = filter.measurementWindow?.trim() || null
+  const limit = Math.max(1, Math.min(2000, filter.limit || 500))
+  return db.prepare(`
+    SELECT * FROM social_metric_snapshots
+    WHERE workspace_id = ?
+      AND (? IS NULL OR channel = ?)
+      AND (? IS NULL OR post_id = ?)
+      AND (? IS NULL OR content_id = ?)
+      AND (? IS NULL OR measurement_window = ?)
+    ORDER BY captured_at ASC, id ASC
+    LIMIT ?
+  `).all(
+    workspaceId,
+    channel, channel,
+    postId, postId,
+    contentId, contentId,
+    measurementWindow, measurementWindow,
+    limit,
+  ) as SocialMetricSnapshotRow[]
 }
 
 export function socialChannelRollup(workspaceId: number) {

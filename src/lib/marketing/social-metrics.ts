@@ -18,10 +18,10 @@ export const socialPostIdentitySchema = z.object({
   channel: z.enum(SOCIAL_CHANNELS),
   account_ref: z.string().trim().min(1).max(500),
   post_id: z.string().trim().min(1).max(500),
+  post_url: z.string().url().nullable().optional(),
   content_id: z.string().trim().min(1).max(500),
   campaign_id: z.string().trim().min(1).max(500).nullable().optional(),
   published_at: z.number().int().nonnegative().nullable().optional(),
-  post_url: z.string().url().nullable().optional(),
 }).strict()
 
 export type SocialPostIdentity = z.infer<typeof socialPostIdentitySchema>
@@ -30,6 +30,7 @@ export const socialMetricInputSchema = z.object({
   channel: z.enum(SOCIAL_CHANNELS),
   account_ref: z.string().trim().min(1).max(500),
   post_id: z.string().trim().min(1).max(500),
+  post_url: z.string().url().nullable().optional(),
   content_id: z.string().trim().min(1).max(500),
   campaign_id: z.string().trim().min(1).max(500).nullable().optional(),
   published_at: z.number().int().nonnegative().nullable().optional(),
