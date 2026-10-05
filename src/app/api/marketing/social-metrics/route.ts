@@ -3,7 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { requireWorkspaceId } from '@/lib/enforcement/workspace-scope'
 import { mutationLimiter } from '@/lib/rate-limit'
 import { recordExperience, recordLearningEvidence } from '@/lib/factories/learning-store'
-import { socialMetricInputSchema } from '@/lib/marketing/social-metrics'
+import { normalizeSocialMetrics, socialMetricInputSchema } from '@/lib/marketing/social-metrics'
+import { buildSocialLearningObservation } from '@/lib/marketing/social-learning'
 import { listSocialMetricSnapshots, recordSocialMetricSnapshot, socialChannelRollup } from '@/lib/marketing/social-metrics-store'
 
 export async function GET(request: NextRequest) {
@@ -36,7 +37,8 @@ export async function POST(request: NextRequest) {
 
   const snapshot = recordSocialMetricSnapshot(ws.workspaceId, parsed.data)
   const experienceId = `social-snapshot:${snapshot.snapshot_id}`
-  const derived = JSON.parse(snapshot.derived_metrics || '{}') as Record<string, unknown>
+  const derived = normalizeSocialMetrics(parsed.data)
+  const learningObservation = buildSocialLearningObservation(parsed.data, derived)
 
   recordExperience({
     workspaceId: ws.workspaceId,
@@ -46,7 +48,13 @@ export async function POST(request: NextRequest) {
     actionType: 'social_metric_snapshot',
     workerKind: 'deterministic',
     workerIdentity: snapshot.source_type,
-    metrics: [{ ...parsed.data.metrics, derived }],
+    inputs: [{
+      content_id: parsed.data.content_id,
+      post_id: parsed.data.post_id,
+      measurement_window: parsed.data.measurement_window || null,
+      content_intelligence: parsed.data.content_intelligence || {},
+    }],
+    metrics: [learningObservation],
     outcome: 'observed',
     cost: { paid_usd: 0, source: snapshot.source_type },
     evidenceRefs: [`social-metric:${snapshot.snapshot_id}`],
@@ -67,9 +75,8 @@ export async function POST(request: NextRequest) {
       content_id: snapshot.content_id,
       post_id: snapshot.post_id,
       campaign_id: snapshot.campaign_id,
-      metrics: parsed.data.metrics,
-      derived,
-      note: 'Raw social metric snapshot; no positive/negative judgement without an explicit comparable baseline.',
+      observation: learningObservation,
+      note: 'Measured social performance joined with descriptive content intelligence; no positive/negative judgement without an explicit comparable baseline.',
     },
     observedAt: snapshot.captured_at,
   })

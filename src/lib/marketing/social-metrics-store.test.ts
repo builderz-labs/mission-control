@@ -21,6 +21,7 @@ const sample = {
   source_ref: 'manual-2026-10-05',
   measurement_window: '24h' as const,
   raw_platform_metrics: { native_view_count: 1000, source_label: 'manual-export' },
+  content_intelligence: { topic: 'app resale', audience: 'indie hackers', hook: 'What is your app worth?', format: 'short-video', cta: 'Scan your app' },
   metrics: {
     views: 1000,
     profile_visits: 100,
@@ -60,6 +61,7 @@ describe('social metric snapshot store', () => {
     expect(history.map((row) => row.measurement_window)).toEqual(['1h', '6h'])
     expect(history[0]?.post_url).toBe(sample.post_url)
     expect(JSON.parse(history[0]?.raw_platform_metrics || '{}')).toEqual(sample.raw_platform_metrics)
+    expect(JSON.parse(history[0]?.content_intelligence || '{}')).toEqual(sample.content_intelligence)
     expect(JSON.parse(history[0]?.metrics || '{}').views).toBe(1000)
     expect(JSON.parse(history[1]?.metrics || '{}').views).toBe(1400)
   })

@@ -17,6 +17,7 @@ export interface SocialMetricSnapshotRow {
   source_ref: string
   measurement_window: string | null
   raw_platform_metrics: string
+  content_intelligence: string
   creative_variant: string | null
   hook_variant: string | null
   cta_variant: string | null
@@ -45,6 +46,7 @@ function ensureSocialMetricTable() {
       source_ref TEXT NOT NULL,
       measurement_window TEXT,
       raw_platform_metrics TEXT NOT NULL DEFAULT '{}',
+      content_intelligence TEXT NOT NULL DEFAULT '{}',
       creative_variant TEXT,
       hook_variant TEXT,
       cta_variant TEXT,
@@ -70,6 +72,7 @@ function ensureSocialMetricTable() {
     ['post_url', 'TEXT'],
     ['measurement_window', 'TEXT'],
     ['raw_platform_metrics', "TEXT NOT NULL DEFAULT '{}'"],
+    ['content_intelligence', "TEXT NOT NULL DEFAULT '{}'"],
   ] as const
   for (const [name, ddl] of additions) {
     if (!columns.has(name)) db.exec(`ALTER TABLE social_metric_snapshots ADD COLUMN ${name} ${ddl}`)
@@ -91,8 +94,8 @@ export function recordSocialMetricSnapshot(workspaceId: number, raw: SocialMetri
     INSERT OR IGNORE INTO social_metric_snapshots (
       workspace_id, snapshot_id, channel, account_ref, post_id, post_url, content_id, campaign_id,
       published_at, captured_at, source_type, source_ref, measurement_window, raw_platform_metrics,
-      creative_variant, hook_variant, cta_variant, metrics, derived_metrics, attribution
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      content_intelligence, creative_variant, hook_variant, cta_variant, metrics, derived_metrics, attribution
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     workspaceId,
     snapshotId,
@@ -108,6 +111,7 @@ export function recordSocialMetricSnapshot(workspaceId: number, raw: SocialMetri
     input.source_ref,
     input.measurement_window || null,
     JSON.stringify(input.raw_platform_metrics || {}),
+    JSON.stringify(input.content_intelligence || {}),
     input.creative_variant || null,
     input.hook_variant || null,
     input.cta_variant || null,

@@ -1879,6 +1879,22 @@ const migrations: Migration[] = [
           ON social_metric_snapshots(workspace_id, channel, post_id, captured_at ASC);
       `)
     }
+  },
+  {
+    id: '060_social_metric_content_intelligence',
+    up: (db) => {
+      const table = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'social_metric_snapshots'"
+      ).get() as { name?: string } | undefined
+      if (!table) return
+      const columns = new Set(
+        (db.prepare('PRAGMA table_info(social_metric_snapshots)').all() as Array<{ name: string }>)
+          .map((column) => column.name),
+      )
+      if (!columns.has('content_intelligence')) {
+        db.exec("ALTER TABLE social_metric_snapshots ADD COLUMN content_intelligence TEXT NOT NULL DEFAULT '{}'")
+      }
+    }
   }
 ]
 

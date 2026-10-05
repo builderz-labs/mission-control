@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { contentIntelligenceSchema } from './content-distribution'
 
 export const SOCIAL_CHANNELS = ['instagram', 'tiktok', 'linkedin', 'x', 'threads', 'reddit'] as const
 export type SocialChannel = typeof SOCIAL_CHANNELS[number]
@@ -39,6 +40,7 @@ export const socialMetricInputSchema = z.object({
   source_ref: z.string().trim().min(1).max(1000),
   measurement_window: z.enum(SOCIAL_MEASUREMENT_WINDOWS).optional(),
   raw_platform_metrics: z.record(z.string(), rawMetricValueSchema).optional(),
+  content_intelligence: contentIntelligenceSchema.optional(),
   creative_variant: z.string().trim().max(300).nullable().optional(),
   hook_variant: z.string().trim().max(300).nullable().optional(),
   cta_variant: z.string().trim().max(300).nullable().optional(),
