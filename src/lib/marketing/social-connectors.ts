@@ -21,7 +21,7 @@ export interface SocialConnectorProfile {
 export const socialConnectorRegistry: readonly SocialConnectorProfile[] = [
   {
     channel: 'instagram',
-    current_readiness: 'MANUAL_OR_EXPORT',
+    current_readiness: 'READY_FOR_CREDENTIALS',
     preferred_source: 'official_api',
     official_surface: 'Meta Instagram Graph API / Insights for Business or Creator accounts',
     credential_requirements: ['Meta developer app', 'eligible Instagram Business/Creator account', 'approved insight scopes'],
