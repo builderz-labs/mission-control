@@ -84,7 +84,7 @@ export const socialConnectorRegistry: readonly SocialConnectorProfile[] = [
   },
   {
     channel: 'x',
-    current_readiness: 'MANUAL_OR_EXPORT',
+    current_readiness: 'READY_FOR_CREDENTIALS',
     preferred_source: 'official_api',
     official_surface: 'X API v2 post/user metrics subject to active access plan and authorization',
     credential_requirements: ['X developer project/app', 'approved access plan', 'user/app token with required fields/scopes'],
