@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveSocialMetrics, socialMetricInputSchema, socialSnapshotFingerprint } from './social-metrics'
+import { deriveSocialMetrics, normalizeSocialMetrics, socialMetricInputSchema, socialPostIdentitySchema, socialSnapshotFingerprint } from './social-metrics'
 
 const base = {
   channel: 'instagram' as const,
@@ -68,6 +68,72 @@ describe('social metrics normalization', () => {
       signup_conversion: null,
       activation_conversion: null,
       cpa_usd: null,
+    })
+  })
+
+  it('supports cross-channel identity, measurement windows, and lossless platform-specific raw metrics', () => {
+    const reddit = socialMetricInputSchema.parse({
+      ...base,
+      channel: 'reddit',
+      post_id: 'reddit-post-1',
+      measurement_window: '24h',
+      raw_platform_metrics: {
+        score: 412,
+        upvote_ratio: 0.91,
+        subreddit: 'SideProject',
+        promoted: false,
+      },
+      metrics: {
+        comments: 37,
+        link_clicks: 18,
+        website_visits: 14,
+        conversion: 2,
+      },
+    })
+    expect(reddit.measurement_window).toBe('24h')
+    expect(reddit.raw_platform_metrics).toEqual({
+      score: 412,
+      upvote_ratio: 0.91,
+      subreddit: 'SideProject',
+      promoted: false,
+    })
+    expect(socialPostIdentitySchema.parse({
+      channel: 'reddit',
+      account_ref: 'productbaton',
+      post_id: 'reddit-post-1',
+      content_id: 'content-001',
+      post_url: 'https://www.reddit.com/r/SideProject/comments/example',
+    }).channel).toBe('reddit')
+  })
+
+  it('normalizes comparable rates but keeps platform-specific scores out of the common denominator', () => {
+    const parsed = socialMetricInputSchema.parse({
+      ...base,
+      measurement_window: '72h',
+      raw_platform_metrics: { score: 9999 },
+      metrics: {
+        impressions: 2000,
+        likes: 100,
+        comments: 20,
+        shares: 30,
+        reposts: 10,
+        saves: 40,
+        link_clicks: 50,
+        website_unique_visitors: 25,
+        conversion: 5,
+        completion_rate: 0.4,
+      },
+    })
+    expect(normalizeSocialMetrics(parsed)).toMatchObject({
+      exposure: 2000,
+      engagement_actions: 200,
+      engagement_rate: 0.1,
+      comment_rate: 0.01,
+      share_rate: 0.02,
+      save_rate: 0.02,
+      click_rate: 0.025,
+      visitor_to_conversion_rate: 0.2,
+      completion_rate: 0.4,
     })
   })
 

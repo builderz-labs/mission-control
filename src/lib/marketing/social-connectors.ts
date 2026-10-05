@@ -109,6 +109,16 @@ export const socialConnectorRegistry: readonly SocialConnectorProfile[] = [
     open_source_candidates: [],
     notes: ['No separate third-party connector is adopted yet; prefer a thin official adapter when credentials are ready.'],
   },
+  {
+    channel: 'reddit',
+    current_readiness: 'MANUAL_OR_EXPORT',
+    preferred_source: 'official_api',
+    official_surface: 'Reddit API for owned post/community metadata plus first-party UTM analytics',
+    credential_requirements: ['Reddit developer app/account authorization where API access is used'],
+    organic_metrics: ['score', 'upvote ratio where available', 'comments', 'post metadata; impressions are not assumed'],
+    open_source_candidates: [],
+    notes: ['Keep Reddit score/upvote ratio in raw_platform_metrics; do not normalize it as views or reach.', 'Use UTM web analytics for click and conversion learning.'],
+  },
 ] as const
 
 export function getSocialConnectorProfile(channel: SocialChannel): SocialConnectorProfile {
