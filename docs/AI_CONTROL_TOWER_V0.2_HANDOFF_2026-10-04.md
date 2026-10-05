@@ -7,7 +7,7 @@ Canonical architecture: `ARCHITECTURE_CURRENT.md` → `AI_CONTROL_TOWER_ARCHITEC
 Latest implementation commit:
 
 ```text
-12a61bb build: use turbopack for production builds
+3268a35 feat: add guarded improvement candidate evaluation flow
 ```
 
 Control-plane feature baseline:
@@ -284,3 +284,18 @@ These counts are a runtime observation, not a permanent architecture constant.
 ```
 
 Do not trade the current safety properties for faster autonomy.
+
+## Continuation — 2026-10-05
+
+Local implementation commit: `3268a35 feat: add guarded improvement candidate evaluation flow`.
+
+- Candidate proposals are manual and require the existing deterministic readiness signal. A live proposal below threshold returned HTTP 409 and created no candidate.
+- An evaluation plan stores metric, baseline, direction, minimum effect, and method. An operator records a measured after value and source reference; the store computes the comparison and records typed evidence. This is an operator-supplied result with human review, not an automated verifier or paid API call.
+- The lifecycle now guards evaluation, review, approval, promotion, observation, and rollback states. Promotion requires passing comparison evidence, original learning evidence, a human review record, a change reference, and a rollback target. High-risk scopes require a reviewer distinct from the evaluator. The promotion API requires admin role. Rollback records state and audit metadata; it does not execute a native rollback command.
+- Learning API/UI exposes candidate status, evidence count, evaluation readiness, rollback target presence, review/approval requirement, and observation state. Home Approval Inbox priority is unchanged.
+- Typed cross-Factory feedback proposal storage is present with source/destination, signal, evidence references, confidence, acceptance requirement, and status. No proposal is auto-applied or written to a native Factory.
+- Focused regression: 10 files / 41 tests passed. Clean `tsc --noEmit` passed. Official Turbopack `pnpm build` passed with 121/121 static pages; `artifact:check` passed. The server was restarted from the new standalone artifact and `/api/health` returned `status: ok`, `db: ok`.
+- Live Factory refresh returned 3 snapshots; experience events remained 4, learning evidence 23 (12 positive, 11 negative), candidate signals 23, ready candidates 0, candidates 0. Feedback proposals remain 0. Same-revision refresh did not add evidence. L2 reflection and optimizer auto-run remain off; paid API default hard cap remains $0/day.
+- The latest build emitted 80 Hermes-linked NFT tracing warnings. They remain non-blocking technical debt; no Hermes/runtime path was changed.
+
+Still live-unverified: a real candidate evaluation and promotion, native rollback execution, and a real Product Factory gate approval. The next priority is to accumulate evidence from genuine native revision changes, then evaluate the first ready candidate with independent review and human approval. Cross-Factory feedback acceptance and downstream application need a separate guarded design before use.

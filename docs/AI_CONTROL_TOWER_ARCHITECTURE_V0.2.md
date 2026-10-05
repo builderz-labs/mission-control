@@ -28,7 +28,7 @@ Production build/typecheck status:
 - official cold `pnpm build` using Turbopack: PASS in ~172s including TypeScript, static generation, and standalone artifact preparation.
 - 120/120 static pages generated.
 - standalone artifact check: PASS.
-- Turbopack currently emits 81 NFT whole-project tracing warnings tied to the Hermes route import trace. These warnings are non-blocking technical debt because the build exits 0 and the standalone artifact boundary check passes.
+- The latest Turbopack build emitted 80 NFT whole-project tracing warnings tied to the Hermes route import trace (81 in the previous baseline). These warnings are non-blocking technical debt because the build exits 0 and the standalone artifact boundary check passes.
 
 ## 1. Executive decision
 
@@ -905,6 +905,9 @@ Implemented:
 - deterministic candidate signals.
 - threshold rules and Improvement Queue display.
 - evidence counts exposed to Home/Learning UI.
+- manual threshold-gated candidate proposals, stored evaluation plans and baseline comparisons.
+- guarded candidate review, admin approval, observation, and rollback metadata/audit states.
+- no live candidate promotion has been verified; the rollback state does not execute native rollback.
 
 Deferred by policy:
 - automatic L2 AI reflection.
@@ -923,11 +926,9 @@ Deferred by policy:
 - revision checks, rollback, and cross-process file lock are implemented.
 - original Shufuro Content OS is not used as a destructive regression fixture.
 
-### Phase 8 — cross-Factory feedback — NOT STARTED
-Only after the current Product + Shufuro contract proves stable in normal use:
-- add typed feedback proposals,
-- evidence links,
-- acceptance routing.
+### Phase 8 — cross-Factory feedback — FOUNDATION ONLY
+- typed proposal schema and workspace-scoped storage exist with evidence links and acceptance requirement.
+- acceptance routing and native Factory application remain unimplemented.
 
 Growth/VOC/Revenue remain stubs until a real workflow requires them.
 
@@ -986,17 +987,16 @@ Current acceptance snapshot at `12a61bb`:
 
 The original v0.2 foundation through Product/Marketing/Creative projection and deterministic Learning is now present in the local baseline.
 
-The next code work is deliberately narrow:
+The next code work is deliberately narrow. The candidate eval/rollback foundation and typed feedback proposal store were added locally on 2026-10-05; the live candidate path remains unverified:
 
 ```text
-1. Keep 12a61bb as the production-build-verified local baseline
-2. Accumulate real typed evidence through normal Factory use
-3. Add L2 batched reflection only when evidence thresholds become meaningful
-4. Add eval/rollback flow for the first real Improvement Candidate
-5. Add typed cross-Factory feedback proposals
-6. Prove a real guarded Product approval only with explicit human approval
-7. Investigate Hermes/NFT whole-project tracing warnings as non-blocking build debt
-8. Expand Growth / VOC / Revenue only when a real workflow requires it
+1. Accumulate real typed evidence through normal Factory use
+2. Run the first ready candidate through evaluation, independent review where required, human approval, and observation
+3. Consider L2 batched reflection only when evidence thresholds become meaningful
+4. Design guarded acceptance for stored cross-Factory feedback proposals
+5. Prove a real guarded Product approval only with explicit human approval
+6. Investigate Hermes/NFT whole-project tracing warnings as non-blocking build debt
+7. Expand Growth / VOC / Revenue only when a real workflow requires it
 ```
 
 Do not begin with optimizer integration, automatic reflection, or broad new Factory implementation.
