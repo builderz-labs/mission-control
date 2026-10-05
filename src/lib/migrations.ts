@@ -1895,6 +1895,54 @@ const migrations: Migration[] = [
         db.exec("ALTER TABLE social_metric_snapshots ADD COLUMN content_intelligence TEXT NOT NULL DEFAULT '{}'")
       }
     }
+  },
+  {
+    id: '061_social_credential_vault',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS social_credentials (
+          workspace_id INTEGER NOT NULL,
+          credential_ref TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          protected_blob TEXT NOT NULL,
+          protector_version TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (workspace_id, credential_ref)
+        );
+
+        CREATE TABLE IF NOT EXISTS social_accounts (
+          workspace_id INTEGER NOT NULL,
+          account_id TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          account_ref TEXT NOT NULL,
+          external_account_id TEXT,
+          account_mode TEXT,
+          status TEXT NOT NULL CHECK (status IN ('PENDING', 'CONNECTED', 'EXPIRED', 'REAUTH_REQUIRED', 'DISCONNECTED')),
+          credential_ref TEXT,
+          scopes TEXT NOT NULL DEFAULT '[]',
+          expires_at INTEGER,
+          refreshable INTEGER NOT NULL DEFAULT 0 CHECK (refreshable IN (0, 1)),
+          nonsecret_metadata TEXT NOT NULL DEFAULT '{}',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (workspace_id, account_id),
+          FOREIGN KEY (workspace_id, credential_ref)
+            REFERENCES social_credentials(workspace_id, credential_ref) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_social_credentials_workspace_provider
+          ON social_credentials(workspace_id, provider);
+        CREATE INDEX IF NOT EXISTS idx_social_accounts_workspace_provider_status
+          ON social_accounts(workspace_id, provider, status);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_social_accounts_canonical_external
+          ON social_accounts(workspace_id, provider, external_account_id)
+          WHERE external_account_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_social_accounts_canonical_ref
+          ON social_accounts(workspace_id, provider, lower(account_ref))
+          WHERE external_account_id IS NULL;
+      `)
+    }
   }
 ]
 
