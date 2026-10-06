@@ -165,6 +165,60 @@ describe('social OAuth provider profiles and transactions', () => {
     expect(JSON.stringify(db.prepare('SELECT detail FROM audit_log').all())).not.toMatch(/access-token-secret|refresh-token-secret|fixture-auth-code/)
   })
 
+  it('stores CONNECTED accounts only after verified TikTok and X identity lookup', async () => {
+    for (const provider of ['tiktok', 'x'] as const) {
+      configure(provider)
+      const started = startSocialOAuth(db, 1, 'admin', provider, { protector })
+      const state = new URL(started.authorize_url).searchParams.get('state')!
+      let calls = 0
+      const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        calls += 1
+        if (calls === 1) {
+          return new Response(JSON.stringify({ access_token: 'verified-access-token', refresh_token: 'verified-refresh-token', expires_in: 3600 }), { status: 200, headers: { 'content-type': 'application/json' } })
+        }
+        expect((init?.headers as Record<string, string>).authorization).toBe('Bearer verified-access-token')
+        if (provider === 'tiktok') {
+          expect(String(input)).toContain('https://open.tiktokapis.com/v2/user/info/')
+          return new Response(JSON.stringify({ data: { user: { open_id: '0a1b2c3d-4e5f-6789-abcd-0123456789ef', display_name: 'Creator' } } }), { status: 200, headers: { 'content-type': 'application/json' } })
+        }
+        expect(String(input)).toBe('https://api.x.com/2/users/me')
+        return new Response(JSON.stringify({ data: { id: '123456789', name: 'Builder', username: 'builder' } }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }) as unknown as typeof fetch
+
+      const result = await completeSocialOAuth(db, 1, provider, { state, code: 'verified-code' }, { protector, fetcher, verifyIdentity: true })
+      expect(result.status).toBe('connected')
+      expect(fetcher).toHaveBeenCalledTimes(2)
+      const row = db.prepare('SELECT status, account_ref, external_account_id FROM social_accounts WHERE provider = ?').get(provider) as any
+      expect(row.status).toBe('CONNECTED')
+      if (provider === 'tiktok') {
+        expect(row.account_ref).toBe('TikTok: Creator')
+        expect(row.external_account_id).toBe('tiktok:0a1b2c3d-4e5f-6789-abcd-0123456789ef')
+      } else {
+        expect(row.account_ref).toBe('@builder')
+        expect(row.external_account_id).toBe('x:123456789')
+      }
+    }
+  })
+
+  it('persists nothing when required TikTok or X identity verification fails', async () => {
+    configure('x')
+    const started = startSocialOAuth(db, 1, 'admin', 'x', { protector })
+    const state = new URL(started.authorize_url).searchParams.get('state')!
+    let calls = 0
+    const fetcher = vi.fn(async () => {
+      calls += 1
+      if (calls === 1) {
+        return new Response(JSON.stringify({ access_token: 'verified-access-token', refresh_token: 'verified-refresh-token', expires_in: 3600 }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ error: 'provider unavailable' }), { status: 503, headers: { 'content-type': 'application/json' } })
+    }) as unknown as typeof fetch
+
+    await expect(completeSocialOAuth(db, 1, 'x', { state, code: 'verified-code' }, { protector, fetcher, verifyIdentity: true }))
+      .rejects.toThrow('OAuth identity verification failed')
+    expect(db.prepare('SELECT count(*) AS count FROM social_accounts').get()).toEqual({ count: 0 })
+    expect(db.prepare('SELECT count(*) AS count FROM social_credentials').get()).toEqual({ count: 0 })
+  })
+
   it('does not create a connected account or leak provider secrets after exchange failure', async () => {
     configure('instagram')
     const started = startSocialOAuth(db, 1, 'admin', 'instagram', { protector })

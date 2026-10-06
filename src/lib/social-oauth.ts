@@ -208,11 +208,49 @@ export async function exchangeAuthorizationCode(provider: SocialProvider, app: S
   try { return extractToken(json) } catch { throw new Error('OAuth token exchange failed') }
 }
 
-export interface OAuthCallbackResult { status: 'connected_pending' | 'cancelled'; provider: SocialProvider; account_id?: string }
+interface VerifiedSocialIdentity {
+  external_account_id: string
+  account_ref: string
+}
+
+async function resolveSocialOAuthIdentity(provider: SocialProvider, accessToken: string, fetcher: OAuthFetch = fetch): Promise<VerifiedSocialIdentity | null> {
+  let url: string
+  if (provider === 'tiktok') url = 'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name'
+  else if (provider === 'x') url = 'https://api.x.com/2/users/me'
+  else return null
+
+  let response: Response
+  try {
+    response = await fetcher(url, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    })
+  } catch { return null }
+  if (!response.ok) return null
+
+  let json: any
+  try { json = await response.json() } catch { return null }
+  const user = provider === 'tiktok' ? json?.data?.user : json?.data
+  const externalId = provider === 'tiktok' ? user?.open_id : user?.id
+  if (typeof externalId !== 'string' || externalId.length < 1 || externalId.length > 280) return null
+  const candidate = provider === 'tiktok'
+    ? user?.display_name
+    : typeof user?.username === 'string' && user.username ? `@${user.username}` : user?.name
+  const displayRef = typeof candidate === 'string' && candidate.trim().length > 0 && candidate.trim().length <= 180
+    ? candidate.trim()
+    : externalId
+  const accountRef = provider === 'tiktok'
+    ? `TikTok: ${displayRef}`
+    : displayRef.startsWith('@') ? displayRef : `X: ${displayRef}`
+  return { external_account_id: `${provider}:${externalId}`, account_ref: accountRef }
+}
+
+export interface OAuthCallbackResult { status: 'connected' | 'connected_pending' | 'cancelled'; provider: SocialProvider; account_id?: string }
 
 export async function completeSocialOAuth(db: Database.Database, workspaceId: number, provider: SocialProvider,
   query: { state: string | null; code: string | null; error?: string | null },
-  options: { protector?: SecretProtector; fetcher?: OAuthFetch; now?: number } = {}): Promise<OAuthCallbackResult> {
+  options: { protector?: SecretProtector; fetcher?: OAuthFetch; now?: number; verifyIdentity?: boolean } = {}): Promise<OAuthCallbackResult> {
   const profile = getSocialOAuthProfile(provider)
   if (!profile || !query.state || query.state.length > 256) throw new Error('OAuth transaction is invalid')
   const hash = createHash('sha256').update(query.state).digest('hex')
@@ -235,12 +273,23 @@ export async function completeSocialOAuth(db: Database.Database, workspaceId: nu
   const credential: Record<string, string> = { access_token: token.access_token }
   if (token.refresh_token) credential.refresh_token = token.refresh_token
   if (token.token_type) credential.token_type = token.token_type
+  const shouldVerifyIdentity = options.verifyIdentity === true && (provider === 'tiktok' || provider === 'x')
+  const identity = shouldVerifyIdentity
+    ? await resolveSocialOAuthIdentity(provider, token.access_token, options.fetcher)
+    : null
+  if (shouldVerifyIdentity && !identity) throw new Error('OAuth identity verification failed')
+  const connected = identity !== null
   const account = putSocialAccount(db, workspaceId, row.initiated_by, {
-    provider, account_ref: `pending:${randomUUID()}`, status: 'PENDING', account_mode: row.account_mode,
+    provider,
+    account_ref: identity?.account_ref ?? `pending:${randomUUID()}`,
+    external_account_id: identity?.external_account_id ?? null,
+    status: connected ? 'CONNECTED' : 'PENDING',
+    account_mode: row.account_mode,
     scopes: parseJson(row.requested_scopes, []), expires_at: token.expires_in ? now + token.expires_in : null,
     refreshable: Boolean(token.refresh_token), credential,
   }, protector)
+  const accountStatus = connected ? 'CONNECTED' : 'PENDING'
   db.prepare(`INSERT INTO audit_log (action, actor, target_type, detail, workspace_id) VALUES ('social_oauth_callback_succeeded', 'oauth-callback', 'social_account', ?, ?)`)
-    .run(JSON.stringify({ provider, account_id: account.account_id, status: 'PENDING' }), workspaceId)
-  return { status: 'connected_pending', provider, account_id: account.account_id }
+    .run(JSON.stringify({ provider, account_id: account.account_id, status: accountStatus }), workspaceId)
+  return { status: connected ? 'connected' : 'connected_pending', provider, account_id: account.account_id }
 }

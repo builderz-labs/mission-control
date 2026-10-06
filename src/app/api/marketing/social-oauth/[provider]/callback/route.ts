@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pro
   try {
     const result = await completeSocialOAuth(getDatabase(), ws.workspaceId, provider as any, {
       state: query.get('state'), code: query.get('code'), error: query.get('error'),
-    })
+    }, { verifyIdentity: provider === 'tiktok' || provider === 'x' })
     const target = new URL('/social-accounts', request.url)
     target.searchParams.set('provider', provider)
     target.searchParams.set('oauth', result.status === 'cancelled' ? 'cancelled' : 'success')
