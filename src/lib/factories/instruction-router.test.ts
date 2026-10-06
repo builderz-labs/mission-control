@@ -16,6 +16,15 @@ describe('instruction router', () => {
     expect(plan.steps.map(({ area, executor }) => [area, executor])).toEqual([['dev', 'codex-medium']])
   })
 
+  it('keeps non-dev steps deterministic for mixed implementation goals', () => {
+    const plan = routeInstruction('Implement a small Shufuro marketing video helper in code.')
+    expect(plan.steps.map(({ area, executor }) => [area, executor])).toEqual([
+      ['marketing', 'deterministic'],
+      ['creative-video', 'deterministic'],
+      ['dev', 'codex-medium'],
+    ])
+  })
+
   it('routes read-only research to deterministic execution', () => {
     const plan = routeInstruction('Research current competitor messaging and summarize the sources.')
     expect(plan.steps.map(({ area, executor }) => [area, executor])).toEqual([['search', 'deterministic']])

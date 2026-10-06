@@ -14,11 +14,11 @@ const patterns = {
 }
 
 function chooseExecutor(goal: string, area: InstructionArea): InstructionExecutor {
-  if (area === 'dev' && patterns.implementation.test(goal)) {
+  if (area !== 'dev') return 'deterministic'
+  if (patterns.implementation.test(goal)) {
     return patterns.complex.test(goal) ? 'codex-high' : 'codex-medium'
   }
-  if (patterns.deterministic.test(goal) || !patterns.implementation.test(goal)) return 'deterministic'
-  return 'codex-medium'
+  return 'deterministic'
 }
 
 function step(area: InstructionArea, objective: string, executor: InstructionExecutor): InstructionPlanStep {
