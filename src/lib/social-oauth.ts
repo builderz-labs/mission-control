@@ -112,7 +112,7 @@ export function saveOAuthAppConfig(db: Database.Database, workspaceId: number, a
   return listOAuthAppConfigs(db, workspaceId).find((config) => config.provider === input.provider)!
 }
 
-interface StoredApp extends OAuthAppConfigView { protected_client_secret: string | null; protector_version: string | null }
+interface StoredApp extends Omit<OAuthAppConfigView, 'client_id' | 'redirect_uri'> { client_id: string; redirect_uri: string; protected_client_secret: string | null; protector_version: string | null }
 function getStoredApp(db: Database.Database, workspaceId: number, provider: SocialProvider): StoredApp | undefined {
   const row = db.prepare(`SELECT provider, client_id, protected_client_secret, protector_version, redirect_uri, scopes, options, status, configured_at
     FROM social_oauth_apps WHERE workspace_id = ? AND provider = ? AND status = 'configured'`).get(workspaceId, provider) as any
