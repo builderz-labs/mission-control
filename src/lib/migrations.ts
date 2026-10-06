@@ -2012,6 +2012,19 @@ const migrations: Migration[] = [
           ON project_login_credentials(project_id);
       `)
     }
+  },
+  {
+    id: '064_project_login_method',
+    up: (db) => {
+      const columns = db.prepare('PRAGMA table_info(project_login_credentials)').all() as Array<{ name: string }>
+      const names = new Set(columns.map((column) => column.name))
+      if (!names.has('login_method')) {
+        db.exec("ALTER TABLE project_login_credentials ADD COLUMN login_method TEXT NOT NULL DEFAULT 'password'")
+      }
+      if (!names.has('password_saved')) {
+        db.exec('ALTER TABLE project_login_credentials ADD COLUMN password_saved INTEGER NOT NULL DEFAULT 1')
+      }
+    }
   }
 ]
 

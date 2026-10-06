@@ -93,9 +93,22 @@ describe('project login vault', () => {
     expect(JSON.stringify(db.prepare('SELECT detail FROM audit_log').all())).not.toContain(password)
   })
 
-  it('applies migration 063 idempotently', () => {
+
+  it('supports non-password login methods without requiring or revealing a password', () => {
+    const entry = createProjectLogin(db, 1, 'admin', input({ login_method: 'google', password: undefined }), protector)
+    expect(entry.login_method).toBe('google')
+    expect(entry.has_password).toBe(false)
+    expect(() => revealProjectLoginPassword(db, 1, 'admin', entry.login_id, protector)).toThrow('not used')
+    const updated = updateProjectLogin(db, 1, 'admin', entry.login_id, input({ login_method: 'password', password: 'new-password' }), protector)
+    expect(updated.login_method).toBe('password')
+    expect(updated.has_password).toBe(true)
+    expect(revealProjectLoginPassword(db, 1, 'admin', entry.login_id, protector)).toBe('new-password')
+  })
+
+  it('applies login vault migrations idempotently', () => {
     runMigrations(db)
     expect(db.prepare("SELECT count(*) AS count FROM schema_migrations WHERE id = '063_project_login_vault'").get()).toEqual({ count: 1 })
+    expect(db.prepare("SELECT count(*) AS count FROM schema_migrations WHERE id = '064_project_login_method'").get()).toEqual({ count: 1 })
     expect(db.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'project_login_credentials'").get()).toEqual({ count: 1 })
   })
 })

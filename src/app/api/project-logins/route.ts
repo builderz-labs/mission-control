@@ -14,9 +14,14 @@ const entrySchema = z.object({
   login_url: z.string().max(2048).nullable().optional(),
   username: z.string().trim().min(1).max(320),
   password: z.string().max(32768).optional(),
+  login_method: z.enum(['password', 'google', 'apple', 'sso', 'passkey']).optional(),
   notes: z.string().max(4000).nullable().optional(),
 }).strict()
-const createSchema = entrySchema.extend({ password: z.string().min(1).max(32768) }).strict()
+const createSchema = entrySchema.superRefine((value, ctx) => {
+  if ((value.login_method || 'password') === 'password' && !value.password) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: 'Password is required for password login' })
+  }
+})
 const updateSchema = entrySchema.extend({ project_id: z.number().int().positive().optional(), login_id: z.string().uuid() }).strict()
 
 export async function GET(request: NextRequest) {

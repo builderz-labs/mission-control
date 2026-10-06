@@ -5,12 +5,23 @@ import { useMissionControl } from '@/store'
 import { apiFetch } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 
+type LoginMethod = 'password' | 'google' | 'apple' | 'sso' | 'passkey'
+
+const LOGIN_METHOD_LABELS: Record<LoginMethod, string> = {
+  password: 'Password',
+  google: 'Sign in with Google',
+  apple: 'Sign in with Apple',
+  sso: 'SSO',
+  passkey: 'Passkey',
+}
+
 interface LoginEntry {
   login_id: string
   project_id: number
   service: string
   login_url: string | null
   username: string
+  login_method: LoginMethod
   notes: string | null
   has_password: boolean
   created_at: number
@@ -23,10 +34,11 @@ interface LoginForm {
   login_url: string
   username: string
   password: string
+  login_method: LoginMethod
   notes: string
 }
 
-const emptyForm: LoginForm = { service: '', login_url: '', username: '', password: '', notes: '' }
+const emptyForm: LoginForm = { service: '', login_url: '', username: '', password: '', login_method: 'password', notes: '' }
 
 export function ProjectLoginVaultPanel() {
   const { currentUser, activeProject, projects, fetchProjects } = useMissionControl()
@@ -105,6 +117,7 @@ export function ProjectLoginVaultPanel() {
       login_url: entry.login_url || '',
       username: entry.username,
       password: '',
+      login_method: entry.login_method || 'password',
       notes: entry.notes || '',
     })
     setNotice('')
@@ -124,6 +137,7 @@ export function ProjectLoginVaultPanel() {
           service: form.service,
           login_url: form.login_url || null,
           username: form.username,
+          login_method: form.login_method,
           notes: form.notes || null,
           ...(form.password ? { password: form.password } : {}),
         }
@@ -136,7 +150,8 @@ export function ProjectLoginVaultPanel() {
             service: form.service,
             login_url: form.login_url || null,
             username: form.username,
-            password: form.password,
+            login_method: form.login_method,
+            ...(form.password ? { password: form.password } : {}),
             notes: form.notes || null,
           }),
         })
@@ -296,6 +311,18 @@ export function ProjectLoginVaultPanel() {
             </label>
 
             <label className="text-sm">
+              Login method
+              <select
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2"
+                value={form.login_method}
+                onChange={(event) => setForm({ ...form, login_method: event.target.value as LoginMethod, password: event.target.value === 'password' ? form.password : '' })}
+              >
+                {Object.entries(LOGIN_METHOD_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+
+            {form.login_method === 'password' && (
+            <label className="text-sm">
               Password
               {editing && <span className="ml-1 text-muted-foreground">(leave blank to keep current)</span>}
               <input
@@ -308,6 +335,7 @@ export function ProjectLoginVaultPanel() {
                 onChange={(event) => setForm({ ...form, password: event.target.value })}
               />
             </label>
+            )}
 
             <label className="text-sm md:col-span-2">
               Notes
@@ -352,7 +380,7 @@ export function ProjectLoginVaultPanel() {
                       <h3 className="font-semibold">{entry.service}</h3>
                       <p className="truncate text-sm text-muted-foreground">{entry.username}</p>
                     </div>
-                    <span className="rounded bg-secondary px-2 py-1 text-xs">Password saved</span>
+                    <span className="rounded bg-secondary px-2 py-1 text-xs">{LOGIN_METHOD_LABELS[entry.login_method || 'password']}</span>
                   </div>
 
                   {entry.login_url && (
@@ -361,23 +389,27 @@ export function ProjectLoginVaultPanel() {
                     </a>
                   )}
 
-                  <div className="rounded-md bg-secondary/50 p-2 font-mono text-sm break-all">
-                    {revealed[entry.login_id] || '••••••••••••'}
-                  </div>
+                  {entry.login_method === 'password' && (
+                    <div className="rounded-md bg-secondary/50 p-2 font-mono text-sm break-all">
+                      {revealed[entry.login_id] || '••••••••••••'}
+                    </div>
+                  )}
 
                   {entry.notes && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{entry.notes}</p>}
                   <p className="text-xs text-muted-foreground">Updated {new Date(entry.updated_at * 1000).toLocaleString()}</p>
 
                   <div className="flex flex-wrap gap-2">
                     <Button size="xs" variant="outline" onClick={() => void copy(entry.username, 'ID')}>Copy ID</Button>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() => revealed[entry.login_id] ? hide(entry.login_id) : void reveal(entry).catch(() => setError('Unable to reveal this password.'))}
-                    >
-                      {revealed[entry.login_id] ? 'Hide' : 'Reveal'}
-                    </Button>
-                    <Button size="xs" variant="outline" onClick={() => void copyPassword(entry)}>Copy Password</Button>
+                    {entry.login_method === 'password' && <>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() => revealed[entry.login_id] ? hide(entry.login_id) : void reveal(entry).catch(() => setError('Unable to reveal this password.'))}
+                      >
+                        {revealed[entry.login_id] ? 'Hide' : 'Reveal'}
+                      </Button>
+                      <Button size="xs" variant="outline" onClick={() => void copyPassword(entry)}>Copy Password</Button>
+                    </>}
                     <Button size="xs" variant="outline" onClick={() => startEdit(entry)}>Edit</Button>
                     <Button size="xs" variant="destructive" disabled={busy} onClick={() => void remove(entry)}>Delete</Button>
                   </div>
