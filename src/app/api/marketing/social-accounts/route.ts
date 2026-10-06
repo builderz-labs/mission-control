@@ -12,6 +12,7 @@ import {
   type SocialAccountInput,
   type SocialCredentialPayload,
 } from '@/lib/social-credential-vault'
+import { listOAuthAppConfigs } from '@/lib/social-oauth'
 
 export const runtime = 'nodejs'
 
@@ -40,7 +41,13 @@ export async function GET(request: NextRequest) {
   const ws = requireWorkspaceId(auth.user)
   if (!('workspaceId' in ws)) return ws.response
   try {
-    return NextResponse.json({ accounts: listSocialAccounts(getDatabase(), ws.workspaceId) })
+    const db = getDatabase()
+    const apps = listOAuthAppConfigs(db, ws.workspaceId)
+    const configured = new Set(apps.filter((app) => app.status === 'configured').map((app) => app.provider))
+    return NextResponse.json({
+      accounts: listSocialAccounts(db, ws.workspaceId),
+      provider_configuration: ['instagram', 'tiktok', 'linkedin', 'x', 'reddit'].map((provider) => ({ provider, configured: configured.has(provider as any) })),
+    })
   } catch {
     return NextResponse.json({ error: 'Failed to fetch social accounts' }, { status: 500 })
   }

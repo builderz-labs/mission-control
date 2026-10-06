@@ -1943,6 +1943,47 @@ const migrations: Migration[] = [
           WHERE external_account_id IS NULL;
       `)
     }
+  },
+  {
+    id: '062_social_oauth_onboarding',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS social_oauth_apps (
+          workspace_id INTEGER NOT NULL,
+          provider TEXT NOT NULL CHECK (provider IN ('instagram', 'tiktok', 'linkedin', 'x', 'reddit')),
+          client_id TEXT NOT NULL,
+          protected_client_secret TEXT,
+          protector_version TEXT,
+          redirect_uri TEXT NOT NULL,
+          scopes TEXT NOT NULL DEFAULT '[]',
+          options TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'configured' CHECK (status IN ('configured', 'disabled')),
+          configured_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (workspace_id, provider)
+        );
+
+        CREATE TABLE IF NOT EXISTS social_oauth_sessions (
+          workspace_id INTEGER NOT NULL,
+          session_id TEXT NOT NULL,
+          provider TEXT NOT NULL CHECK (provider IN ('instagram', 'tiktok', 'linkedin', 'x', 'reddit')),
+          state_hash TEXT NOT NULL,
+          protected_code_verifier TEXT,
+          protector_version TEXT,
+          requested_scopes TEXT NOT NULL,
+          redirect_uri TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          consumed_at INTEGER,
+          initiated_by TEXT NOT NULL,
+          account_mode TEXT,
+          PRIMARY KEY (workspace_id, session_id),
+          UNIQUE (workspace_id, provider, state_hash)
+        );
+        CREATE INDEX IF NOT EXISTS idx_social_oauth_sessions_expiry
+          ON social_oauth_sessions(expires_at, consumed_at);
+      `)
+    }
   }
 ]
 
