@@ -18,8 +18,14 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pro
     const result = await completeSocialOAuth(getDatabase(), ws.workspaceId, provider as any, {
       state: query.get('state'), code: query.get('code'), error: query.get('error'),
     })
-    return NextResponse.json(result)
+    const target = new URL('/social-accounts', request.url)
+    target.searchParams.set('provider', provider)
+    target.searchParams.set('oauth', result.status === 'cancelled' ? 'cancelled' : 'success')
+    return NextResponse.redirect(target)
   } catch {
-    return NextResponse.json({ error: 'OAuth callback could not be completed; start a new authorization attempt' }, { status: 400 })
+    const target = new URL('/social-accounts', request.url)
+    target.searchParams.set('provider', provider)
+    target.searchParams.set('oauth', 'error')
+    return NextResponse.redirect(target)
   }
 }

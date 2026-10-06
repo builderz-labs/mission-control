@@ -175,7 +175,7 @@ function extractToken(json: any): TokenResult {
     scope: typeof data.scope === 'string' ? data.scope : undefined }
 }
 
-export async function exchangeAuthorizationCode(provider: SocialProvider, app: OAuthAppConfigView & { protected_client_secret: string | null },
+export async function exchangeAuthorizationCode(provider: SocialProvider, app: StoredApp,
   code: string, verifier: string | null, protector: SecretProtector, fetcher: OAuthFetch = fetch): Promise<TokenResult> {
   const profile = getSocialOAuthProfile(provider)
   if (!profile || !code || code.length > 8192) throw new Error('OAuth token exchange failed')
