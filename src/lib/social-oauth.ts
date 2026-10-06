@@ -24,8 +24,8 @@ export const socialOAuthProfiles: readonly SocialOAuthProfile[] = [
   { provider: 'tiktok', authorizeUrl: 'https://www.tiktok.com/v2/auth/authorize/', tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/', defaultScopes: ['user.info.basic', 'video.list'], scopeEncoding: 'comma', pkce: 'required', clientAuthentication: 'body_secret', refreshSupported: true, redirectRequirements: ['HTTP localhost/127.0.0.1 loopback is supported; exact registered redirect URI.'] },
   { provider: 'x', authorizeUrl: 'https://x.com/i/oauth2/authorize', tokenUrl: 'https://api.x.com/2/oauth2/token', defaultScopes: ['tweet.read', 'users.read', 'offline.access'], scopeEncoding: 'space', pkce: 'required', clientAuthentication: 'public_pkce', refreshSupported: true, redirectRequirements: ['Exact redirect URI matching; offline.access is required for refresh tokens.'] },
   { provider: 'instagram', authorizeUrl: 'https://www.instagram.com/oauth/authorize', tokenUrl: 'https://api.instagram.com/oauth/access_token', defaultScopes: ['instagram_business_basic'], scopeEncoding: 'comma', pkce: 'none', clientAuthentication: 'body_secret', refreshSupported: true, redirectRequirements: ['Instagram Login for Business/Creator accounts; no Facebook Page required. Insights permission may require Meta approval.'], accountModes: ['business', 'creator'] },
-  { provider: 'linkedin', authorizeUrl: 'https://www.linkedin.com/oauth/v2/authorization', tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken', defaultScopes: [], scopeEncoding: 'space', pkce: 'optional', clientAuthentication: 'configurable', refreshSupported: true, redirectRequirements: ['Confidential 3-legged flow supported; PKCE may require app enablement. Configure approved member/organization scopes.'] },
-  { provider: 'reddit', authorizeUrl: 'https://www.reddit.com/api/v1/authorize', tokenUrl: 'https://www.reddit.com/api/v1/access_token', defaultScopes: ['identity', 'read'], scopeEncoding: 'space', pkce: 'optional', clientAuthentication: 'basic_auth', refreshSupported: true, redirectRequirements: ['OAuth user authorization; provide a descriptive User-Agent. Use duration=permanent when refresh access is needed.'] },
+  { provider: 'linkedin', authorizeUrl: 'https://www.linkedin.com/oauth/v2/authorization', tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken', defaultScopes: ['openid', 'profile'], scopeEncoding: 'space', pkce: 'optional', clientAuthentication: 'configurable', refreshSupported: true, redirectRequirements: ['Sign in with LinkedIn using OpenID Connect; user identity is verified through the OIDC userinfo endpoint. PKCE may require app enablement.'] },
+  { provider: 'reddit', authorizeUrl: 'https://www.reddit.com/api/v1/authorize', tokenUrl: 'https://www.reddit.com/api/v1/access_token', defaultScopes: ['identity', 'read'], scopeEncoding: 'space', pkce: 'optional', clientAuthentication: 'basic_auth', refreshSupported: true, redirectRequirements: ['OAuth user authorization; provide a descriptive User-Agent. Use duration=permanent when refresh access is needed. Commercial use requires prior Reddit approval and may require a contract.'] },
 ] as const
 
 const profileMap = new Map(socialOAuthProfiles.map((profile) => [profile.provider, profile]))
@@ -213,18 +213,20 @@ interface VerifiedSocialIdentity {
   account_ref: string
 }
 
-async function resolveSocialOAuthIdentity(provider: SocialProvider, accessToken: string, fetcher: OAuthFetch = fetch): Promise<VerifiedSocialIdentity | null> {
+async function resolveSocialOAuthIdentity(provider: SocialProvider, accessToken: string, fetcher: OAuthFetch = fetch, userAgent?: string): Promise<VerifiedSocialIdentity | null> {
   let url: string
   if (provider === 'instagram') url = 'https://graph.instagram.com/v26.0/me?fields=user_id,username'
   else if (provider === 'tiktok') url = 'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name'
   else if (provider === 'x') url = 'https://api.x.com/2/users/me'
+  else if (provider === 'linkedin') url = 'https://api.linkedin.com/v2/userinfo'
+  else if (provider === 'reddit') url = 'https://oauth.reddit.com/api/v1/me'
   else return null
 
   let response: Response
   try {
     response = await fetcher(url, {
       method: 'GET',
-      headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+      headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json', ...(provider === 'reddit' ? { 'user-agent': userAgent ?? 'ControlTower/1.0 OAuth' } : {}) },
       signal: AbortSignal.timeout(15000),
     })
   } catch { return null }
@@ -232,12 +234,20 @@ async function resolveSocialOAuthIdentity(provider: SocialProvider, accessToken:
 
   let json: any
   try { json = await response.json() } catch { return null }
-  const user = provider === 'instagram' ? json : provider === 'tiktok' ? json?.data?.user : json?.data
-  const externalId = provider === 'instagram' ? user?.user_id : provider === 'tiktok' ? user?.open_id : user?.id
+  const user = provider === 'tiktok' ? json?.data?.user : provider === 'x' ? json?.data : json
+  const externalId = provider === 'instagram'
+    ? user?.user_id
+    : provider === 'tiktok'
+      ? user?.open_id
+      : provider === 'linkedin'
+        ? user?.sub
+        : user?.id
   if (typeof externalId !== 'string' || externalId.length < 1 || externalId.length > 280) return null
   const candidate = provider === 'tiktok'
     ? user?.display_name
-    : typeof user?.username === 'string' && user.username ? `@${user.username}` : user?.name
+    : provider === 'linkedin' || provider === 'reddit'
+      ? user?.name
+      : typeof user?.username === 'string' && user.username ? `@${user.username}` : user?.name
   const displayRef = typeof candidate === 'string' && candidate.trim().length > 0 && candidate.trim().length <= 180
     ? candidate.trim()
     : externalId
@@ -245,7 +255,11 @@ async function resolveSocialOAuthIdentity(provider: SocialProvider, accessToken:
     ? `TikTok: ${displayRef}`
     : provider === 'instagram'
       ? displayRef.startsWith('@') ? displayRef : `Instagram: ${displayRef}`
-      : displayRef.startsWith('@') ? displayRef : `X: ${displayRef}`
+      : provider === 'linkedin'
+        ? `LinkedIn: ${displayRef}`
+        : provider === 'reddit'
+          ? typeof user?.name === 'string' && user.name.trim() ? `u/${user.name.trim()}` : `Reddit: ${displayRef}`
+          : displayRef.startsWith('@') ? displayRef : `X: ${displayRef}`
   return { external_account_id: `${provider}:${externalId}`, account_ref: accountRef }
 }
 
@@ -276,9 +290,9 @@ export async function completeSocialOAuth(db: Database.Database, workspaceId: nu
   const credential: Record<string, string> = { access_token: token.access_token }
   if (token.refresh_token) credential.refresh_token = token.refresh_token
   if (token.token_type) credential.token_type = token.token_type
-  const shouldVerifyIdentity = options.verifyIdentity === true && (provider === 'instagram' || provider === 'tiktok' || provider === 'x')
+  const shouldVerifyIdentity = options.verifyIdentity === true && (provider === 'instagram' || provider === 'tiktok' || provider === 'x' || provider === 'linkedin' || provider === 'reddit')
   const identity = shouldVerifyIdentity
-    ? await resolveSocialOAuthIdentity(provider, token.access_token, options.fetcher)
+    ? await resolveSocialOAuthIdentity(provider, token.access_token, options.fetcher, provider === 'reddit' ? String(app.options.user_agent ?? 'ControlTower/1.0 OAuth') : undefined)
     : null
   if (shouldVerifyIdentity && !identity) throw new Error('OAuth identity verification failed')
   const connected = identity !== null

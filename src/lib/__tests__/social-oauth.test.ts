@@ -226,6 +226,62 @@ describe('social OAuth provider profiles and transactions', () => {
     expect(db.prepare('SELECT count(*) AS count FROM social_credentials').get()).toEqual({ count: 0 })
   })
 
+  it('stores CONNECTED accounts only after verified LinkedIn and Reddit identity lookup', async () => {
+    for (const provider of ['linkedin', 'reddit'] as const) {
+      configure(provider)
+      const started = startSocialOAuth(db, 1, 'admin', provider, { protector })
+      const state = new URL(started.authorize_url).searchParams.get('state')!
+      if (provider === 'linkedin') expect(new URL(started.authorize_url).searchParams.get('scope')).toBe('openid profile')
+      let calls = 0
+      const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        calls += 1
+        if (calls === 1) {
+          return new Response(JSON.stringify({ access_token: 'verified-access-token', refresh_token: 'verified-refresh-token', expires_in: 3600 }), { status: 200, headers: { 'content-type': 'application/json' } })
+        }
+        expect((init?.headers as Record<string, string>).authorization).toBe('Bearer verified-access-token')
+        if (provider === 'linkedin') {
+          expect(String(input)).toBe('https://api.linkedin.com/v2/userinfo')
+          return new Response(JSON.stringify({ sub: 'linkedin-sub-123', name: 'Founder' }), { status: 200, headers: { 'content-type': 'application/json' } })
+        }
+        expect(String(input)).toBe('https://oauth.reddit.com/api/v1/me')
+        expect((init?.headers as Record<string, string>)['user-agent']).toContain('ControlTower')
+        return new Response(JSON.stringify({ id: 'abc123', name: 'productbaton_builder' }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }) as unknown as typeof fetch
+
+      const result = await completeSocialOAuth(db, 1, provider, { state, code: 'verified-code' }, { protector, fetcher, verifyIdentity: true })
+      expect(result.status).toBe('connected')
+      expect(fetcher).toHaveBeenCalledTimes(2)
+      const row = db.prepare('SELECT status, account_ref, external_account_id FROM social_accounts WHERE provider = ?').get(provider) as any
+      expect(row.status).toBe('CONNECTED')
+      if (provider === 'linkedin') {
+        expect(row.account_ref).toBe('LinkedIn: Founder')
+        expect(row.external_account_id).toBe('linkedin:linkedin-sub-123')
+      } else {
+        expect(row.account_ref).toBe('u/productbaton_builder')
+        expect(row.external_account_id).toBe('reddit:abc123')
+      }
+    }
+  })
+
+  it('persists nothing when required Reddit identity verification fails', async () => {
+    configure('reddit')
+    const started = startSocialOAuth(db, 1, 'admin', 'reddit', { protector })
+    const state = new URL(started.authorize_url).searchParams.get('state')!
+    let calls = 0
+    const fetcher = vi.fn(async () => {
+      calls += 1
+      if (calls === 1) {
+        return new Response(JSON.stringify({ access_token: 'verified-access-token', refresh_token: 'verified-refresh-token', expires_in: 3600 }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ error: 'provider unavailable' }), { status: 503, headers: { 'content-type': 'application/json' } })
+    }) as unknown as typeof fetch
+
+    await expect(completeSocialOAuth(db, 1, 'reddit', { state, code: 'verified-code' }, { protector, fetcher, verifyIdentity: true }))
+      .rejects.toThrow('OAuth identity verification failed')
+    expect(db.prepare('SELECT count(*) AS count FROM social_accounts').get()).toEqual({ count: 0 })
+    expect(db.prepare('SELECT count(*) AS count FROM social_credentials').get()).toEqual({ count: 0 })
+  })
+
   it('does not create a connected account or leak provider secrets after exchange failure', async () => {
     configure('instagram')
     const started = startSocialOAuth(db, 1, 'admin', 'instagram', { protector })
