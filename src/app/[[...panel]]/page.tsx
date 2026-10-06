@@ -45,6 +45,7 @@ import { AiOpsUsagePanel } from '@/components/panels/ai-ops-usage-panel'
 import { FactoriesPanel } from '@/components/panels/factories-panel'
 import { LearningPanel } from '@/components/panels/learning-panel'
 import { SocialAccountsPanel } from '@/components/panels/social-accounts-panel'
+import { ProjectLoginVaultPanel } from '@/components/panels/project-login-vault-panel'
 import { ChatPanel } from '@/components/chat/chat-panel'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 import { getPluginPanel } from '@/lib/plugins'
@@ -528,7 +529,7 @@ export default function Home() {
 }
 
 const ESSENTIAL_PANELS = new Set([
-  'overview', 'projects', 'factories', 'marketing', 'social-accounts', 'development', 'agents', 'tasks', 'chat',
+  'overview', 'projects', 'factories', 'marketing', 'social-accounts', 'login-vault', 'development', 'agents', 'tasks', 'chat',
   'activity', 'logs', 'usage', 'skills', 'learning', 'automations', 'settings',
 ])
 
@@ -589,6 +590,8 @@ function ContentRouter({ tab }: { tab: string }) {
       return <DomainWorkspacePanel domain="marketing" />
     case 'social-accounts':
       return <SocialAccountsPanel />
+    case 'login-vault':
+      return <ProjectLoginVaultPanel />
     case 'development':
       return <DomainWorkspacePanel domain="development" />
     case 'tasks':

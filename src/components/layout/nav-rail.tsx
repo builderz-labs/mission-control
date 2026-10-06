@@ -35,6 +35,7 @@ const navGroups: NavGroup[] = [
       { id: 'factories', label: 'Factories', icon: <OverviewIcon />, priority: false, essential: true },
       { id: 'marketing', label: 'Marketing', icon: <ChannelsIcon />, priority: true, essential: true },
       { id: 'social-accounts', label: 'Social Accounts', icon: <IntegrationsIcon />, priority: false, essential: true },
+      { id: 'login-vault', label: 'Login Vault', icon: <SecurityIcon />, priority: false, essential: true },
       { id: 'development', label: 'Development', icon: <NodesIcon />, priority: true, essential: true },
     ],
   },
@@ -107,7 +108,7 @@ const gatewayOnlyPanels = new Set([
   'gateways', 'gateway-config', 'channels', 'nodes', 'exec-approvals',
   ...getPluginNavItems().filter(pi => pi.gatewayOnly).map(pi => pi.id),
 ])
-const adminOnlyPanels = new Set<string>(['social-accounts'])
+const adminOnlyPanels = new Set<string>(['social-accounts', 'login-vault'])
 
 export function NavRail() {
   const { activeTab, connection, dashboardMode, currentUser, activeTenant, tenants, osUsers, setActiveTenant, fetchTenants, fetchOsUsers, activeProject, projects, setActiveProject, fetchProjects, sidebarExpanded, collapsedGroups, toggleSidebar, toggleGroup, defaultOrgName, interfaceMode, setInterfaceMode } = useMissionControl()

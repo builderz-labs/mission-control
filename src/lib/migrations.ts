@@ -1984,6 +1984,34 @@ const migrations: Migration[] = [
           ON social_oauth_sessions(expires_at, consumed_at);
       `)
     }
+  },
+  {
+    id: '063_project_login_vault',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project_login_credentials (
+          workspace_id INTEGER NOT NULL,
+          login_id TEXT NOT NULL,
+          project_id INTEGER NOT NULL,
+          service TEXT NOT NULL,
+          login_url TEXT,
+          username TEXT NOT NULL,
+          protected_password TEXT NOT NULL,
+          protector_version TEXT NOT NULL,
+          notes TEXT,
+          created_by TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          last_revealed_at INTEGER,
+          PRIMARY KEY (workspace_id, login_id),
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_project_login_credentials_workspace_project
+          ON project_login_credentials(workspace_id, project_id);
+        CREATE INDEX IF NOT EXISTS idx_project_login_credentials_project
+          ON project_login_credentials(project_id);
+      `)
+    }
   }
 ]
 
