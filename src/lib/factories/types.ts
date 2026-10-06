@@ -14,6 +14,40 @@ export type FactoryCanonicalPhase =
 
 export type FactoryLifecycleStatus = 'ready' | 'running' | 'blocked' | 'failed' | 'completed' | 'unknown'
 
+/** Executors a planned factory step may request. Claude Code is modeled for capability discovery only. */
+export type InstructionExecutor = 'deterministic' | 'codex-medium' | 'codex-high' | 'claude-code'
+export type InstructionArea = 'search' | 'marketing' | 'creative-video' | 'dev'
+export type InstructionStepStatus = 'planned' | 'requires-human-approval' | 'executor-unavailable'
+
+export interface InstructionPlanStep {
+  id: string
+  area: InstructionArea
+  objective: string
+  executor: InstructionExecutor
+  executor_available: boolean
+  status: InstructionStepStatus
+  requires_human_approval: boolean
+  approval_reason?: string
+}
+
+export interface InstructionPlan {
+  goal: string
+  steps: InstructionPlanStep[]
+  requires_human_approval: boolean
+  executor_availability: Record<InstructionExecutor, boolean>
+  notes: string[]
+}
+
+/** Normalized shape for future factory execution results; this router does not execute steps. */
+export interface FactoryExecutionResult {
+  state: 'success' | 'failed' | 'blocked' | 'skipped'
+  summary: string
+  output?: unknown
+  error?: string | null
+  approval_required: boolean
+  evidence_refs: string[]
+}
+
 export interface FactoryCommandDefinition {
   id: string
   mode: 'read_only' | 'mutating'
