@@ -215,7 +215,8 @@ interface VerifiedSocialIdentity {
 
 async function resolveSocialOAuthIdentity(provider: SocialProvider, accessToken: string, fetcher: OAuthFetch = fetch): Promise<VerifiedSocialIdentity | null> {
   let url: string
-  if (provider === 'tiktok') url = 'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name'
+  if (provider === 'instagram') url = 'https://graph.instagram.com/v26.0/me?fields=user_id,username'
+  else if (provider === 'tiktok') url = 'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name'
   else if (provider === 'x') url = 'https://api.x.com/2/users/me'
   else return null
 
@@ -231,8 +232,8 @@ async function resolveSocialOAuthIdentity(provider: SocialProvider, accessToken:
 
   let json: any
   try { json = await response.json() } catch { return null }
-  const user = provider === 'tiktok' ? json?.data?.user : json?.data
-  const externalId = provider === 'tiktok' ? user?.open_id : user?.id
+  const user = provider === 'instagram' ? json : provider === 'tiktok' ? json?.data?.user : json?.data
+  const externalId = provider === 'instagram' ? user?.user_id : provider === 'tiktok' ? user?.open_id : user?.id
   if (typeof externalId !== 'string' || externalId.length < 1 || externalId.length > 280) return null
   const candidate = provider === 'tiktok'
     ? user?.display_name
@@ -242,7 +243,9 @@ async function resolveSocialOAuthIdentity(provider: SocialProvider, accessToken:
     : externalId
   const accountRef = provider === 'tiktok'
     ? `TikTok: ${displayRef}`
-    : displayRef.startsWith('@') ? displayRef : `X: ${displayRef}`
+    : provider === 'instagram'
+      ? displayRef.startsWith('@') ? displayRef : `Instagram: ${displayRef}`
+      : displayRef.startsWith('@') ? displayRef : `X: ${displayRef}`
   return { external_account_id: `${provider}:${externalId}`, account_ref: accountRef }
 }
 
@@ -273,7 +276,7 @@ export async function completeSocialOAuth(db: Database.Database, workspaceId: nu
   const credential: Record<string, string> = { access_token: token.access_token }
   if (token.refresh_token) credential.refresh_token = token.refresh_token
   if (token.token_type) credential.token_type = token.token_type
-  const shouldVerifyIdentity = options.verifyIdentity === true && (provider === 'tiktok' || provider === 'x')
+  const shouldVerifyIdentity = options.verifyIdentity === true && (provider === 'instagram' || provider === 'tiktok' || provider === 'x')
   const identity = shouldVerifyIdentity
     ? await resolveSocialOAuthIdentity(provider, token.access_token, options.fetcher)
     : null
