@@ -147,11 +147,21 @@ export function FactoriesPanel() {
                 </div>
 
                 <div className="space-y-4 p-5">
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <div className={`grid grid-cols-2 gap-3 ${snapshot?.work_context ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
                     <div>
                       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Native stage</div>
                       <div className="mt-1 text-sm font-medium text-foreground">{snapshot?.lifecycle.native_stage || '—'}</div>
                     </div>
+                    {snapshot?.work_context ? (
+                      <div>
+                        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Primary work target</div>
+                        <div className="mt-1 text-sm font-medium text-foreground">
+                          {snapshot.work_context.primary_work_item
+                            ? `${snapshot.work_context.primary_work_item.target_id} · ${snapshot.work_context.primary_work_item.expected_native_state || snapshot.work_context.primary_work_item.action_kind}`
+                            : 'No pending work'}
+                        </div>
+                      </div>
+                    ) : null}
                     <div>
                       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Process stage</div>
                       <div className="mt-1 text-sm font-medium text-foreground">{snapshot?.lifecycle.process_stage_id || 'Unknown'}</div>

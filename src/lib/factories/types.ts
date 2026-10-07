@@ -128,6 +128,21 @@ export interface FactoryActionAvailability {
   risk: 'low' | 'medium' | 'high' | 'critical'
 }
 
+export interface FactoryWorkItem {
+  action_id: string
+  target_id: string
+  expected_native_state: string | null
+  action_kind: string
+  blocking: boolean
+  label: string
+}
+
+export interface FactoryWorkContext {
+  source_revision: string
+  ordered_work_queue: FactoryWorkItem[]
+  primary_work_item: FactoryWorkItem | null
+}
+
 export interface FactorySnapshot {
   snapshot_version: '1.0'
   instance_id: string
@@ -160,6 +175,7 @@ export interface FactorySnapshot {
   artifacts: Array<Record<string, unknown>>
   review_queues: FactoryReviewQueueItem[]
   next_actions: Array<{ id: string; label: string; kind: string; blocking: boolean }>
+  work_context?: FactoryWorkContext | null
   blockers: Array<{ id: string; label: string; detail?: string | null; source: string }>
   risks: Array<Record<string, unknown>>
   metrics: Array<Record<string, unknown>>

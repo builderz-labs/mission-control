@@ -466,6 +466,23 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
       source: 'content-os',
     })
 
+    const nextActions = [
+      ...(review ? [{ id: 'review:' + review.episode, label: `Review ${review.episode}: ${review.title}`, kind: 'human_gate', blocking: true }] : []),
+      ...(current?.status === 'RENDERED' ? [{ id: 'publish:' + current.episode, label: `Publish and verify ${current.episode}`, kind: 'external_side_effect', blocking: true }] : []),
+    ]
+    const orderedWorkQueue = nextActions.map((action) => {
+      const targetId = action.id.slice(action.id.indexOf(':') + 1)
+      const row = rows.find((item) => item.episode === targetId)
+      return {
+        action_id: action.id,
+        target_id: targetId,
+        expected_native_state: row?.status || null,
+        action_kind: action.kind,
+        blocking: action.blocking,
+        label: action.label,
+      }
+    })
+
     const snapshot: FactorySnapshot = {
       snapshot_version: '1.0',
       instance_id: instance.instance_id,
@@ -505,10 +522,12 @@ export class ShufuroMarketingAdapter implements FactoryAdapter {
         ...(review ? [{ id: 'next_review', episode: review.episode, status: review.status, format: review.format }] : []),
       ],
       review_queues: [],
-      next_actions: [
-        ...(review ? [{ id: 'review:' + review.episode, label: `Review ${review.episode}: ${review.title}`, kind: 'human_gate', blocking: true }] : []),
-        ...(current?.status === 'RENDERED' ? [{ id: 'publish:' + current.episode, label: `Publish and verify ${current.episode}`, kind: 'external_side_effect', blocking: true }] : []),
-      ],
+      next_actions: nextActions,
+      work_context: {
+        source_revision: revision,
+        ordered_work_queue: orderedWorkQueue,
+        primary_work_item: orderedWorkQueue[0] || null,
+      },
       blockers,
       risks: [],
       metrics: [],

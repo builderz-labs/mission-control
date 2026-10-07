@@ -25,6 +25,21 @@ export const factoryLifecycleStatusSchema = z.enum([
   'unknown',
 ])
 
+export const factoryWorkItemSchema = z.object({
+  action_id: z.string().min(1),
+  target_id: z.string().min(1),
+  expected_native_state: z.string().nullable(),
+  action_kind: z.string().min(1),
+  blocking: z.boolean(),
+  label: z.string().min(1),
+})
+
+export const factoryWorkContextSchema = z.object({
+  source_revision: z.string().min(1),
+  ordered_work_queue: z.array(factoryWorkItemSchema),
+  primary_work_item: factoryWorkItemSchema.nullable(),
+})
+
 export const factoryDefinitionSchema = z.object({
   contract_version: z.literal('1.0'),
   module: z.object({
@@ -123,6 +138,7 @@ export const factorySnapshotSchema = z.object({
     kind: z.string(),
     blocking: z.boolean(),
   })),
+  work_context: factoryWorkContextSchema.nullable().optional(),
   blockers: z.array(z.object({
     id: z.string(),
     label: z.string(),

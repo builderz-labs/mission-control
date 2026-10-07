@@ -269,6 +269,12 @@ The adapter is the only layer allowed to know how to call native CLIs or interpr
 
 The Tower may cache native data but must preserve provenance and freshness.
 
+### 5.1 Work-context integrity
+
+Never infer the next work target from the latest artifact, current episode, or last-touched file. Native lifecycle state (including `current_episode`) describes the current/native artifact; it does not define what a worker should do next. Resolve `work_context` from the Source of Truth first. A work context carries its source revision, an ordered work queue, and an explicit primary work item. Implicit continuation may select only that primary item; explicit target selection may select another item only while it remains in the authoritative queue, and both require a matching source revision. If work context is absent or stale, fail closed instead of guessing.
+
+For example, when EP001 is `RENDERED` and EP002 is `REVIEW`, the native/current artifact may still be EP001 while EP002 REVIEW is the primary implicit work target. EP001 publication remains a separate pending item when present in the queue.
+
 ## 6. Factory responsibility boundaries
 
 ### Product Factory

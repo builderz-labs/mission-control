@@ -147,6 +147,27 @@ describe('provider-independent manual distribution', () => {
   })
 })
 
+describe('Shufuro authoritative work context', () => {
+  it('keeps EP001 as the native lifecycle artifact and prioritizes EP002 REVIEW work', async () => {
+    const queueWithBoth = [
+      '| 001 | reel | S1 | EP001 | Older rendered item | awareness | now | reel | RENDERED |',
+      '| 002 | reel | S1 | EP002 | New review item | awareness | now | reel | REVIEW |',
+      '',
+    ].join('\n')
+    writeFileSync(queue(), queueWithBoth)
+    writeFileSync(join(root, 'Episodes', 'EP001_fixture.md'), '---\nstatus: RENDERED\n---\n# EP001\n')
+    writeFileSync(packet(), '---\nstatus: REVIEW\n---\n# EP002\n')
+
+    const snapshot = await adapter.getSnapshot(instance())
+    expect(snapshot.lifecycle.native_stage).toBe('EP001:RENDERED')
+    expect(snapshot.work_context?.ordered_work_queue).toEqual([
+      expect.objectContaining({ action_id: 'review:EP002', target_id: 'EP002', expected_native_state: 'REVIEW' }),
+      expect.objectContaining({ action_id: 'publish:EP001', target_id: 'EP001', expected_native_state: 'RENDERED' }),
+    ])
+    expect(snapshot.work_context?.primary_work_item).toEqual(expect.objectContaining({ target_id: 'EP002' }))
+  })
+})
+
 describe('reusable content and capability contracts', () => {
   it('normalizes descriptive content fields and rejects invalid values without metrics', () => {
     expect(contentIntelligenceSchema.parse({ topic: '  creator onboarding  ', hook: 'Start here' })).toEqual({ topic: 'creator onboarding', hook: 'Start here' })
