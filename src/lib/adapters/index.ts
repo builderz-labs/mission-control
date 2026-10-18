@@ -4,6 +4,7 @@ import { CrewAIAdapter } from './crewai'
 import { LangGraphAdapter } from './langgraph'
 import { AutoGenAdapter } from './autogen'
 import { ClaudeSdkAdapter } from './claude-sdk'
+import { NanobotAdapter } from './nanobot'
 import type { FrameworkAdapter } from './adapter'
 
 const adapters = new Map<string, () => FrameworkAdapter>([
@@ -13,6 +14,7 @@ const adapters = new Map<string, () => FrameworkAdapter>([
   ['langgraph', () => new LangGraphAdapter()],
   ['autogen', () => new AutoGenAdapter()],
   ['claude-sdk', () => new ClaudeSdkAdapter()],
+  ['nanobot', () => new NanobotAdapter()],
 ])
 
 export function getAdapter(framework: string): FrameworkAdapter {
