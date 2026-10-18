@@ -208,6 +208,7 @@ agent, task, and system events for operator review.
 |---|---|
 | [Quickstart](docs/quickstart.md) | Register an agent and run the first task loop |
 | [Agent setup](docs/agent-setup.md) | Sources, identities, SOUL files, and heartbeats |
+| [nanobot bridge](examples/NANOBOT-BRIDGE.md) | Observe selected nanobot WebSocket chats and persist agent activity |
 | [Orchestration](docs/orchestration.md) | Dispatch, handoffs, workflows, and review gates |
 | [CLI and MCP](docs/cli-agent-control.md) | Headless commands and agent tools |
 | [CLI integration](docs/cli-integration.md) | Claude Code, Codex, and gateway-free connections |
