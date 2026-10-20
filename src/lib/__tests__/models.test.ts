@@ -120,6 +120,21 @@ describe('classifyModelProvider (catalog-derived classification)', () => {
 })
 
 describe('MiniMax model catalog', () => {
+  it('offers Flash first and M3 only, while retaining legacy lookups', () => {
+    expect(getAllModels().filter(m => m.provider === 'minimax').map(m => m.name)).toEqual([
+      'minimax/MiniMax-M3.1-Flash',
+      'minimax/MiniMax-M3',
+    ])
+    expect(getModelByAlias('minimax-m3.1-flash')).toMatchObject({
+      contextWindow: 1_000_000,
+      inputModalities: ['text', 'image', 'video'],
+      thinking: ['adaptive'],
+      costPerMTok: { input: 0.15, output: 0.6, cacheRead: 0.015, cacheWrite: null },
+    })
+    expect(getModelByName('minimax/MiniMax-M2.7')?.alias).toBe('minimax-m2.7')
+    expect(classifyModelProvider('MiniMax-M3.1-Flash')).toBe('minimax')
+  })
+
   it('registers current models with pricing and capabilities', () => {
     const m3 = getModelByAlias('minimax')
     const m27 = getModelByAlias('minimax-m2.7')
@@ -130,7 +145,7 @@ describe('MiniMax model catalog', () => {
       contextWindow: 1_000_000,
       inputModalities: ['text', 'image', 'video'],
       thinking: ['adaptive', 'disabled'],
-      costPerMTok: { input: 0.6, output: 2.4, cacheRead: 0.12, cacheWrite: null },
+      costPerMTok: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: null },
     })
     expect(m27).toMatchObject({
       name: 'minimax/MiniMax-M2.7',
