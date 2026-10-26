@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { chmodSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { requireRole } from '@/lib/auth'
 import { config } from '@/lib/config'
@@ -11,6 +11,7 @@ import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolatio
 import { logAuditEvent } from '@/lib/db'
 import { extractClientIp, hermesMutationLimiter } from '@/lib/rate-limit'
 import { validateBody } from '@/lib/validation'
+import { upsertHermesEnvContent } from '@/lib/dotenv-writer'
 import { formatHermesCommandOutput, hermesMutationSchema, parseHermesSetupCommand } from '@/lib/hermes-route-security'
 
 // In Docker, HOME=/nonexistent — check dataDir first, then homeDir
@@ -130,15 +131,10 @@ export async function POST(request: NextRequest) {
       const envPath = join(HERMES_HOME, '.env')
       mkdirSync(HERMES_HOME, { recursive: true, mode: 0o700 })
       let envContent = ''
-      try { envContent = require('node:fs').readFileSync(envPath, 'utf8') } catch { /* new file */ }
+      try { envContent = readFileSync(envPath, 'utf8') } catch { /* new file */ }
 
-      // Replace existing key or append
-      const regex = new RegExp(`^${key}=.*$`, 'm')
-      if (regex.test(envContent)) {
-        envContent = envContent.replace(regex, `${key}=${value}`)
-      } else {
-        envContent = envContent.trimEnd() + `\n${key}=${value}\n`
-      }
+      // Replace existing key or append; rejects CR/LF/NUL defensively.
+      envContent = upsertHermesEnvContent(envContent, key, value)
 
       writeFileSync(envPath, envContent, { encoding: 'utf8', mode: 0o600 })
       chmodSync(envPath, 0o600)

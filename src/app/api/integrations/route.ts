@@ -4,6 +4,7 @@ import { logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
 import { join } from 'path'
 import { readFile, writeFile, rename } from 'fs/promises'
+import { assertSafeEnvValue, isSafeEnvValue, UNSAFE_ENV_VALUE_MESSAGE, UnsafeEnvValueError } from '@/lib/dotenv-writer'
 import { existsSync } from 'fs'
 import os from 'os'
 import { execFileSync } from 'child_process'
@@ -144,7 +145,10 @@ function parseEnv(content: string): EnvLine[] {
 
 function serializeEnv(lines: EnvLine[]): string {
   return lines.map(l => {
-    if (l.type === 'var') return `${l.key}=${l.value}`
+    if (l.type === 'var') {
+      assertSafeEnvValue(l.key ?? '', l.value ?? '')
+      return `${l.key}=${l.value}`
+    }
     return l.raw
   }).join('\n')
 }
@@ -172,6 +176,25 @@ async function writeEnvFile(lines: EnvLine[]): Promise<void> {
   const content = serializeEnv(lines)
   await writeFile(tmpPath, content, 'utf-8')
   await rename(tmpPath, envPath)
+}
+
+/**
+ * A value already stored with a lone CR or NUL makes every rewrite fail the
+ * serializeEnv backstop. Report that as a conflict instead of a 500.
+ */
+async function writeEnvFileOrConflict(lines: EnvLine[]): Promise<NextResponse | null> {
+  try {
+    await writeEnvFile(lines)
+    return null
+  } catch (error) {
+    if (error instanceof UnsafeEnvValueError) {
+      return NextResponse.json(
+        { error: `Existing value for ${error.key} contains a line break or NUL; remove that key before editing` },
+        { status: 409 },
+      )
+    }
+    throw error
+  }
 }
 
 function redactValue(value: string): string {
@@ -487,6 +510,9 @@ export async function PUT(request: NextRequest) {
     if (!/^[A-Z_][A-Z0-9_]*$/i.test(key)) {
       return NextResponse.json({ error: `Invalid variable name: ${key}` }, { status: 400 })
     }
+    if (!isSafeEnvValue(String(body.vars[key]))) {
+      return NextResponse.json({ error: `Invalid value for ${key}: ${UNSAFE_ENV_VALUE_MESSAGE}` }, { status: 400 })
+    }
   }
 
   const envData = await readEnvFile()
@@ -512,7 +538,8 @@ export async function PUT(request: NextRequest) {
     updatedKeys.push(key)
   }
 
-  await writeEnvFile(lines)
+  const conflict = await writeEnvFileOrConflict(lines)
+  if (conflict) return conflict
 
   const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
   logAuditEvent({
@@ -569,7 +596,8 @@ export async function DELETE(request: NextRequest) {
   })
 
   if (removed.length > 0) {
-    await writeEnvFile(newLines)
+    const conflict = await writeEnvFileOrConflict(newLines)
+    if (conflict) return conflict
   }
 
   const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
@@ -881,6 +909,9 @@ async function handlePull(
     if (!value || value.length === 0) {
       return NextResponse.json({ error: 'Empty value returned from 1Password' }, { status: 400 })
     }
+    if (!isSafeEnvValue(value)) {
+      return NextResponse.json({ error: `1Password value for ${integration.id}: ${UNSAFE_ENV_VALUE_MESSAGE}` }, { status: 400 })
+    }
 
     // Write to .env
     const envData = await readEnvFile()
@@ -980,6 +1011,10 @@ async function handlePullAll(
 
       if (!value || value.length === 0) {
         results.push({ id: integration.id, envVar, ok: false, detail: 'Empty value' })
+        continue
+      }
+      if (!isSafeEnvValue(value)) {
+        results.push({ id: integration.id, envVar, ok: false, detail: UNSAFE_ENV_VALUE_MESSAGE })
         continue
       }
 
