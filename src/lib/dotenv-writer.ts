@@ -6,6 +6,10 @@
  * every writer must reject them.
  */
 
+import { randomBytes } from 'node:crypto'
+import { closeSync, fchmodSync, fsyncSync, openSync, renameSync, statSync, unlinkSync, writeSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
+
 const FORBIDDEN_ENV_VALUE_CHARS = /[\r\n\0]/
 
 export const UNSAFE_ENV_VALUE_MESSAGE = 'value must not contain line breaks or NUL characters'
@@ -78,4 +82,42 @@ export function upsertHermesEnvContent(content: string, key: string, value: stri
   }
   if (!found) next.push(assignment)
   return `${next.join('\n')}\n`
+}
+
+const PRIVATE_FILE_MODE = 0o600
+
+/**
+ * Replace a dotenv file atomically and keep it private.
+ *
+ * The content goes to a temp file in the target's directory, created with
+ * O_EXCL and mode 0600, fsynced, then renamed over the target. Readers see
+ * either the old file or the new one, never a partial write. The result is
+ * never looser than 0600; a stricter existing mode (e.g. 0400) is kept. The
+ * temp file is removed if any step fails.
+ */
+export function writeEnvFileAtomic(path: string, content: string): void {
+  let mode = PRIVATE_FILE_MODE
+  try {
+    mode = statSync(path).mode & PRIVATE_FILE_MODE
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
+
+  const tmpPath = join(dirname(path), `.${basename(path)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`)
+  let fd: number | null = openSync(tmpPath, 'wx', PRIVATE_FILE_MODE)
+  try {
+    // openSync's mode is filtered by the umask; set the final mode explicitly.
+    fchmodSync(fd, mode)
+    writeSync(fd, content, null, 'utf8')
+    fsyncSync(fd)
+    closeSync(fd)
+    fd = null
+    renameSync(tmpPath, path)
+  } catch (err) {
+    if (fd !== null) {
+      try { closeSync(fd) } catch { /* already failing */ }
+    }
+    try { unlinkSync(tmpPath) } catch { /* already gone */ }
+    throw err
+  }
 }

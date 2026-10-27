@@ -3,8 +3,8 @@ import { requireRole } from '@/lib/auth'
 import { logAuditEvent } from '@/lib/db'
 import { config } from '@/lib/config'
 import { join } from 'path'
-import { readFile, writeFile, rename } from 'fs/promises'
-import { assertSafeEnvValue, isSafeEnvValue, UNSAFE_ENV_VALUE_MESSAGE, UnsafeEnvValueError } from '@/lib/dotenv-writer'
+import { readFile } from 'fs/promises'
+import { assertSafeEnvValue, isSafeEnvValue, UNSAFE_ENV_VALUE_MESSAGE, UnsafeEnvValueError, writeEnvFileAtomic } from '@/lib/dotenv-writer'
 import { existsSync } from 'fs'
 import os from 'os'
 import { execFileSync } from 'child_process'
@@ -172,10 +172,7 @@ async function readEnvFile(): Promise<{ lines: EnvLine[]; raw: string } | null> 
 
 async function writeEnvFile(lines: EnvLine[]): Promise<void> {
   const envPath = getEnvPath()!
-  const tmpPath = envPath + '.tmp'
-  const content = serializeEnv(lines)
-  await writeFile(tmpPath, content, 'utf-8')
-  await rename(tmpPath, envPath)
+  writeEnvFileAtomic(envPath, serializeEnv(lines))
 }
 
 /**

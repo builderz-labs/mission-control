@@ -11,7 +11,7 @@ import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolatio
 import { logAuditEvent } from '@/lib/db'
 import { extractClientIp, hermesMutationLimiter } from '@/lib/rate-limit'
 import { validateBody } from '@/lib/validation'
-import { upsertHermesEnvContent } from '@/lib/dotenv-writer'
+import { upsertHermesEnvContent, writeEnvFileAtomic } from '@/lib/dotenv-writer'
 import { formatHermesCommandOutput, hermesMutationSchema, parseHermesSetupCommand } from '@/lib/hermes-route-security'
 
 // In Docker, HOME=/nonexistent — check dataDir first, then homeDir
@@ -136,8 +136,7 @@ export async function POST(request: NextRequest) {
       // Replace existing key or append; rejects CR/LF/NUL defensively.
       envContent = upsertHermesEnvContent(envContent, key, value)
 
-      writeFileSync(envPath, envContent, { encoding: 'utf8', mode: 0o600 })
-      chmodSync(envPath, 0o600)
+      writeEnvFileAtomic(envPath, envContent)
       audit('environment_updated', { key })
       logger.info({ key }, 'Hermes env var set via setup wizard')
       return NextResponse.json({ success: true })

@@ -51,7 +51,7 @@ describe('Hermes route security boundary', () => {
     expect(limitAt).toBeGreaterThan(authAt)
     expect(validateAt).toBeGreaterThan(limitAt)
     expect(dispatchAt).toBeGreaterThan(validateAt)
-    expect(source).toContain('chmodSync(envPath, 0o600)')
+    expect(source).toContain('writeEnvFileAtomic(envPath, envContent)')
     expect(source).toContain('chmodSync(soulPath, 0o600)')
     expect(source).not.toContain("trimmed.startsWith('hermes')")
     expect(source).not.toContain('hookDir: HOOK_DIR')
