@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import Database from 'better-sqlite3'
-import { insertDispatchTokenUsage, pickProvider, resolveTaskDispatchModelOverride } from '@/lib/task-dispatch'
+import { callDirectly, classifyDirectModel, insertDispatchTokenUsage, pickProvider, resolveTaskDispatchModelOverride } from '@/lib/task-dispatch'
+
 
 describe('insertDispatchTokenUsage', () => {
   it('persists dispatch usage using the current token_usage schema', () => {
@@ -61,5 +62,61 @@ describe('MiniMax direct dispatch routing', () => {
   it('selects the dedicated provider for both current model IDs', () => {
     expect(pickProvider('MiniMax-M3')).toBe('minimax')
     expect(pickProvider('minimax/MiniMax-M2.7')).toBe('minimax')
+  })
+})
+
+describe('Atlas Cloud direct dispatch routing', () => {
+  it('routes Atlas Cloud catalog names and aliases to its direct API path', () => {
+    expect(pickProvider('atlascloud/deepseek-ai/deepseek-v4-pro')).toBe('atlascloud')
+    expect(pickProvider('atlas-deepseek')).toBe('atlascloud')
+  })
+})
+
+describe('Atlas Cloud wire model id through the real dispatch path', () => {
+  const baseTask = {
+    id: 1, title: 't', description: null, status: 'assigned', priority: 'medium',
+    assigned_to: 'a', workspace_id: 1, agent_name: 'a', agent_id: 1,
+    ticket_prefix: null, project_ticket_no: null, project_id: null,
+  }
+  const taskWith = (dispatchModel: string) => ({ ...baseTask, agent_config: JSON.stringify({ dispatchModel }) })
+
+  async function dispatchBody(dispatchModel: string) {
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubEnv('ATLASCLOUD_API_KEY', 'test-key')
+    try {
+      const res = await callDirectly(taskWith(dispatchModel), 'hello')
+      expect(res.text).toBe('ok')
+    } finally {
+      vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    return { url, body: JSON.parse(init.body as string) }
+  }
+
+  it.each([
+    'atlas-deepseek',
+    'atlascloud/deepseek-ai/deepseek-v4-pro',
+    'deepseek-ai/deepseek-v4-pro',
+  ])('sends the real model id for dispatchModel %s', async (dispatchModel) => {
+    expect(pickProvider(classifyDirectModel(taskWith(dispatchModel)))).toBe('atlascloud')
+    const { url, body } = await dispatchBody(dispatchModel)
+    expect(url).toBe('https://api.atlascloud.ai/v1/chat/completions')
+    expect(body.model).toBe('deepseek-ai/deepseek-v4-pro')
+  })
+
+  it('keeps nested ids for uncatalogued atlascloud/ models', async () => {
+    const { body } = await dispatchBody('atlascloud/deepseek-ai/deepseek-v4-flash')
+    expect(body.model).toBe('deepseek-ai/deepseek-v4-flash')
+  })
+
+  it('keeps existing gateway-prefix stripping for other overrides', () => {
+    expect(classifyDirectModel(taskWith('9router/cc/claude-opus-4-6'))).toBe('claude-opus-4-6')
+    expect(classifyDirectModel(taskWith('sonnet'))).toBe('claude-sonnet-4-6')
   })
 })

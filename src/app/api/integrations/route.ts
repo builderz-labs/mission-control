@@ -45,6 +45,7 @@ const INTEGRATIONS: IntegrationDef[] = [
   // AI Providers
   { id: 'anthropic', name: 'Anthropic', category: 'ai', envVars: ['ANTHROPIC_API_KEY'], vaultItem: 'openclaw-anthropic-api-key', testable: true },
   { id: 'openai', name: 'OpenAI', category: 'ai', envVars: ['OPENAI_API_KEY'], vaultItem: 'openclaw-openai-api-key', testable: true },
+  { id: 'atlascloud', name: 'Atlas Cloud', category: 'ai', envVars: ['ATLASCLOUD_API_KEY'], vaultItem: 'openclaw-atlascloud-api-key', testable: true },
   { id: 'openrouter', name: 'OpenRouter', category: 'ai', envVars: ['OPENROUTER_API_KEY'], vaultItem: 'openclaw-openrouter-api-key', testable: true },
   { id: 'venice', name: 'Venice AI', category: 'ai', envVars: ['VENICE_API_KEY'], vaultItem: 'openclaw-venice-api-key', testable: true },
   { id: 'nvidia', name: 'NVIDIA', category: 'ai', envVars: ['NVIDIA_API_KEY'], vaultItem: 'openclaw-nvidia-api-key' },
@@ -723,6 +724,19 @@ async function handleTest(
           return NextResponse.json({ ok: false, detail: 'API key not set' })
         }
         const res = await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(5000),
+        })
+        result = res.ok
+          ? { ok: true, detail: 'API key valid' }
+          : { ok: false, detail: `HTTP ${res.status}` }
+        break
+      }
+
+      case 'atlascloud': {
+        const key = getEffectiveEnvValue(envMap, 'ATLASCLOUD_API_KEY')
+        if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
+        const res = await fetch('https://api.atlascloud.ai/v1/models', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(5000),
         })
