@@ -1550,6 +1550,16 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE agents ADD COLUMN claude_base_session_created_at TEXT DEFAULT NULL`)
       }
     }
+  },
+  {
+    id: '056_project_groups',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>
+      if (!cols.some((column) => column.name === 'group_name')) {
+        db.exec(`ALTER TABLE projects ADD COLUMN group_name TEXT DEFAULT NULL`)
+      }
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_projects_workspace_group ON projects(workspace_id, group_name)`)
+    }
   }
 ]
 

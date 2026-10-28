@@ -28,6 +28,7 @@ test.describe('Projects CRUD', () => {
   test('POST creates project with all enhanced fields', async ({ request }) => {
     const { id, res, body } = await createTestProject(request, {
       description: 'Full project for e2e',
+      group_name: 'InHaus',
       ticket_prefix: 'E2EFULL',
       github_repo: 'test-org/test-repo',
       deadline: Math.floor(Date.now() / 1000) + 86400,
@@ -37,6 +38,7 @@ test.describe('Projects CRUD', () => {
 
     expect(res.status()).toBe(201)
     expect(body.project.description).toBe('Full project for e2e')
+    expect(body.project.group_name).toBe('InHaus')
     expect(body.project.ticket_prefix).toBe('E2EFULL')
     expect(body.project.github_repo).toBe('test-org/test-repo')
     expect(body.project.deadline).toBeGreaterThan(0)
@@ -49,6 +51,20 @@ test.describe('Projects CRUD', () => {
       data: { name: '' },
     })
     expect(res.status()).toBe(400)
+  })
+
+  test('POST rejects invalid project groups', async ({ request }) => {
+    const wrongType = await request.post('/api/projects', {
+      headers: API_KEY_HEADER,
+      data: { name: 'Invalid group type', group_name: 42 },
+    })
+    expect(wrongType.status()).toBe(400)
+
+    const tooLong = await request.post('/api/projects', {
+      headers: API_KEY_HEADER,
+      data: { name: 'Invalid group length', group_name: 'x'.repeat(65) },
+    })
+    expect(tooLong.status()).toBe(400)
   })
 
   test('POST rejects duplicate slug', async ({ request }) => {
@@ -67,6 +83,7 @@ test.describe('Projects CRUD', () => {
   test('GET list returns projects with enhanced fields', async ({ request }) => {
     const { id } = await createTestProject(request, {
       description: 'Listed project',
+      group_name: 'Personal',
       github_repo: 'org/repo',
       color: '#ef4444',
     })
@@ -80,6 +97,7 @@ test.describe('Projects CRUD', () => {
 
     const found = body.projects.find((p: any) => p.id === id)
     expect(found).toBeDefined()
+    expect(found.group_name).toBe('Personal')
     expect(found.github_repo).toBe('org/repo')
     expect(found.color).toBe('#ef4444')
     expect(typeof found.task_count).toBe('number')
@@ -151,7 +169,7 @@ test.describe('Projects CRUD', () => {
     expect(body.project.description).toBe('Updated description')
   })
 
-  test('PATCH updates enhanced fields (github_repo, deadline, color)', async ({ request }) => {
+  test('PATCH updates enhanced fields (group, github_repo, deadline, color)', async ({ request }) => {
     const { id } = await createTestProject(request)
     cleanup.push(id)
 
@@ -159,6 +177,7 @@ test.describe('Projects CRUD', () => {
     const res = await request.patch(`/api/projects/${id}`, {
       headers: API_KEY_HEADER,
       data: {
+        group_name: 'InHaus',
         github_repo: 'new-org/new-repo',
         deadline,
         color: '#8b5cf6',
@@ -166,6 +185,7 @@ test.describe('Projects CRUD', () => {
     })
     expect(res.status()).toBe(200)
     const body = await res.json()
+    expect(body.project.group_name).toBe('InHaus')
     expect(body.project.github_repo).toBe('new-org/new-repo')
     expect(body.project.deadline).toBe(deadline)
     expect(body.project.color).toBe('#8b5cf6')
@@ -173,6 +193,7 @@ test.describe('Projects CRUD', () => {
 
   test('PATCH can clear optional fields with null', async ({ request }) => {
     const { id } = await createTestProject(request, {
+      group_name: 'Temporary',
       github_repo: 'will-clear/repo',
       color: '#ef4444',
     })
@@ -180,10 +201,11 @@ test.describe('Projects CRUD', () => {
 
     const res = await request.patch(`/api/projects/${id}`, {
       headers: API_KEY_HEADER,
-      data: { github_repo: null, color: null, deadline: null },
+      data: { group_name: null, github_repo: null, color: null, deadline: null },
     })
     expect(res.status()).toBe(200)
     const body = await res.json()
+    expect(body.project.group_name).toBeNull()
     expect(body.project.github_repo).toBeNull()
     expect(body.project.color).toBeNull()
     expect(body.project.deadline).toBeNull()

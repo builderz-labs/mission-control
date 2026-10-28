@@ -454,4 +454,21 @@ describe('updateProjectSchema', () => {
   ])('rejects unsafe project update input %#', (input) => {
     expect(updateProjectSchema.safeParse(input).success).toBe(false)
   })
+
+  it.each([
+    { group_name: 42 },
+    { group_name: 'x'.repeat(65) },
+  ])('rejects invalid project group input %#', (input) => {
+    expect(updateProjectSchema.safeParse(input).success).toBe(false)
+  })
+
+  it.each([
+    { group_name: null, expected: null },
+    { group_name: '', expected: null },
+    { group_name: '  Platform  ', expected: 'Platform' },
+  ])('accepts nullable and normalized project group input %#', ({ expected, ...input }) => {
+    const result = updateProjectSchema.safeParse(input)
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.group_name).toBe(expected)
+  })
 })

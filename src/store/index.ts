@@ -110,6 +110,7 @@ export interface Task {
   project_id?: number
   project_ticket_no?: number
   project_name?: string
+  project_group?: string | null
   project_prefix?: string
   ticket_ref?: string
   assigned_to?: string
@@ -335,6 +336,7 @@ export interface Project {
   id: number
   name: string
   slug: string
+  group_name?: string | null
   description?: string
   ticket_prefix: string
   status: string

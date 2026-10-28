@@ -9,6 +9,7 @@ interface Project {
   id: number
   name: string
   slug: string
+  group_name?: string | null
   description?: string
   ticket_prefix: string
   status: 'active' | 'archived'
@@ -65,10 +66,11 @@ export function ProjectManagerModal({
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', ticket_prefix: '', description: '' })
+  const [form, setForm] = useState({ name: '', ticket_prefix: '', group_name: '', description: '' })
   const [editingId, setEditingId] = useState<number | null>(null)
   const [savingId, setSavingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState<{
+    group_name: string
     description: string
     github_repo: string
     deadline: string
@@ -76,7 +78,11 @@ export function ProjectManagerModal({
     assigned_agents: string[]
     github_sync_enabled: boolean
     github_default_branch: string
-  }>({ description: '', github_repo: '', deadline: '', color: '', assigned_agents: [], github_sync_enabled: false, github_default_branch: 'main' })
+  }>({ group_name: '', description: '', github_repo: '', deadline: '', color: '', assigned_agents: [], github_sync_enabled: false, github_default_branch: 'main' })
+
+  const groupOptions = Array.from(new Set(
+    projects.map((project) => project.group_name?.trim()).filter((name): name is string => !!name)
+  )).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
 
   const load = useCallback(async () => {
     try {
@@ -108,10 +114,11 @@ export function ProjectManagerModal({
         body: JSON.stringify({
           name: form.name,
           ticket_prefix: form.ticket_prefix,
+          group_name: form.group_name.trim() || null,
           description: form.description
         })
       })
-      setForm({ name: '', ticket_prefix: '', description: '' })
+      setForm({ name: '', ticket_prefix: '', group_name: '', description: '' })
       await load()
       await onChanged?.()
     } catch (err) {
@@ -150,6 +157,7 @@ export function ProjectManagerModal({
     }
     setEditingId(project.id)
     setEditForm({
+      group_name: project.group_name || '',
       description: project.description || '',
       github_repo: project.github_repo || '',
       deadline: project.deadline ? new Date(project.deadline * 1000).toISOString().split('T')[0] : '',
@@ -164,6 +172,7 @@ export function ProjectManagerModal({
     try {
       setSavingId(project.id)
       const body: Record<string, unknown> = {
+        group_name: editForm.group_name.trim() || null,
         description: editForm.description,
         github_repo: editForm.github_repo || null,
         color: editForm.color || null,
@@ -210,12 +219,16 @@ export function ProjectManagerModal({
           {error && <div role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">{error}</div>}
 
           <form onSubmit={createProject} className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <datalist id="project-group-options">
+              {groupOptions.map((groupName) => <option key={groupName} value={groupName} />)}
+            </datalist>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Project name"
+                aria-label="Project name"
                 className="bg-surface-1 text-foreground border border-border rounded-md px-3 py-2"
                 required
               />
@@ -224,6 +237,17 @@ export function ProjectManagerModal({
                 value={form.ticket_prefix}
                 onChange={(e) => setForm((prev) => ({ ...prev, ticket_prefix: e.target.value }))}
                 placeholder="Ticket prefix (e.g. PA)"
+                aria-label="Ticket prefix"
+                className="bg-surface-1 text-foreground border border-border rounded-md px-3 py-2"
+              />
+              <input
+                type="text"
+                list="project-group-options"
+                maxLength={64}
+                value={form.group_name}
+                onChange={(e) => setForm((prev) => ({ ...prev, group_name: e.target.value }))}
+                placeholder="Group (optional)"
+                aria-label="Project group"
                 className="bg-surface-1 text-foreground border border-border rounded-md px-3 py-2"
               />
               <Button type="submit">
@@ -268,6 +292,7 @@ export function ProjectManagerModal({
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {project.ticket_prefix} &middot; {project.slug} &middot; {project.status}
+                          {project.group_name && <> &middot; {project.group_name}</>}
                           {project.github_repo && <> &middot; {project.github_repo}</>}
                         </div>
                       </div>
@@ -312,6 +337,18 @@ export function ProjectManagerModal({
                             rows={2}
                             className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm resize-none"
                             placeholder="Project description"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-muted-foreground mb-1">Group</label>
+                          <input
+                            type="text"
+                            list="project-group-options"
+                            maxLength={64}
+                            value={editForm.group_name}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, group_name: e.target.value }))}
+                            className="w-full bg-surface-1 text-foreground border border-border rounded-md px-3 py-2 text-sm"
+                            placeholder="Ungrouped"
                           />
                         </div>
                         <div>

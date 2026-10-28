@@ -12,6 +12,7 @@ describe('Project store types', () => {
       slug: 'test-project',
       ticket_prefix: 'TP',
       status: 'active',
+      group_name: 'InHaus',
       description: 'A test project',
       github_repo: 'owner/repo',
       deadline: 1893456000,
@@ -21,6 +22,7 @@ describe('Project store types', () => {
     }
 
     expect(project.github_repo).toBe('owner/repo')
+    expect(project.group_name).toBe('InHaus')
     expect(project.deadline).toBe(1893456000)
     expect(project.color).toBe('#3b82f6')
     expect(project.task_count).toBe(5)
@@ -37,6 +39,7 @@ describe('Project store types', () => {
     }
 
     expect(project.github_repo).toBeUndefined()
+    expect(project.group_name).toBeUndefined()
     expect(project.deadline).toBeUndefined()
     expect(project.color).toBeUndefined()
     expect(project.task_count).toBeUndefined()
