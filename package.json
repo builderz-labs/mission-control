@@ -59,7 +59,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "ws": "^8.21.1",
-    "zod": "^4.4.3",
+    "zod": "^4.6.6",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
