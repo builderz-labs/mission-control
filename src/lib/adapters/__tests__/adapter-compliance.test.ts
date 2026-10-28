@@ -62,7 +62,7 @@ const testReport: TaskReport = {
 
 // ─── Shared Compliance Tests ─────────────────────────────────────────────────
 
-const ALL_FRAMEWORKS = ['openclaw', 'generic', 'crewai', 'langgraph', 'autogen', 'claude-sdk']
+const ALL_FRAMEWORKS = ['openclaw', 'generic', 'crewai', 'langgraph', 'autogen', 'claude-sdk', 'nanobot']
 
 describe('Adapter Registry', () => {
   it('lists all registered adapters', () => {
@@ -419,5 +419,21 @@ describe('GenericAdapter special behavior', () => {
     const payload = mockBroadcast.mock.calls[0][1]
     // Empty string is falsy, should fall back to 'generic'
     expect(payload.framework).toBe('generic')
+  })
+})
+
+describe('NanobotAdapter registration identity', () => {
+  it('does not allow metadata to override the authenticated workspace or framework', async () => {
+    mockBroadcast.mockClear()
+    await getAdapter('nanobot').register({
+      ...testAgent,
+      metadata: { workspace_id: 999, id: 'other', framework: 'other', status: 'offline' },
+    })
+    expect(mockBroadcast).toHaveBeenCalledWith('agent.created', expect.objectContaining({
+      workspace_id: TEST_WORKSPACE_ID,
+      id: testAgent.agentId,
+      framework: 'nanobot',
+      status: 'online',
+    }))
   })
 })

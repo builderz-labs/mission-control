@@ -100,6 +100,10 @@ describe('Universal Templates', () => {
 })
 
 describe('Template-Framework Resolution', () => {
+  it('offers an observation-only template for nanobot', () => {
+    expect(getTemplatesForFramework('nanobot').map(template => template.type)).toEqual(['observer'])
+    expect(getFrameworkInfo('nanobot')?.connection.setupHints.join(' ')).toContain('Observation only')
+  })
   it('getTemplatesForFramework returns templates for known frameworks', () => {
     for (const fw of listAdapters()) {
       const templates = getTemplatesForFramework(fw)

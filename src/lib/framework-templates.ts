@@ -38,6 +38,28 @@ export interface FrameworkInfo {
 // ─── Framework Registry ─────────────────────────────────────────────────────
 
 export const FRAMEWORK_REGISTRY: Record<string, FrameworkInfo> = {
+  nanobot: {
+    id: 'nanobot',
+    label: 'nanobot',
+    description: 'Observe selected HKUDS/nanobot WebSocket chats through a local bridge',
+    docsUrl: 'https://github.com/HKUDS/nanobot',
+    connection: {
+      connectionMode: 'webhook',
+      heartbeatInterval: 30,
+      setupHints: [
+        'Enable nanobot WebSocket access and configure NANOBOT_WS_URL and NANOBOT_TOKEN',
+        'Set MC_API_KEY (operator), a dedicated MC_AGENT_NAME, and explicit NANOBOT_CHAT_IDS',
+        'Run node scripts/nanobot-bridge.mjs; see examples/NANOBOT-BRIDGE.md',
+        'Observation only: turn completion does not complete a Mission Control task',
+      ],
+      exampleSnippet: `# Set MC_API_KEY and NANOBOT_TOKEN in your environment first.
+MC_URL=http://127.0.0.1:3000 \\
+MC_AGENT_NAME=nanobot-personal-monitor \\
+NANOBOT_WS_URL=ws://127.0.0.1:8765/ \\
+NANOBOT_CHAT_IDS=chat-a,chat-b \\
+node scripts/nanobot-bridge.mjs`,
+    },
+  },
   openclaw: {
     id: 'openclaw',
     label: 'OpenClaw',
@@ -319,6 +341,14 @@ export interface UniversalTemplate {
  * Framework-specific config is resolved at creation time.
  */
 export const UNIVERSAL_TEMPLATES: UniversalTemplate[] = [
+  {
+    type: 'observer',
+    label: 'Activity Observer',
+    description: 'Reports external agent activity without dispatching or completing tasks.',
+    emoji: '👀',
+    frameworks: ['generic', 'nanobot'],
+    capabilities: ['status_observation'],
+  },
   {
     type: 'orchestrator',
     label: 'Orchestrator',
