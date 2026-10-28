@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { redactSecrets } from '@/lib/secret-scanner'
+import { isSafeEnvValue, UNSAFE_ENV_VALUE_MESSAGE } from '@/lib/dotenv-writer'
 
 const MAX_COMMAND_OUTPUT_LENGTH = 16_000
 const SAFE_CONFIG_VALUE = /^(?!-)[A-Za-z0-9._:/@+-]{1,200}$/
@@ -10,7 +11,7 @@ export const hermesMutationSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('set-env'),
     key: z.enum(['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY', 'NOUS_API_KEY', 'GOOGLE_API_KEY', 'XAI_API_KEY']),
-    value: z.string().min(1).max(20_000),
+    value: z.string().min(1).max(20_000).refine(isSafeEnvValue, UNSAFE_ENV_VALUE_MESSAGE),
   }).strict(),
   z.object({
     action: z.literal('set-soul'),
