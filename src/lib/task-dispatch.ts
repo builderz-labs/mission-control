@@ -686,6 +686,8 @@ function classifyDirectModel(task: DispatchableTask): string {
     try {
       const cfg = JSON.parse(task.agent_config)
       if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) {
+        // Keep the direct MiniMax route for custom IDs outside the catalog.
+        if (/^minimax\//i.test(cfg.dispatchModel)) return cfg.dispatchModel
         // Strip gateway prefixes like "9router/cc/" to get bare model ID
         return cfg.dispatchModel.replace(/^.*\//, '')
       }
@@ -857,7 +859,7 @@ export function pickProvider(model: string): DirectProvider {
   const m = model.toLowerCase()
   if (m.startsWith('openai/') || m.startsWith('gpt-') || m.startsWith('o1-') || m.startsWith('o3-')) return 'openai'
   if (m.startsWith('local/') || m.startsWith('ollama/') || m.startsWith('lmstudio/') || m.startsWith('litellm/')) return 'local'
-  if (m.startsWith('minimax/')) return 'minimax'
+  if (m.startsWith('minimax/') || m.startsWith('minimax-')) return 'minimax'
   return 'anthropic'
 }
 
@@ -1270,7 +1272,8 @@ async function callMiniMaxDirectly(
   if (!apiKey) throw new Error('MINIMAX_API_KEY not set — cannot dispatch to MiniMax without gateway')
 
   const { baseUrl, protocol } = resolveMiniMaxEndpoint()
-  const modelId = stripProviderPrefix(model)
+  const alias = getModelByAlias(model)
+  const modelId = alias?.provider === 'minimax' ? getDispatchModelId(alias) : stripProviderPrefix(model)
   if (protocol === 'anthropic') {
     return callMiniMaxAnthropicCompatible(task, prompt, baseUrl, apiKey, modelId)
   }

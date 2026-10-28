@@ -42,6 +42,17 @@ describe('token pricing', () => {
     expect(getModelPricing('minimax/minimax-m2.1')).toMatchObject({ inputPerMTok: 0.3, outputPerMTok: 1.2 })
   })
 
+  it.each(['MiniMax-M3.1-Flash', 'minimax/MiniMax-M3.1-Flash'])('prices Flash before the M3 substring for %s', (model) => {
+    expect(getModelPricing(model)).toEqual({
+      inputPerMTok: 0.15,
+      outputPerMTok: 0.6,
+      cacheReadPerMTok: 0.015,
+      cacheWritePerMTok: null,
+    })
+    expect(calculateTokenCost(model, 1_000_000, 1_000_000)).toBe(0.75)
+    expect(getProviderFromModel(model)).toBe('minimax')
+  })
+
   it('uses current MiniMax pricing, including cache rates', () => {
     expect(getModelPricing('minimax/MiniMax-M3')).toMatchObject({
       inputPerMTok: 0.6,

@@ -52,6 +52,8 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'groq/llama-3.1-8b-instant': { inputPerMTok: 0.05, outputPerMTok: 0.08 },
   'groq/llama-3.3-70b-versatile': { inputPerMTok: 0.59, outputPerMTok: 0.79 },
   'minimax/minimax-m2.1': { inputPerMTok: 0.3, outputPerMTok: 1.2 },
+  'minimax/minimax-m3.1-flash': { inputPerMTok: 0.15, outputPerMTok: 0.6, cacheReadPerMTok: 0.015, cacheWritePerMTok: null },
+  // Conservative M3 estimate: >512k standard tier. Up to 512k is $0.30/$1.20/$0.06.
   'minimax/minimax-m3': { inputPerMTok: 0.6, outputPerMTok: 2.4, cacheReadPerMTok: 0.12, cacheWritePerMTok: null },
   'minimax/minimax-m2.7': { inputPerMTok: 0.3, outputPerMTok: 1.2, cacheReadPerMTok: 0.06, cacheWritePerMTok: 0.375 },
   'moonshot/kimi-k2.5': { inputPerMTok: 0.6, outputPerMTok: 3.0 },

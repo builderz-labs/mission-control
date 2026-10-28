@@ -52,17 +52,38 @@ export const MODEL_CATALOG: ModelConfig[] = [
   // Groq (hosted inference) — https://groq.com/pricing (verified 2026-07-04)
   { alias: 'groq-fast', name: 'groq/llama-3.1-8b-instant', provider: 'groq', description: '840 tok/s, ultra fast', costPerMTok: { input: 0.05, output: 0.08 } },
   { alias: 'groq', name: 'groq/llama-3.3-70b-versatile', provider: 'groq', description: 'Fast + quality balance', costPerMTok: { input: 0.59, output: 0.79 } },
-  // MiniMax — https://platform.minimax.io/docs/guides/pricing-paygo (verified 2026-07-24)
+  // MiniMax — https://platform.minimax.io/docs/pricing/overview (verified 2026-10-20)
   {
+    alias: 'minimax-m3.1-flash',
+    name: 'minimax/MiniMax-M3.1-Flash',
+    provider: 'minimax',
+    description: 'Multimodal coding model with adaptive thinking',
+    costPerMTok: { input: 0.15, output: 0.6, cacheRead: 0.015, cacheWrite: null },
+    contextWindow: 1_000_000,
+    inputModalities: ['text', 'image', 'video'],
+    thinking: ['adaptive'],
+  },
+  {
+    // Preserve the existing alias for saved M3 configurations.
     alias: 'minimax',
     name: 'minimax/MiniMax-M3',
     provider: 'minimax',
     description: 'Multimodal model with configurable thinking',
-    costPerMTok: { input: 0.6, output: 2.4, cacheRead: 0.12, cacheWrite: null },
+    // Standard tier up to 512k input; longer prompts cost $0.60/$2.40/$0.12.
+    costPerMTok: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: null },
     contextWindow: 1_000_000,
     inputModalities: ['text', 'image', 'video'],
     thinking: ['adaptive', 'disabled'],
   },
+  // Other providers — Moonshot list price via https://openrouter.ai/moonshotai/kimi-k2.5;
+  // Venice https://docs.venice.ai/overview/pricing.
+  { alias: 'kimi', name: 'moonshot/kimi-k2.5', provider: 'moonshot', description: 'Alternative provider', costPerMTok: { input: 0.6, output: 3.0 } },
+  { alias: 'venice-llama-3.3-70b', name: 'venice/llama-3.3-70b', provider: 'venice', description: 'Venice AI Llama 3.3 70B', costPerMTok: { input: 0.7, output: 2.8 } },
+]
+
+// Lookup-only entries keep saved aliases and explicit legacy requests working
+// without offering legacy models in ordinary model selectors.
+const LEGACY_MODELS: ModelConfig[] = [
   {
     alias: 'minimax-m2.7',
     name: 'minimax/MiniMax-M2.7',
@@ -73,18 +94,14 @@ export const MODEL_CATALOG: ModelConfig[] = [
     inputModalities: ['text'],
     thinking: ['always_on'],
   },
-  // Other providers — Moonshot list price via https://openrouter.ai/moonshotai/kimi-k2.5;
-  // Venice https://docs.venice.ai/overview/pricing.
-  { alias: 'kimi', name: 'moonshot/kimi-k2.5', provider: 'moonshot', description: 'Alternative provider', costPerMTok: { input: 0.6, output: 3.0 } },
-  { alias: 'venice-llama-3.3-70b', name: 'venice/llama-3.3-70b', provider: 'venice', description: 'Venice AI Llama 3.3 70B', costPerMTok: { input: 0.7, output: 2.8 } },
 ]
 
 export function getModelByAlias(alias: string): ModelConfig | undefined {
-  return MODEL_CATALOG.find(m => m.alias === alias)
+  return MODEL_CATALOG.find(m => m.alias === alias) ?? LEGACY_MODELS.find(m => m.alias === alias)
 }
 
 export function getModelByName(name: string): ModelConfig | undefined {
-  return MODEL_CATALOG.find(m => m.name === name)
+  return MODEL_CATALOG.find(m => m.name === name) ?? LEGACY_MODELS.find(m => m.name === name)
 }
 
 export function getAllModels(): ModelConfig[] {
@@ -113,7 +130,7 @@ export function getDispatchModelId(model: ModelConfig): string {
 export function classifyModelProvider(model: string): string | undefined {
   const normalized = model.trim().toLowerCase()
   if (!normalized) return undefined
-  const entry = MODEL_CATALOG.find(m =>
+  const entry = [...MODEL_CATALOG, ...LEGACY_MODELS].find(m =>
     m.name.toLowerCase() === normalized
     || getDispatchModelId(m).toLowerCase() === normalized
     || m.alias.toLowerCase() === normalized
