@@ -217,4 +217,27 @@ describe('proxy host matching', () => {
     const response = proxy(request)
     expect(response.status).not.toBe(403)
   })
+
+  it('allows IPv6 loopback in production', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'local-box' },
+      hostname: () => 'local-box',
+    }))
+
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({ host: '[::1]:3000' }),
+      nextUrl: { host: '[::1]:3000', hostname: '::1', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    delete process.env.MC_ALLOWED_HOSTS
+    delete process.env.MC_ALLOW_ANY_HOST
+
+    const response = proxy(request)
+    expect(response.status).not.toBe(403)
+  })
 })

@@ -1,4 +1,5 @@
 import type { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies'
+import { isRequestSecureWithTrust } from '@/lib/public-origin'
 
 export const MC_SESSION_COOKIE_NAME = '__Host-mc-session'
 export const LEGACY_MC_SESSION_COOKIE_NAME = 'mc-session'
@@ -9,8 +10,7 @@ export function getMcSessionCookieName(isSecureRequest: boolean): string {
 }
 
 export function isRequestSecure(request: Request): boolean {
-  return request.headers.get('x-forwarded-proto') === 'https'
-    || new URL(request.url).protocol === 'https:'
+  return isRequestSecureWithTrust(request)
 }
 
 export function parseMcSessionCookieHeader(cookieHeader: string): string | null {
