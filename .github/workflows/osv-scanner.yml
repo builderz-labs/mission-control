@@ -27,7 +27,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -36,7 +36,7 @@ jobs:
           BASE_REF: ${{ github.base_ref || github.event.merge_group.base_ref }}
         run: git checkout "${BASE_REF#refs/heads/}"
       - name: Run scanner on existing code
-        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@9a96bc4d2b09685b6142bcfe25a3dc17cb2d7347 # v2.3.8
         continue-on-error: true
         with:
           scan-args: |-
@@ -46,7 +46,7 @@ jobs:
       - name: Checkout current branch
         run: git checkout -f "$GITHUB_SHA"
       - name: Run scanner on new code
-        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@9a96bc4d2b09685b6142bcfe25a3dc17cb2d7347 # v2.3.8
         continue-on-error: true
         with:
           scan-args: |-
@@ -54,7 +54,7 @@ jobs:
             --output=new-results.json
             --lockfile=./pnpm-lock.yaml
       - name: Run osv-scanner-reporter
-        uses: google/osv-scanner-action/osv-reporter-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        uses: google/osv-scanner-action/osv-reporter-action@9a96bc4d2b09685b6142bcfe25a3dc17cb2d7347 # v2.3.8
         with:
           scan-args: |-
             --output=results.sarif
@@ -64,13 +64,13 @@ jobs:
             --fail-on-vuln=true
       - name: Upload SARIF artifact
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: OSV Scanner SARIF file
           path: results.sarif
           retention-days: 5
       - name: Upload to code-scanning
         if: ${{ !cancelled() }}
-        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.31.10
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: results.sarif
