@@ -30,7 +30,25 @@ function getEnvPositiveInt(key: string, defaultValue: number): number {
   return Number.isFinite(value) && value > 0 ? value : defaultValue
 }
 
+// Like getEnvPositiveInt, but accepts 0 so a window can be explicitly disabled
+// (0 = "no window", scan everything, matching pre-window behavior).
+function getEnvNonNegativeInt(key: string, defaultValue: number): number {
+  const raw = process.env[key]
+  if (!raw) return defaultValue
+
+  const value = Number.parseInt(raw, 10)
+  return Number.isFinite(value) && value >= 0 ? value : defaultValue
+}
+
 const MAX_SESSION_FILE_BYTES = getEnvPositiveInt('MC_MAX_SESSION_FILE_BYTES', DEFAULT_MAX_SESSION_FILE_BYTES)
+
+// Skip JSONL files whose mtime is older than this window, before they are
+// even opened. The size cap above only bounds the largest file scanned per
+// cycle; it does nothing about a project directory that accumulates
+// thousands of small-enough files over months, which is the growth path
+// that actually drives scan time up over time. Default 0 disables the
+// window, preserving today's behavior for anyone not setting this.
+const SESSION_SCAN_WINDOW_MS = getEnvNonNegativeInt('MC_SESSION_SCAN_WINDOW_MS', 0)
 
 // Rough per-token pricing (USD) for cost estimation
 // Per-token prices (USD / token). Source: official Anthropic pricing docs,
@@ -282,6 +300,9 @@ export async function scanClaudeSessions(): Promise<SessionStats[]> {
         fileStat = statSync(filePath)
       } catch {
         continue // file disappeared between readdir and stat
+      }
+      if (SESSION_SCAN_WINDOW_MS > 0 && (Date.now() - fileStat.mtimeMs) > SESSION_SCAN_WINDOW_MS) {
+        continue // outside the configured window, skip before opening/parsing
       }
       const parsed = await parseSessionFile(filePath, projectSlug, fileStat.mtimeMs, fileStat.size)
       if (parsed) sessions.push(parsed)
