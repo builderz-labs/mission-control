@@ -121,9 +121,41 @@ check_prerequisites() {
   fi
   if [[ "$DEPLOY_MODE" == "local" ]] && ! command_exists pnpm; then
     info "Installing pnpm via corepack..."
-    corepack enable && corepack prepare pnpm@latest --activate
-    ok "pnpm installed"
+    install_pnpm || die "Could not install pnpm automatically. Install it manually (https://pnpm.io/installation) and re-run this script."
+    ok "pnpm installed ($(pnpm --version))"
   fi
+}
+
+# Install pnpm through corepack.
+#
+# `corepack enable` writes its shims next to the corepack binary, which for a
+# system-wide Node.js install is /usr/bin — so it fails with EACCES unless the
+# script runs as root. Fall back to a user-writable directory in that case.
+install_pnpm() {
+  # stderr is hidden on the first attempt: a failure here is expected on
+  # non-root installs and is handled by the fallback below.
+  if corepack enable 2>/dev/null && corepack prepare pnpm@latest --activate; then
+    hash -r
+    command_exists pnpm && return 0
+  fi
+
+  local user_bin="$HOME/.local/bin"
+  local path_before="$PATH"
+  warn "corepack could not install its shims system-wide (root required)"
+  info "Falling back to $user_bin"
+
+  mkdir -p "$user_bin"
+  corepack enable --install-directory "$user_bin" || return 1
+
+  export PATH="$user_bin:$PATH"
+  hash -r
+  corepack prepare pnpm@latest --activate || return 1
+  command_exists pnpm || return 1
+
+  case ":$path_before:" in
+    *":$user_bin:"*) ;;
+    *) warn "Add $user_bin to your PATH to use pnpm in new shells" ;;
+  esac
 }
 
 # ── Clone or update repo ─────────────────────────────────────────────────────
