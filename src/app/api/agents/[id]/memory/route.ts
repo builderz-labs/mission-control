@@ -77,7 +77,7 @@ export async function GET(
     try {
       if (!isStrictWorkspace) {
         const agentConfig = agent.config ? JSON.parse(agent.config) : {};
-        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name);
+        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name, agent.workspace_path);
         const match = readAgentWorkspaceFile(candidates, ['WORKING.md', 'working.md', 'MEMORY.md', 'memory.md']);
         if (match.exists && match.path) {
           const wsMtime = Math.floor(statSync(match.path).mtimeMs / 1000);
@@ -179,7 +179,7 @@ export async function PUT(
     try {
       if (!isStrictWorkspace) {
         const agentConfig = agent.config ? JSON.parse(agent.config) : {};
-        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name);
+        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name, agent.workspace_path);
         const safeWorkspace = candidates[0];
         if (safeWorkspace) {
           const safeWorkingPath = resolveWithin(safeWorkspace, 'WORKING.md');
@@ -267,7 +267,7 @@ export async function DELETE(
     try {
       if (!isStrictWorkspace) {
         const agentConfig = agent.config ? JSON.parse(agent.config) : {};
-        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name);
+        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name, agent.workspace_path);
         const safeWorkspace = candidates[0];
         if (safeWorkspace) {
           const safeWorkingPath = resolveWithin(safeWorkspace, 'WORKING.md');

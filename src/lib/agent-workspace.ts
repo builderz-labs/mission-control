@@ -9,7 +9,11 @@ function resolvePath(candidate: string): string {
   return resolveWithin(config.openclawStateDir, candidate)
 }
 
-export function getAgentWorkspaceCandidates(agentConfig: any, agentName: string): string[] {
+export function getAgentWorkspaceCandidates(
+  agentConfig: any,
+  agentName: string,
+  workspacePath?: string | null,
+): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   const push = (value?: string | null) => {
@@ -32,6 +36,8 @@ export function getAgentWorkspaceCandidates(agentConfig: any, agentName: string)
   const openclawId = openclawIdRaw.toLowerCase().replace(/[^a-z0-9._-]+/g, '-')
 
   push(rawWorkspace || null)
+  // Set by local agent sync (agents.workspace_path) for agents found on disk.
+  push(typeof workspacePath === 'string' && workspacePath.trim() ? workspacePath.trim() : null)
   push(`workspace-${openclawId}`)
   push(`agents/${openclawId}`)
   push('workspace')

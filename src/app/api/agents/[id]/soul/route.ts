@@ -54,7 +54,7 @@ export async function GET(
     if (!isStrictWorkspace) {
       try {
         const agentConfig = agent.config ? JSON.parse(agent.config) : {}
-        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name)
+        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name, agent.workspace_path)
         const match = readAgentWorkspaceFile(candidates, ['soul.md', 'SOUL.md'])
         if (match.exists) {
           soulContent = match.content
@@ -181,7 +181,7 @@ export async function PUT(
     if (!isStrictWorkspace) {
       try {
         const agentConfig = agent.config ? JSON.parse(agent.config) : {}
-        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name)
+        const candidates = getAgentWorkspaceCandidates(agentConfig, agent.name, agent.workspace_path)
         const safeWorkspace = candidates[0]
         if (safeWorkspace) {
           const safeSoulPath = resolveWithin(safeWorkspace, 'soul.md')
