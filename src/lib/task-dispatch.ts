@@ -680,14 +680,30 @@ function anthropicDispatchId(alias: 'opus' | 'sonnet' | 'haiku', fallback: strin
   return entry && entry.provider === 'anthropic' ? getDispatchModelId(entry) : fallback
 }
 
+// Provider prefixes `pickProvider` keys on and `stripProviderPrefix` removes at the wire.
+const DIRECT_PROVIDER_PREFIX = /^(openai|local|ollama|lmstudio|litellm|anthropic|minimax)\//i
+
+/**
+ * `dispatchModel` may carry a gateway prefix ("9router/cc/claude-opus-4-6",
+ * "openai-codex/gpt-5.4") or a direct-provider prefix ("local/deepseek/deepseek-chat").
+ * Only the gateway prefix is noise. Stripping everything up to the last '/' also
+ * erased the provider prefix, so every non-catalog `local/<vendor>/<model>` fell
+ * through `pickProvider` to Anthropic and the documented LOCAL_LLM_ENDPOINT route
+ * was unreachable.
+ */
+export function normalizeDispatchModel(raw: string): string {
+  const trimmed = raw.trim()
+  if (DIRECT_PROVIDER_PREFIX.test(trimmed)) return trimmed
+  return trimmed.replace(/^.*\//, '')
+}
+
 function classifyDirectModel(task: DispatchableTask): string {
   // Check per-agent config override first
   if (task.agent_config) {
     try {
       const cfg = JSON.parse(task.agent_config)
       if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) {
-        // Strip gateway prefixes like "9router/cc/" to get bare model ID
-        return cfg.dispatchModel.replace(/^.*\//, '')
+        return normalizeDispatchModel(cfg.dispatchModel)
       }
     } catch { /* ignore */ }
   }
@@ -862,7 +878,7 @@ export function pickProvider(model: string): DirectProvider {
 }
 
 function stripProviderPrefix(model: string): string {
-  return model.replace(/^(openai|local|ollama|lmstudio|litellm|anthropic|minimax)\//i, '')
+  return model.replace(DIRECT_PROVIDER_PREFIX, '')
 }
 
 /**
