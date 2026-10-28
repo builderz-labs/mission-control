@@ -1550,6 +1550,481 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE agents ADD COLUMN claude_base_session_created_at TEXT DEFAULT NULL`)
       }
     }
+  },
+  {
+    id: '056_ai_ops_factory_control_plane',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS factory_instances (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          instance_id TEXT NOT NULL,
+          module_id TEXT NOT NULL,
+          adapter_id TEXT NOT NULL,
+          native_id TEXT NOT NULL,
+          root_path TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          config TEXT NOT NULL DEFAULT '{}',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, instance_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS factory_snapshots (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          instance_id TEXT NOT NULL,
+          snapshot_version TEXT NOT NULL,
+          source_revision TEXT,
+          observed_at INTEGER NOT NULL,
+          freshness_state TEXT NOT NULL,
+          snapshot TEXT NOT NULL,
+          last_error TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        CREATE TABLE IF NOT EXISTS factory_approval_requests (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          request_id TEXT NOT NULL,
+          instance_id TEXT NOT NULL,
+          gate_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          state TEXT NOT NULL DEFAULT 'OPEN',
+          decision TEXT,
+          decision_note TEXT,
+          decision_by TEXT,
+          decision_at INTEGER,
+          expected_revision TEXT,
+          evidence_refs TEXT NOT NULL DEFAULT '[]',
+          native_result TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, request_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS factory_command_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          run_id TEXT NOT NULL,
+          instance_id TEXT NOT NULL,
+          command_id TEXT NOT NULL,
+          arguments TEXT NOT NULL DEFAULT '{}',
+          risk TEXT NOT NULL,
+          state TEXT NOT NULL,
+          requested_by TEXT,
+          before_revision TEXT,
+          after_revision TEXT,
+          stdout_excerpt TEXT,
+          stderr_excerpt TEXT,
+          error TEXT,
+          started_at INTEGER,
+          completed_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, run_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS experience_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          experience_id TEXT NOT NULL,
+          project_id TEXT,
+          factory_instance_id TEXT,
+          stage_id TEXT,
+          action_type TEXT NOT NULL,
+          worker_kind TEXT,
+          worker_identity TEXT,
+          inputs TEXT NOT NULL DEFAULT '[]',
+          artifact_refs TEXT NOT NULL DEFAULT '[]',
+          checks TEXT NOT NULL DEFAULT '[]',
+          metrics TEXT NOT NULL DEFAULT '[]',
+          outcome TEXT,
+          cost TEXT NOT NULL DEFAULT '{}',
+          evidence_refs TEXT NOT NULL DEFAULT '[]',
+          source_revision TEXT,
+          observed_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, experience_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS improvement_candidates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          candidate_id TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          target TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'PROPOSED',
+          hypothesis TEXT NOT NULL,
+          evidence_refs TEXT NOT NULL DEFAULT '[]',
+          sample_size INTEGER NOT NULL DEFAULT 0,
+          confidence_label TEXT,
+          expected_effect TEXT NOT NULL DEFAULT '{}',
+          eval_plan TEXT NOT NULL DEFAULT '{}',
+          review_policy TEXT,
+          promotion_state TEXT NOT NULL DEFAULT 'UNTESTED',
+          change_ref TEXT,
+          rollback_target TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, candidate_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS learning_evidence (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL DEFAULT 1,
+          evidence_id TEXT NOT NULL,
+          evidence_type TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL,
+          candidate_id TEXT,
+          skill_ref TEXT,
+          result TEXT,
+          payload TEXT NOT NULL DEFAULT '{}',
+          observed_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, evidence_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_factory_instances_module ON factory_instances(workspace_id, module_id);
+        CREATE INDEX IF NOT EXISTS idx_factory_snapshots_instance_observed ON factory_snapshots(workspace_id, instance_id, observed_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_factory_approvals_state ON factory_approval_requests(workspace_id, state, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_factory_commands_instance ON factory_command_runs(workspace_id, instance_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_experience_factory_observed ON experience_events(workspace_id, factory_instance_id, observed_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_improvement_status ON improvement_candidates(workspace_id, status, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_learning_evidence_candidate ON learning_evidence(workspace_id, candidate_id, observed_at DESC);
+      `)
+    }
+  },
+  {
+    id: '057_cross_factory_feedback_proposals',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS cross_factory_feedback_proposals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          feedback_id TEXT NOT NULL,
+          from_factory TEXT NOT NULL,
+          from_stage TEXT NOT NULL,
+          to_factory TEXT NOT NULL,
+          to_input TEXT NOT NULL,
+          signal TEXT NOT NULL,
+          evidence_refs TEXT NOT NULL DEFAULT '[]',
+          confidence_label TEXT NOT NULL,
+          requires_acceptance INTEGER NOT NULL DEFAULT 1,
+          status TEXT NOT NULL DEFAULT 'PROPOSED',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, feedback_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cross_factory_feedback_status
+          ON cross_factory_feedback_proposals(workspace_id, status, created_at DESC);
+      `)
+    }
+  }
+,
+  {
+    id: '058_revenue_opportunity_store',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS revenue_scanner_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          run_id TEXT NOT NULL,
+          status TEXT NOT NULL,
+          sources TEXT NOT NULL DEFAULT '[]',
+          query_count INTEGER NOT NULL DEFAULT 0,
+          fetched_count INTEGER NOT NULL DEFAULT 0,
+          inserted_count INTEGER NOT NULL DEFAULT 0,
+          error_count INTEGER NOT NULL DEFAULT 0,
+          errors TEXT NOT NULL DEFAULT '[]',
+          started_at INTEGER NOT NULL,
+          completed_at INTEGER,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, run_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS market_signals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          signal_id TEXT NOT NULL,
+          source_id TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL,
+          source_url TEXT,
+          title TEXT NOT NULL,
+          body_excerpt TEXT NOT NULL DEFAULT '',
+          author TEXT,
+          published_at INTEGER,
+          query_text TEXT,
+          portfolio_bucket TEXT NOT NULL,
+          domain_hint TEXT,
+          pain_terms TEXT NOT NULL DEFAULT '[]',
+          content_hash TEXT NOT NULL,
+          raw_payload TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'NEW',
+          opportunity_id TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, signal_id),
+          UNIQUE(workspace_id, source_id, source_ref)
+        );
+
+        CREATE TABLE IF NOT EXISTS revenue_opportunities (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          opportunity_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          domain TEXT,
+          workflow TEXT,
+          pain TEXT NOT NULL,
+          target_user TEXT,
+          buyer TEXT,
+          status TEXT NOT NULL DEFAULT 'DISCOVERED',
+          portfolio_bucket TEXT NOT NULL,
+          evidence_confidence TEXT NOT NULL DEFAULT 'D',
+          judge_decision TEXT,
+          primary_payment_trigger TEXT,
+          scores TEXT NOT NULL DEFAULT '{}',
+          founder_advantage TEXT NOT NULL DEFAULT '{}',
+          facts TEXT NOT NULL DEFAULT '[]',
+          inferences TEXT NOT NULL DEFAULT '[]',
+          assumptions TEXT NOT NULL DEFAULT '[]',
+          validation TEXT NOT NULL DEFAULT '{}',
+          source_count INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, opportunity_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS opportunity_evidence (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          evidence_id TEXT NOT NULL,
+          opportunity_id TEXT NOT NULL,
+          signal_id TEXT,
+          kind TEXT NOT NULL,
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL,
+          source_url TEXT,
+          claim TEXT NOT NULL,
+          confidence TEXT,
+          payload TEXT NOT NULL DEFAULT '{}',
+          observed_at INTEGER NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, evidence_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_revenue_scanner_runs_created
+          ON revenue_scanner_runs(workspace_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_market_signals_status
+          ON market_signals(workspace_id, status, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_market_signals_bucket
+          ON market_signals(workspace_id, portfolio_bucket, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_revenue_opportunities_status
+          ON revenue_opportunities(workspace_id, status, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_opportunity_evidence_opportunity
+          ON opportunity_evidence(workspace_id, opportunity_id, observed_at DESC);
+      `)
+    }
+  },
+  {
+    id: '059_social_metric_history_v2',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS social_metric_snapshots (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id INTEGER NOT NULL,
+          snapshot_id TEXT NOT NULL,
+          channel TEXT NOT NULL,
+          account_ref TEXT NOT NULL,
+          post_id TEXT NOT NULL,
+          post_url TEXT,
+          content_id TEXT NOT NULL,
+          campaign_id TEXT,
+          published_at INTEGER,
+          captured_at INTEGER NOT NULL,
+          source_type TEXT NOT NULL,
+          source_ref TEXT NOT NULL,
+          measurement_window TEXT,
+          raw_platform_metrics TEXT NOT NULL DEFAULT '{}',
+          creative_variant TEXT,
+          hook_variant TEXT,
+          cta_variant TEXT,
+          metrics TEXT NOT NULL DEFAULT '{}',
+          derived_metrics TEXT NOT NULL DEFAULT '{}',
+          attribution TEXT NOT NULL DEFAULT '{}',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          UNIQUE(workspace_id, snapshot_id)
+        );
+      `)
+      const columns = new Set(
+        (db.prepare('PRAGMA table_info(social_metric_snapshots)').all() as Array<{ name: string }>)
+          .map((column) => column.name),
+      )
+      const additions = [
+        ['post_url', 'TEXT'],
+        ['measurement_window', 'TEXT'],
+        ['raw_platform_metrics', "TEXT NOT NULL DEFAULT '{}'"],
+      ] as const
+      for (const [name, ddl] of additions) {
+        if (!columns.has(name)) db.exec(`ALTER TABLE social_metric_snapshots ADD COLUMN ${name} ${ddl}`)
+      }
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_social_metric_channel_captured
+          ON social_metric_snapshots(workspace_id, channel, captured_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_social_metric_content_captured
+          ON social_metric_snapshots(workspace_id, content_id, captured_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_social_metric_post_history
+          ON social_metric_snapshots(workspace_id, channel, post_id, captured_at ASC);
+      `)
+    }
+  },
+  {
+    id: '060_social_metric_content_intelligence',
+    up: (db) => {
+      const table = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'social_metric_snapshots'"
+      ).get() as { name?: string } | undefined
+      if (!table) return
+      const columns = new Set(
+        (db.prepare('PRAGMA table_info(social_metric_snapshots)').all() as Array<{ name: string }>)
+          .map((column) => column.name),
+      )
+      if (!columns.has('content_intelligence')) {
+        db.exec("ALTER TABLE social_metric_snapshots ADD COLUMN content_intelligence TEXT NOT NULL DEFAULT '{}'")
+      }
+    }
+  },
+  {
+    id: '061_social_credential_vault',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS social_credentials (
+          workspace_id INTEGER NOT NULL,
+          credential_ref TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          protected_blob TEXT NOT NULL,
+          protector_version TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (workspace_id, credential_ref)
+        );
+
+        CREATE TABLE IF NOT EXISTS social_accounts (
+          workspace_id INTEGER NOT NULL,
+          account_id TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          account_ref TEXT NOT NULL,
+          external_account_id TEXT,
+          account_mode TEXT,
+          status TEXT NOT NULL CHECK (status IN ('PENDING', 'CONNECTED', 'EXPIRED', 'REAUTH_REQUIRED', 'DISCONNECTED')),
+          credential_ref TEXT,
+          scopes TEXT NOT NULL DEFAULT '[]',
+          expires_at INTEGER,
+          refreshable INTEGER NOT NULL DEFAULT 0 CHECK (refreshable IN (0, 1)),
+          nonsecret_metadata TEXT NOT NULL DEFAULT '{}',
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (workspace_id, account_id),
+          FOREIGN KEY (workspace_id, credential_ref)
+            REFERENCES social_credentials(workspace_id, credential_ref) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_social_credentials_workspace_provider
+          ON social_credentials(workspace_id, provider);
+        CREATE INDEX IF NOT EXISTS idx_social_accounts_workspace_provider_status
+          ON social_accounts(workspace_id, provider, status);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_social_accounts_canonical_external
+          ON social_accounts(workspace_id, provider, external_account_id)
+          WHERE external_account_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_social_accounts_canonical_ref
+          ON social_accounts(workspace_id, provider, lower(account_ref))
+          WHERE external_account_id IS NULL;
+      `)
+    }
+  },
+  {
+    id: '062_social_oauth_onboarding',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS social_oauth_apps (
+          workspace_id INTEGER NOT NULL,
+          provider TEXT NOT NULL CHECK (provider IN ('instagram', 'tiktok', 'linkedin', 'x', 'reddit')),
+          client_id TEXT NOT NULL,
+          protected_client_secret TEXT,
+          protector_version TEXT,
+          redirect_uri TEXT NOT NULL,
+          scopes TEXT NOT NULL DEFAULT '[]',
+          options TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'configured' CHECK (status IN ('configured', 'disabled')),
+          configured_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (workspace_id, provider)
+        );
+
+        CREATE TABLE IF NOT EXISTS social_oauth_sessions (
+          workspace_id INTEGER NOT NULL,
+          session_id TEXT NOT NULL,
+          provider TEXT NOT NULL CHECK (provider IN ('instagram', 'tiktok', 'linkedin', 'x', 'reddit')),
+          state_hash TEXT NOT NULL,
+          protected_code_verifier TEXT,
+          protector_version TEXT,
+          requested_scopes TEXT NOT NULL,
+          redirect_uri TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          consumed_at INTEGER,
+          initiated_by TEXT NOT NULL,
+          account_mode TEXT,
+          PRIMARY KEY (workspace_id, session_id),
+          UNIQUE (workspace_id, provider, state_hash)
+        );
+        CREATE INDEX IF NOT EXISTS idx_social_oauth_sessions_expiry
+          ON social_oauth_sessions(expires_at, consumed_at);
+      `)
+    }
+  },
+  {
+    id: '063_project_login_vault',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project_login_credentials (
+          workspace_id INTEGER NOT NULL,
+          login_id TEXT NOT NULL,
+          project_id INTEGER NOT NULL,
+          service TEXT NOT NULL,
+          login_url TEXT,
+          username TEXT NOT NULL,
+          protected_password TEXT NOT NULL,
+          protector_version TEXT NOT NULL,
+          notes TEXT,
+          created_by TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          last_revealed_at INTEGER,
+          PRIMARY KEY (workspace_id, login_id),
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_project_login_credentials_workspace_project
+          ON project_login_credentials(workspace_id, project_id);
+        CREATE INDEX IF NOT EXISTS idx_project_login_credentials_project
+          ON project_login_credentials(project_id);
+      `)
+    }
+  },
+  {
+    id: '064_project_login_method',
+    up: (db) => {
+      const columns = db.prepare('PRAGMA table_info(project_login_credentials)').all() as Array<{ name: string }>
+      const names = new Set(columns.map((column) => column.name))
+      if (!names.has('login_method')) {
+        db.exec("ALTER TABLE project_login_credentials ADD COLUMN login_method TEXT NOT NULL DEFAULT 'password'")
+      }
+      if (!names.has('password_saved')) {
+        db.exec('ALTER TABLE project_login_credentials ADD COLUMN password_saved INTEGER NOT NULL DEFAULT 1')
+      }
+    }
   }
 ]
 

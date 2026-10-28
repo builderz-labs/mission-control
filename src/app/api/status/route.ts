@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import net from 'node:net'
 import os from 'node:os'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, statSync, statfsSync } from 'node:fs'
 import path from 'node:path'
 import { runCommand, runOpenClaw, runClawdbot } from '@/lib/command'
 import { config } from '@/lib/config'
@@ -111,7 +111,7 @@ async function getMemorySnapshot() {
     } catch {
       // Fall back to os.freemem()
     }
-  } else {
+  } else if (process.platform !== 'win32') {
     try {
       const { stdout } = await runCommand('free', ['-b'], { timeoutMs: 3000 })
       const memLine = stdout.split('\n').find((line) => line.startsWith('Mem:'))
@@ -131,6 +131,25 @@ async function getMemorySnapshot() {
   const usagePercent = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 100) : 0
 
   return {
+    totalBytes,
+    availableBytes,
+    usedBytes,
+    usagePercent,
+  }
+}
+
+
+function getDiskSnapshot() {
+  const root = path.parse(process.cwd()).root || '/'
+  const stats = statfsSync(root)
+  const blockSize = Number(stats.bsize)
+  const totalBytes = blockSize * Number(stats.blocks)
+  const availableBytes = blockSize * Number(stats.bavail)
+  const usedBytes = Math.max(0, totalBytes - availableBytes)
+  const usagePercent = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 100) : 0
+
+  return {
+    root,
     totalBytes,
     availableBytes,
     usedBytes,
@@ -263,27 +282,8 @@ async function getSystemStatus(workspaceId: number, includeGlobalRuntime: boolea
     processes: []
   }
 
-  try {
-    // System uptime (cross-platform)
-    if (process.platform === 'darwin') {
-      const { stdout } = await runCommand('sysctl', ['-n', 'kern.boottime'], {
-        timeoutMs: 3000
-      })
-      // Output format: { sec = 1234567890, usec = 0 } ...
-      const match = stdout.match(/sec\s*=\s*(\d+)/)
-      if (match) {
-        status.uptime = Date.now() - parseInt(match[1]) * 1000
-      }
-    } else {
-      const { stdout } = await runCommand('uptime', ['-s'], {
-        timeoutMs: 3000
-      })
-      const bootTime = new Date(stdout.trim())
-      status.uptime = Date.now() - bootTime.getTime()
-    }
-  } catch (error) {
-    logger.error({ err: error }, 'Error getting uptime')
-  }
+  // Node exposes OS uptime on Windows, macOS, and Linux without shell commands.
+  status.uptime = Math.max(0, Math.round(os.uptime() * 1000))
 
   try {
     // Memory info (cross-platform)
@@ -298,45 +298,41 @@ async function getSystemStatus(workspaceId: number, includeGlobalRuntime: boolea
   }
 
   try {
-    // Disk info
-    const { stdout: diskOutput } = await runCommand('df', ['-h', '/'], {
-      timeoutMs: 3000
-    })
-    const lastLine = diskOutput.trim().split('\n').pop() || ''
-    const diskParts = lastLine.split(/\s+/)
-    if (diskParts.length >= 4) {
-      status.disk = {
-        total: diskParts[1],
-        used: diskParts[2],
-        available: diskParts[3],
-        usage: diskParts[4]
-      }
+    const disk = getDiskSnapshot()
+    status.disk = {
+      total: disk.totalBytes,
+      used: disk.usedBytes,
+      available: disk.availableBytes,
+      usage: disk.usagePercent,
+      root: disk.root,
     }
   } catch (error) {
     logger.error({ err: error }, 'Error getting disk info')
   }
 
-  try {
-    // ClawdBot processes
-    const { stdout: processOutput } = await runCommand(
-      'ps',
-      ['-A', '-o', 'pid,comm,args'],
-      { timeoutMs: 3000 }
-    )
-    const processes = processOutput.split('\n')
-      .filter(line => line.trim())
-      .filter(line => !line.trim().toLowerCase().startsWith('pid '))
-      .map(line => {
-        const parts = line.trim().split(/\s+/)
-        return {
-          pid: parts[0],
-          command: parts.slice(2).join(' ')
-        }
-      })
-      .filter((proc) => /clawdbot|openclaw/i.test(proc.command))
-    status.processes = processes
-  } catch (error) {
-    logger.error({ err: error }, 'Error getting process info')
+  if (process.platform !== 'win32') {
+    try {
+      // OpenClaw process scan for POSIX hosts. Windows local mode relies on port/runtime probes.
+      const { stdout: processOutput } = await runCommand(
+        'ps',
+        ['-A', '-o', 'pid,comm,args'],
+        { timeoutMs: 3000 }
+      )
+      const processes = processOutput.split('\n')
+        .filter(line => line.trim())
+        .filter(line => !line.trim().toLowerCase().startsWith('pid '))
+        .map(line => {
+          const parts = line.trim().split(/\s+/)
+          return {
+            pid: parts[0],
+            command: parts.slice(2).join(' ')
+          }
+        })
+        .filter((proc) => /clawdbot|openclaw/i.test(proc.command))
+      status.processes = processes
+    } catch (error) {
+      logger.error({ err: error }, 'Error getting process info')
+    }
   }
 
   if (includeGlobalRuntime) {
@@ -391,24 +387,29 @@ async function getGatewayStatus() {
     connections: 0
   }
 
-  try {
-    const { stdout } = await runCommand('ps', ['-A', '-o', 'pid,comm,args'], {
-      timeoutMs: 3000
-    })
-    const match = stdout
-      .split('\n')
-      .find((line) => /clawdbot-gateway|openclaw-gateway|openclaw.*gateway/i.test(line))
-    if (match) {
-      const parts = match.trim().split(/\s+/)
-      gatewayStatus.running = true
-      gatewayStatus.pid = parts[0]
+  if (process.platform !== 'win32') {
+    try {
+      const { stdout } = await runCommand('ps', ['-A', '-o', 'pid,comm,args'], {
+        timeoutMs: 3000
+      })
+      const match = stdout
+        .split('\n')
+        .find((line) => /clawdbot-gateway|openclaw-gateway|openclaw.*gateway/i.test(line))
+      if (match) {
+        const parts = match.trim().split(/\s+/)
+        gatewayStatus.running = true
+        gatewayStatus.pid = parts[0]
+      }
+    } catch {
+      // Gateway process not visible.
     }
-  } catch (error) {
-    // Gateway not running
   }
 
   try {
     gatewayStatus.port_listening = await isPortOpen(config.gatewayHost, config.gatewayPort)
+    if (process.platform === 'win32' && gatewayStatus.port_listening) {
+      gatewayStatus.running = true
+    }
   } catch (error) {
     logger.error({ err: error }, 'Error checking port')
   }
@@ -551,24 +552,15 @@ async function performHealthCheck() {
     })
   }
 
-  // Check disk space (cross-platform: use df -h / and parse capacity column)
+  // Check disk space without shelling out to platform-specific df/PowerShell commands.
   try {
-    const { stdout } = await runCommand('df', ['-h', '/'], {
-      timeoutMs: 3000
-    })
-    const lines = stdout.trim().split('\n')
-    const last = lines[lines.length - 1] || ''
-    const parts = last.split(/\s+/)
-    // On macOS capacity is col 4 ("85%"), on Linux use% is col 4 as well
-    const pctField = parts.find(p => p.endsWith('%')) || '0%'
-    const usagePercent = parseInt(pctField.replace('%', '') || '0')
-
+    const usagePercent = getDiskSnapshot().usagePercent
     health.checks.push({
       name: 'Disk Space',
       status: usagePercent < 90 ? 'healthy' : usagePercent < 95 ? 'warning' : 'critical',
       message: `Disk usage: ${usagePercent}%`
     })
-  } catch (error) {
+  } catch {
     health.checks.push({
       name: 'Disk Space',
       status: 'error',

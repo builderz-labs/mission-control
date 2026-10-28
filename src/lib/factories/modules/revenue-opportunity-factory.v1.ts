@@ -1,0 +1,95 @@
+import type { FactoryDefinition } from '../types'
+import {
+  HUMAN_DEMAND_DIMENSIONS,
+  MARKET_GRAVITY_DIMENSIONS,
+  FOUNDER_ADVANTAGE_DIMENSIONS,
+  AUTOMATION_LEVERAGE_DIMENSIONS,
+  PORTFOLIO_EXPLORATION_POLICY,
+} from '@/lib/revenue-opportunity/model'
+
+const stages = [
+  ['R00', 'Market Universe Scan'],
+  ['R01', 'Vertical Gravity Scan'],
+  ['R02', 'Workflow / Pain Mining'],
+  ['R03', 'Evidence Gate'],
+  ['R04', 'Economic + Human Demand Evaluation'],
+  ['R05', 'Bull / Bear Review'],
+  ['R06', 'Judge Decision'],
+  ['R07', 'Cheapest Validation Design'],
+  ['R08', 'Market Validation'],
+  ['R09', 'Build / Kill Gate'],
+  ['R10', 'Product Factory Handoff'],
+  ['R11', 'Distribution'],
+  ['R12', 'Revenue / Usage Measurement'],
+  ['R13', 'Portfolio Learning'],
+] as const
+
+export const revenueOpportunityFactoryDefinition: FactoryDefinition = {
+  contract_version: '1.0',
+  module: {
+    id: 'revenue-opportunity-factory',
+    name: 'Revenue Opportunity Factory',
+    purpose: 'Discover, falsify and validate owner-operated revenue opportunities before committing to product build.',
+    definition_version: '0.1-venture-studio',
+    state_authority: 'tower',
+    adapter_kind: 'tower-native-planned',
+  },
+  capabilities: {
+    discover_instances: false,
+    read_snapshot: false,
+    request_approval: true,
+    execute_commands: false,
+    read_metrics: true,
+    emit_experience: true,
+  },
+  stages: stages.map(([id, label], index) => ({
+    id,
+    label,
+    objective: label,
+    human_gates: id === 'R07' ? ['validation_spend_or_outreach'] : id === 'R09' ? ['build_decision'] : [],
+    next: index < stages.length - 1 ? [stages[index + 1][0]] : [],
+  })),
+  gates: [
+    {
+      id: 'validation_spend_or_outreach',
+      stage_id: 'R07',
+      decision_owner: 'human',
+      blocking: false,
+      decisions: ['approve', 'revise', 'hold'],
+      apply_command: null,
+    },
+    {
+      id: 'build_decision',
+      stage_id: 'R09',
+      decision_owner: 'human',
+      blocking: true,
+      decisions: ['kill', 'watch', 'research', 'test', 'build'],
+      apply_command: null,
+    },
+  ],
+  commands: [
+    { id: 'scan', mode: 'read_only', risk: 'low', description: 'Scan market/evidence sources without mutating external systems.', human_confirmation: 'never' },
+    { id: 'score', mode: 'read_only', risk: 'low', description: 'Evaluate evidence and opportunity dimensions without fixed learned weights.', human_confirmation: 'never' },
+    { id: 'red-team', mode: 'read_only', risk: 'low', description: 'Run Bull/Bear/Judge review on collected evidence.', human_confirmation: 'never' },
+  ],
+  cost_policy: {
+    mode: 'economical',
+    paid_api_default_hard_cap_usd_per_day: 0,
+    cheapest_validation_before_build: true,
+    external_ai_auto_run: false,
+  },
+  learning_policy: {
+    passive_logging: true,
+    deterministic_analysis: true,
+    market_gravity_dimensions: MARKET_GRAVITY_DIMENSIONS,
+    human_demand_dimensions: HUMAN_DEMAND_DIMENSIONS,
+    founder_advantage_dimensions: FOUNDER_ADVANTAGE_DIMENSIONS,
+    automation_leverage_dimensions: AUTOMATION_LEVERAGE_DIMENSIONS,
+    portfolio_exploration_policy: PORTFOLIO_EXPLORATION_POLICY,
+    score_weights_are_learned_from_real_outcomes: true,
+    facts_inferences_assumptions_are_separate: true,
+    evidence_gate_required_before_build: true,
+    build_target: 'product-factory',
+    optimizer_auto_run: false,
+  },
+}

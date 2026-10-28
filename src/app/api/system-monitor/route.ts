@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import os from 'node:os'
+import path from 'node:path'
+import { statfsSync } from 'node:fs'
 import { runCommand } from '@/lib/command'
 import { requireRole } from '@/lib/auth'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
@@ -91,7 +93,7 @@ async function getMemorySnapshot() {
       const vmAvailable = availablePages * pageSize
       if (vmAvailable > 0) availableBytes = Math.min(vmAvailable, totalBytes)
     } catch { /* fallback to os.freemem() */ }
-  } else {
+  } else if (process.platform !== 'win32') {
     try {
       const { stdout } = await runCommand('free', ['-b'], { timeoutMs: 3000 })
       const memLine = stdout.split('\n').find(l => l.startsWith('Mem:'))
@@ -121,7 +123,7 @@ async function getMemorySnapshot() {
       if (totalMatch) swapTotalBytes = parseFloat(totalMatch[1]) * 1024 * 1024
       if (usedMatch) swapUsedBytes = parseFloat(usedMatch[1]) * 1024 * 1024
     } catch { /* no swap info */ }
-  } else {
+  } else if (process.platform !== 'win32') {
     try {
       const { stdout } = await runCommand('free', ['-b'], { timeoutMs: 3000 })
       const swapLine = stdout.split('\n').find(l => l.startsWith('Swap:'))
@@ -146,6 +148,27 @@ async function getDiskSnapshot() {
     availableBytes: number
     usagePercent: number
   }> = []
+
+  if (process.platform === 'win32') {
+    try {
+      const mountpoint = path.parse(process.cwd()).root || 'C:\\'
+      const stats = statfsSync(mountpoint)
+      const blockSize = Number(stats.bsize)
+      const totalBytes = blockSize * Number(stats.blocks)
+      const availableBytes = blockSize * Number(stats.bavail)
+      const usedBytes = Math.max(0, totalBytes - availableBytes)
+      disks.push({
+        mountpoint,
+        totalBytes,
+        usedBytes,
+        availableBytes,
+        usagePercent: totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 100) : 0,
+      })
+    } catch (err) {
+      logger.error({ err }, 'Error reading Windows disk info')
+    }
+    return disks
+  }
 
   try {
     const { stdout } = await runCommand('df', ['-k'], { timeoutMs: 3000 })
@@ -334,6 +357,8 @@ async function getProcessSnapshot(): Promise<Array<{
   memPercent: number
   memBytes: number
 }>> {
+  if (process.platform === 'win32') return []
+
   const coreCount = os.cpus().length || 1
 
   function parsePsOutput(stdout: string) {

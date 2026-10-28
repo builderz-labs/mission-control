@@ -9,6 +9,7 @@ import { SignalPill, getLocalOsStatus, getProviderHealth, getMcHealth } from './
 import { OnboardingChecklistWidget } from './widgets/onboarding-checklist-widget'
 import { EmptyStateLaunchpad } from './empty-state-launchpad'
 import { WidgetGrid } from './widget-grid'
+import { ApprovalInboxWidget } from './approval-inbox-widget'
 import type { DbStats, ClaudeStats, LogLike, DashboardData } from './widget-primitives'
 
 export function Dashboard() {
@@ -254,6 +255,7 @@ export function Dashboard() {
 
   return (
     <div className="p-5 space-y-4">
+      <ApprovalInboxWidget />
       <OnboardingChecklistWidget />
       <EmptyStateLaunchpad
         agentCount={dbStats?.agents.total ?? agents.length}

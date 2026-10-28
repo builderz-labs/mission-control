@@ -1,0 +1,80 @@
+{
+  "fixture_version": "1",
+  "captured_at": "2026-10-04T02:00:00+09:00",
+  "source": "C:\\Dev\\product-factory\\projects\\sonpo-tax-drill",
+  "status": {
+    "path": "C:\\Dev\\product-factory\\projects\\sonpo-tax-drill",
+    "state": {
+      "slug": "sonpo-tax-drill",
+      "stage": "TESTFLIGHT_UPLOADED",
+      "bundle_id": "com.hidejsy.venture.sonpotaxdrill",
+      "testflight_upload_status": "UPLOADED",
+      "app_version": "1.0.0",
+      "app_build_version": "1"
+    },
+    "gates": {
+      "build": true,
+      "testflight_build": true,
+      "testflight_upload": true,
+      "app_review_submit": false
+    }
+  },
+  "quality": {
+    "slug": "sonpo-tax-drill",
+    "stage": "TESTFLIGHT_UPLOADED",
+    "testflight_upload_status": "UPLOADED",
+    "checks": [
+      { "label": "product_decision_packet", "ok": true, "detail": "" },
+      { "label": "design_brief", "ok": true, "detail": "" },
+      { "label": "screen_spec", "ok": true, "detail": "" },
+      { "label": "design_review", "ok": false, "detail": "status=PENDING_CLAUDE" },
+      { "label": "automated_preflight", "ok": true, "detail": "" },
+      { "label": "content_audit", "ok": false, "detail": "status=PARTIAL" },
+      { "label": "dependency_audit", "ok": false, "detail": "status=PASS_WITH_KNOWN_WARNINGS" },
+      { "label": "device_qa", "ok": false, "detail": "status=PENDING_TESTFLIGHT" },
+      { "label": "release_redteam", "ok": false, "detail": "status=PENDING_CLAUDE" }
+    ],
+    "pass_count": 4,
+    "total_count": 9,
+    "all_quality_checks_pass": false
+  },
+  "process_audit": {
+    "slug": "sonpo-tax-drill",
+    "version": "legacy",
+    "checks": []
+  },
+  "claude_queue": {
+    "version": 1,
+    "items": [
+      {
+        "kind": "product_redteam",
+        "status": "PENDING",
+        "rerun_command": "python factory.py plan --slug sonpo-tax-drill",
+        "last_error": "Claude unavailable"
+      },
+      {
+        "kind": "design_director",
+        "status": "PENDING",
+        "rerun_command": "python factory.py design --slug sonpo-tax-drill",
+        "last_error": "Claude unavailable"
+      },
+      {
+        "kind": "release_redteam",
+        "status": "PENDING",
+        "rerun_command": "python factory.py release-review --slug sonpo-tax-drill",
+        "last_error": "Claude unavailable"
+      }
+    ]
+  },
+  "expected_projection": {
+    "native_stage": "TESTFLIGHT_UPLOADED",
+    "process_stage_id": null,
+    "canonical_phase": "release",
+    "quality_pass_count": 4,
+    "quality_total_count": 9,
+    "contract_coverage": "partial",
+    "app_review_submit_state": "open",
+    "app_review_approval_available": false,
+    "pending_review_count": 3
+  }
+}
