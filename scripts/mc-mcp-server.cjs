@@ -35,6 +35,7 @@ function loadConfig() {
     ),
     apiKey: process.env.MC_API_KEY || profile.apiKey || '',
     cookie: process.env.MC_COOKIE || profile.cookie || '',
+    agentName: process.env.MC_AGENT_NAME || profile.agentName || '',
   };
 }
 
@@ -47,6 +48,7 @@ async function api(method, route, body) {
   const headers = { 'Accept': 'application/json' };
   if (config.apiKey) headers['x-api-key'] = config.apiKey;
   if (config.cookie) headers['Cookie'] = config.cookie;
+  if (config.agentName) headers['X-Agent-Name'] = config.agentName;
 
   let payload;
   if (body !== undefined) {
@@ -428,6 +430,98 @@ const TOOLS = [
       const body = { content };
       if (parent_id) body.parent_id = parent_id;
       return api('POST', `/api/tasks/${id}/comments`, body);
+    },
+  },
+
+  // --- Agent-to-agent messaging ---
+  {
+    name: 'mc_send_message',
+    description: 'Send a message to another agent (A2A). Starts a new thread unless thread_id is given. Use kind "request" to ask for work, "handoff" to pass work over.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: 'Recipient agent name' },
+        content: { type: 'string', description: 'Message text' },
+        subject: { type: 'string', description: 'Short subject for a new thread' },
+        kind: { type: 'string', enum: ['message', 'request', 'handoff'], description: 'Message kind (default: message)' },
+        thread_id: { type: 'string', description: 'Continue an existing thread' },
+        task_id: { type: 'number', description: 'Related task ID' },
+      },
+      required: ['to', 'content'],
+    },
+    handler: async ({ to, content, subject, kind, thread_id, task_id }) => {
+      const body = { to, content };
+      if (subject) body.subject = subject;
+      if (kind) body.kind = kind;
+      if (thread_id) body.thread_id = thread_id;
+      if (task_id) body.task_id = task_id;
+      return api('POST', '/api/a2a/messages', body);
+    },
+  },
+  {
+    name: 'mc_reply',
+    description: 'Reply to an A2A message. The reply goes to the original sender in the same thread.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message_id: { type: 'number', description: 'ID of the message being answered' },
+        content: { type: 'string', description: 'Reply text' },
+      },
+      required: ['message_id', 'content'],
+    },
+    handler: async ({ message_id, content }) =>
+      api('POST', '/api/a2a/messages', { reply_to: Number(message_id), content }),
+  },
+  {
+    name: 'mc_inbox',
+    description: 'Read your A2A inbox (messages other agents sent you), newest first. Uses MC_AGENT_NAME unless agent is given.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent: { type: 'string', description: 'Agent whose inbox to read (default: MC_AGENT_NAME)' },
+        unread_only: { type: 'boolean', description: 'Only unread messages (default: true)' },
+        mark_read: { type: 'boolean', description: 'Mark returned messages as read (default: true)' },
+        limit: { type: 'number', description: 'Max messages (default: 20)' },
+      },
+      required: [],
+    },
+    handler: async ({ agent, unread_only, mark_read, limit } = {}) => {
+      const params = new URLSearchParams();
+      if (agent) params.set('agent', agent);
+      if (unread_only !== false) params.set('unread', '1');
+      if (mark_read !== false) params.set('mark_read', '1');
+      params.set('limit', String(limit || 20));
+      return api('GET', `/api/a2a/messages?${params}`);
+    },
+  },
+  {
+    name: 'mc_read_thread',
+    description: 'Read every message in an A2A thread, oldest first',
+    inputSchema: {
+      type: 'object',
+      properties: { thread_id: { type: 'string', description: 'Thread ID (a2a:... or the bare id)' } },
+      required: ['thread_id'],
+    },
+    handler: async ({ thread_id }) =>
+      api('GET', `/api/a2a/threads/${encodeURIComponent(String(thread_id).replace(/^a2a:/, ''))}`),
+  },
+  {
+    name: 'mc_list_threads',
+    description: 'List A2A threads, most recently active first',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent: { type: 'string', description: 'Only threads this agent takes part in (default: MC_AGENT_NAME)' },
+        limit: { type: 'number', description: 'Max threads (default: 20)' },
+      },
+      required: [],
+    },
+    handler: async ({ agent, limit } = {}) => {
+      const params = new URLSearchParams();
+      const who = agent || loadConfig().agentName;
+      if (who) params.set('agent', who);
+      params.set('limit', String(limit || 20));
+      return api('GET', `/api/a2a/threads?${params}`);
     },
   },
 

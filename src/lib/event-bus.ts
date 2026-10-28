@@ -28,6 +28,7 @@ export type EventType =
   | 'task.status_changed'
   | 'chat.message'
   | 'chat.message.deleted'
+  | 'a2a.message'
   | 'notification.created'
   | 'notification.read'
   | 'activity.created'
