@@ -238,6 +238,19 @@ export const createCommentSchema = z.object({
   parent_id: z.number().optional(),
 })
 
+export const createHandoffSchema = z.object({
+  task_id: z.number().int().positive().optional(),
+  from_agent: z.string().min(1, 'from_agent is required'),
+  to_agent: z.string().min(1).optional(),
+  task_summary: z.string().min(1, 'task_summary is required').max(4000),
+  decisions_made: z.array(z.string()).max(50).optional(),
+  key_context: z.string().max(8000).optional(),
+  next_steps: z.array(z.string()).max(50).optional(),
+  open_questions: z.array(z.string()).max(50).optional(),
+  refs: z.array(z.string()).max(50).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
 export const createMessageSchema = z.object({
   to: z.string().min(1, 'Recipient is required'),
   message: z.string().min(1, 'Message is required'),

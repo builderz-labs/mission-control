@@ -1550,6 +1550,38 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE agents ADD COLUMN claude_base_session_created_at TEXT DEFAULT NULL`)
       }
     }
+  },
+  {
+    // Handoff briefs: structured context object written by one agent/runtime
+    // when it hands a task to another (e.g. Hermes on a phone -> Claude Code
+    // on a desktop, or back). Consumed at session start via the MCP
+    // mc_get_handoff tool / SessionStart hook, not just displayed in chat.
+    id: '056_handoff_briefs',
+    up(db: Database.Database) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS handoff_briefs (
+          id TEXT PRIMARY KEY,
+          task_id INTEGER,
+          from_agent TEXT NOT NULL,
+          to_agent TEXT,
+          task_summary TEXT NOT NULL,
+          decisions_made TEXT DEFAULT '[]',
+          key_context TEXT,
+          next_steps TEXT DEFAULT '[]',
+          open_questions TEXT DEFAULT '[]',
+          refs TEXT DEFAULT '[]',
+          consumed_at INTEGER,
+          consumed_by TEXT,
+          workspace_id INTEGER DEFAULT 1,
+          metadata TEXT DEFAULT '{}',
+          created_at INTEGER DEFAULT (unixepoch())
+        )
+      `)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_handoff_briefs_to_agent ON handoff_briefs(to_agent)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_handoff_briefs_task_id ON handoff_briefs(task_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_handoff_briefs_workspace ON handoff_briefs(workspace_id)`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_handoff_briefs_created_at ON handoff_briefs(created_at)`)
+    }
   }
 ]
 

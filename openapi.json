@@ -45,6 +45,10 @@
       "description": "Gateway and local runtime session management"
     },
     {
+      "name": "Handoffs",
+      "description": "Structured context-handoff briefs passed between agents/runtimes at a session boundary"
+    },
+    {
       "name": "Webhooks",
       "description": "Webhook configuration and delivery"
     },
@@ -6898,6 +6902,105 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/handoffs": {
+      "get": {
+        "tags": ["Handoffs"],
+        "summary": "List handoff briefs, or get the latest unconsumed brief for an agent",
+        "operationId": "listHandoffs",
+        "parameters": [
+          { "name": "to_agent", "in": "query", "schema": { "type": "string" }, "description": "Agent the brief is addressed to. Without all=true, returns only the latest unconsumed brief." },
+          { "name": "from_agent", "in": "query", "schema": { "type": "string" } },
+          { "name": "task_id", "in": "query", "schema": { "type": "integer" } },
+          { "name": "all", "in": "query", "schema": { "type": "boolean" }, "description": "List all matching briefs instead of just the latest for to_agent" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Handoff brief(s)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "brief": { "type": "object", "nullable": true },
+                    "briefs": { "type": "array", "items": { "type": "object" } },
+                    "total": { "type": "integer" },
+                    "page": { "type": "integer" },
+                    "limit": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Handoffs"],
+        "summary": "Create a handoff brief when handing a task to another agent/runtime",
+        "operationId": "createHandoff",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["from_agent", "task_summary"],
+                "properties": {
+                  "task_id": { "type": "integer" },
+                  "from_agent": { "type": "string" },
+                  "to_agent": { "type": "string" },
+                  "task_summary": { "type": "string" },
+                  "decisions_made": { "type": "array", "items": { "type": "string" } },
+                  "key_context": { "type": "string" },
+                  "next_steps": { "type": "array", "items": { "type": "string" } },
+                  "open_questions": { "type": "array", "items": { "type": "string" } },
+                  "refs": { "type": "array", "items": { "type": "string" } },
+                  "metadata": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Handoff brief created",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "brief": { "type": "object" } } }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/handoffs/{id}/consume": {
+      "post": {
+        "tags": ["Handoffs"],
+        "summary": "Mark a handoff brief as consumed",
+        "operationId": "consumeHandoff",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Handoff brief marked consumed",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "brief": { "type": "object" } } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     },
