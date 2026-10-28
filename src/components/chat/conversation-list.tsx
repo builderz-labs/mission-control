@@ -411,7 +411,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
 
     // Extract working directory leaf name for compact display
     const workDirLeaf = session?.workingDir
-      ? session.workingDir.split('/').filter(Boolean).pop() || session.workingDir
+      ? session.workingDir.split(/[\\/]/).filter(Boolean).pop() || session.workingDir
       : null
 
     // Derive last prompt preview

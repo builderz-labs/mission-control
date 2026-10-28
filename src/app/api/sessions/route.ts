@@ -27,7 +27,9 @@ export async function GET(request: NextRequest) {
     const mappedGatewaySessions = mapGatewaySessions(gatewaySessions)
 
     // Always include local sessions alongside gateway sessions
-    await syncClaudeSessions()
+    // Serve the last DB snapshot while the scanner refreshes in the background.
+    // syncClaudeSessions coalesces concurrent refreshes and catches scan failures.
+    void syncClaudeSessions()
     const claudeSessions = getLocalClaudeSessions()
     const codexSessions = getLocalCodexSessions()
     const hermesSessions = getLocalHermesSessions()
@@ -258,13 +260,13 @@ function getLocalCodexSessions() {
       const total = s.totalTokens || (s.inputTokens + s.outputTokens)
       const lastMsg = s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0
       const firstMsg = s.firstMessageAt ? new Date(s.firstMessageAt).getTime() : 0
-      const effectiveLastActivity = s.isActive ? Date.now() : lastMsg
+      const effectiveLastActivity = lastMsg
       return {
         id: s.sessionId,
-        key: s.projectSlug || s.sessionId,
+        key: s.title || s.projectSlug || s.sessionId,
         agent: s.projectSlug || 'codex-local',
         kind: 'codex-cli',
-        age: s.isActive ? 'now' : formatAge(lastMsg),
+        age: formatAge(lastMsg),
         model: s.model || 'codex',
         tokens: `${formatTokens(s.inputTokens || 0)}/${formatTokens(s.outputTokens || 0)}`,
         channel: 'local',
@@ -277,7 +279,8 @@ function getLocalCodexSessions() {
         assistantMessages: s.assistantMessages || 0,
         toolUses: 0,
         estimatedCost: 0,
-        lastUserPrompt: null,
+        lastUserPrompt: s.lastUserPrompt,
+        activityState: s.turnState === 'idle' ? 'idle' : s.isActive ? s.turnState === 'running' ? 'running' : 'recent' : 'unknown',
         totalTokens: total,
         workingDir: s.projectPath || null,
       }
@@ -296,13 +299,13 @@ function getLocalHermesSessions() {
       const total = s.inputTokens + s.outputTokens
       const lastMsg = s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0
       const firstMsg = s.firstMessageAt ? new Date(s.firstMessageAt).getTime() : 0
-      const effectiveLastActivity = s.isActive ? Date.now() : lastMsg
+      const effectiveLastActivity = lastMsg
       return {
         id: s.sessionId,
         key: s.title || s.sessionId,
         agent: 'hermes',
         kind: 'hermes',
-        age: s.isActive ? 'now' : formatAge(lastMsg),
+        age: formatAge(lastMsg),
         model: s.model || 'hermes',
         tokens: `${formatTokens(s.inputTokens)}/${formatTokens(s.outputTokens)}`,
         channel: s.source || 'cli',
@@ -334,7 +337,7 @@ function getLocalOpenCodeSessions() {
       const effectiveLastActivity = s.isActive && s.lastMessageAt ? Date.now() : (s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0)
       return {
         id: s.sessionId,
-        key: s.projectSlug || s.sessionId,
+        key: s.title || s.projectSlug || s.sessionId,
         agent: s.projectSlug || 'opencode',
         kind: 'opencode',
         age: s.isActive && s.lastMessageAt ? 'now' : formatAge(s.lastMessageAt ? new Date(s.lastMessageAt).getTime() : 0),

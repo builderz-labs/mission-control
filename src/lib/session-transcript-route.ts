@@ -178,6 +178,30 @@ function listRecentFiles(root: string, ext: string, limit: number): string[] {
   return files.slice(0, Math.max(1, limit)).map((f) => f.path)
 }
 
+/** Resolve standard filenames first; inspect small headers only for legacy names. */
+function sessionFiles(root: string, sessionId: string): string[] {
+  const files = listRecentFiles(root, '.jsonl', Number.MAX_SAFE_INTEGER)
+  const matches = files.filter((file) => {
+    const name = path.basename(file, '.jsonl')
+    return name === sessionId || name.endsWith(`-${sessionId}`)
+  })
+  if (matches.length > 0) return matches
+  return files.filter((file) => {
+    let fd: number | undefined
+    try {
+      fd = fs.openSync(file, 'r')
+      const buffer = Buffer.alloc(64 * 1024)
+      const bytes = fs.readSync(fd, buffer, 0, buffer.length, 0)
+      return buffer.subarray(0, bytes).toString('utf8').split('\n').some((line) => {
+        try {
+          const entry = JSON.parse(line)
+          return entry?.sessionId === sessionId || (entry?.type === 'session_meta' && entry?.payload?.id === sessionId)
+        } catch { return false }
+      })
+    } catch { return false } finally { if (fd !== undefined) fs.closeSync(fd) }
+  })
+}
+
 function pushMessage(
   list: TranscriptMessage[],
   role: TranscriptMessage['role'],
@@ -196,7 +220,7 @@ function textPart(content: string | null, limit = 8000): MessageContentPart | nu
 
 function readClaudeTranscript(sessionId: string, limit: number): TranscriptMessage[] {
   const root = path.join(config.claudeHome, 'projects')
-  const files = listRecentFiles(root, '.jsonl', 300)
+  const files = sessionFiles(root, sessionId)
   const out: TranscriptMessage[] = []
 
   for (const file of files) {
@@ -286,7 +310,7 @@ function readClaudeTranscript(sessionId: string, limit: number): TranscriptMessa
 
 function readCodexTranscript(sessionId: string, limit: number): TranscriptMessage[] {
   const root = path.join(config.homeDir, '.codex', 'sessions')
-  const files = listRecentFiles(root, '.jsonl', 300)
+  const files = sessionFiles(root, sessionId)
   const out: TranscriptMessage[] = []
 
   for (const file of files) {
@@ -316,7 +340,8 @@ function readCodexTranscript(sessionId: string, limit: number): TranscriptMessag
       if (parsed?.type === 'response_item') {
         const payload = parsed?.payload
         if (payload?.type === 'message') {
-          const role = payload?.role === 'assistant' ? 'assistant' as const : 'user' as const
+          if (payload?.role !== 'assistant' && payload?.role !== 'user') continue
+          const role = payload.role as 'assistant' | 'user'
           const parts: MessageContentPart[] = []
           if (typeof payload?.content === 'string') {
             const part = textPart(payload.content)
@@ -468,7 +493,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const kind = searchParams.get('kind') || ''
     const sessionId = searchParams.get('id') || ''
-    const limit = Math.min(parseInt(searchParams.get('limit') || '40', 10), 200)
+    const parsedLimit = Number.parseInt(searchParams.get('limit') || '40', 10)
+    const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(parsedLimit, 200)) : 40
 
     if (!sessionId || (kind !== 'claude-code' && kind !== 'codex-cli' && kind !== 'hermes' && kind !== 'opencode')) {
       return NextResponse.json({ error: 'kind and id are required' }, { status: 400 })
@@ -489,4 +515,4 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export const __testables = { readHermesTranscriptFromDbPath, readOpenCodeTranscript }
+export const __testables = { readHermesTranscriptFromDbPath, readOpenCodeTranscript, readCodexTranscript, readClaudeTranscript }

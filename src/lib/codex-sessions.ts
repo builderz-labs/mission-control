@@ -1,9 +1,10 @@
-import { readdirSync, readFileSync, statSync } from 'fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, join } from 'path'
+import { readCodexThreadNames } from './codex-thread-names'
 import { config } from './config'
 import { logger } from './logger'
 
-const ACTIVE_THRESHOLD_MS = 90 * 60 * 1000
+const ACTIVE_THRESHOLD_MS = 15 * 60 * 1000
 const DEFAULT_FILE_SCAN_LIMIT = 120
 const FUTURE_TOLERANCE_MS = 60 * 1000
 
@@ -20,11 +21,15 @@ export interface CodexSessionStats {
   firstMessageAt: string | null
   lastMessageAt: string | null
   isActive: boolean
+  lastUserPrompt: string | null
+  title: string | null
+  turnState: 'running' | 'idle' | 'unknown'
 }
 
 interface ParsedFile {
   path: string
   mtimeMs: number
+  size: number
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -77,7 +82,7 @@ function listRecentCodexSessionFiles(limit: number): ParsedFile[] {
       }
 
       if (!stat.isFile() || !fullPath.endsWith('.jsonl')) continue
-      files.push({ path: fullPath, mtimeMs: stat.mtimeMs })
+      files.push({ path: fullPath, mtimeMs: stat.mtimeMs, size: stat.size })
     }
   }
 
@@ -114,6 +119,9 @@ function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSess
   let totalTokens = 0
   let firstMessageAt: string | null = null
   let lastMessageAt: string | null = null
+  let lastUserPrompt: string | null = null
+  let title: string | null = null
+  let turnState: CodexSessionStats['turnState'] = 'unknown'
 
   for (const line of lines) {
     let parsed: unknown
@@ -150,16 +158,38 @@ function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSess
       continue
     }
 
+    if (entryType === 'turn_context' && payload) {
+      model = asString(payload.model) || model
+    }
+
     if (entryType === 'response_item' && payload) {
       const payloadType = asString(payload.type)
       const role = asString(payload.role)
-      if (payloadType === 'message' && role === 'user') userMessages++
+      if (payloadType === 'message' && role === 'user') {
+        userMessages++
+        const blocks = Array.isArray(payload.content) ? payload.content : []
+        const text = typeof payload.content === 'string' ? payload.content : blocks
+          .map((block) => asString(asObject(block)?.text) || '').join('\n')
+        if (text.trim()) {
+          lastUserPrompt = text.trim().slice(0, 500)
+          title ||= text.trim().replace(/\s+/g, ' ').slice(0, 100)
+        }
+      }
       if (payloadType === 'message' && role === 'assistant') assistantMessages++
       continue
     }
 
     if (entryType === 'event_msg' && payload) {
       const msgType = asString(payload.type)
+      if (msgType === 'task_started') turnState = 'running'
+      if (msgType === 'task_complete' || msgType === 'turn_aborted') turnState = 'idle'
+      if (msgType === 'user_message') {
+        const prompt = asString(payload.message)
+        if (prompt) {
+          lastUserPrompt = prompt.slice(0, 500)
+          title ||= prompt.replace(/\s+/g, ' ').slice(0, 100)
+        }
+      }
       if (msgType !== 'token_count') continue
 
       const info = asObject(payload.info)
@@ -190,7 +220,7 @@ function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSess
   const mtimeMs = clampTimestamp(fileMtimeMs)
   const effectiveLastMs = Math.max(parsedLastMs, mtimeMs)
   const effectiveFirstMs = parsedFirstMs || mtimeMs
-  const isActive = effectiveLastMs > 0 && (Date.now() - effectiveLastMs) < ACTIVE_THRESHOLD_MS
+  const isActive = turnState !== 'idle' && effectiveLastMs > 0 && (Date.now() - effectiveLastMs) < ACTIVE_THRESHOLD_MS
 
   return {
     sessionId,
@@ -205,17 +235,36 @@ function parseCodexSessionFile(filePath: string, fileMtimeMs: number): CodexSess
     firstMessageAt: effectiveFirstMs ? new Date(effectiveFirstMs).toISOString() : null,
     lastMessageAt: effectiveLastMs ? new Date(effectiveLastMs).toISOString() : null,
     isActive,
+    lastUserPrompt,
+    title,
+    turnState,
   }
 }
+
+// Cache summaries, not transcript contents. Re-evaluate activity on every read.
+const parsedFileCache = new Map<string, { mtimeMs: number; size: number; stats: CodexSessionStats | null }>()
 
 export function scanCodexSessions(limit = DEFAULT_FILE_SCAN_LIMIT): CodexSessionStats[] {
   try {
     const files = listRecentCodexSessionFiles(limit)
     const sessions: CodexSessionStats[] = []
+    const names = readCodexThreadNames(config.homeDir)
+    const livePaths = new Set(files.map((file) => file.path))
+    for (const cachedPath of parsedFileCache.keys()) {
+      if (!livePaths.has(cachedPath)) parsedFileCache.delete(cachedPath)
+    }
 
     for (const file of files) {
-      const parsed = parseCodexSessionFile(file.path, file.mtimeMs)
-      if (parsed) sessions.push(parsed)
+      const cached = parsedFileCache.get(file.path)
+      const parsed = cached?.mtimeMs === file.mtimeMs && cached.size === file.size
+        ? cached.stats
+        : parseCodexSessionFile(file.path, file.mtimeMs)
+      parsedFileCache.set(file.path, { mtimeMs: file.mtimeMs, size: file.size, stats: parsed })
+      if (parsed) {
+        const lastMs = parsed.lastMessageAt ? new Date(parsed.lastMessageAt).getTime() : 0
+        sessions.push({ ...parsed, title: names.get(parsed.sessionId) || parsed.title,
+          isActive: parsed.turnState !== 'idle' && lastMs > 0 && Date.now() - lastMs < ACTIVE_THRESHOLD_MS })
+      }
     }
 
     sessions.sort((a, b) => {

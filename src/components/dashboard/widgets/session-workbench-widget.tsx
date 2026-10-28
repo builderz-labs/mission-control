@@ -34,6 +34,7 @@ export function SessionWorkbenchWidget({ data }: { data: DashboardData }) {
                 type="button"
                 onClick={() => openSession(session)}
                 className="w-full text-left flex items-center gap-3"
+                title={`${session.key || session.id} — Open conversation and work details`}
               >
                 <div className={`w-2 h-2 rounded-full shrink-0 ${session.active ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
                 <div className="flex-1 min-w-0">
@@ -41,10 +42,14 @@ export function SessionWorkbenchWidget({ data }: { data: DashboardData }) {
                   <div className="text-2xs text-muted-foreground">
                     {session.kind === 'codex-cli' ? 'Codex' : session.kind === 'claude-code' ? 'Claude' : session.kind === 'hermes' ? 'Hermes' : session.kind} · {session.model?.split('/').pop() || 'unknown'}
                   </div>
+                  {session.lastUserPrompt && <p className="text-2xs text-muted-foreground truncate mt-1">{session.lastUserPrompt}</p>}
+                  {session.workingDir && <p className="text-2xs text-muted-foreground/60 truncate" title={session.workingDir}>{session.workingDir}</p>}
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-2xs font-mono-tight text-muted-foreground">{session.tokens}</div>
-                  <div className="text-2xs text-muted-foreground">{session.age}</div>
+                  <div className="text-2xs text-muted-foreground">{session.activityState || (session.active ? 'recent' : 'idle')}</div>
+                  <div className="text-2xs text-muted-foreground">{session.age} ago</div>
+                  <div className="text-2xs text-primary">View details →</div>
                 </div>
               </button>
             </div>

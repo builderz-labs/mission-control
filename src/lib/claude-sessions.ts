@@ -12,7 +12,7 @@
  * - Activity status (active if last message < 5 minutes ago)
  */
 
-import { createReadStream, readdirSync, statSync } from 'fs'
+import { createReadStream, readdirSync, statSync } from 'node:fs'
 import { createInterface } from 'readline'
 import { join } from 'path'
 import { config } from './config'
@@ -243,6 +243,8 @@ async function parseSessionFile(filePath: string, projectSlug: string, fileMtime
 }
 
 /** Scan all Claude Code projects and discover sessions */
+const parsedFileCache = new Map<string, { mtimeMs: number; size: number; stats: SessionStats | null }>()
+
 export async function scanClaudeSessions(): Promise<SessionStats[]> {
   const claudeHome = config.claudeHome
   if (!claudeHome) return []
@@ -256,6 +258,7 @@ export async function scanClaudeSessions(): Promise<SessionStats[]> {
   }
 
   const sessions: SessionStats[] = []
+  const livePaths = new Set<string>()
 
   for (const projectSlug of projectDirs) {
     const projectDir = join(projectsDir, projectSlug)
@@ -283,11 +286,22 @@ export async function scanClaudeSessions(): Promise<SessionStats[]> {
       } catch {
         continue // file disappeared between readdir and stat
       }
-      const parsed = await parseSessionFile(filePath, projectSlug, fileStat.mtimeMs, fileStat.size)
-      if (parsed) sessions.push(parsed)
+      livePaths.add(filePath)
+      const cached = parsedFileCache.get(filePath)
+      const parsed = cached?.mtimeMs === fileStat.mtimeMs && cached.size === fileStat.size
+        ? cached.stats
+        : await parseSessionFile(filePath, projectSlug, fileStat.mtimeMs, fileStat.size)
+      parsedFileCache.set(filePath, { mtimeMs: fileStat.mtimeMs, size: fileStat.size, stats: parsed })
+      if (parsed) {
+        const lastMs = parsed.lastMessageAt ? new Date(parsed.lastMessageAt).getTime() : 0
+        sessions.push({ ...parsed, isActive: lastMs > 0 && Date.now() - lastMs < ACTIVE_THRESHOLD_MS })
+      }
     }
   }
 
+  for (const cachedPath of parsedFileCache.keys()) {
+    if (!livePaths.has(cachedPath)) parsedFileCache.delete(cachedPath)
+  }
   return sessions
 }
 
@@ -297,7 +311,15 @@ let lastSyncResult: { ok: boolean; message: string } = { ok: true, message: 'Not
 const SYNC_THROTTLE_MS = 30_000
 
 /** Scan and upsert sessions into the database (throttled to avoid repeated disk scans) */
-export async function syncClaudeSessions(force = false): Promise<{ ok: boolean; message: string }> {
+let syncInFlight: Promise<{ ok: boolean; message: string }> | null = null
+
+export function syncClaudeSessions(force = false): Promise<{ ok: boolean; message: string }> {
+  if (syncInFlight) return syncInFlight
+  syncInFlight = performClaudeSync(force).finally(() => { syncInFlight = null })
+  return syncInFlight
+}
+
+async function performClaudeSync(force: boolean): Promise<{ ok: boolean; message: string }> {
   const nowMs = Date.now()
   if (!force && lastSyncAt > 0 && (nowMs - lastSyncAt) < SYNC_THROTTLE_MS) {
     return lastSyncResult

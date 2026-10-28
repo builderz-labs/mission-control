@@ -3,11 +3,13 @@
 import { useMissionControl } from '@/store'
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { useNavigateToPanel } from '@/lib/navigation'
 import { Button } from '@/components/ui/button'
 
 export function LiveFeed() {
-  const { logs, sessions, activities, connection, dashboardMode, toggleLiveFeed } = useMissionControl()
+  const { logs, sessions, activities, connection, dashboardMode, toggleLiveFeed, setActiveConversation } = useMissionControl()
   const t = useTranslations('liveFeed')
+  const navigateToPanel = useNavigateToPanel()
   const isLocal = dashboardMode === 'local'
   const [expanded, setExpanded] = useState(false)
   const [hasCollapsed, setHasCollapsed] = useState(false)
@@ -134,11 +136,14 @@ export function LiveFeed() {
         <div className="text-2xs font-medium text-muted-foreground mb-1.5">{t('activeSessions')}</div>
         <div className="space-y-1">
           {sessions.filter(s => s.active).slice(0, 4).map(session => (
-            <div key={session.id} className="flex items-center gap-1.5 text-2xs">
+            <button key={session.id} type="button"
+              onClick={() => { setActiveConversation(`session:${session.kind}:${session.id}`); navigateToPanel('chat') }}
+              title="Open conversation and work details"
+              className="w-full text-left flex items-center gap-1.5 text-2xs hover:bg-secondary/50 rounded px-1 py-1">
               <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
               <span className="text-foreground truncate flex-1 font-mono-tight">{session.key || session.id}</span>
               <span className="text-muted-foreground">{session.model?.split('/').pop()?.slice(0, 8)}</span>
-            </div>
+            </button>
           ))}
           {sessions.filter(s => s.active).length === 0 && (
             <div className="text-2xs text-muted-foreground">{t('noActiveSessions')}</div>
