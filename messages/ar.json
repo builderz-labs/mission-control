@@ -1570,6 +1570,7 @@
     "saving": "جارٍ الحفظ...",
     "cancel": "إلغاء",
     "selectFilePrompt": "اختر ملفًا للعرض",
+    "loadFileError": "تعذر فتح الملف",
     "orSwitchView": "أو التبديل إلى عرض الصحة / المسار",
     "schemaWarnings": "تحذيرات المخطط:",
     "editPlaceholder": "تعديل محتوى الملف...",

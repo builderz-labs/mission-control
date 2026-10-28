@@ -1810,6 +1810,7 @@
     "saving": "保存中...",
     "cancel": "取消",
     "selectFilePrompt": "选择文件以查看",
+    "loadFileError": "无法打开文件",
     "orSwitchView": "或切换到健康/流程视图",
     "schemaWarnings": "模式警告：",
     "editPlaceholder": "编辑文件内容...",
