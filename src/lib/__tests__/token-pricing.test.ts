@@ -30,6 +30,14 @@ describe('token pricing', () => {
     expect(cost).toBe(18)
   })
 
+  it('treats every Ollama-served model as free, not only the catalog ones', () => {
+    // Ollama runs on the user's own hardware, so an uncatalogued local model must not
+    // fall through to the $3/$15 default and show a cloud-sized bill.
+    expect(getModelPricing('ollama/qwen3:4b-instruct-2507-q4_K_M')).toMatchObject({ inputPerMTok: 0, outputPerMTok: 0 })
+    expect(calculateTokenCost('ollama/llama3.2:3b', 1_000_000, 1_000_000)).toBe(0)
+    expect(calculateTokenCost('Ollama/Gemma4:E4B', 500_000, 500_000)).toBe(0)
+  })
+
   it('uses current Groq pricing for Llama 8B and 70B (verified 2026-06)', () => {
     expect(getModelPricing('groq/llama-3.1-8b-instant')).toMatchObject({ inputPerMTok: 0.05, outputPerMTok: 0.08 })
     expect(getModelPricing('groq/llama-3.3-70b-versatile')).toMatchObject({ inputPerMTok: 0.59, outputPerMTok: 0.79 })
