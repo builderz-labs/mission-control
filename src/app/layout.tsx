@@ -4,7 +4,7 @@ import { headers } from 'next/headers'
 import { ThemeProvider } from 'next-themes'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
-import { THEME_IDS } from '@/lib/themes'
+import { DEFAULT_THEME, LIGHT_THEME_IDS, THEME_IDS } from '@/lib/themes'
 import { ThemeBackground } from '@/components/ui/theme-background'
 import { AuthExpiredListener } from '@/components/auth-expired-listener'
 import './globals.css'
@@ -97,14 +97,14 @@ export default async function RootLayout({
   // console.log('[DEBUG csp] layout nonce from x-nonce header:', nonce ? `${nonce.slice(0, 8)}...` : '(MISSING)')
 
   return (
-    <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} className="dark" suppressHydrationWarning>
+    <html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'} suppressHydrationWarning>
       <head>
         {/* Blocking script to set 'dark' class before first paint, preventing FOUC.
-            Content is a static string literal — no user input, no XSS vector. */}
+            Content is built only from constants in @/lib/themes — no user input, no XSS vector. */}
         <script
           nonce={nonce}
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme')||'void';var light=['light','paper'];if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem('theme')||${JSON.stringify(DEFAULT_THEME)};var light=${JSON.stringify(LIGHT_THEME_IDS)};if(light.indexOf(t)===-1)document.documentElement.classList.add('dark')}catch(e){}})()`,
           }}
         />
       </head>
@@ -112,7 +112,7 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"
-            defaultTheme="void"
+            defaultTheme={DEFAULT_THEME}
             themes={THEME_IDS}
             enableSystem={false}
             disableTransitionOnChange
