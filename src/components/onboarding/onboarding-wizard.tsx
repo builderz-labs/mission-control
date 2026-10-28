@@ -223,7 +223,23 @@ export function OnboardingWizard() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [showOnboarding, skip])
 
-  if (!mounted || !showOnboarding || !state) return null
+  if (!mounted || !showOnboarding) return null
+
+  // The page is already dimmed while setup loads; always provide a visible way out.
+  if (!state) {
+    return createPortal(
+      <div className="fixed inset-0 z-140 flex items-center justify-center bg-black/60 p-4">
+        <div role="dialog" aria-modal="true" aria-label="Loading setup" className="relative w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-xl">
+          <p role="status" className="mb-4 text-sm">Loading setup…</p>
+          <Button variant="ghost" onClick={() => {
+            markOnboardingDismissedThisSession()
+            setShowOnboarding(false)
+          }}>Close for now</Button>
+        </div>
+      </div>,
+      document.body
+    )
+  }
 
   const totalSteps = STEPS.length
   const isGateway = dashboardMode === 'full' || gatewayAvailable
