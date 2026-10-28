@@ -686,6 +686,9 @@ function classifyDirectModel(task: DispatchableTask): string {
     try {
       const cfg = JSON.parse(task.agent_config)
       if (typeof cfg.dispatchModel === 'string' && cfg.dispatchModel) {
+        // Keep local routing prefixes until provider selection; the local
+        // request builder strips only the provider, preserving namespaced IDs.
+        if (/^(local|ollama|lmstudio|litellm)\//i.test(cfg.dispatchModel)) return cfg.dispatchModel
         // Strip gateway prefixes like "9router/cc/" to get bare model ID
         return cfg.dispatchModel.replace(/^.*\//, '')
       }
