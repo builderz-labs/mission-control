@@ -148,32 +148,48 @@ async function getDiskSnapshot() {
   }> = []
 
   try {
-    const { stdout } = await runCommand('df', ['-k'], { timeoutMs: 3000 })
-    const lines = stdout.trim().split('\n').slice(1) // skip header
-
-    for (const line of lines) {
-      const parts = line.trim().split(/\s+/)
-      if (parts.length < 6) continue
-
-      const mountpoint = parts[parts.length - 1]
-      // Skip virtual/system filesystems
-      if (mountpoint.startsWith('/dev') || mountpoint.startsWith('/System') ||
-          mountpoint.startsWith('/private/var/vm') || mountpoint === '/boot/efi') continue
-      // Only include real mounts
-      if (!parts[0].startsWith('/') && !parts[0].includes(':')) continue
-
-      const totalKB = parseInt(parts[1], 10)
-      const usedKB = parseInt(parts[2], 10)
-      const availableKB = parseInt(parts[3], 10)
-      if (!Number.isFinite(totalKB) || totalKB <= 0) continue
-
-      disks.push({
-        mountpoint,
-        totalBytes: totalKB * 1024,
-        usedBytes: usedKB * 1024,
-        availableBytes: availableKB * 1024,
-        usagePercent: Math.round((usedKB / totalKB) * 100),
-      })
+    if (process.platform === 'win32') {
+      const { stdout } = await runCommand('powershell', [
+        '-NoProfile', '-Command',
+        'Get-PSDrive -PSProvider FileSystem | Select-Object Name,Used,Free | ConvertTo-Json'
+      ], { timeoutMs: 5000 })
+      const drives = JSON.parse(stdout.trim())
+      const arr = Array.isArray(drives) ? drives : [drives]
+      for (const d of arr) {
+        const used = Number(d.Used ?? 0)
+        const free = Number(d.Free ?? 0)
+        const total = used + free
+        if (total <= 0) continue
+        disks.push({
+          mountpoint: `${d.Name}:`,
+          totalBytes: total,
+          usedBytes: used,
+          availableBytes: free,
+          usagePercent: Math.round((used / total) * 100),
+        })
+      }
+    } else {
+      const { stdout } = await runCommand('df', ['-k'], { timeoutMs: 3000 })
+      const lines = stdout.trim().split('\n').slice(1)
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/)
+        if (parts.length < 6) continue
+        const mountpoint = parts[parts.length - 1]
+        if (mountpoint.startsWith('/dev') || mountpoint.startsWith('/System') ||
+            mountpoint.startsWith('/private/var/vm') || mountpoint === '/boot/efi') continue
+        if (!parts[0].startsWith('/') && !parts[0].includes(':')) continue
+        const totalKB = parseInt(parts[1], 10)
+        const usedKB = parseInt(parts[2], 10)
+        const availableKB = parseInt(parts[3], 10)
+        if (!Number.isFinite(totalKB) || totalKB <= 0) continue
+        disks.push({
+          mountpoint,
+          totalBytes: totalKB * 1024,
+          usedBytes: usedKB * 1024,
+          availableBytes: availableKB * 1024,
+          usagePercent: Math.round((usedKB / totalKB) * 100),
+        })
+      }
     }
   } catch (err) {
     logger.error({ err }, 'Error reading disk info')
