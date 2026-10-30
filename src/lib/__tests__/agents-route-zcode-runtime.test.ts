@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createAgentSchema } from '@/lib/validation'
+import { canWriteZcodePermission } from '@/lib/zcode-permissions'
 
 const routeSource = readFileSync(join(process.cwd(), 'src', 'app', 'api', 'agents', 'route.ts'), 'utf8')
+const detailRouteSource = readFileSync(join(process.cwd(), 'src', 'app', 'api', 'agents', '[id]', 'route.ts'), 'utf8')
 
 describe('agent runtime_type vocabulary for zcode', () => {
   it('accepts zcode when an agent is created', () => {
@@ -28,5 +30,13 @@ describe('agent runtime_type vocabulary for zcode', () => {
     expect(block).toContain("=== 'zcode' && runtime_type !== 'zcode'")
     expect(block).toContain('rotateZcodeBaseSession(agent.id')
     expect(block.indexOf('rotateClaudeBaseSession')).toBeLessThan(block.indexOf('rotateZcodeBaseSession'))
+  })
+
+  it('guards YOLO permission writes at every agent-config entry point', () => {
+    expect(canWriteZcodePermission('operator', { dispatchMode: 'yolo' })).toBe(false)
+    expect(canWriteZcodePermission('admin', { dispatchMode: 'yolo' })).toBe(true)
+    expect(routeSource).toContain("import { canWriteZcodePermission } from '@/lib/zcode-permissions'")
+    expect(routeSource.match(/canWriteZcodePermission\(auth\.user\.role/g)).toHaveLength(2)
+    expect(detailRouteSource).toContain('canWriteZcodePermission(auth.user.role, gateway_config)')
   })
 })

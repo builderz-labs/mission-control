@@ -7,6 +7,7 @@ import { eventBus } from '@/lib/event-bus'
 import { logger } from '@/lib/logger'
 import { runOpenClaw } from '@/lib/command'
 import { config as appConfig } from '@/lib/config'
+import { canWriteZcodePermission } from '@/lib/zcode-permissions'
 
 /**
  * GET /api/agents/[id] - Get a single agent by ID or name
@@ -86,6 +87,12 @@ export async function PUT(
     // Merge gateway_config into existing config
     let newConfig = existingConfig
     if (gateway_config && typeof gateway_config === 'object') {
+      if (!canWriteZcodePermission(auth.user.role, gateway_config)) {
+        return NextResponse.json(
+          { error: 'Only admins may configure ZCode dispatchMode "yolo"' },
+          { status: 403 },
+        )
+      }
       newConfig = { ...existingConfig, ...gateway_config }
     }
 

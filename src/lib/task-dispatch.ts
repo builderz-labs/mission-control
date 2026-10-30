@@ -22,6 +22,7 @@ import { parseJsonlTranscript, readSessionJsonl, type TranscriptMessage } from '
 import { syncTaskOutbound } from './github-sync-engine'
 import { classifyModelProvider, getDispatchModelId, getModelByAlias } from './models'
 import { getMiniMaxApiKey, resolveMiniMaxEndpoint } from './minimax'
+import { resolveZcodePermissionMode } from './zcode-permissions'
 import type Database from 'better-sqlite3'
 
 const AGENT_DISPATCH_ACCEPT_TIMEOUT_MS = 60_000
@@ -1203,18 +1204,9 @@ export function zcodeReplyFromStdout(stdout: string): string | null {
 
 const ZCODE_CLI_MAX_OUTPUT_BYTES = 1_000_000
 const ZCODE_CLI_MAX_PROMPT_CHARS = 16_000
-const ZCODE_PERMISSION_MODES = new Set(['build', 'edit', 'plan', 'yolo'])
 
 function zcodePermissionMode(task: DispatchableTask): string {
-  const meta = safeParseMetadata(task.metadata)
-  const agentCfg = (() => {
-    try {
-      const parsed = JSON.parse(task.agent_config || '{}')
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, any> : {}
-    } catch { return {} as Record<string, any> }
-  })()
-  const requested = String(meta.dispatchMode ?? meta.dispatch_mode ?? agentCfg.dispatchMode ?? 'build').toLowerCase()
-  return ZCODE_PERMISSION_MODES.has(requested) ? requested : 'build'
+  return resolveZcodePermissionMode(task.agent_config)
 }
 
 function buildZcodeDispatchArgs(
@@ -1223,6 +1215,16 @@ function buildZcodeDispatchArgs(
   sandbox: CliDispatchSandboxOptions,
   session?: { resume?: string },
 ): string[] {
+  const unsupported = [
+    sandbox.allowedTools !== null ? 'dispatchAllowedTools' : null,
+    sandbox.maxBudgetUsd !== null ? 'dispatchMaxBudgetUsd' : null,
+  ].filter((value): value is string => value !== null)
+  if (unsupported.length > 0) {
+    throw new Error(
+      `ZCode CLI dispatch does not support ${unsupported.join(' or ')}; remove the setting instead of assuming it is enforced`,
+    )
+  }
+
   const soul = getAgentSoulContent(task)
   const args = ['--json', '--mode', zcodePermissionMode(task)]
   if (session?.resume) args.push('--resume', session.resume)

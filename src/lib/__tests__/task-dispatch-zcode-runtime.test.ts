@@ -70,27 +70,34 @@ describe('buildZcodeDispatchArgs', () => {
     expect(args[args.indexOf('--cwd') + 1]).toBe('/srv/work/project')
   })
 
-  it('honours an explicit permission mode and ignores unknown ones', () => {
+  it('reads permission mode from agent config and ignores task metadata', () => {
     const noSandbox = { allowedTools: null, maxBudgetUsd: null, cwd: null }
-    const planned = taskPatch({ metadata: JSON.stringify({ dispatchMode: 'plan' }) })
-    expect(zcodePermissionMode(planned)).toBe('plan')
-    expect(buildZcodeDispatchArgs(planned, 'p', noSandbox).slice(0, 3)).toEqual(['--json', '--mode', 'plan'])
+    for (const metadata of [
+      { dispatchMode: 'yolo' },
+      { dispatchMode: 'plan' },
+      { dispatch_mode: 'yolo' },
+    ]) {
+      const injected = taskPatch({ metadata: JSON.stringify(metadata) })
+      expect(zcodePermissionMode(injected)).toBe('build')
+      expect(buildZcodeDispatchArgs(injected, 'p', noSandbox).slice(0, 3)).toEqual(['--json', '--mode', 'build'])
+    }
+
+    const privileged = taskPatch({ agent_config: JSON.stringify({ dispatchMode: 'plan' }) })
+    expect(zcodePermissionMode(privileged)).toBe('plan')
+
+    const yoloFromAgentConfig = taskPatch({ agent_config: JSON.stringify({ dispatchMode: 'yolo' }) })
+    expect(zcodePermissionMode(yoloFromAgentConfig)).toBe('yolo')
 
     const bogus = taskPatch({ agent_config: JSON.stringify({ dispatchMode: 'rm-rf' }) })
     expect(zcodePermissionMode(bogus)).toBe('build')
   })
 
-  it('keeps Claude allowlist and budget flags out of ZCode argv', () => {
-    // dispatchAllowedTools / dispatchMaxBudgetUsd drive Claude flags. ZCode has
-    // neither an allowlist nor a budget cap, so they must not leak into argv.
-    const args = buildZcodeDispatchArgs(
-      taskPatch({ metadata: JSON.stringify({ dispatchAllowedTools: ['Read', 'Grep'] }) }),
+  it('refuses Claude-only allowlist and budget settings instead of silently ignoring them', () => {
+    expect(() => buildZcodeDispatchArgs(
+      taskPatch(),
       'p',
       { allowedTools: ['Read', 'Grep'], maxBudgetUsd: 5, cwd: null },
-    )
-    expect(args).not.toContain('--allowedTools')
-    expect(args).not.toContain('--max-budget-usd')
-    expect(args).not.toContain('Read')
+    )).toThrow(/does not support dispatchAllowedTools or dispatchMaxBudgetUsd/)
   })
 })
 

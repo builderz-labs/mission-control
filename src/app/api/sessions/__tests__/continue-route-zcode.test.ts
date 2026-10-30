@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   runCommand: vi.fn(
@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
     ): Promise<{ stdout: string; stderr: string; code: number }> => ({ stdout: '', stderr: '', code: 0 }),
   ),
   launch: null as null | { bin: string; prefixArgs: string[]; env: Record<string, string> },
+  zcodeLastActivityMs: null as number | null,
+  nudgeZcodeSessionState: vi.fn(() => true),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -22,12 +24,18 @@ vi.mock('@/lib/command', () => ({ runCommand: mocks.runCommand }))
 // argv injection check is tested against the shipped regex.
 vi.mock('@/lib/zcode-sessions', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/zcode-sessions')>()
-  return { ...actual, getZcodeLaunch: () => mocks.launch }
+  return {
+    ...actual,
+    getZcodeLaunch: () => mocks.launch,
+    getZcodeSessionLastActivityMs: () => mocks.zcodeLastActivityMs,
+    nudgeZcodeSessionState: mocks.nudgeZcodeSessionState,
+  }
 })
 
 import { POST } from '@/app/api/sessions/continue/route'
 
 const SESSION = 'sess_33333333-3333-4333-8333-333333333333'
+const originalHostSessionMode = process.env.MC_HOST_SESSION_MODE
 
 function post(body: unknown) {
   return POST(new Request('http://localhost/api/sessions/continue', {
@@ -41,11 +49,19 @@ describe('ZCode session continue route', () => {
   beforeEach(() => {
     mocks.runCommand.mockReset()
     mocks.runCommand.mockResolvedValue({ stdout: '', stderr: '', code: 0 })
+    mocks.nudgeZcodeSessionState.mockReset()
+    mocks.nudgeZcodeSessionState.mockReturnValue(true)
+    mocks.zcodeLastActivityMs = null
     mocks.launch = {
       bin: process.execPath,
       prefixArgs: ['C:/ZCode/resources/glm/zcode.cjs'],
       env: { ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: 'C:/ZCode/resources/config/provider/zcode-builtin.json' },
     }
+  })
+
+  afterEach(() => {
+    if (originalHostSessionMode === undefined) delete process.env.MC_HOST_SESSION_MODE
+    else process.env.MC_HOST_SESSION_MODE = originalHostSessionMode
   })
 
   it('resumes through the resolved launch entry and returns the JSON reply', async () => {
@@ -81,5 +97,28 @@ describe('ZCode session continue route', () => {
     expect(response.status).toBe(503)
     expect((await response.json()).error).toContain('ZCODE_CLI_BIN')
     expect(mocks.runCommand).not.toHaveBeenCalled()
+  })
+
+  it('refuses an active ZCode session in block-active mode', async () => {
+    process.env.MC_HOST_SESSION_MODE = 'block-active'
+    mocks.zcodeLastActivityMs = Date.now() - 1_000
+
+    const response = await post({ kind: 'zcode', id: SESSION, prompt: 'p' })
+    expect(response.status).toBe(409)
+    expect((await response.json()).error).toContain('block-active')
+    expect(mocks.runCommand).not.toHaveBeenCalled()
+  })
+
+  it('nudges ZCode session state after a successful continue', async () => {
+    process.env.MC_HOST_SESSION_MODE = 'nudge'
+    mocks.runCommand.mockResolvedValueOnce({
+      stdout: `{"sessionId":"${SESSION}","response":"continued"}`,
+      stderr: '',
+      code: 0,
+    })
+
+    const response = await post({ kind: 'zcode', id: SESSION, prompt: 'p' })
+    expect(response.status).toBe(200)
+    expect(mocks.nudgeZcodeSessionState).toHaveBeenCalledWith(SESSION)
   })
 })

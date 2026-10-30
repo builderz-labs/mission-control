@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { existsSync, utimesSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -55,6 +55,8 @@ function bundleLaunch(bundlePath: string): ZcodeLaunch | null {
 
 function installedRoots(): string[] {
   const roots: string[] = []
+  // ZCODE_HOME changes which installed executable Mission Control may launch.
+  // It is a deployment/operator-only setting, never agent- or task-controlled.
   if (process.env.ZCODE_HOME) roots.push(process.env.ZCODE_HOME)
   if (process.platform === 'win32') {
     const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
@@ -91,6 +93,8 @@ function fromPathEnv(): string | null {
  * `zcode` launcher on PATH.
  */
 export function getZcodeLaunch(): ZcodeLaunch | null {
+  // ZCODE_CLI_BIN changes the executable Mission Control launches. It is a
+  // deployment/operator-only setting and must not be accepted from tasks or agents.
   const override = (process.env.ZCODE_CLI_BIN || '').trim()
   if (override) {
     if (!existsSync(override)) return null
@@ -162,6 +166,78 @@ export function getZcodeRolloutDir(homeDir: string = config.homeDir): string {
 
 export function getZcodeRolloutFilePath(sessionId: string, homeDir: string = config.homeDir): string {
   return path.join(getZcodeRolloutDir(homeDir), `model-io-${sessionId}.jsonl`)
+}
+
+/**
+ * Return the latest activity timestamp for one ZCode session without writing
+ * ZCode's database. Used by the continue endpoint's block-active policy.
+ */
+export function getZcodeSessionLastActivityMs(
+  sessionId: string,
+  homeDir: string = config.homeDir,
+): number | null {
+  if (!isZcodeSessionId(sessionId)) return null
+  const dbPath = getZcodeDbPath(homeDir)
+  if (!existsSync(dbPath)) return null
+
+  let db: Database.Database | null = null
+  try {
+    db = new Database(dbPath, { readonly: true, fileMustExist: true })
+    db.pragma('busy_timeout = 2000')
+    if (!tableExists(db, 'session')) return null
+
+    let updatedMs = 0
+    const columns = columnNames(db, 'session')
+    if (columns.has('time_updated')) {
+      const row = db.prepare('SELECT time_updated AS updatedMs FROM session WHERE id = ?')
+        .get(sessionId) as { updatedMs?: unknown } | undefined
+      updatedMs = toCount(row?.updatedMs)
+    }
+
+    let usageMs = 0
+    if (tableExists(db, 'turn_usage')) {
+      const usageColumns = columnNames(db, 'turn_usage')
+      const activityParts = [
+        usageColumns.has('completed_at') ? 'COALESCE(completed_at, 0)' : null,
+        usageColumns.has('started_at') ? 'COALESCE(started_at, 0)' : null,
+      ].filter((part): part is string => !!part)
+      if (usageColumns.has('session_id') && activityParts.length > 0) {
+        const row = db.prepare(
+          `SELECT MAX(max(${activityParts.join(', ')})) AS updatedMs
+           FROM turn_usage WHERE session_id = ?`,
+        ).get(sessionId) as { updatedMs?: unknown } | undefined
+        usageMs = toCount(row?.updatedMs)
+      }
+    }
+
+    const lastActivityMs = Math.max(updatedMs, usageMs)
+    return lastActivityMs > 0 ? lastActivityMs : null
+  } catch (err) {
+    logger.warn({ err, dbPath, sessionId }, 'Failed to read ZCode session activity')
+    return null
+  } finally {
+    try { db?.close() } catch { /* noop */ }
+  }
+}
+
+/**
+ * `nudge` is best-effort for ZCode: touch the state DB's mtime without changing
+ * its contents, mirroring the Claude transcript mtime nudge.
+ */
+export function nudgeZcodeSessionState(
+  sessionId: string,
+  homeDir: string = config.homeDir,
+): boolean {
+  if (getZcodeSessionLastActivityMs(sessionId, homeDir) === null) return false
+  const dbPath = getZcodeDbPath(homeDir)
+  try {
+    const now = new Date()
+    utimesSync(dbPath, now, now)
+    return true
+  } catch (err) {
+    logger.warn({ err, dbPath, sessionId }, 'Failed to nudge ZCode session state')
+    return false
+  }
 }
 
 export function isZcodeSessionId(value: unknown): value is string {

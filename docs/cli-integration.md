@@ -139,16 +139,21 @@ zcode --json --mode build --resume sess_… --cwd <workdir> -p <prompt>
   OAuth (`zcode login`) — dispatch reuses the operator login, so there is no API key to store.
   If the `zcode` command is not on `PATH`, point `ZCODE_CLI_BIN` at the installed bundle
   (`zcode.cjs`); Mission Control launches bundles through `node` and supplies the built-in
-  provider config the bundle expects.
+  provider config the bundle expects. `ZCODE_CLI_BIN` and `ZCODE_HOME` are deployment/operator-only
+  settings because they choose the executable and install root; they are never read from task
+  metadata or agent config.
 - **Sessions.** ZCode mints its own session ids, so Mission Control captures the id from the first
   successful run and resumes that session for the agent thereafter. Switching the agent away from
   the ZCode runtime retires the captured session. History is read from
-  `~/.zcode/cli/rollout/model-io-sess_*.jsonl`, so ZCode sessions appear in the session list and
-  transcript viewer without any hook or gateway.
-- **Tuning.** `dispatchMode` (agent config or task metadata) selects the permission mode —
-  `build`, `edit`, `plan`, or `yolo`; `dispatchCwd` scopes the working directory. Token usage from
-  each run is written to the spend dashboard.
+  `~/.zcode/cli/db/db.sqlite` (with rollout JSONL captures as fallback), so ZCode sessions appear
+  in the session list and transcript viewer without any hook or gateway.
+- **Tuning.** `dispatchMode` in agent config selects `build` (default), `edit`, `plan`, or `yolo`.
+  Task metadata cannot set this mode. Only an admin can persist `yolo`; it is the unrestricted
+  permission mode. `dispatchCwd` scopes the working directory. Token usage from each run is written
+  to the spend dashboard.
 - **What is not claimed.** ZCode exposes a tool *deny*list rather than an allowlist, has no
   per-run budget cap flag, and has no attachable PTY, so those capability cells stay off in
   Settings → Agent Runtimes. It also ships as a desktop installer rather than a package, so
   Mission Control detects it but never installs it, and there is no Docker sidecar for it.
+  Dispatch rejects `dispatchAllowedTools` and `dispatchMaxBudgetUsd` for a ZCode agent rather than
+  silently ignoring limits ZCode cannot enforce.

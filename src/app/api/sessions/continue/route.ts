@@ -7,7 +7,12 @@ import { logger } from '@/lib/logger'
 import { denyUnscopedResourceForStrictWorkspace } from '@/lib/workspace-isolation'
 import { runCommand } from '@/lib/command'
 import { getOpenCodeExecutable } from '@/lib/opencode-sessions'
-import { getZcodeLaunch, isZcodeSessionId } from '@/lib/zcode-sessions'
+import {
+  getZcodeLaunch,
+  getZcodeSessionLastActivityMs,
+  isZcodeSessionId,
+  nudgeZcodeSessionState,
+} from '@/lib/zcode-sessions'
 import { zcodeReplyFromStdout } from '@/lib/task-dispatch'
 
 /**
@@ -101,19 +106,14 @@ async function resolveClaudeSessionCwd(sessionId: string): Promise<string | null
 type ContinueKind = 'claude-code' | 'codex-cli' | 'opencode' | 'zcode'
 
 /**
- * MC_HOST_SESSION_MODE — how MC's `claude --resume` interacts with a session
- * that may already have a live `claude` CLI on the host writing to the same
- * jsonl.
+ * MC_HOST_SESSION_MODE — how `/api/sessions/continue` interacts with a host
+ * CLI session that may still be active.
  *
- *   coexist (default) — always spawn; both processes append to the jsonl,
- *     and each picks up the other's writes on its next prompt. Possible
- *     interleaving on simultaneous writes.
- *   block-active     — refuse with 409 if the jsonl was touched in the last
- *     LIVE_WINDOW_MS seconds (heuristic: a live host CLI updates mtime
- *     frequently). Forces MC to act only on idle sessions.
- *   nudge            — spawn like coexist, but additionally `touch` the
- *     jsonl after the response so the host CLI sees a fresh mtime and is
- *     more likely to pick up the new entries on its next operation.
+ *   coexist (default) — always resume; both processes may write session state.
+ *   block-active     — refuse with 409 when Claude's transcript or ZCode's DB
+ *     shows activity in the last LIVE_WINDOW_MS.
+ *   nudge            — resume like coexist, then best-effort refresh the
+ *     Claude transcript or ZCode state DB mtime.
  */
 type HostSessionMode = 'coexist' | 'block-active' | 'nudge'
 const HOST_SESSION_LIVE_WINDOW_MS = 60 * 1000
@@ -300,11 +300,22 @@ export async function POST(request: NextRequest) {
           { status: 503 },
         )
       }
+      const hostMode = getHostSessionMode()
+      if (hostMode === 'block-active') {
+        const lastActivityMs = getZcodeSessionLastActivityMs(sessionId)
+        if (lastActivityMs !== null && (Date.now() - lastActivityMs) < HOST_SESSION_LIVE_WINDOW_MS) {
+          return NextResponse.json(
+            { error: 'Session has a live host CLI; refusing to resume (mode=block-active). Wait for it to go idle.' },
+            { status: 409 },
+          )
+        }
+      }
       const result = await runCommand(
         launch.bin,
         [...launch.prefixArgs, '--json', '--resume', sessionId, '-p', prompt],
         { timeoutMs: 180000, env: { ...process.env, ...launch.env, CI: '1' } },
       )
+      if (hostMode === 'nudge') nudgeZcodeSessionState(sessionId)
       reply = zcodeReplyFromStdout(result.stdout || '') || (result.stderr || '').trim()
     }
 

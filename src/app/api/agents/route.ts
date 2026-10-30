@@ -13,6 +13,7 @@ import { validateBody, createAgentSchema } from '@/lib/validation';
 import { runOpenClaw } from '@/lib/command';
 import { config as appConfig } from '@/lib/config';
 import { resolveWithin } from '@/lib/paths';
+import { canWriteZcodePermission } from '@/lib/zcode-permissions';
 import path from 'node:path';
 
 /**
@@ -214,6 +215,13 @@ export async function POST(request: NextRequest) {
       finalConfig = { ...finalConfig, ...(gateway_config as Record<string, any>) };
     }
 
+    if (!canWriteZcodePermission(auth.user.role, finalConfig)) {
+      return NextResponse.json(
+        { error: 'Only admins may configure ZCode dispatchMode "yolo"' },
+        { status: 403 },
+      );
+    }
+
     if (!name || !finalRole) {
       return NextResponse.json({ error: 'Name and role are required' }, { status: 400 });
     }
@@ -390,6 +398,12 @@ export async function PUT(request: NextRequest) {
     if (body.name) {
       // Single agent update
       const { name, status, last_activity, config, session_key, soul_content, role, runtime_type } = body;
+      if (config !== undefined && !canWriteZcodePermission(auth.user.role, config)) {
+        return NextResponse.json(
+          { error: 'Only admins may configure ZCode dispatchMode "yolo"' },
+          { status: 403 },
+        );
+      }
       
       const agent = db
         .prepare('SELECT * FROM agents WHERE name = ? AND workspace_id = ?')

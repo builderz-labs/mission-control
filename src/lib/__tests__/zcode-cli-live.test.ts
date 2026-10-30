@@ -26,8 +26,8 @@ function task(): Record<string, unknown> {
     workspace_id: 1,
     agent_name: 'zcode-e2e',
     agent_id: 900001,
-    agent_config: null,
-    metadata: JSON.stringify({ dispatchMode: 'plan' }),
+    agent_config: JSON.stringify({ dispatchMode: 'plan' }),
+    metadata: null,
   }
 }
 

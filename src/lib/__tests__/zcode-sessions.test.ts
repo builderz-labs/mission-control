@@ -1,9 +1,15 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { getZcodeDbPath, isZcodeSessionId, scanZcodeSessions } from '@/lib/zcode-sessions'
+import {
+  getZcodeDbPath,
+  getZcodeSessionLastActivityMs,
+  isZcodeSessionId,
+  nudgeZcodeSessionState,
+  scanZcodeSessions,
+} from '@/lib/zcode-sessions'
 import { createZcodeSessionDb, type FixtureSession } from './fixtures/zcode-session-db'
 
 const ACTIVE = 'sess_11111111-1111-4111-8111-111111111111'
@@ -87,6 +93,24 @@ describe('scanZcodeSessions', () => {
     const byId = new Map(scanZcodeSessions(50).map((s) => [s.sessionId, s.isActive]))
     expect(byId.get(ACTIVE)).toBe(true)
     expect(byId.get(STALE)).toBe(false)
+  })
+
+  it('reads one session activity timestamp without changing the database', () => {
+    const before = statSync(dbPath).mtimeMs
+    const lastActivityMs = getZcodeSessionLastActivityMs(ACTIVE)
+    expect(lastActivityMs).not.toBeNull()
+    expect(Math.abs((lastActivityMs ?? 0) - (Date.now() - 45_000))).toBeLessThan(5_000)
+    expect(statSync(dbPath).mtimeMs).toBe(before)
+  })
+
+  it('nudges only known session state and changes mtime, not database content', () => {
+    const old = new Date('2026-01-01T00:00:00.000Z')
+    utimesSync(dbPath, old, old)
+    expect(nudgeZcodeSessionState('sess_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')).toBe(false)
+    expect(statSync(dbPath).mtimeMs).toBe(old.getTime())
+
+    expect(nudgeZcodeSessionState(ACTIVE)).toBe(true)
+    expect(statSync(dbPath).mtimeMs).toBeGreaterThan(old.getTime())
   })
 
   it('resolves the database under the ZCode state dir and honors the override', () => {
