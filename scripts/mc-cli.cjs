@@ -12,6 +12,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { normalizeMissionControlBaseUrl } = require('./mc-base-url.cjs');
+const {
+  autoLoginUrl,
+  isLoopbackBaseUrl,
+  normalizeTokenPath,
+  openInBrowser,
+  resolveAutoLoginDataDir,
+  writeAutoLoginToken,
+} = require('./lib/auto-login-token.cjs');
 
 const EXIT = {
   OK: 0,
@@ -49,7 +57,7 @@ Usage:
   mc <group> <action> [--flags]
 
 Groups:
-  auth         login/logout/whoami
+  auth         login/logout/whoami/open
   agents       list/get/create/update/delete/wake/diagnostics/heartbeat
                memory get|set|clear / soul get|set|templates / attribution
   tasks        list/get/create/update/delete/queue
@@ -79,6 +87,7 @@ Examples:
   mc tasks queue --agent Aegis --max-capacity 2
   mc tasks comments list --id 42
   mc tasks comments add --id 42 --content "Looks good"
+  mc auth open --next /chat
   mc sessions transcript --kind claude-code --id abc123
   mc tokens agent-costs --timeframe week
   mc tokens export --format csv
@@ -312,6 +321,37 @@ const commands = {
         saveProfile(ctx.profile);
       }
       return result;
+    },
+    async open(flags, ctx) {
+      const target = normalizeTokenPath(optional(flags, 'next', '/'));
+      const shouldOpen = !flags['no-open'];
+      if (!isLoopbackBaseUrl(ctx.baseUrl)) {
+        throw new Error('Auto-login can only target a loopback Mission Control URL');
+      }
+      const issued = writeAutoLoginToken({ dataDir: resolveAutoLoginDataDir() });
+      const url = autoLoginUrl(ctx.baseUrl, issued.token, target);
+      if (shouldOpen) {
+        try {
+          await openInBrowser(url);
+        } catch (error) {
+          fs.rmSync(issued.filePath, { force: true });
+          throw error;
+        }
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        method: 'GET',
+        url: `${ctx.baseUrl}/api/auth/auto-login?t=[redacted]`,
+        data: {
+          opened: shouldOpen,
+          next: target,
+          expires_at: new Date(issued.expiresAt).toISOString(),
+          token_file: issued.filePath,
+          ...(shouldOpen ? {} : { url }),
+        },
+      };
     },
     whoami: () => ({ method: 'GET', route: '/api/auth/me' }),
   },

@@ -66,6 +66,9 @@ jobs:
       - name: Verify standalone artifact boundaries
         run: pnpm artifact:check
 
+      - name: Auto-login Next.js integration
+        run: pnpm test:auto-login-next-start
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
 

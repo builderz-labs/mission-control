@@ -240,7 +240,6 @@ export function proxy(request: NextRequest) {
   loginUrl.pathname = '/login'
   return addSecurityHeaders(NextResponse.redirect(loginUrl), request)
 }
-
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|brand/).*)']
 }
