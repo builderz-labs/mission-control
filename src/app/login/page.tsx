@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
 import { apiFetch } from '@/lib/api-client'
+import { navigateWithFullReload } from '@/lib/full-page-navigation'
 import { STORAGE_GATEWAY_URL } from '@/lib/device-identity'
 
 interface GoogleCredentialResponse {
@@ -182,7 +183,7 @@ export default function LoginPage() {
     })
       .then((data) => {
         if (data.needsSetup) {
-          window.location.href = '/setup'
+          navigateWithFullReload('/setup')
         }
       })
       .catch(() => {
@@ -224,7 +225,7 @@ export default function LoginPage() {
 
     // Full reload ensures the session cookie is sent on all subsequent requests.
     // router.push() + refresh() can race and use stale RSC payloads.
-    window.location.href = '/'
+    navigateWithFullReload('/')
     return true
   }, [t])
 
@@ -349,7 +350,7 @@ export default function LoginPage() {
               {t('noAdminDescription')}
             </p>
             <Button
-              onClick={() => { window.location.href = '/setup' }}
+              onClick={() => { navigateWithFullReload('/setup') }}
               size="sm"
               className="mt-3"
             >
