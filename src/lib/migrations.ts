@@ -1550,6 +1550,17 @@ const migrations: Migration[] = [
         db.exec(`ALTER TABLE agents ADD COLUMN claude_base_session_created_at TEXT DEFAULT NULL`)
       }
     }
+  },
+  {
+    // ZCode base session. The id is minted by the ZCode CLI and captured from the
+    // first successful dispatch, so there is no "materialized" marker column.
+    id: '056_agent_zcode_base_session',
+    up: (db) => {
+      const cols = db.prepare(`PRAGMA table_info(agents)`).all() as Array<{ name: string }>
+      if (!cols.some(c => c.name === 'zcode_base_session_id')) {
+        db.exec(`ALTER TABLE agents ADD COLUMN zcode_base_session_id TEXT DEFAULT NULL`)
+      }
+    }
   }
 ]
 

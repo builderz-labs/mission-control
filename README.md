@@ -110,7 +110,7 @@ It is probably the wrong tool when:
 - you want an agent framework to define planning and tool use;
 - your deployment cannot tolerate alpha schema or API changes.
 
-Adapters and observation surfaces cover OpenClaw, Claude Code, Codex,
+Adapters and observation surfaces cover OpenClaw, Claude Code, Codex, ZCode,
 CrewAI, LangGraph, AutoGen, and Claude SDK workflows. Adapter depth varies by runtime; see
 [agent setup](docs/agent-setup.md) and [CLI integration](docs/cli-integration.md) before
 assuming feature parity.

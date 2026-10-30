@@ -934,6 +934,7 @@ function getConversationStatus(agents: Array<{ name: string; status: string }>, 
     if (conversationId.includes('codex-cli')) return 'Local Codex session'
     if (conversationId.includes('hermes')) return 'Local Hermes session'
     if (conversationId.includes('opencode')) return 'Local OpenCode session'
+    if (conversationId.includes('zcode')) return 'Local ZCode session'
     return 'Gateway session'
   }
   const name = conversationId.replace('agent_', '')

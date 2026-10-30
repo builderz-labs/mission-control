@@ -295,17 +295,18 @@ LMStudio, Ollama, vLLM, and a [liteLLM](https://github.com/BerriAI/litellm)
 proxy all work behind it. For multiple local backends behind one endpoint,
 run liteLLM as a sidecar container and point `LOCAL_LLM_ENDPOINT` at it.
 
-#### Shared host Claude Code session (`MC_HOST_SESSION_MODE`)
+#### Shared host CLI sessions (`MC_HOST_SESSION_MODE`)
 
 `/chat` can drive a Claude Code session that the operator has open in a host
 terminal — both processes share the same `~/.claude/projects/<encoded>/<id>.jsonl`
-transcript. Pick the policy via env:
+transcript. ZCode uses the same policy against the session activity stored in
+`~/.zcode/cli/db/db.sqlite`. Pick the policy via env:
 
 | Mode | Behaviour |
 |------|-----------|
-| `coexist` (default) | Both MC and the host CLI append to the jsonl. Each side picks up the other's writes on its next prompt. Possible interleaving on simultaneous writes — fine for a single operator switching between the two surfaces. |
-| `block-active` | Returns `409` from `/api/sessions/continue` if the jsonl was touched in the last 60s (heuristic: a live host CLI updates mtime frequently). Forces MC to act only on idle sessions. |
-| `nudge` | Same as `coexist` plus a best-effort `utimes()` on the jsonl after the reply, so a tail-watching host CLI sees a fresh mtime. |
+| `coexist` (default) | Both MC and the host CLI may write session state. Each side picks up the other's writes on its next operation. Possible interleaving on simultaneous writes — fine for a single operator switching between the two surfaces. |
+| `block-active` | Returns `409` from `/api/sessions/continue` if the Claude transcript or ZCode session activity was updated in the last 60s. Forces MC to act only on idle sessions. |
+| `nudge` | Same as `coexist` plus a best-effort `utimes()` on the Claude transcript or ZCode state DB after the reply. ZCode nudging changes only the DB file mtime, never its contents. |
 
 ### Production Hardening
 
@@ -357,7 +358,9 @@ See `.env.example` for the full list. Key variables:
 | `OPENAI_API_KEY` | No | - | Used when `dispatchModel` matches `gpt-*` / `o1-*` / `o3-*` / `openai/*`. |
 | `LOCAL_LLM_ENDPOINT` | No | `http://host.docker.internal:1234/v1` | OpenAI-compatible base URL (LMStudio default shown). Override for Ollama (`:11434/v1`) or a liteLLM proxy. |
 | `LOCAL_LLM_API_KEY` | No | - | Bearer token sent to `LOCAL_LLM_ENDPOINT`. Only needed for proxies that require auth (e.g. liteLLM with master key). |
-| `MC_HOST_SESSION_MODE` | No | `coexist` | Policy when MC `--resumes` a host Claude Code session that may have a live CLI attached. One of `coexist`, `block-active`, `nudge`. |
+| `ZCODE_HOME` | No | Auto-detected | **Operator/deployment-only.** ZCode install root used to find `resources/glm/zcode.cjs`; never accepted from task or agent config. |
+| `ZCODE_CLI_BIN` | No | Auto-detected | **Operator/deployment-only.** Explicit `zcode` launcher or bundle path. This selects the executable Mission Control launches; never accepted from task or agent config. |
+| `MC_HOST_SESSION_MODE` | No | `coexist` | Policy when MC resumes a host Claude Code or ZCode session that may have a live CLI attached. One of `coexist`, `block-active`, `nudge`. |
 | `NEXT_PUBLIC_CHAT_POLL_INTERVAL_MS` | No | `1500` (code) / `1000` (docker-compose) | `/chat` transcript poll cadence (ms) when the SSE channel drops. **Baked at build time**, so changing it requires `make rebuild`. |
 
 > **Sandbox runtime requirement**

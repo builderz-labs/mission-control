@@ -51,7 +51,7 @@ const endpoints: Endpoint[] = [
   // ── Sessions ──────────────────────────────────────
   { path: '/api/sessions', methods: ['GET', 'POST', 'DELETE'], description: 'List and control gateway/local runtime sessions', tag: 'Sessions', auth: 'viewer/operator' },
   { path: '/api/sessions/:id/control', methods: ['POST'], description: 'Session control (stop, message)', tag: 'Sessions', auth: 'operator' },
-  { path: '/api/sessions/continue', methods: ['POST'], description: 'Continue a local Claude/Codex/OpenCode session with a prompt', tag: 'Sessions', auth: 'operator' },
+  { path: '/api/sessions/continue', methods: ['POST'], description: 'Continue a local Claude/Codex/OpenCode/ZCode session with a prompt', tag: 'Sessions', auth: 'operator' },
   { path: '/api/sessions/transcript', methods: ['GET'], description: 'Read local Claude/Codex/Hermes/OpenCode session transcript snippets', tag: 'Sessions', auth: 'viewer' },
   { path: '/api/claude/sessions', methods: ['GET'], description: 'Claude CLI session scanner', tag: 'Sessions', auth: 'viewer' },
 

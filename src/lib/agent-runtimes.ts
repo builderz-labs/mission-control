@@ -7,6 +7,7 @@ import { runCommand, runOpenClaw } from './command'
 import { scanForInjection } from './injection-guard'
 import { isHermesInstalled, isHermesGatewayRunning, clearHermesDetectionCache } from './hermes-sessions'
 import { isOpenCodeInstalled, getOpenCodeVersion, scanOpenCodeSessions } from './opencode-sessions'
+import { isZcodeInstalled, getZcodeVersion, scanZcodeSessions, isZcodeAuthenticated } from './zcode-sessions'
 import { logger } from './logger'
 import {
   isValidInstallerSha256,
@@ -189,7 +190,7 @@ export function parseScriptReviewVerdict(text: string): ScriptReviewResult | nul
   return null
 }
 
-export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
+export type RuntimeId = 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode' | 'zcode'
 export type DeploymentMode = 'local' | 'docker'
 
 export interface RuntimeStatus {
@@ -252,6 +253,12 @@ const RUNTIME_META: Record<RuntimeId, RuntimeMeta> = {
     description: 'AI coding agent for the terminal with local SQLite-backed session storage.',
     authRequired: false,
     authHint: '',
+  },
+  zcode: {
+    name: 'ZCode',
+    description: 'Z.ai coding agent with a stdio app-server and headless JSON prompt runs.',
+    authRequired: true,
+    authHint: 'Sign in with Z.AI OAuth (`zcode login`) — dispatch reuses the operator login, no API key.',
   },
 }
 
@@ -353,6 +360,17 @@ export const RUNTIME_CAPABILITIES: Record<RuntimeId, RuntimeCapabilities> = {
     structured_output: false,
     skills_inventory: false,
     receipts: { ...NO_RECEIPTS },
+  },
+  zcode: {
+    dispatch: true, // callZcodeViaCli
+    session_resume: true, // per-agent base session, `--resume sess_...`
+    pty: false,
+    workspace_cwd: true, // --cwd
+    tool_policy: false, // upstream exposes only a tool denylist, not an allowlist
+    budget_cap: false, // no per-run budget flag in the zcode CLI
+    structured_output: true, // -p --json
+    skills_inventory: false, // `skills list --json` exists; MC has no consumer path for it yet
+    receipts: { ...NO_RECEIPTS, telemetry: true }, // usage tokens recorded per dispatch
   },
 }
 
@@ -611,12 +629,22 @@ function detectOpenCode(): RuntimeStatus {
   return { id: 'opencode', ...meta, installed, version, running, authenticated: installed }
 }
 
+function detectZcode(): RuntimeStatus {
+  const meta = RUNTIME_META.zcode
+  const installed = isZcodeInstalled()
+  const version = installed ? getZcodeVersion() : null
+  const running = installed ? scanZcodeSessions(10).some((session) => session.isActive) : false
+
+  return { id: 'zcode', ...meta, installed, version, running, authenticated: installed && isZcodeAuthenticated() }
+}
+
 const DETECTORS: Record<RuntimeId, () => RuntimeStatus> = {
   openclaw: detectOpenClaw,
   hermes: detectHermes,
   claude: detectClaude,
   codex: detectCodex,
   opencode: detectOpenCode,
+  zcode: detectZcode,
 }
 
 /**
@@ -690,6 +718,7 @@ export function startInstall(runtime: RuntimeId, mode: DeploymentMode): InstallJ
     claude: installClaudeLocal,
     codex: installCodexLocal,
     opencode: installOpenCodeLocal,
+    zcode: installZcodeLocal,
   }
   const installFn = INSTALL_FNS[runtime] || installOpenClawLocal
   installFn(job).catch((err) => {
@@ -924,6 +953,15 @@ async function installOpenCodeLocal(job: InstallJob): Promise<void> {
   job.finishedAt = Date.now()
 }
 
+/** ZCode ships as a desktop installer rather than a package-manager CLI, so MC discovers it but never fetches it. */
+async function installZcodeLocal(job: InstallJob): Promise<void> {
+  job.output += '> ZCode is distributed as a desktop installer (ZCode.exe / ZCode.dmg), not an npm or brew package.\n'
+  job.output += '> Install it from https://zcode.z.ai, then set ZCODE_CLI_BIN if the `zcode` command is not on PATH.\n'
+  job.status = 'failed'
+  job.error = 'manual install required — ZCode has no package-manager channel'
+  job.finishedAt = Date.now()
+}
+
 export function getInstallJob(id: string): InstallJob | null {
   return installJobs.get(id) ?? null
 }
@@ -959,6 +997,12 @@ export function generateDockerSidecar(runtime: RuntimeId): string {
     return `# OpenCode does not provide an official sidecar template yet.
 # Install it locally with Homebrew or your preferred package manager,
 # then let Mission Control discover sessions from ~/.local/share/opencode.`
+  }
+
+  if (runtime === 'zcode') {
+    return `# ZCode has no container image — it is a desktop app that authenticates through Z.AI OAuth.
+# Run Mission Control on the same host as the ZCode install, or set ZCODE_CLI_BIN to a local
+# bundle path (e.g. <install>/resources/glm/zcode.cjs); sessions are read from ~/.zcode/cli/rollout.`
   }
 
   return `  # Hermes Agent sidecar

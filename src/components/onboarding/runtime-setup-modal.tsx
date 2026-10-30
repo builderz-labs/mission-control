@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { apiFetch, ApiError } from '@/lib/api-client'
 
 interface RuntimeSetupModalProps {
-  runtime: 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode'
+  runtime: 'openclaw' | 'hermes' | 'claude' | 'codex' | 'opencode' | 'zcode'
   onClose: () => void
   onComplete: () => void
 }
@@ -17,6 +17,7 @@ export function RuntimeSetupModal({ runtime, onClose, onComplete }: RuntimeSetup
     claude: ClaudeSetup,
     codex: CodexSetup,
     opencode: OpenCodeSetup,
+    zcode: ZcodeSetup,
   }[runtime]
 
   return (
@@ -1251,6 +1252,139 @@ function CodexSetup({ onClose, onComplete }: { onClose: () => void; onComplete: 
             <p className="text-sm font-medium text-green-400">Codex CLI is ready</p>
             <p className="text-xs text-muted-foreground">Authenticated and available for agent tasks.</p>
             {version && <p className="text-2xs text-muted-foreground/60">v{version}</p>}
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={onComplete}>Done</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** check → auth → done flow over one entry of GET /api/agent-runtimes. */
+function useRuntimeAuthProbe(runtimeId: string) {
+  const [step, setStep] = useState<'check' | 'auth' | 'done'>('check')
+  const [checking, setChecking] = useState(false)
+  const [version, setVersion] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const checkAuth = useCallback(async () => {
+    setChecking(true)
+    setError(null)
+    try {
+      const data = await apiFetch<{ runtimes?: Array<{ id: string; version: string; authenticated?: boolean }> }>('/api/agent-runtimes')
+      const runtime = (data.runtimes || []).find((r) => r.id === runtimeId)
+      if (runtime) {
+        setVersion(runtime.version)
+        setStep(runtime.authenticated ? 'done' : 'auth')
+      }
+    } catch (err) {
+      // A non-ok probe leaves state untouched (as before); only genuine
+      // network failures surface an error.
+      if (!(err instanceof ApiError)) {
+        setError(err instanceof Error ? err.message : 'Check failed')
+      }
+    } finally {
+      setChecking(false)
+    }
+  }, [runtimeId])
+
+  useEffect(() => { checkAuth() }, [checkAuth])
+
+  return { step, setStep, checking, version, error, checkAuth }
+}
+
+function SetupStepRail({ step, labels }: { step: 'check' | 'auth' | 'done'; labels: [string, string, string] }) {
+  const order = ['check', 'auth', 'done'] as const
+  const currentIdx = order.indexOf(step)
+  return (
+    <div className="flex items-center gap-2 mb-6">
+      {order.map((s, i) => (
+        <div key={s} className="flex items-center gap-2">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+            step === s ? 'bg-primary text-primary-foreground' :
+            currentIdx > i ? 'bg-green-500/20 text-green-400' :
+            'bg-secondary text-muted-foreground'
+          }`}>
+            {currentIdx > i ? (
+              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 8.5l3.5 3.5 6.5-8" /></svg>
+            ) : i + 1}
+          </div>
+          <span className={`text-[10px] ${step === s ? 'text-foreground' : 'text-muted-foreground/40'}`}>{labels[i]}</span>
+          {i < 2 && <div className={`w-4 h-px ${currentIdx > i ? 'bg-green-500/40' : 'bg-border/20'}`} />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ZcodeSetup({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
+  const { step, setStep, checking, version, error, checkAuth } = useRuntimeAuthProbe('zcode')
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold">Set Up ZCode</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Authenticate the Z.ai coding agent</p>
+        </div>
+        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <svg className="w-5 h-5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      </div>
+
+      <SetupStepRail step={step} labels={['Check', 'Authenticate', 'Ready']} />
+
+      {step === 'check' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-border/30 bg-secondary/20">
+            <p className="text-sm font-medium">Checking authentication status...</p>
+            <p className="text-xs text-muted-foreground mt-1">Verifying ZCode credentials.</p>
+          </div>
+          {checking && <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="w-3 h-3 rounded-full border-2 border-primary/20 border-t-primary animate-spin" /> Checking...</div>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
+        </div>
+      )}
+
+      {step === 'auth' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-3">
+            <p className="text-sm font-medium text-amber-400">Authentication Required</p>
+            <p className="text-xs text-muted-foreground">
+              ZCode {version ? `(v${version})` : ''} is installed but no Z.AI sign-in was found.
+            </p>
+            <div className="p-3 rounded bg-black/20 border border-border/20">
+              <p className="text-xs text-muted-foreground mb-1.5">Run this command in your terminal:</p>
+              <code className="block font-mono text-sm text-foreground select-all">zcode login</code>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Mission Control reuses that login — there is no API key to store here. If the
+              <code className="text-[11px] bg-black/20 px-1 rounded">zcode</code> command is not on PATH,
+              point <code className="text-[11px] bg-black/20 px-1 rounded">ZCODE_CLI_BIN</code> at the installed bundle.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>Skip</Button>
+            <Button size="sm" onClick={checkAuth} disabled={checking}>
+              {checking ? 'Checking...' : 'I\'ve logged in — verify'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'done' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5 text-center space-y-2">
+            <div className="text-2xl">+</div>
+            <p className="text-sm font-medium text-green-400">ZCode is ready</p>
+            <p className="text-xs text-muted-foreground">Authenticated and available for agent tasks.</p>
+            {version && <p className="text-2xs text-muted-foreground/60">v{version}</p>}
+          </div>
+          <div className="p-4 rounded-lg border border-border/30 bg-secondary/20 text-sm text-muted-foreground space-y-2">
+            <p>Mission Control runs ZCode headlessly with <code>zcode --json -p</code> and reads session history from <code>~/.zcode/cli/rollout</code>.</p>
+            <p>Set an agent&apos;s runtime to <code>ZCode</code> to dispatch tasks through its own resumed session.</p>
           </div>
           <div className="flex justify-end">
             <Button size="sm" onClick={onComplete}>Done</Button>

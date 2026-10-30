@@ -10,7 +10,7 @@ import { SessionKindAvatar, SessionKindPill } from './session-kind-brand'
 
 const log = createClientLogger('ConversationList')
 
-type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'zcode' | 'gateway'
 
 type SessionRecord = {
   id: string
@@ -272,7 +272,7 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
           const updatedAt = lastActivityMs > 1_000_000_000_000
             ? Math.floor(lastActivityMs / 1000)
             : lastActivityMs
-          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes' || s.kind === 'opencode'
+          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes' || s.kind === 'opencode' || s.kind === 'zcode'
             ? s.kind
             : 'gateway'
           const kindLabel = sessionKind === 'codex-cli'
@@ -281,7 +281,9 @@ export function ConversationList({ onNewConversation }: ConversationListProps) {
               ? 'Claude'
               : sessionKind === 'hermes'
                 ? 'Hermes'
-                : sessionKind === 'opencode'
+                : sessionKind === 'zcode'
+                  ? 'ZCode'
+                  : sessionKind === 'opencode'
                   ? 'OpenCode'
                 : 'Gateway'
           const prefKey = `${sessionKind}:${s.id}`

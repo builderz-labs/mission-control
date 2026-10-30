@@ -22,8 +22,13 @@ export function runCommand(
   options: CommandOptions = {}
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
-    const spawnCommand = path.extname(command).toLowerCase() === '.mjs' ? process.execPath : command
-    const spawnArgs = spawnCommand === process.execPath ? [command, ...args] : args
+    // Prepend node only when the command itself is a .mjs script. Matching on
+    // spawnCommand === process.execPath instead re-wrapped any command that happens
+    // to be a node binary (e.g. the ZCode bundle launch), so node was handed its own
+    // executable as the entry script and died parsing "MZ".
+    const isNodeScript = path.extname(command).toLowerCase() === '.mjs'
+    const spawnCommand = isNodeScript ? process.execPath : command
+    const spawnArgs = isNodeScript ? [command, ...args] : args
     const child = spawn(spawnCommand, spawnArgs, {
       cwd: options.cwd,
       env: options.env,

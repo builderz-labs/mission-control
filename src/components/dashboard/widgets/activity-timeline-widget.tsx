@@ -16,6 +16,7 @@ function getSourceLabel(source: string): string {
   if (source.includes('claude')) return 'Claude'
   if (source.includes('codex')) return 'Codex'
   if (source.includes('hermes')) return 'Hermes'
+  if (source.includes('zcode')) return 'ZCode'
   if (source.includes('gateway')) return 'Gateway'
   if (source.includes('mc') || source.includes('mission')) return 'MC'
   return source.length > 10 ? source.slice(0, 10) : source

@@ -9,6 +9,12 @@ vi.mock('@/lib/hermes-sessions', () => ({
   isHermesGatewayRunning: vi.fn(() => false),
 }))
 vi.mock('@/lib/opencode-sessions', () => ({ scanOpenCodeSessions: vi.fn(() => []) }))
+vi.mock('@/lib/zcode-sessions', () => ({
+  isZcodeInstalled: vi.fn(() => false),
+  getZcodeVersion: vi.fn(() => null),
+  scanZcodeSessions: vi.fn(() => []),
+  isZcodeAuthenticated: vi.fn(() => false),
+}))
 vi.mock('@/lib/config', () => ({
   config: { dataDir: '/tmp/mc-test', homeDir: '/tmp/mc-test', workspaceRoot: '/tmp/mc-test' },
   ensureDirExists: vi.fn(),
@@ -21,7 +27,7 @@ import {
   type RuntimeId,
 } from '@/lib/agent-runtimes'
 
-const RUNTIME_IDS: RuntimeId[] = ['openclaw', 'hermes', 'claude', 'codex', 'opencode']
+const RUNTIME_IDS: RuntimeId[] = ['openclaw', 'hermes', 'claude', 'codex', 'opencode', 'zcode']
 const CAPABILITY_KEYS: Array<keyof Omit<RuntimeCapabilities, 'receipts'>> = [
   'dispatch', 'session_resume', 'pty', 'workspace_cwd',
   'tool_policy', 'budget_cap', 'structured_output', 'skills_inventory',
@@ -60,6 +66,21 @@ describe('runtime capability manifests (#900)', () => {
     // from #777 actually consumes it.
     expect(getRuntimeCapabilities('hermes').skills_inventory).toBe(false)
     expect(getRuntimeCapabilities('hermes').dispatch).toBe(false)
+  })
+
+  it('zcode claims only what its headless JSON contract backs', () => {
+    const zcode = getRuntimeCapabilities('zcode')
+    expect(zcode.dispatch).toBe(true)
+    expect(zcode.session_resume).toBe(true)
+    expect(zcode.workspace_cwd).toBe(true)
+    expect(zcode.structured_output).toBe(true)
+    expect(zcode.receipts.telemetry).toBe(true)
+    // The CLI offers a tool denylist and no budget cap, and it is a desktop app with
+    // no container image — so these stay false until upstream changes.
+    expect(zcode.tool_policy).toBe(false)
+    expect(zcode.budget_cap).toBe(false)
+    expect(zcode.pty).toBe(false)
+    expect(zcode.skills_inventory).toBe(false)
   })
 
   it('read-only scanners never claim dispatch depth', () => {
