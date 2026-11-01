@@ -143,8 +143,10 @@ async function reviewScriptWithAI(script: string, sourceUrl: string): Promise<Sc
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1024,
+        // Sonnet 5.5 thinks by default; this keeps the 1024 tokens for the one-line verdict
+        thinking: { type: 'between_tools' },
         messages: [{
           role: 'user',
           content: `You are a security auditor. Analyze this shell script downloaded from ${sourceUrl} for malicious behavior.
