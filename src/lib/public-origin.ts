@@ -2,21 +2,14 @@
  * Resolve the browser-visible origin of a request.
  *
  * Forwarded headers are untrusted input by default. They are considered only
- * when MC_TRUSTED_PROXY_HEADERS=1 and MC_TRUSTED_PROXY_IPS is set. The
- * transport adapter must also expose the actual peer IP (NextRequest.ip).
+ * when MC_TRUSTED_PROXY_HEADERS=1 and the request carries the configured
+ * proxy secret. Next.js does not expose a reliable transport peer IP here,
+ * so X-Forwarded-For is never used to establish trust.
  * Operators should configure their proxy to overwrite, rather than append to,
  * the forwarding headers at the network boundary.
  */
 
 export type PublicOrigin = { protocol: 'http:' | 'https:'; host: string; origin: string }
-
-function envList(...names: string[]): string[] {
-  for (const name of names) {
-    const value = String(process.env[name] || '').trim()
-    if (value) return value.split(',').map((item) => item.trim()).filter(Boolean)
-  }
-  return []
-}
 
 function normalizeHost(value: unknown): string {
   return String(value || '').trim().replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase()
@@ -28,33 +21,11 @@ function validHeader(value: unknown): value is string {
   return typeof value === 'string' && value.length <= MAX_HEADER_LENGTH && !/[\u0000-\u001f\u007f]/.test(value)
 }
 
-function matchesTrusted(value: string, trusted: string[]): boolean {
-  const normalized = normalizeHost(value)
-  return Boolean(normalized && trusted.some((candidate) => {
-    const pattern = normalizeHost(candidate)
-    if (!pattern) return false
-    if (pattern.endsWith('.*')) return normalized.startsWith(pattern.slice(0, -1))
-    return normalized === pattern
-  }))
-}
-
 function trustedForwardedRequest(request: Request): boolean {
   if (String(process.env.MC_TRUSTED_PROXY_HEADERS || '').trim().toLowerCase() !== '1') return false
-  const trusted = envList('MC_TRUSTED_PROXY_IPS', 'MC_PROXY_TRUSTED_IPS')
   const secret = String(process.env.MC_PROXY_HEADER_SECRET || '')
   const suppliedSecret = request.headers?.get?.('x-mission-control-proxy-secret') || ''
-  const secretTrusted = Boolean(secret && constantTimeEqual(suppliedSecret, secret))
-  if (!trusted.length && !secretTrusted) return false
-  // NextRequest may expose the actual peer address. When available, require
-  // it to be trusted; this prevents a direct client from forging the XFF chain.
-  const peerIp = (request as Request & { ip?: string }).ip?.trim()
-  if (!secretTrusted && (!peerIp || !matchesTrusted(peerIp, trusted))) return false
-  const xff = request.headers.get('x-forwarded-for') || ''
-  if (!validHeader(xff)) return false
-  const hops = xff.split(',').map((item) => item.trim()).filter(Boolean)
-  // The nearest proxy is the right-most XFF hop. A configured proxy must be
-  // present there before any forwarded origin data is used.
-  return secretTrusted || (hops.length > 0 && matchesTrusted(hops[hops.length - 1], trusted))
+  return Boolean(secret && constantTimeEqual(suppliedSecret, secret))
 }
 
 function constantTimeEqual(a: string, b: string): boolean {
@@ -64,10 +35,6 @@ function constantTimeEqual(a: string, b: string): boolean {
   const length = Math.max(left.length, right.length)
   for (let i = 0; i < length; i++) diff |= (left[i % (left.length || 1)] || 0) ^ (right[i % (right.length || 1)] || 0)
   return diff === 0
-}
-
-function firstForwardedValue(value: string | null): string {
-  return String(value || '').split(',')[0]?.trim() || ''
 }
 
 function nearestForwardedValue(value: string | null): string {
@@ -137,16 +104,17 @@ export function isRequestSecureWithTrust(request: Request): boolean {
 }
 
 export function publicOriginHostCandidates(request: Request): string[] {
-  const result = new Set<string>()
-  const direct = parseOrigin(request?.url)
   // The configured public URL is deliberately not an observed host. Otherwise
   // a direct request for evil.example would pass an allowlist for mc.example.
-  if (direct) result.add(normalizeHost(direct.host))
   if (trustedForwardedRequest(request)) {
     const forwarded = normalizeHost(forwardedHost(request))
-    if (forwarded) result.add(forwarded)
+    // Once a proxy has authenticated its headers, its public host is the only
+    // observed host. Mixing in Host or nextUrl would let a client-controlled
+    // direct host satisfy the allowlist instead.
+    return forwarded ? [forwarded] : []
   }
-  return [...result].filter(Boolean)
+  const direct = parseOrigin(request?.url)
+  return direct ? [normalizeHost(direct.host)].filter(Boolean) : []
 }
 
 export function isTrustedForwardedRequest(request: Request): boolean {

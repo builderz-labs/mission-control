@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { buildMissionControlCsp, buildNonceRequestHeaders } from '@/lib/csp'
 import { MC_SESSION_COOKIE_NAME, LEGACY_MC_SESSION_COOKIE_NAME } from '@/lib/session-cookie'
-import { publicOriginHostCandidates } from '@/lib/public-origin'
+import { isTrustedForwardedRequest, publicOriginHostCandidates } from '@/lib/public-origin'
 
 /** Constant-time string comparison using Node.js crypto. */
 function safeCompare(a: string, b: string): boolean {
@@ -34,8 +34,14 @@ function normalizeHostname(raw: string): string {
 }
 
 function getRequestHostCandidates(request: NextRequest): string[] {
-  // Forwarded values enter this list only after public-origin has verified an
-  // explicitly trusted proxy chain. Direct Host remains a valid candidate.
+  // An authenticated proxy supplies the only public host we may trust. Do not
+  // mix it with Host or nextUrl: those values can still be client controlled.
+  if (isTrustedForwardedRequest(request)) {
+    return publicOriginHostCandidates(request)
+      .map(normalizeHostname)
+      .filter(Boolean)
+  }
+
   const rawCandidates = [
     ...publicOriginHostCandidates(request),
     request.headers.get('host') || '',

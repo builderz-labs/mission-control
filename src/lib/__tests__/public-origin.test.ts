@@ -43,15 +43,15 @@ describe('public origin and proxy trust', () => {
     expect(publicOriginHostCandidates(request)).toEqual(['mc.example.test'])
   })
 
-  it('accepts standardized and X-Forwarded values only for a trusted nearest proxy', () => {
+  it('accepts standardized and X-Forwarded values only with the proxy secret', () => {
     process.env.MC_TRUSTED_PROXY_HEADERS = '1'
-    process.env.MC_TRUSTED_PROXY_IPS = '10.0.0.2'
-    const request = Object.assign(new Request('http://internal:3000', {
+    process.env.MC_PROXY_HEADER_SECRET = 'correct-secret'
+    const request = new Request('http://internal:3000', {
       headers: {
-        'x-forwarded-for': '203.0.113.8, 10.0.0.2',
+        'x-mission-control-proxy-secret': 'correct-secret',
         forwarded: 'for=203.0.113.8;proto=https;host=control.example.test',
       },
-    }), { ip: '10.0.0.2' })
+    })
     expect(isTrustedForwardedRequest(request)).toBe(true)
     expect(resolvePublicOrigin(request).origin).toBe('https://control.example.test')
   })
@@ -71,49 +71,64 @@ describe('public origin and proxy trust', () => {
 
   it('supports forwarded port for non-default public endpoints', () => {
     process.env.MC_TRUSTED_PROXY_HEADERS = '1'
-    process.env.MC_TRUSTED_PROXY_IPS = '127.0.0.1'
-    const request = Object.assign(new Request('http://127.0.0.1:3000', {
+    process.env.MC_PROXY_HEADER_SECRET = 'correct-secret'
+    const request = new Request('http://127.0.0.1:3000', {
       headers: {
-        'x-forwarded-for': '127.0.0.1',
+        'x-mission-control-proxy-secret': 'correct-secret',
         'x-forwarded-host': 'control.example.test',
         'x-forwarded-proto': 'https',
         'x-forwarded-port': '8443',
       },
-    }), { ip: '127.0.0.1' })
+    })
     expect(resolvePublicOrigin(request).origin).toBe('https://control.example.test:8443')
   })
 
   it('uses the nearest Forwarded element in a proxy chain', () => {
     process.env.MC_TRUSTED_PROXY_HEADERS = '1'
-    process.env.MC_TRUSTED_PROXY_IPS = '10.0.0.2'
-    const request = Object.assign(new Request('http://internal:3000', {
+    process.env.MC_PROXY_HEADER_SECRET = 'correct-secret'
+    const request = new Request('http://internal:3000', {
       headers: {
-        'x-forwarded-for': '203.0.113.8, 10.0.0.2',
-        forwarded: 'for=203.0.113.8;proto=http;host=spoof.example.test, for=10.0.0.2;proto=https;host=control.example.test',
+        'x-mission-control-proxy-secret': 'correct-secret',
+        forwarded: 'for=203.0.113.8;proto=http;host=spoof.example.test, for=proxy;proto=https;host=control.example.test',
       },
-    }), { ip: '10.0.0.2' })
+    })
     expect(resolvePublicOrigin(request).origin).toBe('https://control.example.test')
   })
 
   it('preserves IPv6 origins', () => {
     process.env.MC_TRUSTED_PROXY_HEADERS = '1'
-    process.env.MC_TRUSTED_PROXY_IPS = '::1'
-    const request = Object.assign(new Request('http://[::1]:3000', {
+    process.env.MC_PROXY_HEADER_SECRET = 'correct-secret'
+    const request = new Request('http://[::1]:3000', {
       headers: {
-        'x-forwarded-for': '::1',
+        'x-mission-control-proxy-secret': 'correct-secret',
         'x-forwarded-host': '[2001:db8::10]',
         'x-forwarded-proto': 'https',
       },
-    }), { ip: '::1' })
+    })
     expect(resolvePublicOrigin(request).origin).toBe('https://[2001:db8::10]')
   })
 
-  it('rejects a trusted IP forged only in X-Forwarded-For without peer info', () => {
+  it('rejects forwarded headers authenticated only by X-Forwarded-For', () => {
     process.env.MC_TRUSTED_PROXY_HEADERS = '1'
     process.env.MC_TRUSTED_PROXY_IPS = '10.0.0.2'
     const request = new Request('http://internal:3000', {
       headers: { 'x-forwarded-for': '10.0.0.2', 'x-forwarded-host': 'evil.test', 'x-forwarded-proto': 'https' },
     })
+    expect(isTrustedForwardedRequest(request)).toBe(false)
+    expect(resolvePublicOrigin(request).origin).toBe('http://internal:3000')
+  })
+
+  it('does not trust forwarded headers based only on configured proxy IPs', () => {
+    process.env.MC_TRUSTED_PROXY_HEADERS = '1'
+    process.env.MC_TRUSTED_PROXY_IPS = '10.*'
+    const request = Object.assign(new Request('http://internal:3000', {
+      headers: {
+        'x-forwarded-for': '203.0.113.8, 10.0.0.2',
+        'x-forwarded-host': 'control.test',
+        'x-forwarded-proto': 'https',
+      },
+    }), { ip: '10.0.0.2' })
+
     expect(isTrustedForwardedRequest(request)).toBe(false)
     expect(resolvePublicOrigin(request).origin).toBe('http://internal:3000')
   })
@@ -126,6 +141,21 @@ describe('public origin and proxy trust', () => {
     })
     expect(resolvePublicOrigin(request).origin).toBe('https://control.test')
     expect(publicOriginHostCandidates(request)).toContain('control.test')
+  })
+
+  it('uses only the authenticated forwarded host as a host candidate', () => {
+    process.env.MC_TRUSTED_PROXY_HEADERS = '1'
+    process.env.MC_PROXY_HEADER_SECRET = 'correct-secret'
+    const request = new Request('http://internal:3000', {
+      headers: {
+        host: 'evil.test',
+        'x-mission-control-proxy-secret': 'correct-secret',
+        'x-forwarded-host': 'control.test',
+        'x-forwarded-proto': 'https',
+      },
+    })
+
+    expect(publicOriginHostCandidates(request)).toEqual(['control.test'])
   })
 
   it('rejects missing or incorrect proxy secrets', () => {
