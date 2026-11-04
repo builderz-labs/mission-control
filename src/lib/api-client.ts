@@ -24,6 +24,8 @@
  *   window.addEventListener('mc:auth-expired', () => showToast('Session expired'))
  */
 
+import { navigateWithFullReload } from '@/lib/full-page-navigation'
+
 export type ApiErrorCode =
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN'
@@ -53,7 +55,7 @@ function redirectToLogin(): void {
   const from = window.location.pathname + window.location.search
   // Avoid redirect loops if user is already on /login
   if (window.location.pathname === '/login') return
-  window.location.href = `/login?from=${encodeURIComponent(from)}`
+  navigateWithFullReload(`/login?from=${encodeURIComponent(from)}`)
 }
 
 function emitAuthExpired(detail: { path: string; status: number }): void {

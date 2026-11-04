@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcherSelect } from '@/components/ui/language-switcher'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { navigateWithFullReload } from '@/lib/full-page-navigation'
 import { fetchSetupStatusWithRetry } from '@/lib/setup-status'
 
 type SetupStep = 'form' | 'creating'
@@ -90,7 +91,7 @@ export default function SetupPage() {
       })
 
       if (!data.needsSetup) {
-        window.location.href = '/login'
+        navigateWithFullReload('/login')
         return
       }
 
@@ -170,7 +171,7 @@ export default function SetupPage() {
       updateProgress(3, 'done')
 
       await new Promise((r) => setTimeout(r, 500))
-      window.location.href = '/'
+      navigateWithFullReload('/')
     } catch (error) {
       updateProgress(1, 'error')
       const payload = error instanceof ApiError ? error.payload : null

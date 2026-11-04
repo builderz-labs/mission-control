@@ -158,6 +158,7 @@ function dedupeTokenRecords(records: TokenUsageRecord[]): TokenUsageRecord[] {
     //   - operation: the token_usage table has no operation column, so the DB
     //     loader hardcodes 'heartbeat' while the JSON record keeps the real
     //     value (e.g. 'chat_completion'). Excluded entirely.
+    //   - duration: likewise has no token_usage column, so the DB copy never has it.
     // Without these adjustments every posted record was double-counted.
     const key = [
       record.sessionId,
@@ -168,7 +169,6 @@ function dedupeTokenRecords(records: TokenUsageRecord[]): TokenUsageRecord[] {
       record.totalTokens,
       record.taskId ?? '',
       record.workspaceId ?? 1,
-      record.duration ?? '',
     ].join('|')
     if (seen.has(key)) continue
     seen.add(key)
@@ -656,7 +656,9 @@ export async function POST(request: NextRequest) {
     // JSON write remains the canonical record.
     try {
       const db = getDatabase()
-      const createdAtSec = Math.floor(Date.now() / 1000)
+      // Derive from record.timestamp (not a fresh Date.now()) so the file and DB
+      // copies of one event always land in the same dedupe second bucket.
+      const createdAtSec = Math.floor(record.timestamp / 1000)
       db.prepare(`
         INSERT INTO token_usage (model, session_id, input_tokens, output_tokens, created_at, workspace_id, task_id, cost_usd, agent_name)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

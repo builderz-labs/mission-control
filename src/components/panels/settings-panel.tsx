@@ -13,6 +13,7 @@ import { clearOnboardingDismissedThisSession, clearOnboardingReplayFromStart } f
 import { resolveCoordinatorDeliveryTarget, type CoordinatorAgentRecord } from '@/lib/coordinator-routing'
 import type { GatewaySession } from '@/lib/sessions'
 import { apiFetch, ApiError } from '@/lib/api-client'
+import { navigateWithFullReload } from '@/lib/full-page-navigation'
 
 interface Setting {
   key: string
@@ -197,7 +198,7 @@ export function SettingsPanel() {
         redirectOnUnauthenticated: false,
       })
       if (res.status === 401) {
-        window.location.assign('/login?next=%2Fsettings')
+        navigateWithFullReload('/login?next=%2Fsettings')
         return
       }
       if (res.status === 403) {

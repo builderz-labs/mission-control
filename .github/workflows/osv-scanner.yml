@@ -13,15 +13,64 @@ concurrency:
 permissions:
   contents: read
 
+# Inlined from google/osv-scanner-action's osv-scanner-reusable-pr.yml (v2.3.8)
+# without its "Export results" step. That step copies both full scan results
+# into job outputs, which exceeds GitHub's 1 MB job-output limit for this
+# lockfile and failed every PR run. Behaviour is otherwise unchanged: scan the
+# base branch and the PR, and fail only on vulnerabilities the PR introduces.
 jobs:
-  scan:
+  osv-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       actions: read
       contents: read
       security-events: write
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
-    with:
-      scan-args: |-
-        --lockfile=./pnpm-lock.yaml
-      upload-sarif: true
-      fail-on-vuln: true
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout target branch
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.merge_group.base_ref }}
+        run: git checkout "${BASE_REF#refs/heads/}"
+      - name: Run scanner on existing code
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=old-results.json
+            --lockfile=./pnpm-lock.yaml
+      - name: Checkout current branch
+        run: git checkout -f "$GITHUB_SHA"
+      - name: Run scanner on new code
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=new-results.json
+            --lockfile=./pnpm-lock.yaml
+      - name: Run osv-scanner-reporter
+        uses: google/osv-scanner-action/osv-reporter-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --old=old-results.json
+            --new=new-results.json
+            --gh-annotations=true
+            --fail-on-vuln=true
+      - name: Upload SARIF artifact
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: OSV Scanner SARIF file
+          path: results.sarif
+          retention-days: 5
+      - name: Upload to code-scanning
+        if: ${{ !cancelled() }}
+        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.31.10
+        with:
+          sarif_file: results.sarif
