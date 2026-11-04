@@ -217,4 +217,52 @@ describe('proxy host matching', () => {
     const response = proxy(request)
     expect(response.status).not.toBe(403)
   })
+
+  it('allows IPv6 loopback in production', async () => {
+    vi.resetModules()
+    vi.doMock('node:os', () => ({
+      default: { hostname: () => 'local-box' },
+      hostname: () => 'local-box',
+    }))
+
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({ host: '[::1]:3000' }),
+      nextUrl: { host: '[::1]:3000', hostname: '::1', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    delete process.env.MC_ALLOWED_HOSTS
+    delete process.env.MC_ALLOW_ANY_HOST
+
+    const response = proxy(request)
+    expect(response.status).not.toBe(403)
+  })
+
+  it('does not let the direct host bypass an authenticated forwarded host', async () => {
+    vi.resetModules()
+    const { proxy } = await import('./proxy')
+    const request = {
+      headers: new Headers({
+        host: 'control.example.test',
+        'x-mission-control-proxy-secret': 'correct-secret',
+        'x-forwarded-host': 'evil.example.test',
+        'x-forwarded-proto': 'https',
+      }),
+      nextUrl: { host: 'control.example.test', hostname: 'control.example.test', pathname: '/login', clone: () => ({ pathname: '/login' }) },
+      method: 'GET',
+      cookies: { get: () => undefined },
+    } as any
+
+    setNodeEnv('production')
+    process.env.MC_ALLOWED_HOSTS = 'control.example.test'
+    process.env.MC_TRUSTED_PROXY_HEADERS = '1'
+    process.env.MC_PROXY_HEADER_SECRET = 'correct-secret'
+    delete process.env.MC_ALLOW_ANY_HOST
+
+    const response = proxy(request)
+    expect(response.status).toBe(403)
+  })
 })
