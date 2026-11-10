@@ -78,6 +78,7 @@ describe('token pricing', () => {
     expect(getProviderFromModel('openai/gpt-4.1')).toBe('openai')
     expect(getProviderFromModel('anthropic/claude-sonnet-4-5')).toBe('anthropic')
     expect(getProviderFromModel('venice/llama-3.3-70b')).toBe('venice')
+    expect(getProviderFromModel('uberllm/meta-llama/llama-3.3-70b-instruct')).toBe('uberllm')
     expect(getProviderFromModel('gateway::codex-mini')).toBe('openai')
   })
 })

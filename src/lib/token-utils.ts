@@ -1,5 +1,6 @@
 export function detectProvider(model: string): string {
   const lower = model.toLowerCase()
+  if (lower.startsWith('uberllm/')) return 'UberLLM'
   if (lower.includes('claude') || lower.includes('anthropic')) return 'Anthropic'
   if (lower.includes('gpt') || lower.includes('o1') || lower.includes('o3') || lower.includes('o4') || lower.includes('openai')) return 'OpenAI'
   if (lower.includes('gemini') || lower.includes('google')) return 'Google'
