@@ -74,9 +74,10 @@ export const MODEL_CATALOG: ModelConfig[] = [
     thinking: ['always_on'],
   },
   // Other providers — Moonshot list price via https://openrouter.ai/moonshotai/kimi-k2.5;
-  // Venice https://docs.venice.ai/overview/pricing.
+  // Venice https://docs.venice.ai/overview/pricing; UberLLM https://uberllm.dev/models (verified 2026-11-10).
   { alias: 'kimi', name: 'moonshot/kimi-k2.5', provider: 'moonshot', description: 'Alternative provider', costPerMTok: { input: 0.6, output: 3.0 } },
   { alias: 'venice-llama-3.3-70b', name: 'venice/llama-3.3-70b', provider: 'venice', description: 'Venice AI Llama 3.3 70B', costPerMTok: { input: 0.7, output: 2.8 } },
+  { alias: 'uberllm-llama-3.3-70b', name: 'uberllm/meta-llama/llama-3.3-70b-instruct', provider: 'uberllm', description: 'UberLLM Llama 3.3 70B', costPerMTok: { input: 0.077, output: 0.0781 } },
 ]
 
 export function getModelByAlias(alias: string): ModelConfig | undefined {

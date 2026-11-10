@@ -48,6 +48,7 @@ const INTEGRATIONS: IntegrationDef[] = [
   { id: 'openai', name: 'OpenAI', category: 'ai', envVars: ['OPENAI_API_KEY'], vaultItem: 'openclaw-openai-api-key', testable: true },
   { id: 'openrouter', name: 'OpenRouter', category: 'ai', envVars: ['OPENROUTER_API_KEY'], vaultItem: 'openclaw-openrouter-api-key', testable: true },
   { id: 'venice', name: 'Venice AI', category: 'ai', envVars: ['VENICE_API_KEY'], vaultItem: 'openclaw-venice-api-key', testable: true },
+  { id: 'uberllm', name: 'UberLLM', category: 'ai', envVars: ['UBERLLM_API_KEY'], vaultItem: 'openclaw-uberllm-api-key', testable: true },
   { id: 'nvidia', name: 'NVIDIA', category: 'ai', envVars: ['NVIDIA_API_KEY'], vaultItem: 'openclaw-nvidia-api-key' },
   { id: 'moonshot', name: 'Moonshot / Kimi', category: 'ai', envVars: ['MOONSHOT_API_KEY'], vaultItem: 'openclaw-moonshot-api-key' },
   { id: 'ollama', name: 'Ollama (Local)', category: 'ai', envVars: ['OLLAMA_API_KEY'], vaultItem: 'openclaw-ollama-api-key' },
@@ -774,6 +775,20 @@ async function handleTest(
         const key = getEffectiveEnvValue(envMap, 'VENICE_API_KEY')
         if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
         const res = await fetch('https://api.venice.ai/api/v1/models', {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(5000),
+        })
+        result = res.ok
+          ? { ok: true, detail: 'API key valid' }
+          : { ok: false, detail: `HTTP ${res.status}` }
+        break
+      }
+
+      case 'uberllm': {
+        const key = getEffectiveEnvValue(envMap, 'UBERLLM_API_KEY')
+        if (!key) return NextResponse.json({ ok: false, detail: 'API key not set' })
+        // /v1/models is public, so check the key against /v1/balance (requires auth)
+        const res = await fetch('https://api.uberllm.dev/v1/balance', {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(5000),
         })
