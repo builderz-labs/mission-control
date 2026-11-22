@@ -49,7 +49,7 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   // (https://openrouter.ai/moonshotai/kimi-k2.5, Moonshot list price);
   // MiniMax M2.1 $0.30/$1.20 (https://platform.minimax.io/docs/guides/pricing-paygo);
   // Venice https://docs.venice.ai/overview/pricing;
-  // UberLLM https://uberllm.dev/models (verified 2026-11-10).
+  // MartLLM https://martllm.com/models (verified 2026-11-10).
   'groq/llama-3.1-8b-instant': { inputPerMTok: 0.05, outputPerMTok: 0.08 },
   'groq/llama-3.3-70b-versatile': { inputPerMTok: 0.59, outputPerMTok: 0.79 },
   'minimax/minimax-m2.1': { inputPerMTok: 0.3, outputPerMTok: 1.2 },
@@ -60,7 +60,7 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'ollama/qwen2.5-coder:14b': { inputPerMTok: 0.0, outputPerMTok: 0.0 },
   'ollama/qwen2.5-coder:7b': { inputPerMTok: 0.0, outputPerMTok: 0.0 },
   'venice/llama-3.3-70b': { inputPerMTok: 0.7, outputPerMTok: 2.8 },
-  'uberllm/meta-llama/llama-3.3-70b-instruct': { inputPerMTok: 0.077, outputPerMTok: 0.0781 },
+  'martllm/meta-llama/llama-3.3-70b-instruct': { inputPerMTok: 0.077, outputPerMTok: 0.0781 },
 }
 
 function normalizedModelName(modelName: string): string {
